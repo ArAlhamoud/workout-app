@@ -2,23 +2,29 @@ import Link from 'next/link';
 
 export default function Navbar() {
   return (
-    <nav className="bg-gray-900 border-b border-gray-800">
-      <div className="container mx-auto px-4 max-w-5xl flex items-center justify-between h-16">
-        <Link href="/" className="text-xl font-bold text-white hover:text-blue-400 transition-colors">
+    <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-10">
+      <div className="container mx-auto px-4 max-w-2xl flex items-center justify-between h-14">
+        <Link href="/" className="font-bold text-white text-sm tracking-tight">
           WorkoutTracker
         </Link>
-        <div className="flex items-center gap-6">
-          <Link href="/workouts" className="text-gray-300 hover:text-white transition-colors">
-            Workouts
+        <div className="flex items-center gap-1">
+          <Link
+            href="/program"
+            className="text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 text-sm transition-colors"
+          >
+            Program
           </Link>
-          <Link href="/exercises" className="text-gray-300 hover:text-white transition-colors">
-            Exercises
+          <Link
+            href="/workouts"
+            className="text-gray-400 hover:text-white px-3 py-1.5 rounded-lg hover:bg-gray-800 text-sm transition-colors"
+          >
+            History
           </Link>
           <Link
             href="/workouts/new"
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ml-1"
           >
-            + Log Workout
+            + Log
           </Link>
         </div>
       </div>

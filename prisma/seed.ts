@@ -2,46 +2,39 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+// Names here must exactly match src/lib/program.ts
 const exercises = [
-  { name: 'Bench Press', category: 'CHEST' },
-  { name: 'Incline Bench Press', category: 'CHEST' },
-  { name: 'Dumbbell Flyes', category: 'CHEST' },
-  { name: 'Push-ups', category: 'CHEST' },
-  { name: 'Pull-ups', category: 'BACK' },
-  { name: 'Barbell Row', category: 'BACK' },
-  { name: 'Lat Pulldown', category: 'BACK' },
-  { name: 'Seated Cable Row', category: 'BACK' },
-  { name: 'Deadlift', category: 'BACK' },
-  { name: 'Squat', category: 'LEGS' },
-  { name: 'Romanian Deadlift', category: 'LEGS' },
+  // Day A — Chest / Quads / Shoulders
   { name: 'Leg Press', category: 'LEGS' },
-  { name: 'Leg Curl', category: 'LEGS' },
+  { name: 'Chest Press', category: 'CHEST' },
+  { name: 'Shoulder Press', category: 'SHOULDERS' },
   { name: 'Leg Extension', category: 'LEGS' },
-  { name: 'Calf Raise', category: 'LEGS' },
-  { name: 'Overhead Press', category: 'SHOULDERS' },
-  { name: 'Dumbbell Lateral Raise', category: 'SHOULDERS' },
-  { name: 'Front Raise', category: 'SHOULDERS' },
-  { name: 'Face Pull', category: 'SHOULDERS' },
-  { name: 'Barbell Curl', category: 'ARMS' },
-  { name: 'Dumbbell Curl', category: 'ARMS' },
-  { name: 'Tricep Pushdown', category: 'ARMS' },
-  { name: 'Skull Crushers', category: 'ARMS' },
-  { name: 'Hammer Curl', category: 'ARMS' },
+  { name: 'Lateral Raise', category: 'SHOULDERS' },
+  { name: 'Pec Fly', category: 'CHEST' },
+  { name: 'Standing Calf Raise', category: 'LEGS' },
   { name: 'Plank', category: 'CORE' },
-  { name: 'Crunches', category: 'CORE' },
-  { name: 'Leg Raises', category: 'CORE' },
-  { name: 'Russian Twists', category: 'CORE' },
-  { name: 'Running', category: 'CARDIO' },
-  { name: 'Cycling', category: 'CARDIO' },
-  { name: 'Jump Rope', category: 'CARDIO' },
+  // Day B — Back / Hamstrings / Arms
+  { name: 'Lat Pulldown', category: 'BACK' },
+  { name: 'Mid Row', category: 'BACK' },
+  { name: 'Leg Curl', category: 'LEGS' },
+  { name: 'Rear Delt Fly', category: 'SHOULDERS' },
+  { name: 'Bicep Curl', category: 'ARMS' },
+  { name: 'Triceps Extension', category: 'ARMS' },
+  { name: 'Cable Face Pull', category: 'SHOULDERS' },
+  { name: 'Ab Crunch', category: 'CORE' },
 ];
 
 async function main() {
-  console.log('Seeding exercises...');
+  console.log('Seeding program exercises...');
+  let seeded = 0;
   for (const exercise of exercises) {
-    await prisma.exercise.create({ data: exercise });
+    const exists = await prisma.exercise.findFirst({ where: { name: exercise.name } });
+    if (!exists) {
+      await prisma.exercise.create({ data: exercise });
+      seeded++;
+    }
   }
-  console.log(`Seeded ${exercises.length} exercises`);
+  console.log(`Done — ${seeded} new exercises added (${exercises.length - seeded} already existed).`);
 }
 
 main()
