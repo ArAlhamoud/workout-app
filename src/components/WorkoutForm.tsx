@@ -9,6 +9,13 @@ interface Exercise {
   category: string;
 }
 
+interface InitialExercise {
+  exerciseId: string;
+  sets: number;
+  defaultReps: number;
+  name: string;
+}
+
 interface SetEntry {
   exerciseId: string;
   setNumber: number;
@@ -22,12 +29,33 @@ interface ExerciseBlock {
   sets: SetEntry[];
 }
 
-export default function WorkoutForm({ exercises }: { exercises: Exercise[] }) {
+function buildBlocks(initialExercises: InitialExercise[]): ExerciseBlock[] {
+  return initialExercises.map((ie) => ({
+    uid: Math.random().toString(36).slice(2),
+    exerciseId: ie.exerciseId,
+    sets: Array.from({ length: ie.sets }, (_, i) => ({
+      exerciseId: ie.exerciseId,
+      setNumber: i + 1,
+      reps: ie.defaultReps,
+      weight: 0,
+    })),
+  }));
+}
+
+export default function WorkoutForm({
+  exercises,
+  initialName = '',
+  initialExercises = [],
+}: {
+  exercises: Exercise[];
+  initialName?: string;
+  initialExercises?: InitialExercise[];
+}) {
   const today = new Date().toISOString().split('T')[0];
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName);
   const [date, setDate] = useState(today);
   const [notes, setNotes] = useState('');
-  const [blocks, setBlocks] = useState<ExerciseBlock[]>([]);
+  const [blocks, setBlocks] = useState<ExerciseBlock[]>(() => buildBlocks(initialExercises));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,7 +64,7 @@ export default function WorkoutForm({ exercises }: { exercises: Exercise[] }) {
     setBlocks((prev) => [
       ...prev,
       {
-        uid: crypto.randomUUID(),
+        uid: Math.random().toString(36).slice(2),
         exerciseId: exercises[0].id,
         sets: [{ exerciseId: exercises[0].id, setNumber: 1, reps: 10, weight: 0 }],
       },
@@ -106,8 +134,14 @@ export default function WorkoutForm({ exercises }: { exercises: Exercise[] }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!name.trim()) { setError('Workout name is required'); return; }
-    if (!blocks.length) { setError('Add at least one exercise'); return; }
+    if (!name.trim()) {
+      setError('Workout name is required');
+      return;
+    }
+    if (!blocks.length) {
+      setError('Add at least one exercise');
+      return;
+    }
     setSubmitting(true);
     try {
       await createWorkout({
@@ -128,122 +162,172 @@ export default function WorkoutForm({ exercises }: { exercises: Exercise[] }) {
     return acc;
   }, {});
 
+  const exerciseById = new Map(exercises.map((e) => [e.id, e]));
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 space-y-4">
-        <h2 className="font-semibold text-white">Workout Details</h2>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Workout Details */}
+      <div className="bg-gray-900 rounded-2xl p-5 border border-gray-800 space-y-4">
         <div>
-          <label className="block text-sm text-gray-400 mb-1">Name *</label>
+          <label className="block text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1.5">
+            Name
+          </label>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Push Day, Leg Day..."
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            placeholder="e.g. Day A — Apr 15"
+            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm"
           />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Date</label>
+            <label className="block text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1.5">
+              Date
+            </label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white focus:outline-none focus:border-blue-500 text-sm"
             />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Notes</label>
+            <label className="block text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1.5">
+              Notes
+            </label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              placeholder="Optional"
+              className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3.5 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm"
             />
           </div>
         </div>
       </div>
 
-      {blocks.map((block) => (
-        <div key={block.uid} className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-          <div className="flex items-center gap-3 mb-4">
-            <select
-              value={block.exerciseId}
-              onChange={(e) => updateBlockExercise(block.uid, e.target.value)}
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-            >
-              {Object.entries(exerciseGroups).map(([cat, exs]) => (
-                <optgroup key={cat} label={cat}>
-                  {exs.map((ex) => (
-                    <option key={ex.id} value={ex.id}>{ex.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            <button type="button" onClick={() => removeBlock(block.uid)} className="text-gray-500 hover:text-red-400 transition-colors px-1">
-              &times;
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            <div className="grid grid-cols-12 text-xs text-gray-500 font-medium uppercase tracking-wide px-1">
-              <span className="col-span-2">Set</span>
-              <span className="col-span-4">Weight (kg)</span>
-              <span className="col-span-4">Reps</span>
-              <span className="col-span-2"></span>
+      {/* Exercise Blocks */}
+      {blocks.map((block, blockIdx) => {
+        const currentExercise = exerciseById.get(block.exerciseId);
+        return (
+          <div key={block.uid} className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+            {/* Exercise header */}
+            <div className="flex items-center gap-3 px-5 pt-4 pb-3 border-b border-gray-800">
+              <span className="text-gray-700 text-sm font-bold tabular-nums w-5 flex-shrink-0">
+                {blockIdx + 1}
+              </span>
+              <select
+                value={block.exerciseId}
+                onChange={(e) => updateBlockExercise(block.uid, e.target.value)}
+                className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+              >
+                {Object.entries(exerciseGroups).sort().map(([cat, exs]) => (
+                  <optgroup key={cat} label={cat}>
+                    {exs.map((ex) => (
+                      <option key={ex.id} value={ex.id}>
+                        {ex.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => removeBlock(block.uid)}
+                className="text-gray-600 hover:text-red-400 transition-colors text-xl leading-none flex-shrink-0"
+              >
+                ×
+              </button>
             </div>
-            {block.sets.map((set, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                <span className="col-span-2 text-sm text-gray-400 pl-1">{set.setNumber}</span>
-                <input
-                  type="number" value={set.weight} min="0" step="0.5"
-                  onChange={(e) => updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)}
-                  className="col-span-4 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
-                />
-                <input
-                  type="number" value={set.reps} min="0"
-                  onChange={(e) => updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)}
-                  className="col-span-4 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
-                />
-                <button
-                  type="button" onClick={() => removeSet(block.uid, i)}
-                  disabled={block.sets.length === 1}
-                  className="col-span-2 text-gray-600 hover:text-red-400 transition-colors disabled:opacity-30 text-center"
-                >
-                  &times;
-                </button>
-              </div>
-            ))}
-          </div>
-          <button type="button" onClick={() => addSet(block.uid)} className="mt-3 text-sm text-blue-400 hover:text-blue-300 transition-colors">
-            + Add set
-          </button>
-        </div>
-      ))}
 
+            {/* Sets */}
+            <div className="px-5 py-3 space-y-2">
+              <div className="grid grid-cols-12 text-xs text-gray-600 font-semibold uppercase tracking-wide">
+                <span className="col-span-2">Set</span>
+                <span className="col-span-5">Weight (kg)</span>
+                <span className="col-span-4">Reps</span>
+                <span className="col-span-1"></span>
+              </div>
+              {block.sets.map((set, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                  <span className="col-span-2 text-sm text-gray-500 font-medium">
+                    {set.setNumber}
+                  </span>
+                  <input
+                    type="number"
+                    value={set.weight}
+                    min="0"
+                    step="0.5"
+                    onChange={(e) =>
+                      updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)
+                    }
+                    className="col-span-5 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 tabular-nums"
+                  />
+                  <input
+                    type="number"
+                    value={set.reps}
+                    min="0"
+                    onChange={(e) =>
+                      updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
+                    }
+                    className="col-span-4 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500 tabular-nums"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeSet(block.uid, i)}
+                    disabled={block.sets.length === 1}
+                    className="col-span-1 text-gray-600 hover:text-red-400 transition-colors disabled:opacity-20 text-lg leading-none text-center"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-5 pb-4">
+              <button
+                type="button"
+                onClick={() => addSet(block.uid)}
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium"
+              >
+                + Add set
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Add Exercise */}
       {exercises.length > 0 ? (
         <button
-          type="button" onClick={addExercise}
-          className="w-full bg-gray-900 border border-gray-700 border-dashed hover:border-blue-500 rounded-xl p-4 text-gray-400 hover:text-blue-400 transition-colors"
+          type="button"
+          onClick={addExercise}
+          className="w-full bg-gray-900 border border-gray-700 border-dashed hover:border-blue-500 rounded-2xl p-4 text-gray-500 hover:text-blue-400 text-sm font-medium transition-colors"
         >
           + Add Exercise
         </button>
       ) : (
-        <div className="bg-gray-900 border border-yellow-900 rounded-xl p-4 text-yellow-400 text-sm text-center">
-          No exercises in library. <a href="/exercises" className="underline">Add exercises first</a>
+        <div className="bg-gray-900 border border-yellow-900/50 rounded-2xl p-4 text-yellow-400 text-sm text-center">
+          No exercises in library.{' '}
+          <a href="/exercises" className="underline">
+            Add exercises first
+          </a>
         </div>
       )}
 
       {error && (
-        <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 text-red-400 text-sm">{error}</div>
+        <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-3 text-red-400 text-sm">
+          {error}
+        </div>
       )}
 
       <button
-        type="submit" disabled={submitting}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:text-blue-400 text-white py-3 rounded-xl font-semibold transition-colors"
+        type="submit"
+        disabled={submitting}
+        className="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-blue-900 disabled:text-blue-400 text-white py-3.5 rounded-2xl font-bold text-sm transition-colors"
       >
-        {submitting ? 'Saving...' : 'Save Workout'}
+        {submitting ? 'Saving…' : 'Save Workout'}
       </button>
     </form>
   );
