@@ -30,18 +30,21 @@ export default async function NewWorkoutPage({
           sets: te.sets,
           defaultReps: te.repsMin,
           name: te.name,
+          cues: te.cues,
+          rest: te.rest,
+          targetReps: te.repsDisplay,
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
   })();
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-white">
           {validDay ? `Day ${validDay} Workout` : 'Log Workout'}
         </h1>
-        <p className="text-gray-400 mt-1 text-sm">
+        <p className="text-gray-500 mt-1 text-sm">
           {validDay ? getDayTemplate(validDay).focus : 'Record your training session'}
         </p>
       </div>
