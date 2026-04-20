@@ -20,6 +20,7 @@ model Workout {
   name      String
   date      DateTime     @default(now())
   notes     String?
+  duration  Int?
   sets      WorkoutSet[]
   createdAt DateTime     @default(now())
 }

@@ -1,4 +1,4 @@
-import { getExercises } from '../../actions';
+import { getExercises, getLastSessionForExercises, getPersonalRecords } from '../../actions';
 import WorkoutForm from '@/components/WorkoutForm';
 import { getDayTemplate } from '@/lib/program';
 
@@ -38,6 +38,12 @@ export default async function NewWorkoutPage({
       .filter((x): x is NonNullable<typeof x> => x !== null);
   })();
 
+  const exerciseIds = initialExercises.map((e) => e.exerciseId);
+  const [lastSession, personalRecords] = await Promise.all([
+    getLastSessionForExercises(exerciseIds),
+    getPersonalRecords(),
+  ]);
+
   return (
     <div className="space-y-5">
       <div>
@@ -52,6 +58,8 @@ export default async function NewWorkoutPage({
         exercises={exercises}
         initialName={initialName}
         initialExercises={initialExercises}
+        lastSession={lastSession}
+        personalRecords={personalRecords}
       />
     </div>
   );

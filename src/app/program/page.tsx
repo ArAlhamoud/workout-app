@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, CARDIO } from '@/lib/program';
+import { getExercises } from '@/app/actions';
 
 const badgeColors: Record<string, string> = {
   BEST: 'bg-green-900/50 text-green-300',
@@ -17,7 +18,10 @@ const phaseColors: Record<string, string> = {
   EVALUATE: 'bg-orange-900/50 text-orange-300',
 };
 
-export default function ProgramPage() {
+export default async function ProgramPage() {
+  const exercises = await getExercises();
+  const exerciseIdByName = new Map(exercises.map((e) => [e.name, e.id]));
+
   return (
     <div className="space-y-8 pb-8">
       {/* Header */}
@@ -81,27 +85,31 @@ export default function ProgramPage() {
           <span className="text-gray-400 text-xs">{DAY_A.warmup}</span>
         </div>
         <div className="space-y-2">
-          {DAY_A.exercises.map((ex, i) => (
-            <div key={ex.name} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-white font-semibold text-sm">{ex.name}</span>
-                    <span className="text-xs bg-blue-600/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-700/40">
-                      {ex.sets}×{ex.repsDisplay}
-                    </span>
+          {DAY_A.exercises.map((ex, i) => {
+            const exId = exerciseIdByName.get(ex.name);
+            return (
+              <div key={ex.name} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white font-semibold text-sm">{ex.name}</span>
+                      <span className="text-xs bg-blue-600/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-700/40">
+                        {ex.sets}×{ex.repsDisplay}
+                      </span>
+                      {exId && (
+                        <Link href={`/progress/${exId}`} className="text-xs text-gray-600 hover:text-blue-400 transition-colors">
+                          Progress →
+                        </Link>
+                      )}
+                    </div>
+                    <div className="text-gray-500 text-xs mt-1">{ex.machine} · {ex.rest} rest</div>
+                    <div className="text-gray-400 text-xs mt-1.5 leading-relaxed">{ex.cues}</div>
                   </div>
-                  <div className="text-gray-500 text-xs mt-1">
-                    {ex.machine} · {ex.rest} rest
-                  </div>
-                  <div className="text-gray-400 text-xs mt-1.5 leading-relaxed">{ex.cues}</div>
-                </div>
-                <div className="text-gray-700 text-lg font-black flex-shrink-0 tabular-nums">
-                  {i + 1}
+                  <div className="text-gray-700 text-lg font-black flex-shrink-0 tabular-nums">{i + 1}</div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="bg-gray-900/50 rounded-xl border border-gray-800 px-4 py-3 mt-3">
           <span className="text-gray-500 uppercase tracking-wide font-semibold text-xs">
@@ -130,27 +138,31 @@ export default function ProgramPage() {
           <span className="text-gray-400 text-xs">{DAY_B.warmup}</span>
         </div>
         <div className="space-y-2">
-          {DAY_B.exercises.map((ex, i) => (
-            <div key={ex.name} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-white font-semibold text-sm">{ex.name}</span>
-                    <span className="text-xs bg-violet-700/20 text-violet-300 px-2 py-0.5 rounded-full border border-violet-700/40">
-                      {ex.sets}×{ex.repsDisplay}
-                    </span>
+          {DAY_B.exercises.map((ex, i) => {
+            const exId = exerciseIdByName.get(ex.name);
+            return (
+              <div key={ex.name} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-white font-semibold text-sm">{ex.name}</span>
+                      <span className="text-xs bg-violet-700/20 text-violet-300 px-2 py-0.5 rounded-full border border-violet-700/40">
+                        {ex.sets}×{ex.repsDisplay}
+                      </span>
+                      {exId && (
+                        <Link href={`/progress/${exId}`} className="text-xs text-gray-600 hover:text-violet-400 transition-colors">
+                          Progress →
+                        </Link>
+                      )}
+                    </div>
+                    <div className="text-gray-500 text-xs mt-1">{ex.machine} · {ex.rest} rest</div>
+                    <div className="text-gray-400 text-xs mt-1.5 leading-relaxed">{ex.cues}</div>
                   </div>
-                  <div className="text-gray-500 text-xs mt-1">
-                    {ex.machine} · {ex.rest} rest
-                  </div>
-                  <div className="text-gray-400 text-xs mt-1.5 leading-relaxed">{ex.cues}</div>
-                </div>
-                <div className="text-gray-700 text-lg font-black flex-shrink-0 tabular-nums">
-                  {i + 1}
+                  <div className="text-gray-700 text-lg font-black flex-shrink-0 tabular-nums">{i + 1}</div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="bg-gray-900/50 rounded-xl border border-gray-800 px-4 py-3 mt-3">
           <span className="text-gray-500 uppercase tracking-wide font-semibold text-xs">

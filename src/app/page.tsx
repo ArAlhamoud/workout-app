@@ -2,45 +2,64 @@ import Link from 'next/link';
 import { getWorkouts } from './actions';
 import { SCHEDULE } from '@/lib/program';
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(
-    new Date(date),
-  );
-}
-
 function formatRelative(date: Date): string {
-  const now = new Date();
-  const d = new Date(date);
-  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  const diffDays = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return `${diffDays}d ago`;
-  return formatDate(date);
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(date));
+}
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
 export default async function Home() {
   const workouts = await getWorkouts();
   const recentWorkouts = workouts.slice(0, 4);
+
   const totalSets = workouts.reduce((sum, w) => sum + w.sets.length, 0);
   const totalVolume = workouts.reduce(
     (sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0),
     0,
   );
 
+  // Week stats
+  const weekStart = new Date();
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+  weekStart.setHours(0, 0, 0, 0);
+  const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
+
+  // Consecutive week streak
+  const workoutWeeks = new Set(
+    workouts.map((w) => {
+      const d = new Date(w.date);
+      const jan1 = new Date(d.getFullYear(), 0, 1);
+      return `${d.getFullYear()}-${Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7)}`;
+    }),
+  );
+  let streak = 0;
+  const now = new Date();
+  for (let i = 0; i < 52; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7);
+    const jan1 = new Date(d.getFullYear(), 0, 1);
+    const key = `${d.getFullYear()}-${Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7)}`;
+    if (workoutWeeks.has(key)) streak++;
+    else if (i === 0) continue;
+    else break;
+  }
+
   // Today's schedule
-  const todayIdx = new Date().getDay(); // 0=Sun
+  const todayIdx = new Date().getDay();
   const today = SCHEDULE[todayIdx];
   const isGymDay = today?.type === 'gym';
-
-  // Find next gym day (for rest days)
   let nextGymDay: (typeof SCHEDULE)[0] | null = null;
   if (!isGymDay) {
     for (let i = 1; i <= 7; i++) {
       const s = SCHEDULE[(todayIdx + i) % 7];
-      if (s?.type === 'gym') {
-        nextGymDay = s;
-        break;
-      }
+      if (s?.type === 'gym') { nextGymDay = s; break; }
     }
   }
 
@@ -48,22 +67,22 @@ export default async function Home() {
     <div className="space-y-5">
       {/* Today banner */}
       {isGymDay ? (
-        <div className="rounded-2xl bg-green-900/20 border border-green-800/40 px-4 py-3 flex items-center justify-between">
+        <div className="rounded-2xl bg-green-950/40 border border-green-800/40 px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="text-green-400 text-xs font-bold uppercase tracking-widest">Today</p>
+            <p className="text-green-500 text-xs font-bold uppercase tracking-widest">Today</p>
             <p className="text-white font-semibold text-sm mt-0.5">Gym day — pick a workout below</p>
           </div>
-          <div className="text-green-400 text-xl">↓</div>
+          <span className="text-green-500 text-xl">↓</span>
         </div>
       ) : (
         <div className="rounded-2xl bg-gray-900 border border-gray-800 px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Today</p>
+            <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">Today</p>
             <p className="text-gray-300 font-semibold text-sm mt-0.5">Rest day — recover well</p>
           </div>
           {nextGymDay && (
-            <p className="text-gray-500 text-xs text-right">
-              Next gym:<br />
+            <p className="text-gray-600 text-xs text-right">
+              Next gym<br />
               <span className="text-gray-300 font-semibold">{nextGymDay.day}</span>
             </p>
           )}
@@ -82,13 +101,9 @@ export default async function Home() {
           >
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
             <div className="text-xl font-black text-white">Day A</div>
-            <div className="text-blue-200 text-xs mt-0.5 leading-snug">
-              Chest · Quads<br />Shoulders
-            </div>
+            <div className="text-blue-200 text-xs mt-0.5 leading-snug">Chest · Quads<br />Shoulders</div>
             <div className="mt-3 text-blue-300/70 text-xs">8 exercises</div>
-            <div className="absolute bottom-3 right-3 text-white/20 text-2xl font-black group-hover:text-white/40 transition-colors">
-              →
-            </div>
+            <div className="absolute bottom-3 right-3 text-white/20 text-2xl font-black group-hover:text-white/40 transition-colors">→</div>
           </Link>
           <Link
             href="/workouts/new?day=B"
@@ -96,35 +111,35 @@ export default async function Home() {
           >
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
             <div className="text-xl font-black text-white">Day B</div>
-            <div className="text-violet-200 text-xs mt-0.5 leading-snug">
-              Back · Hamstrings<br />Arms
-            </div>
+            <div className="text-violet-200 text-xs mt-0.5 leading-snug">Back · Hamstrings<br />Arms</div>
             <div className="mt-3 text-violet-300/70 text-xs">8 exercises</div>
-            <div className="absolute bottom-3 right-3 text-white/20 text-2xl font-black group-hover:text-white/40 transition-colors">
-              →
-            </div>
+            <div className="absolute bottom-3 right-3 text-white/20 text-2xl font-black group-hover:text-white/40 transition-colors">→</div>
           </Link>
         </div>
       </div>
 
-      {/* Stats — only when there's data */}
+      {/* Stats */}
       {workouts.length > 0 && (
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-gray-900 rounded-xl p-3.5 text-center border border-gray-800">
-            <div className="text-xl font-bold text-white">{workouts.length}</div>
+        <div className="grid grid-cols-4 gap-2">
+          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+            <div className="text-lg font-bold text-white">{workouts.length}</div>
             <div className="text-gray-600 text-xs mt-0.5">Sessions</div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-3.5 text-center border border-gray-800">
-            <div className="text-xl font-bold text-white">{totalSets}</div>
-            <div className="text-gray-600 text-xs mt-0.5">Total Sets</div>
+          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+            <div className="text-lg font-bold text-white">{sessionsThisWeek}/3</div>
+            <div className="text-gray-600 text-xs mt-0.5">This week</div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-3.5 text-center border border-gray-800">
-            <div className="text-xl font-bold text-white">
-              {totalVolume >= 1000
-                ? `${(totalVolume / 1000).toFixed(1)}k`
-                : Math.round(totalVolume)}
+          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+            <div className={`text-lg font-bold ${streak > 0 ? 'text-orange-400' : 'text-white'}`}>
+              {streak > 0 ? `${streak}🔥` : '—'}
             </div>
-            <div className="text-gray-600 text-xs mt-0.5">kg Volume</div>
+            <div className="text-gray-600 text-xs mt-0.5">Wk streak</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+            <div className="text-lg font-bold text-white">
+              {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)}
+            </div>
+            <div className="text-gray-600 text-xs mt-0.5">kg Vol.</div>
           </div>
         </div>
       )}
@@ -167,7 +182,9 @@ export default async function Home() {
                   </div>
                   <div className="text-right ml-4 flex-shrink-0">
                     <div className="text-gray-500 text-xs">{formatRelative(workout.date)}</div>
-                    <div className="text-gray-700 text-xs mt-0.5">{workout.sets.length} sets</div>
+                    {workout.duration && (
+                      <div className="text-gray-700 text-xs mt-0.5">{formatDuration(workout.duration)}</div>
+                    )}
                   </div>
                 </Link>
               );
