@@ -245,6 +245,48 @@ export default async function ProgramPage() {
         </div>
       </section>
 
+      {/* Your Profile */}
+      <section>
+        <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-3">
+          Your Profile
+        </p>
+        <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+          <div className="grid grid-cols-3 divide-x divide-gray-800">
+            <div className="p-3 text-center">
+              <div className="text-white font-bold text-base">135 kg</div>
+              <div className="text-gray-500 text-xs mt-0.5">Weight</div>
+            </div>
+            <div className="p-3 text-center">
+              <div className="text-white font-bold text-base">169 cm</div>
+              <div className="text-gray-500 text-xs mt-0.5">Height</div>
+            </div>
+            <div className="p-3 text-center">
+              <div className="text-white font-bold text-base">37 yrs</div>
+              <div className="text-gray-500 text-xs mt-0.5">Age</div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 divide-x divide-gray-800 border-t border-gray-800">
+            <div className="p-3 text-center">
+              <div className="text-orange-400 font-bold text-base">BMI 47</div>
+              <div className="text-gray-500 text-xs mt-0.5">Class III</div>
+            </div>
+            <div className="p-3 text-center">
+              <div className="text-green-400 font-bold text-base">Fat Loss</div>
+              <div className="text-gray-500 text-xs mt-0.5">Goal</div>
+            </div>
+            <div className="p-3 text-center">
+              <div className="text-blue-400 font-bold text-base">Desk</div>
+              <div className="text-gray-500 text-xs mt-0.5">Lifestyle</div>
+            </div>
+          </div>
+          <div className="border-t border-gray-800 p-3">
+            <div className="text-gray-500 text-xs text-center">
+              TDEE ~2,670 kcal · Target deficit −600 kcal/day · ~0.5–0.7 kg/week loss
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Nutrition Guide */}
       <section>
         <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-3">
@@ -254,34 +296,48 @@ export default async function ProgramPage() {
           <div className="p-4 border-b border-gray-800">
             <div className="text-white font-semibold text-sm mb-1">Calorie Target</div>
             <div className="text-gray-400 text-xs">
-              ~1,800–2,000 kcal/day (adjust based on hunger & progress)
+              ~2,100 kcal/day — calculated from your TDEE (2,670) minus a 600 kcal deficit
             </div>
           </div>
           <div className="p-4 border-b border-gray-800">
             <div className="text-white font-semibold text-sm mb-3">Daily Macros</div>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-800/30">
-                <div className="text-blue-400 font-bold text-lg">~130g</div>
+                <div className="text-blue-400 font-bold text-lg">160g</div>
                 <div className="text-gray-500 text-xs mt-0.5">Protein</div>
+                <div className="text-gray-700 text-xs">640 kcal</div>
               </div>
               <div className="bg-yellow-900/20 rounded-lg p-3 border border-yellow-800/30">
-                <div className="text-yellow-400 font-bold text-lg">~200g</div>
+                <div className="text-yellow-400 font-bold text-lg">215g</div>
                 <div className="text-gray-500 text-xs mt-0.5">Carbs</div>
+                <div className="text-gray-700 text-xs">860 kcal</div>
               </div>
               <div className="bg-green-900/20 rounded-lg p-3 border border-green-800/30">
-                <div className="text-green-400 font-bold text-lg">~50g</div>
+                <div className="text-green-400 font-bold text-lg">67g</div>
                 <div className="text-gray-500 text-xs mt-0.5">Fat</div>
+                <div className="text-gray-700 text-xs">600 kcal</div>
               </div>
             </div>
           </div>
-          <div className="p-4">
+          <div className="p-4 border-b border-gray-800">
             <div className="text-white font-semibold text-sm mb-2">Rules</div>
             <ul className="space-y-1.5 text-gray-400 text-xs">
-              <li>· Protein at every meal — chicken, eggs, Greek yogurt, legumes</li>
-              <li>· Vegetables fill half the plate</li>
-              <li>· Eat within 60 min after each workout</li>
+              <li>· Protein at every meal — chicken, eggs, Greek yogurt, legumes, cottage cheese</li>
+              <li>· Vegetables fill half the plate — non-negotiable</li>
+              <li>· Eat within 60 min after each workout (prioritise protein)</li>
               <li>· Limit ultra-processed foods — not zero, just not daily</li>
-              <li>· Drink 2–3 L water/day</li>
+              <li>· Drink 3–4 L water/day (higher at 135 kg)</li>
+              <li>· Don't eat back gym calories — deficit is already moderate</li>
+            </ul>
+          </div>
+          <div className="p-4">
+            <div className="text-white font-semibold text-sm mb-2">Joint-First Approach</div>
+            <ul className="space-y-1.5 text-gray-400 text-xs">
+              <li>· All exercises are machine-based — no free-weight barbell loading on joints</li>
+              <li>· RDL only on Smith Machine or light dumbbells — learn the hinge before loading</li>
+              <li>· Avoid treadmill running — walking only at 4–5 km/h, low incline</li>
+              <li>· Swimming is your best cardio — zero joint impact, maximum calorie burn</li>
+              <li>· Progress weight slowly — joint adaptation lags behind muscle strength</li>
             </ul>
           </div>
         </div>
