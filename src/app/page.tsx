@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { getWorkouts } from './actions';
-import { SCHEDULE } from '@/lib/program';
+import { SCHEDULE, getExerciseCountForDuration } from '@/lib/program';
+
+const DURATIONS = [30, 45, 60] as const;
 
 function formatRelative(date: Date): string {
   const diffDays = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
@@ -89,32 +91,55 @@ export default async function Home() {
         </div>
       )}
 
-      {/* Start workout cards */}
+      {/* Start workout — pick a day & duration */}
       <div>
         <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold mb-2.5">
           Start a Workout
         </p>
-        <div className="grid grid-cols-2 gap-3">
-          <Link
-            href="/workouts/new?day=A"
-            className="relative overflow-hidden bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-2xl p-4 transition-all active:scale-95 group block"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
-            <div className="text-xl font-black text-white">Day A</div>
-            <div className="text-blue-200 text-xs mt-0.5 leading-snug">Chest · Quads<br />Shoulders</div>
-            <div className="mt-3 text-blue-300/70 text-xs">8 exercises</div>
-            <div className="absolute bottom-3 right-3 text-white/20 text-2xl font-black group-hover:text-white/40 transition-colors">→</div>
-          </Link>
-          <Link
-            href="/workouts/new?day=B"
-            className="relative overflow-hidden bg-violet-700 hover:bg-violet-600 active:bg-violet-800 rounded-2xl p-4 transition-all active:scale-95 group block"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
-            <div className="text-xl font-black text-white">Day B</div>
-            <div className="text-violet-200 text-xs mt-0.5 leading-snug">Back · Hamstrings<br />Arms</div>
-            <div className="mt-3 text-violet-300/70 text-xs">8 exercises</div>
-            <div className="absolute bottom-3 right-3 text-white/20 text-2xl font-black group-hover:text-white/40 transition-colors">→</div>
-          </Link>
+        <div className="space-y-3">
+          {/* Day A */}
+          <div className="bg-blue-600 rounded-2xl overflow-hidden">
+            <div className="px-4 pt-3 pb-2.5">
+              <div className="text-white font-black text-base">Day A</div>
+              <div className="text-blue-200 text-xs mt-0.5">Chest · Quads · Shoulders</div>
+            </div>
+            <div className="grid grid-cols-3 gap-px bg-blue-800/50">
+              {DURATIONS.map((d) => (
+                <Link
+                  key={d}
+                  href={`/workouts/new?day=A&dur=${d}`}
+                  className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 px-2 py-3 text-center transition-colors"
+                >
+                  <div className="text-white font-bold text-sm">{d} min</div>
+                  <div className="text-blue-200 text-xs mt-0.5">
+                    {getExerciseCountForDuration('A', d)} exercises
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Day B */}
+          <div className="bg-violet-700 rounded-2xl overflow-hidden">
+            <div className="px-4 pt-3 pb-2.5">
+              <div className="text-white font-black text-base">Day B</div>
+              <div className="text-violet-200 text-xs mt-0.5">Back · Hamstrings · Arms</div>
+            </div>
+            <div className="grid grid-cols-3 gap-px bg-violet-900/50">
+              {DURATIONS.map((d) => (
+                <Link
+                  key={d}
+                  href={`/workouts/new?day=B&dur=${d}`}
+                  className="bg-violet-700 hover:bg-violet-600 active:bg-violet-800 px-2 py-3 text-center transition-colors"
+                >
+                  <div className="text-white font-bold text-sm">{d} min</div>
+                  <div className="text-violet-200 text-xs mt-0.5">
+                    {getExerciseCountForDuration('B', d)} exercises
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 

@@ -14,6 +14,7 @@ const exercises = [
   { name: 'Standing Calf Raise', category: 'LEGS' },
   { name: 'Plank', category: 'CORE' },
   // Day B — Back / Hamstrings / Arms
+  { name: 'Romanian Deadlift', category: 'LEGS' },
   { name: 'Lat Pulldown', category: 'BACK' },
   { name: 'Mid Row', category: 'BACK' },
   { name: 'Leg Curl', category: 'LEGS' },

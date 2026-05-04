@@ -1,6 +1,12 @@
 import Link from 'next/link';
-import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, CARDIO } from '@/lib/program';
+import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, CARDIO, type Priority } from '@/lib/program';
 import { getExercises } from '@/app/actions';
+
+const priorityBadge: Record<Priority, { label: string; cls: string }> = {
+  1: { label: 'Always', cls: 'bg-green-900/40 text-green-300 border-green-800/40' },
+  2: { label: '45+ min', cls: 'bg-blue-900/40 text-blue-300 border-blue-800/40' },
+  3: { label: '60 min', cls: 'bg-gray-800 text-gray-400 border-gray-700' },
+};
 
 const badgeColors: Record<string, string> = {
   BEST: 'bg-green-900/50 text-green-300',
@@ -87,6 +93,7 @@ export default async function ProgramPage() {
         <div className="space-y-2">
           {DAY_A.exercises.map((ex, i) => {
             const exId = exerciseIdByName.get(ex.name);
+            const pb = priorityBadge[ex.priority];
             return (
               <div key={ex.name} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
                 <div className="flex items-start justify-between gap-3">
@@ -95,6 +102,9 @@ export default async function ProgramPage() {
                       <span className="text-white font-semibold text-sm">{ex.name}</span>
                       <span className="text-xs bg-blue-600/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-700/40">
                         {ex.sets}×{ex.repsDisplay}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide ${pb.cls}`}>
+                        {pb.label}
                       </span>
                       {exId && (
                         <Link href={`/progress/${exId}`} className="text-xs text-gray-600 hover:text-blue-400 transition-colors">
@@ -140,6 +150,7 @@ export default async function ProgramPage() {
         <div className="space-y-2">
           {DAY_B.exercises.map((ex, i) => {
             const exId = exerciseIdByName.get(ex.name);
+            const pb = priorityBadge[ex.priority];
             return (
               <div key={ex.name} className="bg-gray-900 rounded-xl p-4 border border-gray-800">
                 <div className="flex items-start justify-between gap-3">
@@ -148,6 +159,9 @@ export default async function ProgramPage() {
                       <span className="text-white font-semibold text-sm">{ex.name}</span>
                       <span className="text-xs bg-violet-700/20 text-violet-300 px-2 py-0.5 rounded-full border border-violet-700/40">
                         {ex.sets}×{ex.repsDisplay}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide ${pb.cls}`}>
+                        {pb.label}
                       </span>
                       {exId && (
                         <Link href={`/progress/${exId}`} className="text-xs text-gray-600 hover:text-violet-400 transition-colors">
