@@ -104,7 +104,6 @@ export default function WorkoutForm({
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(Date.now());
 
-  // Elapsed workout timer
   useEffect(() => {
     const tick = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
@@ -253,13 +252,13 @@ export default function WorkoutForm({
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Workout details */}
-        <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-3">
+        <div className="bg-gray-900 rounded-2xl p-4 border border-gray-700 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-gray-500 uppercase tracking-widest font-semibold">
               Workout Details
             </span>
-            <span className="text-xs text-gray-600 tabular-nums font-mono">
-              ⏱ {formatElapsed(elapsed)}
+            <span className="text-xs text-gray-400 tabular-nums font-mono bg-gray-800 px-2.5 py-1 rounded-lg">
+              {formatElapsed(elapsed)}
             </span>
           </div>
           <input
@@ -267,7 +266,7 @@ export default function WorkoutForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Day A — Apr 15"
-            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm"
+            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm font-medium"
           />
           <div className="grid grid-cols-2 gap-3">
             <input
@@ -289,14 +288,14 @@ export default function WorkoutForm({
         {/* Progress bar */}
         {totalSets > 0 && (
           <div className="flex items-center gap-3">
-            <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+            <div className="flex-1 bg-gray-800 rounded-full h-2 overflow-hidden">
               <div
                 className="bg-green-500 h-full rounded-full transition-all duration-300"
                 style={{ width: `${(doneCount / totalSets) * 100}%` }}
               />
             </div>
-            <span className="text-gray-600 text-xs tabular-nums flex-shrink-0">
-              {doneCount}/{totalSets} done
+            <span className="text-gray-400 text-xs tabular-nums flex-shrink-0 font-medium">
+              {doneCount}/{totalSets} sets
             </span>
           </div>
         )}
@@ -313,19 +312,19 @@ export default function WorkoutForm({
               key={block.uid}
               className={`rounded-2xl border overflow-hidden transition-all duration-300 ${
                 allDone
-                  ? 'bg-green-950/25 border-green-800/50'
-                  : 'bg-gray-900 border-gray-800'
+                  ? 'bg-green-950/20 border-green-700/60'
+                  : 'bg-gray-900 border-gray-700'
               }`}
             >
               {/* Header */}
-              <div className="flex items-center gap-2 px-4 pt-4 pb-2">
-                <span className="text-gray-700 text-sm font-bold w-5 flex-shrink-0 tabular-nums">
+              <div className="flex items-center gap-2 px-4 pt-3.5 pb-2.5">
+                <span className="text-gray-600 text-sm font-bold w-5 flex-shrink-0 tabular-nums text-center">
                   {blockIdx + 1}
                 </span>
                 <select
                   value={block.exerciseId}
                   onChange={(e) => updateBlockExercise(block.uid, e.target.value)}
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 min-w-0"
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-3 text-white font-semibold text-sm focus:outline-none focus:border-blue-500 min-w-0"
                 >
                   {Object.entries(exerciseGroups)
                     .sort(([a], [b]) => a.localeCompare(b))
@@ -342,16 +341,16 @@ export default function WorkoutForm({
                 <button
                   type="button"
                   onClick={() => removeBlock(block.uid)}
-                  className="text-gray-700 hover:text-red-400 transition-colors text-xl leading-none px-1 flex-shrink-0"
+                  className="w-9 h-9 flex items-center justify-center rounded-xl text-gray-600 hover:text-red-400 hover:bg-red-950/20 transition-colors flex-shrink-0 text-xl"
                 >
                   ×
                 </button>
               </div>
 
               {/* Meta row */}
-              <div className="flex items-center gap-2 px-4 pb-2.5 flex-wrap">
+              <div className="flex items-center gap-2 px-4 pb-3 flex-wrap">
                 {block.lastSession && (
-                  <span className="text-xs bg-gray-800 text-gray-400 px-2.5 py-1 rounded-full border border-gray-700">
+                  <span className="text-xs bg-gray-800 text-gray-300 px-2.5 py-1 rounded-full border border-gray-700 font-medium">
                     Last: {block.lastSession.weight} kg × {block.lastSession.reps}
                   </span>
                 )}
@@ -366,7 +365,7 @@ export default function WorkoutForm({
                   </span>
                 )}
                 {allDone && (
-                  <span className="text-xs bg-green-900/50 text-green-400 px-2.5 py-1 rounded-full border border-green-800/50 font-semibold">
+                  <span className="text-xs bg-green-600 text-white px-2.5 py-1 rounded-full font-bold">
                     ✓ Done
                   </span>
                 )}
@@ -399,27 +398,27 @@ export default function WorkoutForm({
 
               {/* Sets */}
               <div className="px-4 space-y-2 pb-1">
-                <div className="flex items-center gap-2 text-xs text-gray-600 font-semibold uppercase tracking-wide pb-0.5">
+                <div className="flex items-center gap-2 text-xs text-gray-500 font-semibold uppercase tracking-wide pb-0.5">
                   <span className="w-11 flex-shrink-0 text-center">Set</span>
                   <span className="flex-1 text-center">Weight · kg</span>
-                  <span className="w-14 flex-shrink-0 text-center">Reps</span>
-                  <span className="w-5 flex-shrink-0" />
+                  <span className="w-28 flex-shrink-0 text-center">Reps</span>
+                  <span className="w-8 flex-shrink-0" />
                 </div>
                 {block.sets.map((set, i) => (
                   <div
                     key={i}
-                    className={`flex items-center gap-2 rounded-xl px-0.5 py-0.5 transition-all ${
-                      set.done ? 'opacity-50' : ''
+                    className={`flex items-center gap-2 transition-all ${
+                      set.done ? 'opacity-40' : ''
                     }`}
                   >
-                    {/* Big set-done circle */}
+                    {/* Set-done circle */}
                     <button
                       type="button"
                       onClick={() => toggleSetDone(block.uid, i)}
                       className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-95 ${
                         set.done
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-800 text-gray-400 active:bg-gray-700'
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-800 border border-gray-700 text-gray-400 active:bg-gray-700'
                       }`}
                     >
                       {set.done ? '✓' : set.setNumber}
@@ -432,7 +431,7 @@ export default function WorkoutForm({
                         onClick={() =>
                           updateSet(block.uid, i, 'weight', Math.max(0, +(set.weight - 2.5).toFixed(1)))
                         }
-                        className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                        className="px-3 py-3 text-gray-200 active:bg-gray-700 font-bold text-lg flex-shrink-0 select-none"
                       >
                         −
                       </button>
@@ -444,35 +443,55 @@ export default function WorkoutForm({
                         onChange={(e) =>
                           updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)
                         }
-                        className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-2.5"
+                        className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-3"
                       />
                       <button
                         type="button"
                         onClick={() =>
                           updateSet(block.uid, i, 'weight', +(set.weight + 2.5).toFixed(1))
                         }
-                        className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                        className="px-3 py-3 text-gray-200 active:bg-gray-700 font-bold text-lg flex-shrink-0 select-none"
                       >
                         +
                       </button>
                     </div>
 
-                    {/* Reps */}
-                    <input
-                      type="number"
-                      value={set.reps}
-                      min="0"
-                      onChange={(e) =>
-                        updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
-                      }
-                      className="w-14 flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl px-2 py-2.5 text-white text-sm text-center focus:outline-none focus:border-blue-500 tabular-nums"
-                    />
+                    {/* Reps stepper */}
+                    <div className="flex items-center w-28 flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateSet(block.uid, i, 'reps', Math.max(0, set.reps - 1))
+                        }
+                        className="px-2 py-3 text-gray-200 active:bg-gray-700 font-bold text-lg flex-shrink-0 select-none"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        value={set.reps}
+                        min="0"
+                        onChange={(e) =>
+                          updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
+                        }
+                        className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-3"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateSet(block.uid, i, 'reps', set.reps + 1)
+                        }
+                        className="px-2 py-3 text-gray-200 active:bg-gray-700 font-bold text-lg flex-shrink-0 select-none"
+                      >
+                        +
+                      </button>
+                    </div>
 
                     <button
                       type="button"
                       onClick={() => removeSet(block.uid, i)}
                       disabled={block.sets.length === 1}
-                      className="w-5 flex-shrink-0 text-gray-700 hover:text-red-400 transition-colors disabled:opacity-20 text-lg leading-none text-center"
+                      className="w-8 h-8 flex items-center justify-center flex-shrink-0 text-gray-600 hover:text-red-400 hover:bg-red-950/20 transition-colors disabled:opacity-20 text-xl rounded-lg"
                     >
                       ×
                     </button>
@@ -480,7 +499,7 @@ export default function WorkoutForm({
                 ))}
               </div>
 
-              <div className="px-4 pb-4 pt-2">
+              <div className="px-4 pb-4 pt-2.5">
                 <button
                   type="button"
                   onClick={() => addSet(block.uid)}
@@ -520,7 +539,7 @@ export default function WorkoutForm({
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:bg-blue-900 disabled:text-blue-500 text-white py-4 rounded-2xl font-bold text-sm transition-colors"
+          className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:bg-blue-900 disabled:text-blue-500 text-white py-4 rounded-2xl font-bold text-base transition-colors"
         >
           {submitting ? 'Saving…' : 'Save Workout'}
         </button>
