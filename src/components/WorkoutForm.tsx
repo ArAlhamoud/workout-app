@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createWorkout } from '@/app/actions';
+import RestTimer from './RestTimer';
 
 interface Exercise {
   id: string;
@@ -9,36 +10,124 @@ interface Exercise {
   category: string;
 }
 
+interface InitialExercise {
+  exerciseId: string;
+  sets: number;
+  defaultReps: number;
+  name: string;
+  cues?: string;
+  rest?: string;
+  targetReps?: string;
+}
+
 interface SetEntry {
   exerciseId: string;
   setNumber: number;
   reps: number;
   weight: number;
+  done: boolean;
 }
 
 interface ExerciseBlock {
   uid: string;
   exerciseId: string;
   sets: SetEntry[];
+  cues?: string;
+  rest?: string;
+  targetReps?: string;
+  showCues: boolean;
+  lastSession?: { weight: number; reps: number };
 }
 
-export default function WorkoutForm({ exercises }: { exercises: Exercise[] }) {
+function parseRestSeconds(rest: string): number {
+  const m = rest.match(/(\d+)/);
+  return m ? parseInt(m[1]) : 60;
+}
+
+function buildBlocks(
+  initialExercises: InitialExercise[],
+  lastSession: Record<string, { weight: number; reps: number }>,
+): ExerciseBlock[] {
+  return initialExercises.map((ie) => {
+    const prev = lastSession[ie.exerciseId];
+    return {
+      uid: Math.random().toString(36).slice(2),
+      exerciseId: ie.exerciseId,
+      cues: ie.cues,
+      rest: ie.rest,
+      targetReps: ie.targetReps,
+      showCues: false,
+      lastSession: prev,
+      sets: Array.from({ length: ie.sets }, (_, i) => ({
+        exerciseId: ie.exerciseId,
+        setNumber: i + 1,
+        reps: ie.defaultReps,
+        weight: prev?.weight ?? 0,
+        done: false,
+      })),
+    };
+  });
+}
+
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+export default function WorkoutForm({
+  exercises,
+  initialName = '',
+  initialExercises = [],
+  lastSession = {},
+  personalRecords = {},
+}: {
+  exercises: Exercise[];
+  initialName?: string;
+  initialExercises?: InitialExercise[];
+  lastSession?: Record<string, { weight: number; reps: number }>;
+  personalRecords?: Record<string, number>;
+}) {
   const today = new Date().toISOString().split('T')[0];
-  const [name, setName] = useState('');
+  const [name, setName] = useState(initialName);
   const [date, setDate] = useState(today);
   const [notes, setNotes] = useState('');
-  const [blocks, setBlocks] = useState<ExerciseBlock[]>([]);
+  const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
+    buildBlocks(initialExercises, lastSession),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [restTimer, setRestTimer] = useState<{
+    seconds: number;
+    exerciseName: string;
+  } | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(Date.now());
+
+  // Elapsed workout timer
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
+    }, 1000);
+    return () => clearInterval(tick);
+  }, []);
+
+  const exerciseGroups = exercises.reduce<Record<string, Exercise[]>>((acc, ex) => {
+    if (!acc[ex.category]) acc[ex.category] = [];
+    acc[ex.category].push(ex);
+    return acc;
+  }, {});
+  const exerciseById = new Map(exercises.map((e) => [e.id, e]));
 
   function addExercise() {
     if (!exercises.length) return;
     setBlocks((prev) => [
       ...prev,
       {
-        uid: crypto.randomUUID(),
+        uid: Math.random().toString(36).slice(2),
         exerciseId: exercises[0].id,
-        sets: [{ exerciseId: exercises[0].id, setNumber: 1, reps: 10, weight: 0 }],
+        showCues: false,
+        sets: [{ exerciseId: exercises[0].id, setNumber: 1, reps: 10, weight: 0, done: false }],
       },
     ]);
   }
@@ -48,13 +137,46 @@ export default function WorkoutForm({ exercises }: { exercises: Exercise[] }) {
   }
 
   function updateBlockExercise(uid: string, exerciseId: string) {
-    setBlocks((prev) =>
-      prev.map((b) =>
+    const prev = lastSession[exerciseId];
+    setBlocks((cur) =>
+      cur.map((b) =>
         b.uid === uid
-          ? { ...b, exerciseId, sets: b.sets.map((s) => ({ ...s, exerciseId })) }
+          ? {
+              ...b,
+              exerciseId,
+              cues: undefined,
+              rest: undefined,
+              targetReps: undefined,
+              showCues: false,
+              lastSession: prev,
+              sets: b.sets.map((s) => ({ ...s, exerciseId, weight: prev?.weight ?? 0 })),
+            }
           : b,
       ),
     );
+  }
+
+  function toggleCues(uid: string) {
+    setBlocks((prev) =>
+      prev.map((b) => (b.uid === uid ? { ...b, showCues: !b.showCues } : b)),
+    );
+  }
+
+  function toggleSetDone(uid: string, idx: number) {
+    setBlocks((prev) => {
+      const updated = prev.map((b) =>
+        b.uid === uid
+          ? { ...b, sets: b.sets.map((s, i) => (i === idx ? { ...s, done: !s.done } : s)) }
+          : b,
+      );
+      const block = updated.find((b) => b.uid === uid);
+      const set = block?.sets[idx];
+      if (set?.done && block?.rest) {
+        const exName = exerciseById.get(block.exerciseId)?.name ?? 'exercise';
+        setRestTimer({ seconds: parseRestSeconds(block.rest), exerciseName: exName });
+      }
+      return updated;
+    });
   }
 
   function addSet(uid: string) {
@@ -68,8 +190,9 @@ export default function WorkoutForm({ exercises }: { exercises: Exercise[] }) {
                 {
                   exerciseId: b.exerciseId,
                   setNumber: b.sets.length + 1,
-                  reps: b.sets[b.sets.length - 1]?.reps ?? 10,
-                  weight: b.sets[b.sets.length - 1]?.weight ?? 0,
+                  reps: b.sets.at(-1)?.reps ?? 10,
+                  weight: b.sets.at(-1)?.weight ?? 0,
+                  done: false,
                 },
               ],
             }
@@ -114,159 +237,303 @@ export default function WorkoutForm({ exercises }: { exercises: Exercise[] }) {
         name: name.trim(),
         date,
         notes: notes.trim() || undefined,
-        sets: blocks.flatMap((b) => b.sets),
+        duration: Math.floor((Date.now() - startRef.current) / 1000),
+        sets: blocks.flatMap((b) => b.sets.map(({ done: _d, ...rest }) => rest)),
       });
     } catch {
-      setError('Failed to save workout. Please try again.');
+      setError('Failed to save. Please try again.');
       setSubmitting(false);
     }
   }
 
-  const exerciseGroups = exercises.reduce<Record<string, Exercise[]>>((acc, ex) => {
-    if (!acc[ex.category]) acc[ex.category] = [];
-    acc[ex.category].push(ex);
-    return acc;
-  }, {});
+  const doneCount = blocks.reduce((n, b) => n + b.sets.filter((s) => s.done).length, 0);
+  const totalSets = blocks.reduce((n, b) => n + b.sets.length, 0);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Workout details */}
-      <div className="bg-gray-900 rounded-xl p-5 border border-gray-800 space-y-4">
-        <h2 className="font-semibold text-white">Workout Details</h2>
-        <div>
-          <label className="block text-sm text-gray-400 mb-1">Name *</label>
+    <>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Workout details */}
+        <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500 uppercase tracking-widest font-semibold">
+              Workout Details
+            </span>
+            <span className="text-xs text-gray-600 tabular-nums font-mono">
+              ⏱ {formatElapsed(elapsed)}
+            </span>
+          </div>
           <input
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Push Day, Leg Day..."
-            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            placeholder="Day A — Apr 15"
+            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm"
           />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Date</label>
+          <div className="grid grid-cols-2 gap-3">
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500 text-sm"
             />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">Notes</label>
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional notes..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              placeholder="Notes (optional)"
+              className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm"
             />
           </div>
         </div>
-      </div>
 
-      {/* Exercise blocks */}
-      {blocks.map((block) => (
-        <div key={block.uid} className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-          <div className="flex items-center gap-3 mb-4">
-            <select
-              value={block.exerciseId}
-              onChange={(e) => updateBlockExercise(block.uid, e.target.value)}
-              className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
-            >
-              {Object.entries(exerciseGroups).map(([cat, exs]) => (
-                <optgroup key={cat} label={cat}>
-                  {exs.map((ex) => (
-                    <option key={ex.id} value={ex.id}>{ex.name}</option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={() => removeBlock(block.uid)}
-              className="text-gray-500 hover:text-red-400 transition-colors px-1"
-            >
-              &times;
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            <div className="grid grid-cols-12 text-xs text-gray-500 font-medium uppercase tracking-wide px-1">
-              <span className="col-span-2">Set</span>
-              <span className="col-span-4">Weight (kg)</span>
-              <span className="col-span-4">Reps</span>
-              <span className="col-span-2"></span>
+        {/* Progress bar */}
+        {totalSets > 0 && (
+          <div className="flex items-center gap-3">
+            <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bg-green-500 h-full rounded-full transition-all duration-300"
+                style={{ width: `${(doneCount / totalSets) * 100}%` }}
+              />
             </div>
-            {block.sets.map((set, i) => (
-              <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                <span className="col-span-2 text-sm text-gray-400 pl-1">{set.setNumber}</span>
-                <input
-                  type="number"
-                  value={set.weight}
-                  onChange={(e) => updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)}
-                  min="0"
-                  step="0.5"
-                  className="col-span-4 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
-                />
-                <input
-                  type="number"
-                  value={set.reps}
-                  onChange={(e) => updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)}
-                  min="0"
-                  className="col-span-4 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:border-blue-500"
-                />
+            <span className="text-gray-600 text-xs tabular-nums flex-shrink-0">
+              {doneCount}/{totalSets} done
+            </span>
+          </div>
+        )}
+
+        {/* Exercise blocks */}
+        {blocks.map((block, blockIdx) => {
+          const ex = exerciseById.get(block.exerciseId);
+          const pr = ex ? (personalRecords[block.exerciseId] ?? 0) : 0;
+          const hasNewPR = block.sets.some((s) => s.weight > 0 && s.weight > pr);
+          const allDone = block.sets.length > 0 && block.sets.every((s) => s.done);
+
+          return (
+            <div
+              key={block.uid}
+              className={`rounded-2xl border overflow-hidden transition-all duration-300 ${
+                allDone
+                  ? 'bg-green-950/25 border-green-800/50'
+                  : 'bg-gray-900 border-gray-800'
+              }`}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+                <span className="text-gray-700 text-sm font-bold w-5 flex-shrink-0 tabular-nums">
+                  {blockIdx + 1}
+                </span>
+                <select
+                  value={block.exerciseId}
+                  onChange={(e) => updateBlockExercise(block.uid, e.target.value)}
+                  className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 min-w-0"
+                >
+                  {Object.entries(exerciseGroups)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([cat, exs]) => (
+                      <optgroup key={cat} label={cat}>
+                        {exs.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                </select>
                 <button
                   type="button"
-                  onClick={() => removeSet(block.uid, i)}
-                  disabled={block.sets.length === 1}
-                  className="col-span-2 text-gray-600 hover:text-red-400 transition-colors disabled:opacity-30 text-center"
+                  onClick={() => removeBlock(block.uid)}
+                  className="text-gray-700 hover:text-red-400 transition-colors text-xl leading-none px-1 flex-shrink-0"
                 >
-                  &times;
+                  ×
                 </button>
               </div>
-            ))}
-          </div>
 
+              {/* Meta row */}
+              <div className="flex items-center gap-2 px-4 pb-2.5 flex-wrap">
+                {block.lastSession && (
+                  <span className="text-xs bg-gray-800 text-gray-400 px-2.5 py-1 rounded-full border border-gray-700">
+                    Last: {block.lastSession.weight} kg × {block.lastSession.reps}
+                  </span>
+                )}
+                {block.targetReps && (
+                  <span className="text-xs bg-gray-800 text-gray-500 px-2.5 py-1 rounded-full border border-gray-700">
+                    Target {block.targetReps}
+                  </span>
+                )}
+                {block.rest && (
+                  <span className="text-xs bg-gray-800 text-gray-500 px-2.5 py-1 rounded-full border border-gray-700">
+                    Rest {block.rest}
+                  </span>
+                )}
+                {allDone && (
+                  <span className="text-xs bg-green-900/50 text-green-400 px-2.5 py-1 rounded-full border border-green-800/50 font-semibold">
+                    ✓ Done
+                  </span>
+                )}
+                {hasNewPR && !allDone && (
+                  <span className="text-xs bg-yellow-900/40 text-yellow-400 px-2.5 py-1 rounded-full border border-yellow-800/40 font-semibold">
+                    🏆 New PR!
+                  </span>
+                )}
+                {block.cues && (
+                  <button
+                    type="button"
+                    onClick={() => toggleCues(block.uid)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      block.showCues
+                        ? 'bg-blue-900/40 text-blue-300 border-blue-700/50'
+                        : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'
+                    }`}
+                  >
+                    {block.showCues ? 'Hide tip' : '? Tip'}
+                  </button>
+                )}
+              </div>
+
+              {/* Cues */}
+              {block.showCues && block.cues && (
+                <div className="mx-4 mb-3 bg-blue-950/30 border border-blue-900/40 rounded-xl px-3.5 py-2.5">
+                  <p className="text-blue-200 text-xs leading-relaxed">{block.cues}</p>
+                </div>
+              )}
+
+              {/* Sets */}
+              <div className="px-4 space-y-2 pb-1">
+                <div className="flex items-center gap-2 text-xs text-gray-600 font-semibold uppercase tracking-wide pb-0.5">
+                  <span className="w-11 flex-shrink-0 text-center">Set</span>
+                  <span className="flex-1 text-center">Weight · kg</span>
+                  <span className="w-14 flex-shrink-0 text-center">Reps</span>
+                  <span className="w-5 flex-shrink-0" />
+                </div>
+                {block.sets.map((set, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-2 rounded-xl px-0.5 py-0.5 transition-all ${
+                      set.done ? 'opacity-50' : ''
+                    }`}
+                  >
+                    {/* Big set-done circle */}
+                    <button
+                      type="button"
+                      onClick={() => toggleSetDone(block.uid, i)}
+                      className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-95 ${
+                        set.done
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-800 text-gray-400 active:bg-gray-700'
+                      }`}
+                    >
+                      {set.done ? '✓' : set.setNumber}
+                    </button>
+
+                    {/* Weight stepper */}
+                    <div className="flex items-center flex-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateSet(block.uid, i, 'weight', Math.max(0, +(set.weight - 2.5).toFixed(1)))
+                        }
+                        className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        value={set.weight}
+                        min="0"
+                        step="0.5"
+                        onChange={(e) =>
+                          updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)
+                        }
+                        className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-2.5"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateSet(block.uid, i, 'weight', +(set.weight + 2.5).toFixed(1))
+                        }
+                        className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Reps */}
+                    <input
+                      type="number"
+                      value={set.reps}
+                      min="0"
+                      onChange={(e) =>
+                        updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
+                      }
+                      className="w-14 flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl px-2 py-2.5 text-white text-sm text-center focus:outline-none focus:border-blue-500 tabular-nums"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => removeSet(block.uid, i)}
+                      disabled={block.sets.length === 1}
+                      className="w-5 flex-shrink-0 text-gray-700 hover:text-red-400 transition-colors disabled:opacity-20 text-lg leading-none text-center"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="px-4 pb-4 pt-2">
+                <button
+                  type="button"
+                  onClick={() => addSet(block.uid)}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium"
+                >
+                  + Add set
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Add exercise */}
+        {exercises.length > 0 ? (
           <button
             type="button"
-            onClick={() => addSet(block.uid)}
-            className="mt-3 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            onClick={addExercise}
+            className="w-full bg-gray-900 border border-gray-700 border-dashed hover:border-blue-500 rounded-2xl py-4 text-gray-500 hover:text-blue-400 text-sm font-medium transition-colors"
           >
-            + Add set
+            + Add Exercise
           </button>
-        </div>
-      ))}
+        ) : (
+          <div className="bg-gray-900 border border-yellow-900/50 rounded-2xl p-4 text-yellow-400 text-sm text-center">
+            No exercises in library.{' '}
+            <a href="/exercises" className="underline">
+              Add exercises first
+            </a>
+          </div>
+        )}
 
-      {exercises.length > 0 ? (
+        {error && (
+          <div className="bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-3 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+
         <button
-          type="button"
-          onClick={addExercise}
-          className="w-full bg-gray-900 border border-gray-700 border-dashed hover:border-blue-500 rounded-xl p-4 text-gray-400 hover:text-blue-400 transition-colors"
+          type="submit"
+          disabled={submitting}
+          className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:bg-blue-900 disabled:text-blue-500 text-white py-4 rounded-2xl font-bold text-sm transition-colors"
         >
-          + Add Exercise
+          {submitting ? 'Saving…' : 'Save Workout'}
         </button>
-      ) : (
-        <div className="bg-gray-900 border border-yellow-900 rounded-xl p-4 text-yellow-400 text-sm text-center">
-          No exercises in library.{' '}
-          <a href="/exercises" className="underline">Add exercises first</a>
-        </div>
-      )}
+      </form>
 
-      {error && (
-        <div className="bg-red-900/30 border border-red-800 rounded-lg p-3 text-red-400 text-sm">
-          {error}
-        </div>
+      {/* Rest timer overlay */}
+      {restTimer && (
+        <RestTimer
+          totalSeconds={restTimer.seconds}
+          exerciseName={restTimer.exerciseName}
+          onDismiss={() => setRestTimer(null)}
+        />
       )}
-
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:text-blue-400 text-white py-3 rounded-xl font-semibold transition-colors"
-      >
-        {submitting ? 'Saving...' : 'Save Workout'}
-      </button>
-    </form>
+    </>
   );
 }
