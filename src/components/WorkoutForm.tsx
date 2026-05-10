@@ -306,9 +306,17 @@ export default function WorkoutForm({
           const ex = exerciseById.get(block.exerciseId);
           const pr = ex ? (personalRecords[block.exerciseId] ?? 0) : 0;
           const hasNewPR = block.sets.some((s) => s.weight > 0 && s.weight > pr);
+          const allDone = block.sets.length > 0 && block.sets.every((s) => s.done);
 
           return (
-            <div key={block.uid} className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+            <div
+              key={block.uid}
+              className={`rounded-2xl border overflow-hidden transition-all duration-300 ${
+                allDone
+                  ? 'bg-green-950/25 border-green-800/50'
+                  : 'bg-gray-900 border-gray-800'
+              }`}
+            >
               {/* Header */}
               <div className="flex items-center gap-2 px-4 pt-4 pb-2">
                 <span className="text-gray-700 text-sm font-bold w-5 flex-shrink-0 tabular-nums">
@@ -357,7 +365,12 @@ export default function WorkoutForm({
                     Rest {block.rest}
                   </span>
                 )}
-                {hasNewPR && (
+                {allDone && (
+                  <span className="text-xs bg-green-900/50 text-green-400 px-2.5 py-1 rounded-full border border-green-800/50 font-semibold">
+                    ✓ Done
+                  </span>
+                )}
+                {hasNewPR && !allDone && (
                   <span className="text-xs bg-yellow-900/40 text-yellow-400 px-2.5 py-1 rounded-full border border-yellow-800/40 font-semibold">
                     🏆 New PR!
                   </span>
@@ -385,41 +398,66 @@ export default function WorkoutForm({
               )}
 
               {/* Sets */}
-              <div className="px-4 space-y-1.5 pb-1">
-                <div className="grid grid-cols-12 text-xs text-gray-600 font-semibold uppercase tracking-wide pb-0.5">
-                  <span className="col-span-2">Set</span>
-                  <span className="col-span-5">kg</span>
-                  <span className="col-span-4">Reps</span>
-                  <span className="col-span-1" />
+              <div className="px-4 space-y-2 pb-1">
+                <div className="flex items-center gap-2 text-xs text-gray-600 font-semibold uppercase tracking-wide pb-0.5">
+                  <span className="w-11 flex-shrink-0 text-center">Set</span>
+                  <span className="flex-1 text-center">Weight · kg</span>
+                  <span className="w-14 flex-shrink-0 text-center">Reps</span>
+                  <span className="w-5 flex-shrink-0" />
                 </div>
                 {block.sets.map((set, i) => (
                   <div
                     key={i}
-                    className={`grid grid-cols-12 gap-2 items-center rounded-lg px-0.5 py-0.5 transition-colors ${
-                      set.done ? 'bg-green-950/30' : ''
+                    className={`flex items-center gap-2 rounded-xl px-0.5 py-0.5 transition-all ${
+                      set.done ? 'opacity-50' : ''
                     }`}
                   >
+                    {/* Big set-done circle */}
                     <button
                       type="button"
                       onClick={() => toggleSetDone(block.uid, i)}
-                      className={`col-span-2 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                      className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-95 ${
                         set.done
                           ? 'bg-green-600 text-white'
-                          : 'bg-gray-800 text-gray-500 hover:bg-gray-700'
+                          : 'bg-gray-800 text-gray-400 active:bg-gray-700'
                       }`}
                     >
                       {set.done ? '✓' : set.setNumber}
                     </button>
-                    <input
-                      type="number"
-                      value={set.weight}
-                      min="0"
-                      step="0.5"
-                      onChange={(e) =>
-                        updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)
-                      }
-                      className="col-span-5 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 tabular-nums"
-                    />
+
+                    {/* Weight stepper */}
+                    <div className="flex items-center flex-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateSet(block.uid, i, 'weight', Math.max(0, +(set.weight - 2.5).toFixed(1)))
+                        }
+                        className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        value={set.weight}
+                        min="0"
+                        step="0.5"
+                        onChange={(e) =>
+                          updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)
+                        }
+                        className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-2.5"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateSet(block.uid, i, 'weight', +(set.weight + 2.5).toFixed(1))
+                        }
+                        className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    {/* Reps */}
                     <input
                       type="number"
                       value={set.reps}
@@ -427,13 +465,14 @@ export default function WorkoutForm({
                       onChange={(e) =>
                         updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
                       }
-                      className="col-span-4 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 tabular-nums"
+                      className="w-14 flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl px-2 py-2.5 text-white text-sm text-center focus:outline-none focus:border-blue-500 tabular-nums"
                     />
+
                     <button
                       type="button"
                       onClick={() => removeSet(block.uid, i)}
                       disabled={block.sets.length === 1}
-                      className="col-span-1 text-gray-700 hover:text-red-400 transition-colors disabled:opacity-20 text-lg leading-none"
+                      className="w-5 flex-shrink-0 text-gray-700 hover:text-red-400 transition-colors disabled:opacity-20 text-lg leading-none text-center"
                     >
                       ×
                     </button>
