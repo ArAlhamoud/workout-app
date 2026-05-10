@@ -36,23 +36,35 @@ export default async function WorkoutsPage() {
           {workouts.map((workout) => {
             const exerciseNames = Array.from(new Set(workout.sets.map((s) => s.exercise.name)));
             const totalVolume = workout.sets.reduce((sum, s) => sum + s.reps * s.weight, 0);
+            const dayLetter = workout.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
             return (
               <Link
                 key={workout.id}
                 href={`/workouts/${workout.id}`}
                 className="flex items-center justify-between bg-gray-900 rounded-xl px-4 py-3.5 border border-gray-800 hover:border-gray-600 hover:bg-gray-800/80 transition-all"
               >
-                <div className="min-w-0">
-                  <div className="font-medium text-white truncate">{workout.name}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    {dayLetter && (
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md flex-shrink-0 ${
+                        dayLetter === 'A'
+                          ? 'bg-blue-600/25 text-blue-400'
+                          : 'bg-violet-700/25 text-violet-400'
+                      }`}>
+                        {dayLetter}
+                      </span>
+                    )}
+                    <div className="font-medium text-white truncate">{workout.name}</div>
+                  </div>
                   <div className="text-gray-500 text-xs mt-0.5 truncate">
-                    {exerciseNames.slice(0, 4).join(' \u00b7 ')}
+                    {exerciseNames.slice(0, 4).join(' · ')}
                     {exerciseNames.length > 4 && ` +${exerciseNames.length - 4}`}
                   </div>
                 </div>
                 <div className="text-right ml-4 shrink-0">
                   <div className="text-xs text-gray-400">{formatDate(workout.date)}</div>
                   <div className="text-xs text-gray-600 mt-0.5">
-                    {workout.sets.length} sets \u00b7 {totalVolume.toLocaleString()} kg
+                    {workout.sets.length} sets · {totalVolume.toLocaleString()} kg
                   </div>
                 </div>
               </Link>

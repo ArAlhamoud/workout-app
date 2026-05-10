@@ -54,31 +54,34 @@ export default function Navbar() {
       <div className="grid grid-cols-4 max-w-lg mx-auto" style={{ height: '60px' }}>
         <Link
           href="/"
-          className={`flex flex-col items-center justify-center gap-1 transition-colors ${isHome ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
+          className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${isHome ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
         >
           <IconHome active={isHome} />
           <span className="text-[10px] font-semibold tracking-wide">HOME</span>
+          <div className={`h-0.5 w-4 rounded-full transition-all ${isHome ? 'bg-white' : 'bg-transparent'}`} />
         </Link>
 
         <Link
           href="/program"
-          className={`flex flex-col items-center justify-center gap-1 transition-colors ${isProgram ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
+          className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${isProgram ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
         >
           <IconProgram active={isProgram} />
           <span className="text-[10px] font-semibold tracking-wide">PROGRAM</span>
+          <div className={`h-0.5 w-4 rounded-full transition-all ${isProgram ? 'bg-white' : 'bg-transparent'}`} />
         </Link>
 
         <Link
           href="/workouts"
-          className={`flex flex-col items-center justify-center gap-1 transition-colors ${isHistory ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
+          className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${isHistory ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
         >
           <IconHistory active={isHistory} />
           <span className="text-[10px] font-semibold tracking-wide">HISTORY</span>
+          <div className={`h-0.5 w-4 rounded-full transition-all ${isHistory ? 'bg-white' : 'bg-transparent'}`} />
         </Link>
 
         <Link
           href="/workouts/new"
-          className="flex flex-col items-center justify-center gap-1"
+          className="flex flex-col items-center justify-center gap-0.5"
         >
           <div className={`w-10 h-7 rounded-lg flex items-center justify-center transition-colors ${isLog ? 'bg-blue-500' : 'bg-blue-600 hover:bg-blue-500'}`}>
             <IconPlus />
@@ -86,6 +89,7 @@ export default function Navbar() {
           <span className={`text-[10px] font-semibold tracking-wide transition-colors ${isLog ? 'text-blue-400' : 'text-blue-500'}`}>
             LOG
           </span>
+          <div className={`h-0.5 w-4 rounded-full transition-all ${isLog ? 'bg-blue-400' : 'bg-transparent'}`} />
         </Link>
       </div>
     </nav>

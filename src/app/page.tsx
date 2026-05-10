@@ -65,6 +65,10 @@ export default async function Home() {
     }
   }
 
+  // Suggest next day based on last workout
+  const lastDay = workouts[0]?.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
+  const suggestedDay = lastDay === 'A' ? 'B' : lastDay === 'B' ? 'A' : null;
+
   return (
     <div className="space-y-5">
       {/* Today banner */}
@@ -93,15 +97,27 @@ export default async function Home() {
 
       {/* Start workout — pick a day & duration */}
       <div>
-        <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold mb-2.5">
-          Start a Workout
-        </p>
+        <div className="flex items-center justify-between mb-2.5">
+          <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">
+            Start a Workout
+          </p>
+          {suggestedDay && (
+            <span className="text-xs text-gray-500">
+              Do Day <span className={suggestedDay === 'A' ? 'text-blue-400 font-bold' : 'text-violet-400 font-bold'}>{suggestedDay}</span> next
+            </span>
+          )}
+        </div>
         <div className="space-y-3">
           {/* Day A */}
-          <div className="bg-blue-600 rounded-2xl overflow-hidden">
-            <div className="px-4 pt-3 pb-2.5">
-              <div className="text-white font-black text-base">Day A</div>
-              <div className="text-blue-200 text-xs mt-0.5">Chest · Quads · Shoulders</div>
+          <div className={`bg-blue-600 rounded-2xl overflow-hidden transition-all ${suggestedDay === 'A' ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950' : suggestedDay === 'B' ? 'opacity-70' : ''}`}>
+            <div className="px-4 pt-3 pb-2.5 flex items-center justify-between">
+              <div>
+                <div className="text-white font-black text-base">Day A</div>
+                <div className="text-blue-200 text-xs mt-0.5">Chest · Quads · Shoulders</div>
+              </div>
+              {suggestedDay === 'A' && (
+                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-semibold">Next ↑</span>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-px bg-blue-800/50">
               {DURATIONS.map((d) => (
@@ -120,10 +136,15 @@ export default async function Home() {
           </div>
 
           {/* Day B */}
-          <div className="bg-violet-700 rounded-2xl overflow-hidden">
-            <div className="px-4 pt-3 pb-2.5">
-              <div className="text-white font-black text-base">Day B</div>
-              <div className="text-violet-200 text-xs mt-0.5">Back · Hamstrings · Arms</div>
+          <div className={`bg-violet-700 rounded-2xl overflow-hidden transition-all ${suggestedDay === 'B' ? 'ring-2 ring-violet-400 ring-offset-2 ring-offset-gray-950' : suggestedDay === 'A' ? 'opacity-70' : ''}`}>
+            <div className="px-4 pt-3 pb-2.5 flex items-center justify-between">
+              <div>
+                <div className="text-white font-black text-base">Day B</div>
+                <div className="text-violet-200 text-xs mt-0.5">Back · Hamstrings · Arms</div>
+              </div>
+              {suggestedDay === 'B' && (
+                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-semibold">Next ↑</span>
+              )}
             </div>
             <div className="grid grid-cols-3 gap-px bg-violet-900/50">
               {DURATIONS.map((d) => (
