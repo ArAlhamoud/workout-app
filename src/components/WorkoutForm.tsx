@@ -104,7 +104,6 @@ export default function WorkoutForm({
   const [elapsed, setElapsed] = useState(0);
   const startRef = useRef(Date.now());
 
-  // Elapsed workout timer
   useEffect(() => {
     const tick = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
@@ -402,7 +401,7 @@ export default function WorkoutForm({
                 <div className="flex items-center gap-2 text-xs text-gray-600 font-semibold uppercase tracking-wide pb-0.5">
                   <span className="w-11 flex-shrink-0 text-center">Set</span>
                   <span className="flex-1 text-center">Weight · kg</span>
-                  <span className="w-14 flex-shrink-0 text-center">Reps</span>
+                  <span className="w-28 flex-shrink-0 text-center">Reps</span>
                   <span className="w-5 flex-shrink-0" />
                 </div>
                 {block.sets.map((set, i) => (
@@ -457,16 +456,36 @@ export default function WorkoutForm({
                       </button>
                     </div>
 
-                    {/* Reps */}
-                    <input
-                      type="number"
-                      value={set.reps}
-                      min="0"
-                      onChange={(e) =>
-                        updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
-                      }
-                      className="w-14 flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl px-2 py-2.5 text-white text-sm text-center focus:outline-none focus:border-blue-500 tabular-nums"
-                    />
+                    {/* Reps stepper */}
+                    <div className="flex items-center w-28 flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateSet(block.uid, i, 'reps', Math.max(0, set.reps - 1))
+                        }
+                        className="px-2 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        value={set.reps}
+                        min="0"
+                        onChange={(e) =>
+                          updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
+                        }
+                        className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-2.5"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateSet(block.uid, i, 'reps', set.reps + 1)
+                        }
+                        className="px-2 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                      >
+                        +
+                      </button>
+                    </div>
 
                     <button
                       type="button"
