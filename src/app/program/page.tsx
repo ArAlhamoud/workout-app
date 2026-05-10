@@ -253,7 +253,7 @@ export default async function ProgramPage() {
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
           <div className="grid grid-cols-3 divide-x divide-gray-800">
             <div className="p-3 text-center">
-              <div className="text-white font-bold text-base">135 kg</div>
+              <div className="text-white font-bold text-base">132 kg</div>
               <div className="text-gray-500 text-xs mt-0.5">Weight</div>
             </div>
             <div className="p-3 text-center">
@@ -267,7 +267,7 @@ export default async function ProgramPage() {
           </div>
           <div className="grid grid-cols-3 divide-x divide-gray-800 border-t border-gray-800">
             <div className="p-3 text-center">
-              <div className="text-orange-400 font-bold text-base">BMI 47</div>
+              <div className="text-orange-400 font-bold text-base">BMI 46</div>
               <div className="text-gray-500 text-xs mt-0.5">Class III</div>
             </div>
             <div className="p-3 text-center">
@@ -281,7 +281,10 @@ export default async function ProgramPage() {
           </div>
           <div className="border-t border-gray-800 p-3">
             <div className="text-gray-500 text-xs text-center">
-              TDEE ~2,670 kcal · Target deficit −600 kcal/day · ~0.5–0.7 kg/week loss
+              TDEE ~2,635 kcal · Target deficit −600 kcal/day · ~0.5–0.7 kg/week loss
+            </div>
+            <div className="text-green-500 text-xs text-center mt-1 font-semibold">
+              Down 3 kg from start — keep going!
             </div>
           </div>
         </div>
@@ -296,7 +299,7 @@ export default async function ProgramPage() {
           <div className="p-4 border-b border-gray-800">
             <div className="text-white font-semibold text-sm mb-1">Calorie Target</div>
             <div className="text-gray-400 text-xs">
-              ~2,100 kcal/day — calculated from your TDEE (2,670) minus a 600 kcal deficit
+              ~2,050 kcal/day — calculated from your TDEE (2,635) minus a 600 kcal deficit
             </div>
           </div>
           <div className="p-4 border-b border-gray-800">
@@ -308,14 +311,14 @@ export default async function ProgramPage() {
                 <div className="text-gray-700 text-xs">640 kcal</div>
               </div>
               <div className="bg-yellow-900/20 rounded-lg p-3 border border-yellow-800/30">
-                <div className="text-yellow-400 font-bold text-lg">215g</div>
+                <div className="text-yellow-400 font-bold text-lg">205g</div>
                 <div className="text-gray-500 text-xs mt-0.5">Carbs</div>
-                <div className="text-gray-700 text-xs">860 kcal</div>
+                <div className="text-gray-700 text-xs">820 kcal</div>
               </div>
               <div className="bg-green-900/20 rounded-lg p-3 border border-green-800/30">
-                <div className="text-green-400 font-bold text-lg">67g</div>
+                <div className="text-green-400 font-bold text-lg">65g</div>
                 <div className="text-gray-500 text-xs mt-0.5">Fat</div>
-                <div className="text-gray-700 text-xs">600 kcal</div>
+                <div className="text-gray-700 text-xs">585 kcal</div>
               </div>
             </div>
           </div>
@@ -326,7 +329,7 @@ export default async function ProgramPage() {
               <li>· Vegetables fill half the plate — non-negotiable</li>
               <li>· Eat within 60 min after each workout (prioritise protein)</li>
               <li>· Limit ultra-processed foods — not zero, just not daily</li>
-              <li>· Drink 3–4 L water/day (higher at 135 kg)</li>
+              <li>· Drink 3–4 L water/day (higher at your bodyweight)</li>
               <li>· Don't eat back gym calories — deficit is already moderate</li>
             </ul>
           </div>
@@ -334,7 +337,7 @@ export default async function ProgramPage() {
             <div className="text-white font-semibold text-sm mb-2">Joint-First Approach</div>
             <ul className="space-y-1.5 text-gray-400 text-xs">
               <li>· All exercises are machine-based — no free-weight barbell loading on joints</li>
-              <li>· RDL only on Smith Machine or light dumbbells — learn the hinge before loading</li>
+              <li>· RDL on Smith Machine only — no free weights</li>
               <li>· Avoid treadmill running — walking only at 4–5 km/h, low incline</li>
               <li>· Swimming is your best cardio — zero joint impact, maximum calorie burn</li>
               <li>· Progress weight slowly — joint adaptation lags behind muscle strength</li>
