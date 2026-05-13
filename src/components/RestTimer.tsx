@@ -17,7 +17,7 @@ async function requestNotificationPermission(): Promise<boolean> {
 }
 
 async function scheduleSwNotification(delayMs: number, title: string, body: string) {
-  if (!('serviceWorker' in navigator)) return;
+  if (!(('serviceWorker' in navigator))) return;
   try {
     const reg = await navigator.serviceWorker.ready;
     reg.active?.postMessage({ type: 'SCHEDULE_NOTIFICATION', delayMs, title, body });
@@ -27,7 +27,7 @@ async function scheduleSwNotification(delayMs: number, title: string, body: stri
 }
 
 async function cancelSwNotification() {
-  if (!('serviceWorker' in navigator)) return;
+  if (!(('serviceWorker' in navigator))) return;
   try {
     const reg = await navigator.serviceWorker.ready;
     reg.active?.postMessage({ type: 'CANCEL_NOTIFICATION' });
@@ -64,7 +64,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
       if (permissionGranted.current) {
         await scheduleSwNotification(
           totalSeconds * 1000,
-          'Rest complete! 💪',
+          'Rest complete! \u{1F4AA}',
           `Time for your next set of ${exerciseName}`,
         );
       }
@@ -86,7 +86,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
 
       // Direct notification — most reliable when page is backgrounded
       showDirectNotification(
-        'Rest complete! 💪',
+        'Rest complete! \u{1F4AA}',
         `Time for your next set of ${exerciseName}`,
       );
 
@@ -123,7 +123,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
           <div className="flex items-center justify-between px-4 py-3 gap-4">
             {finished ? (
               <div>
-                <p className="text-green-400 font-bold text-base">Rest complete! 💪</p>
+                <p className="text-green-400 font-bold text-base">Rest complete! \u{1F4AA}</p>
                 <p className="text-green-600 text-xs mt-0.5">Next set of {exerciseName}</p>
               </div>
             ) : (
