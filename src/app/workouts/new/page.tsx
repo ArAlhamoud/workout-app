@@ -45,6 +45,7 @@ export default async function NewWorkoutPage({
           cues: te.cues,
           rest: te.rest,
           targetReps: te.repsDisplay,
+          unit: te.unit,
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -67,43 +68,10 @@ export default async function NewWorkoutPage({
         </p>
       </div>
 
-      {/* Day picker — shown when arriving from the nav LOG button without a day */}
-      {!validDay && (
-        <div>
-          <p className="text-gray-400 text-xs uppercase tracking-widest font-bold mb-3">
-            Quick Start
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            {(['A', 'B'] as const).map((d) => {
-              const template = getDayTemplate(d);
-              return (
-                <Link
-                  key={d}
-                  href={`/workouts/new?day=${d}&dur=60`}
-                  className={`rounded-2xl px-4 py-5 text-center transition-colors ${
-                    d === 'A'
-                      ? 'bg-blue-600 hover:bg-blue-500 active:bg-blue-700'
-                      : 'bg-violet-700 hover:bg-violet-600 active:bg-violet-800'
-                  }`}
-                >
-                  <div className="text-white font-black text-xl">Day {d}</div>
-                  <div className={`text-xs mt-1.5 ${d === 'A' ? 'text-blue-200' : 'text-violet-200'}`}>
-                    {template.focus}
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-          <p className="text-gray-600 text-xs text-center mt-3">
-            or add exercises manually below
-          </p>
-        </div>
-      )}
-
       {/* Duration switcher pills */}
       {validDay && (
         <div>
-          <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-2">
+          <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold mb-2">
             Duration · {initialExercises.length} exercises
           </p>
           <div className="grid grid-cols-3 gap-2">
@@ -118,7 +86,7 @@ export default async function NewWorkoutPage({
                       ? validDay === 'A'
                         ? 'bg-blue-600 text-white'
                         : 'bg-violet-700 text-white'
-                      : 'bg-gray-900 border border-gray-700 text-gray-400 hover:border-gray-600 hover:text-white'
+                      : 'bg-gray-900 border border-gray-800 text-gray-400 hover:border-gray-700 hover:text-white'
                   }`}
                 >
                   {d} min
@@ -126,6 +94,29 @@ export default async function NewWorkoutPage({
               );
             })}
           </div>
+        </div>
+      )}
+
+      {!validDay && (
+        <div>
+          <p className="text-gray-400 text-xs uppercase tracking-widest font-bold mb-3">Quick Start</p>
+          <div className="grid grid-cols-2 gap-3">
+            {(['A', 'B'] as const).map((d) => (
+              <Link
+                key={d}
+                href={`/workouts/new?day=${d}&dur=60`}
+                className={`rounded-2xl px-4 py-5 text-center transition-colors ${
+                  d === 'A' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-violet-700 hover:bg-violet-600'
+                }`}
+              >
+                <div className="text-white font-black text-xl">Day {d}</div>
+                <div className={`text-xs mt-1.5 ${d === 'A' ? 'text-blue-200' : 'text-violet-200'}`}>
+                  {getDayTemplate(d).focus}
+                </div>
+              </Link>
+            ))}
+          </div>
+          <p className="text-gray-600 text-xs text-center mt-3">or add exercises manually below</p>
         </div>
       )}
 

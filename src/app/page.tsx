@@ -21,19 +21,16 @@ export default async function Home() {
   const workouts = await getWorkouts();
   const recentWorkouts = workouts.slice(0, 4);
 
-  const totalSets = workouts.reduce((sum, w) => sum + w.sets.length, 0);
   const totalVolume = workouts.reduce(
     (sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0),
     0,
   );
 
-  // Week stats
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   weekStart.setHours(0, 0, 0, 0);
   const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
 
-  // Consecutive week streak
   const workoutWeeks = new Set(
     workouts.map((w) => {
       const d = new Date(w.date);
@@ -53,7 +50,6 @@ export default async function Home() {
     else break;
   }
 
-  // Today's schedule
   const todayIdx = new Date().getDay();
   const today = SCHEDULE[todayIdx];
   const isGymDay = today?.type === 'gym';
@@ -65,38 +61,44 @@ export default async function Home() {
     }
   }
 
-  // Suggest next day based on last workout
   const lastDay = workouts[0]?.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
   const suggestedDay = lastDay === 'A' ? 'B' : lastDay === 'B' ? 'A' : null;
 
-  const dateStr = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
+  let programWeek: number | null = null;
+  if (workouts.length > 0) {
+    const firstWorkout = workouts[workouts.length - 1];
+    const daysSinceStart = Math.floor(
+      (Date.now() - new Date(firstWorkout.date).getTime()) / 86400000,
+    );
+    programWeek = Math.min(12, Math.floor(daysSinceStart / 7) + 1);
+  }
+
+  const weeklyVolume: Record<string, number> = {};
+  for (const w of workouts.filter((wk) => new Date(wk.date) >= weekStart)) {
+    for (const s of w.sets) {
+      const cat = s.exercise.category;
+      weeklyVolume[cat] = (weeklyVolume[cat] ?? 0) + 1;
+    }
+  }
+  const topMuscles = Object.entries(weeklyVolume)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 4);
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <p className="text-gray-500 text-xs font-medium">{dateStr}</p>
-        <h1 className="text-2xl font-black text-white mt-0.5">Workout Tracker</h1>
-      </div>
-
-      {/* Today banner */}
       {isGymDay ? (
-        <div className="rounded-2xl bg-green-950/40 border border-green-800/40 px-4 py-3.5 flex items-center justify-between">
+        <div className="rounded-2xl bg-green-950/40 border border-green-800/40 px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="text-green-400 text-xs font-bold uppercase tracking-widest">Gym Day</p>
-            <p className="text-white font-semibold text-sm mt-0.5">Pick a workout below</p>
+            <p className="text-green-500 text-xs font-bold uppercase tracking-widest">Today</p>
+            <p className="text-white font-semibold text-sm mt-0.5">Gym day — pick a workout below</p>
           </div>
-          <span className="text-green-400 text-xl">↓</span>
+          <span className="text-green-500 text-xl">↓</span>
         </div>
       ) : (
-        <div className="rounded-2xl bg-gray-900 border border-gray-700 px-4 py-3.5 flex items-center justify-between">
+        <div className="rounded-2xl bg-gray-900 border border-gray-800 px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Rest Day</p>
-            <p className="text-gray-300 font-semibold text-sm mt-0.5">Recover well — sleep &amp; eat right</p>
+            <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">Today</p>
+            <p className="text-gray-300 font-semibold text-sm mt-0.5">Rest day — recover well</p>
           </div>
           {nextGymDay && (
             <p className="text-gray-600 text-xs text-right">
@@ -107,10 +109,26 @@ export default async function Home() {
         </div>
       )}
 
-      {/* Start workout */}
+      {programWeek !== null && (
+        <div className="rounded-2xl bg-gray-900 border border-gray-800 px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">12-Week Program</p>
+            <p className="text-white font-semibold text-sm mt-0.5">
+              Week <span className="text-blue-400">{programWeek}</span> of 12
+            </p>
+          </div>
+          <div className="w-24 bg-gray-800 rounded-full h-2">
+            <div
+              className="bg-blue-500 h-2 rounded-full transition-all"
+              style={{ width: `${(programWeek / 12) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-gray-400 text-xs uppercase tracking-widest font-bold">
+        <div className="flex items-center justify-between mb-2.5">
+          <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">
             Start a Workout
           </p>
           {suggestedDay && (
@@ -120,9 +138,8 @@ export default async function Home() {
           )}
         </div>
         <div className="space-y-3">
-          {/* Day A */}
           <div className={`bg-blue-600 rounded-2xl overflow-hidden transition-all ${suggestedDay === 'A' ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950' : suggestedDay === 'B' ? 'opacity-70' : ''}`}>
-            <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
+            <div className="px-4 pt-3 pb-2.5 flex items-center justify-between">
               <div>
                 <div className="text-white font-black text-base">Day A</div>
                 <div className="text-blue-200 text-xs mt-0.5">Chest · Quads · Shoulders</div>
@@ -136,7 +153,7 @@ export default async function Home() {
                 <Link
                   key={d}
                   href={`/workouts/new?day=A&dur=${d}`}
-                  className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 px-2 py-4 text-center transition-colors"
+                  className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 px-2 py-3 text-center transition-colors"
                 >
                   <div className="text-white font-bold text-sm">{d} min</div>
                   <div className="text-blue-200 text-xs mt-0.5">
@@ -147,9 +164,8 @@ export default async function Home() {
             </div>
           </div>
 
-          {/* Day B */}
           <div className={`bg-violet-700 rounded-2xl overflow-hidden transition-all ${suggestedDay === 'B' ? 'ring-2 ring-violet-400 ring-offset-2 ring-offset-gray-950' : suggestedDay === 'A' ? 'opacity-70' : ''}`}>
-            <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
+            <div className="px-4 pt-3 pb-2.5 flex items-center justify-between">
               <div>
                 <div className="text-white font-black text-base">Day B</div>
                 <div className="text-violet-200 text-xs mt-0.5">Back · Hamstrings · Arms</div>
@@ -163,7 +179,7 @@ export default async function Home() {
                 <Link
                   key={d}
                   href={`/workouts/new?day=B&dur=${d}`}
-                  className="bg-violet-700 hover:bg-violet-600 active:bg-violet-800 px-2 py-4 text-center transition-colors"
+                  className="bg-violet-700 hover:bg-violet-600 active:bg-violet-800 px-2 py-3 text-center transition-colors"
                 >
                   <div className="text-white font-bold text-sm">{d} min</div>
                   <div className="text-violet-200 text-xs mt-0.5">
@@ -176,30 +192,84 @@ export default async function Home() {
         </div>
       </div>
 
-      {/* Stats */}
       {workouts.length > 0 && (
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { value: workouts.length, label: 'Sessions' },
-            { value: `${sessionsThisWeek}/3`, label: 'This week' },
-            { value: streak > 0 ? `${streak}🔥` : '—', label: 'Wk streak', accent: streak > 0 ? 'text-orange-400' : undefined },
-            {
-              value: totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume),
-              label: 'kg Vol.',
-            },
-          ].map(({ value, label, accent }) => (
-            <div key={label} className="bg-gray-900 rounded-xl p-3 text-center border border-gray-700">
-              <div className={`text-lg font-bold ${accent ?? 'text-white'}`}>{value}</div>
-              <div className="text-gray-500 text-xs mt-0.5">{label}</div>
+        <>
+          <div className="grid grid-cols-4 gap-2">
+            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+              <div className="text-lg font-bold text-white">{workouts.length}</div>
+              <div className="text-gray-600 text-xs mt-0.5">Sessions</div>
             </div>
-          ))}
-        </div>
+            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+              <div className="text-lg font-bold text-white">{sessionsThisWeek}/3</div>
+              <div className="text-gray-600 text-xs mt-0.5">This week</div>
+            </div>
+            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+              <div className={`text-lg font-bold ${streak > 0 ? 'text-orange-400' : 'text-white'}`}>
+                {streak > 0 ? `${streak}🔥` : '—'}
+              </div>
+              <div className="text-gray-600 text-xs mt-0.5">Wk streak</div>
+            </div>
+            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+              <div className="text-lg font-bold text-white">
+                {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)}
+              </div>
+              <div className="text-gray-600 text-xs mt-0.5">kg Vol.</div>
+            </div>
+          </div>
+
+          {topMuscles.length > 0 && (
+            <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold">
+                  This week · muscle sets
+                </p>
+                <Link href="/stats" className="text-blue-400 hover:text-blue-300 text-xs transition-colors">
+                  Body stats →
+                </Link>
+              </div>
+              <div className="space-y-2">
+                {topMuscles.map(([cat, sets]) => {
+                  const maxSets = topMuscles[0][1];
+                  return (
+                    <div key={cat} className="flex items-center gap-3">
+                      <span className={`text-xs font-semibold w-20 flex-shrink-0 ${
+                        cat === 'CHEST' ? 'text-blue-400' :
+                        cat === 'BACK' ? 'text-violet-400' :
+                        cat === 'LEGS' ? 'text-green-400' :
+                        cat === 'SHOULDERS' ? 'text-yellow-400' :
+                        cat === 'ARMS' ? 'text-orange-400' :
+                        'text-pink-400'
+                      }`}>
+                        {cat}
+                      </span>
+                      <div className="flex-1 bg-gray-800 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all ${
+                            cat === 'CHEST' ? 'bg-blue-500' :
+                            cat === 'BACK' ? 'bg-violet-500' :
+                            cat === 'LEGS' ? 'bg-green-500' :
+                            cat === 'SHOULDERS' ? 'bg-yellow-500' :
+                            cat === 'ARMS' ? 'bg-orange-500' :
+                            'bg-pink-500'
+                          }`}
+                          style={{ width: `${(sets / maxSets) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-gray-500 text-xs tabular-nums w-8 text-right">
+                        {sets}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Recent workouts */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
-          <p className="text-gray-400 text-xs uppercase tracking-widest font-bold">Recent</p>
+          <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">Recent</p>
           {workouts.length > 4 && (
             <Link href="/workouts" className="text-blue-400 hover:text-blue-300 text-xs transition-colors">
               See all →
@@ -208,9 +278,9 @@ export default async function Home() {
         </div>
 
         {recentWorkouts.length === 0 ? (
-          <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-700 border-dashed">
-            <p className="text-gray-500 font-medium mb-1">No workouts yet</p>
-            <p className="text-gray-600 text-sm mb-4">Tap Day A or Day B above to get started</p>
+          <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800 border-dashed">
+            <p className="text-gray-600 font-medium mb-1">No workouts yet</p>
+            <p className="text-gray-700 text-sm mb-4">Tap Day A or Day B above to get started</p>
             <Link href="/program" className="text-blue-400 text-sm hover:text-blue-300">
               Read the program first →
             </Link>
@@ -223,19 +293,19 @@ export default async function Home() {
                 <Link
                   key={workout.id}
                   href={`/workouts/${workout.id}`}
-                  className="flex items-center bg-gray-900 rounded-xl px-4 py-3.5 border border-gray-700 hover:border-gray-600 hover:bg-gray-800/60 transition-all"
+                  className="flex items-center bg-gray-900 rounded-xl px-4 py-3 border border-gray-800 hover:border-gray-700 hover:bg-gray-800/60 transition-all"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-white text-sm truncate">{workout.name}</div>
-                    <div className="text-gray-500 text-xs mt-0.5 truncate">
+                    <div className="text-gray-600 text-xs mt-0.5 truncate">
                       {exerciseNames.slice(0, 3).join(' · ')}
                       {exerciseNames.length > 3 && ` +${exerciseNames.length - 3}`}
                     </div>
                   </div>
                   <div className="text-right ml-4 flex-shrink-0">
-                    <div className="text-gray-400 text-xs">{formatRelative(workout.date)}</div>
+                    <div className="text-gray-500 text-xs">{formatRelative(workout.date)}</div>
                     {workout.duration && (
-                      <div className="text-gray-600 text-xs mt-0.5">{formatDuration(workout.duration)}</div>
+                      <div className="text-gray-700 text-xs mt-0.5">{formatDuration(workout.duration)}</div>
                     )}
                   </div>
                 </Link>
