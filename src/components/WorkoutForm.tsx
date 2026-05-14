@@ -29,6 +29,7 @@ interface SetEntry {
   weight: number;
   done: boolean;
   notes: string;
+  rpe: number;
 }
 
 interface ExerciseBlock {
@@ -43,6 +44,13 @@ interface ExerciseBlock {
   expandedNoteIdx: number | null;
   lastSession?: { weight: number; reps: number };
 }
+
+const rpeOptions = [
+  { v: 1, l: 'Easy', c: 'bg-green-900/40 border-green-700 text-green-400' },
+  { v: 2, l: 'Med', c: 'bg-yellow-900/40 border-yellow-700 text-yellow-400' },
+  { v: 3, l: 'Hard', c: 'bg-orange-900/40 border-orange-700 text-orange-400' },
+  { v: 4, l: 'Grind', c: 'bg-red-900/40 border-red-700 text-red-400' },
+];
 
 function parseRestSeconds(rest: string): number {
   const m = rest.match(/(\d+)/);
@@ -92,6 +100,7 @@ function buildBlocks(
         weight: isTimed ? 0 : (prev?.weight ?? 0),
         done: false,
         notes: '',
+        rpe: 0,
       })),
     };
   });
@@ -149,7 +158,7 @@ export default function WorkoutForm({
         exerciseId: exercises[0].id,
         showCues: false,
         expandedNoteIdx: null,
-        sets: [{ exerciseId: exercises[0].id, setNumber: 1, reps: 10, weight: 0, done: false, notes: '' }],
+        sets: [{ exerciseId: exercises[0].id, setNumber: 1, reps: 10, weight: 0, done: false, notes: '', rpe: 0 }],
       },
     ]);
   }
@@ -228,6 +237,7 @@ export default function WorkoutForm({
                   weight: b.sets.at(-1)?.weight ?? 0,
                   done: false,
                   notes: '',
+                  rpe: 0,
                 },
               ],
             }
@@ -271,6 +281,16 @@ export default function WorkoutForm({
     );
   }
 
+  function updateSetRpe(uid: string, idx: number, value: number) {
+    setBlocks((prev) =>
+      prev.map((b) =>
+        b.uid === uid
+          ? { ...b, sets: b.sets.map((s, i) => (i === idx ? { ...s, rpe: value } : s)) }
+          : b,
+      ),
+    );
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -284,7 +304,11 @@ export default function WorkoutForm({
         notes: notes.trim() || undefined,
         duration: Math.floor((Date.now() - startRef.current) / 1000),
         sets: blocks.flatMap((b) =>
-          b.sets.map(({ done: _d, notes: sn, ...rest }) => ({ ...rest, notes: sn || undefined }))
+          b.sets.map(({ done: _d, notes: sn, rpe: r, ...rest }) => ({
+            ...rest,
+            notes: sn || undefined,
+            rpe: r || undefined,
+          }))
         ),
       });
     } catch {
@@ -494,130 +518,151 @@ export default function WorkoutForm({
                 )}
 
                 {block.sets.map((set, i) => (
-                  <div key={i} className={`transition-all ${set.done ? 'opacity-40' : ''}`}>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => toggleSetDone(block.uid, i)}
-                        className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-95 ${
-                          set.done
-                            ? 'bg-green-600 text-white'
-                            : 'bg-gray-800 text-gray-400 active:bg-gray-700'
-                        }`}
-                      >
-                        {set.done ? '✓' : set.setNumber}
-                      </button>
+                  <div key={i}>
+                    <div className={`transition-all ${set.done ? 'opacity-40' : ''}`}>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => toggleSetDone(block.uid, i)}
+                          className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-95 ${
+                            set.done
+                              ? 'bg-green-600 text-white'
+                              : 'bg-gray-800 text-gray-400 active:bg-gray-700'
+                          }`}
+                        >
+                          {set.done ? '✓' : set.setNumber}
+                        </button>
 
-                      {isTimed ? (
-                        <div className="flex items-center flex-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updateSet(block.uid, i, 'reps', Math.max(5, set.reps - 5))
-                            }
-                            className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-sm flex-shrink-0 select-none"
-                          >
-                            −5s
-                          </button>
-                          <span className="flex-1 text-white text-sm text-center tabular-nums py-2.5 font-medium">
-                            {formatSeconds(set.reps)}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => updateSet(block.uid, i, 'reps', set.reps + 5)}
-                            className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-sm flex-shrink-0 select-none"
-                          >
-                            +5s
-                          </button>
-                        </div>
-                      ) : (
-                        <>
+                        {isTimed ? (
                           <div className="flex items-center flex-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
                             <button
                               type="button"
                               onClick={() =>
-                                updateSet(block.uid, i, 'weight', Math.max(0, +(set.weight - 2.5).toFixed(1)))
+                                updateSet(block.uid, i, 'reps', Math.max(5, set.reps - 5))
                               }
-                              className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                              className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-sm flex-shrink-0 select-none"
                             >
-                              −
+                              −5s
                             </button>
-                            <input
-                              type="number"
-                              value={set.weight}
-                              min="0"
-                              step="0.5"
-                              onChange={(e) =>
-                                updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)
-                              }
-                              className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-2.5"
-                            />
+                            <span className="flex-1 text-white text-sm text-center tabular-nums py-2.5 font-medium">
+                              {formatSeconds(set.reps)}
+                            </span>
                             <button
                               type="button"
-                              onClick={() =>
-                                updateSet(block.uid, i, 'weight', +(set.weight + 2.5).toFixed(1))
-                              }
-                              className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                              onClick={() => updateSet(block.uid, i, 'reps', set.reps + 5)}
+                              className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-sm flex-shrink-0 select-none"
                             >
-                              +
+                              +5s
                             </button>
                           </div>
+                        ) : (
+                          <>
+                            <div className="flex items-center flex-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateSet(block.uid, i, 'weight', Math.max(0, +(set.weight - 2.5).toFixed(1)))
+                                }
+                                className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                value={set.weight}
+                                min="0"
+                                step="0.5"
+                                onChange={(e) =>
+                                  updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)
+                                }
+                                className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-2.5"
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateSet(block.uid, i, 'weight', +(set.weight + 2.5).toFixed(1))
+                                }
+                                className="px-3 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                              >
+                                +
+                              </button>
+                            </div>
 
-                          <div className="flex items-center w-24 flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateSet(block.uid, i, 'reps', Math.max(0, set.reps - 1))
-                              }
-                              className="px-2 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
-                            >
-                              −
-                            </button>
-                            <input
-                              type="number"
-                              value={set.reps}
-                              min="0"
-                              onChange={(e) =>
-                                updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
-                              }
-                              className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-2.5"
-                            />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateSet(block.uid, i, 'reps', set.reps + 1)
-                              }
-                              className="px-2 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
-                            >
-                              +
-                            </button>
-                          </div>
-                        </>
-                      )}
+                            <div className="flex items-center w-24 flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateSet(block.uid, i, 'reps', Math.max(0, set.reps - 1))
+                                }
+                                className="px-2 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                value={set.reps}
+                                min="0"
+                                onChange={(e) =>
+                                  updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
+                                }
+                                className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-2.5"
+                              />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updateSet(block.uid, i, 'reps', set.reps + 1)
+                                }
+                                className="px-2 py-2.5 text-gray-300 active:bg-gray-700 font-bold text-base flex-shrink-0 select-none"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </>
+                        )}
 
-                      <div className="flex items-center gap-1 flex-shrink-0 w-14 justify-end">
-                        <button
-                          type="button"
-                          onClick={() => toggleNoteIdx(block.uid, i)}
-                          className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors text-sm ${
-                            set.notes
-                              ? 'text-blue-400 bg-blue-900/30'
-                              : 'text-gray-700 hover:text-gray-400'
-                          }`}
-                          title="Set note"
-                        >
-                          {set.notes ? '📝' : '···'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => removeSet(block.uid, i)}
-                          disabled={block.sets.length === 1}
-                          className="w-6 h-7 flex items-center justify-center text-gray-700 hover:text-red-400 transition-colors disabled:opacity-20 text-lg leading-none"
-                        >
-                          ×
-                        </button>
+                        <div className="flex items-center gap-1 flex-shrink-0 w-14 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => toggleNoteIdx(block.uid, i)}
+                            className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors text-sm ${
+                              set.notes
+                                ? 'text-blue-400 bg-blue-900/30'
+                                : 'text-gray-700 hover:text-gray-400'
+                            }`}
+                            title="Set note"
+                          >
+                            {set.notes ? '📝' : '···'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeSet(block.uid, i)}
+                            disabled={block.sets.length === 1}
+                            className="w-6 h-7 flex items-center justify-center text-gray-700 hover:text-red-400 transition-colors disabled:opacity-20 text-lg leading-none"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
                     </div>
+
+                    {/* RPE pills — rate effort after completing a set */}
+                    {set.done && (
+                      <div className="mt-1 pl-[52px] flex gap-1.5 pb-0.5">
+                        {rpeOptions.map(({ v, l, c }) => (
+                          <button
+                            type="button"
+                            key={v}
+                            onClick={() => updateSetRpe(block.uid, i, set.rpe === v ? 0 : v)}
+                            className={`text-xs px-2 py-0.5 rounded-full border transition-colors flex-shrink-0 ${
+                              set.rpe === v ? c : 'bg-gray-800 border-gray-700 text-gray-600'
+                            }`}
+                          >
+                            {l}
+                          </button>
+                        ))}
+                        <span className="text-gray-700 text-xs self-center">effort</span>
+                      </div>
+                    )}
 
                     {block.expandedNoteIdx === i && (
                       <div className="mt-1.5 pl-[52px]">

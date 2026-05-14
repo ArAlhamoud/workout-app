@@ -83,7 +83,7 @@ export default async function ProgramPage() {
             href="/workouts/new?day=A"
             className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
           >
-            Start →
+            Start &#8594;
           </Link>
         </div>
         <div className="bg-gray-900/50 rounded-xl border border-gray-800 px-4 py-3 mb-3">
@@ -101,14 +101,14 @@ export default async function ProgramPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-white font-semibold text-sm">{ex.name}</span>
                       <span className="text-xs bg-blue-600/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-700/40">
-                        {ex.sets}×{ex.repsDisplay}
+                        {ex.sets}&#215;{ex.repsDisplay}
                       </span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide ${pb.cls}`}>
                         {pb.label}
                       </span>
                       {exId && (
                         <Link href={`/progress/${exId}`} className="text-xs text-gray-600 hover:text-blue-400 transition-colors">
-                          Progress →
+                          Progress &#8594;
                         </Link>
                       )}
                     </div>
@@ -140,7 +140,7 @@ export default async function ProgramPage() {
             href="/workouts/new?day=B"
             className="bg-violet-700 hover:bg-violet-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
           >
-            Start →
+            Start &#8594;
           </Link>
         </div>
         <div className="bg-gray-900/50 rounded-xl border border-gray-800 px-4 py-3 mb-3">
@@ -158,14 +158,14 @@ export default async function ProgramPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-white font-semibold text-sm">{ex.name}</span>
                       <span className="text-xs bg-violet-700/20 text-violet-300 px-2 py-0.5 rounded-full border border-violet-700/40">
-                        {ex.sets}×{ex.repsDisplay}
+                        {ex.sets}&#215;{ex.repsDisplay}
                       </span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide ${pb.cls}`}>
                         {pb.label}
                       </span>
                       {exId && (
                         <Link href={`/progress/${exId}`} className="text-xs text-gray-600 hover:text-violet-400 transition-colors">
-                          Progress →
+                          Progress &#8594;
                         </Link>
                       )}
                     </div>
@@ -306,14 +306,14 @@ export default async function ProgramPage() {
             <div className="text-white font-semibold text-sm mb-3">Daily Macros</div>
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-800/30">
-                <div className="text-blue-400 font-bold text-lg">160g</div>
+                <div className="text-blue-400 font-bold text-lg">185g</div>
                 <div className="text-gray-500 text-xs mt-0.5">Protein</div>
-                <div className="text-gray-700 text-xs">640 kcal</div>
+                <div className="text-gray-700 text-xs">740 kcal</div>
               </div>
               <div className="bg-yellow-900/20 rounded-lg p-3 border border-yellow-800/30">
-                <div className="text-yellow-400 font-bold text-lg">205g</div>
+                <div className="text-yellow-400 font-bold text-lg">180g</div>
                 <div className="text-gray-500 text-xs mt-0.5">Carbs</div>
-                <div className="text-gray-700 text-xs">820 kcal</div>
+                <div className="text-gray-700 text-xs">720 kcal</div>
               </div>
               <div className="bg-green-900/20 rounded-lg p-3 border border-green-800/30">
                 <div className="text-green-400 font-bold text-lg">65g</div>
@@ -337,10 +337,11 @@ export default async function ProgramPage() {
             <div className="text-white font-semibold text-sm mb-2">Joint-First Approach</div>
             <ul className="space-y-1.5 text-gray-400 text-xs">
               <li>· All exercises are machine-based — no free-weight barbell loading on joints</li>
-              <li>· RDL on Smith Machine only — no free weights</li>
+              <li>· RDL only on Smith Machine or light dumbbells — learn the hinge before loading</li>
               <li>· Avoid treadmill running — walking only at 4–5 km/h, low incline</li>
               <li>· Swimming is your best cardio — zero joint impact, maximum calorie burn</li>
               <li>· Progress weight slowly — joint adaptation lags behind muscle strength</li>
+              <li>· Pre-lift spinal mobility: 10 cat-cows + 8 bird-dogs each side before every session</li>
             </ul>
           </div>
         </div>

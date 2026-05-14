@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getWorkouts } from './actions';
-import { SCHEDULE, getExerciseCountForDuration } from '@/lib/program';
+import { SCHEDULE, REST_ACTIVITIES, getExerciseCountForDuration } from '@/lib/program';
 
 const DURATIONS = [30, 45, 60] as const;
 
@@ -26,11 +26,13 @@ export default async function Home() {
     0,
   );
 
+  // Week stats
   const weekStart = new Date();
   weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   weekStart.setHours(0, 0, 0, 0);
   const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
 
+  // Consecutive week streak
   const workoutWeeks = new Set(
     workouts.map((w) => {
       const d = new Date(w.date);
@@ -50,9 +52,12 @@ export default async function Home() {
     else break;
   }
 
+  // Today's schedule
   const todayIdx = new Date().getDay();
   const today = SCHEDULE[todayIdx];
   const isGymDay = today?.type === 'gym';
+  const isSunday = todayIdx === 0;
+  const restActivity = REST_ACTIVITIES[todayIdx] ?? null;
   let nextGymDay: (typeof SCHEDULE)[0] | null = null;
   if (!isGymDay) {
     for (let i = 1; i <= 7; i++) {
@@ -61,44 +66,42 @@ export default async function Home() {
     }
   }
 
+  // Suggest next day based on last workout
   const lastDay = workouts[0]?.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
   const suggestedDay = lastDay === 'A' ? 'B' : lastDay === 'B' ? 'A' : null;
 
-  let programWeek: number | null = null;
-  if (workouts.length > 0) {
-    const firstWorkout = workouts[workouts.length - 1];
-    const daysSinceStart = Math.floor(
-      (Date.now() - new Date(firstWorkout.date).getTime()) / 86400000,
-    );
-    programWeek = Math.min(12, Math.floor(daysSinceStart / 7) + 1);
-  }
-
-  const weeklyVolume: Record<string, number> = {};
-  for (const w of workouts.filter((wk) => new Date(wk.date) >= weekStart)) {
-    for (const s of w.sets) {
-      const cat = s.exercise.category;
-      weeklyVolume[cat] = (weeklyVolume[cat] ?? 0) + 1;
-    }
-  }
-  const topMuscles = Object.entries(weeklyVolume)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 4);
-
   return (
     <div className="space-y-5">
+      {/* Sunday weigh-in nudge */}
+      {isSunday && (
+        <div className="rounded-2xl bg-amber-950/30 border border-amber-800/40 px-4 py-3 flex items-center gap-3">
+          <span className="text-amber-400 text-xl flex-shrink-0">&#9878;</span>
+          <div>
+            <p className="text-amber-400 text-xs font-bold uppercase tracking-widest">Sunday Check-In</p>
+            <p className="text-gray-300 text-sm mt-0.5">Weigh-in morning, fasted. Log it in Stats.</p>
+          </div>
+          <Link href="/stats" className="ml-auto text-xs text-amber-400 hover:text-amber-300 font-semibold flex-shrink-0">
+            Stats &#8594;
+          </Link>
+        </div>
+      )}
+
+      {/* Today banner */}
       {isGymDay ? (
         <div className="rounded-2xl bg-green-950/40 border border-green-800/40 px-4 py-3 flex items-center justify-between">
           <div>
             <p className="text-green-500 text-xs font-bold uppercase tracking-widest">Today</p>
             <p className="text-white font-semibold text-sm mt-0.5">Gym day — pick a workout below</p>
           </div>
-          <span className="text-green-500 text-xl">↓</span>
+          <span className="text-green-500 text-xl">&#8595;</span>
         </div>
       ) : (
         <div className="rounded-2xl bg-gray-900 border border-gray-800 px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">Today</p>
-            <p className="text-gray-300 font-semibold text-sm mt-0.5">Rest day — recover well</p>
+            <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">Today · Rest</p>
+            <p className="text-gray-300 font-semibold text-sm mt-0.5">
+              {restActivity ?? 'Rest day — recover well'}
+            </p>
           </div>
           {nextGymDay && (
             <p className="text-gray-600 text-xs text-right">
@@ -109,23 +112,17 @@ export default async function Home() {
         </div>
       )}
 
-      {programWeek !== null && (
-        <div className="rounded-2xl bg-gray-900 border border-gray-800 px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">12-Week Program</p>
-            <p className="text-white font-semibold text-sm mt-0.5">
-              Week <span className="text-blue-400">{programWeek}</span> of 12
-            </p>
-          </div>
-          <div className="w-24 bg-gray-800 rounded-full h-2">
-            <div
-              className="bg-blue-500 h-2 rounded-full transition-all"
-              style={{ width: `${(programWeek / 12) * 100}%` }}
-            />
-          </div>
+      {/* Daily step goal */}
+      <div className="rounded-2xl bg-gray-900 border border-gray-800 px-4 py-3 flex items-center gap-3">
+        <span className="text-2xl flex-shrink-0">&#128694;</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-gray-500 text-xs font-bold uppercase tracking-widest">Daily NEAT Goal</p>
+          <p className="text-white font-semibold text-sm mt-0.5">8,000 steps</p>
+          <p className="text-gray-600 text-xs mt-0.5">Every extra 1k steps burns ~40–50 kcal — adds up fast</p>
         </div>
-      )}
+      </div>
 
+      {/* Start workout — pick a day & duration */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
           <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">
@@ -138,6 +135,7 @@ export default async function Home() {
           )}
         </div>
         <div className="space-y-3">
+          {/* Day A */}
           <div className={`bg-blue-600 rounded-2xl overflow-hidden transition-all ${suggestedDay === 'A' ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950' : suggestedDay === 'B' ? 'opacity-70' : ''}`}>
             <div className="px-4 pt-3 pb-2.5 flex items-center justify-between">
               <div>
@@ -145,7 +143,7 @@ export default async function Home() {
                 <div className="text-blue-200 text-xs mt-0.5">Chest · Quads · Shoulders</div>
               </div>
               {suggestedDay === 'A' && (
-                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-semibold">Next ↑</span>
+                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-semibold">Next &#8593;</span>
               )}
             </div>
             <div className="grid grid-cols-3 gap-px bg-blue-800/50">
@@ -164,6 +162,7 @@ export default async function Home() {
             </div>
           </div>
 
+          {/* Day B */}
           <div className={`bg-violet-700 rounded-2xl overflow-hidden transition-all ${suggestedDay === 'B' ? 'ring-2 ring-violet-400 ring-offset-2 ring-offset-gray-950' : suggestedDay === 'A' ? 'opacity-70' : ''}`}>
             <div className="px-4 pt-3 pb-2.5 flex items-center justify-between">
               <div>
@@ -171,7 +170,7 @@ export default async function Home() {
                 <div className="text-violet-200 text-xs mt-0.5">Back · Hamstrings · Arms</div>
               </div>
               {suggestedDay === 'B' && (
-                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-semibold">Next ↑</span>
+                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-semibold">Next &#8593;</span>
               )}
             </div>
             <div className="grid grid-cols-3 gap-px bg-violet-900/50">
@@ -192,87 +191,39 @@ export default async function Home() {
         </div>
       </div>
 
+      {/* Stats */}
       {workouts.length > 0 && (
-        <>
-          <div className="grid grid-cols-4 gap-2">
-            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-              <div className="text-lg font-bold text-white">{workouts.length}</div>
-              <div className="text-gray-600 text-xs mt-0.5">Sessions</div>
-            </div>
-            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-              <div className="text-lg font-bold text-white">{sessionsThisWeek}/3</div>
-              <div className="text-gray-600 text-xs mt-0.5">This week</div>
-            </div>
-            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-              <div className={`text-lg font-bold ${streak > 0 ? 'text-orange-400' : 'text-white'}`}>
-                {streak > 0 ? `${streak}🔥` : '—'}
-              </div>
-              <div className="text-gray-600 text-xs mt-0.5">Wk streak</div>
-            </div>
-            <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-              <div className="text-lg font-bold text-white">
-                {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)}
-              </div>
-              <div className="text-gray-600 text-xs mt-0.5">kg Vol.</div>
-            </div>
+        <div className="grid grid-cols-4 gap-2">
+          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+            <div className="text-lg font-bold text-white">{workouts.length}</div>
+            <div className="text-gray-600 text-xs mt-0.5">Sessions</div>
           </div>
-
-          {topMuscles.length > 0 && (
-            <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold">
-                  This week · muscle sets
-                </p>
-                <Link href="/stats" className="text-blue-400 hover:text-blue-300 text-xs transition-colors">
-                  Body stats →
-                </Link>
-              </div>
-              <div className="space-y-2">
-                {topMuscles.map(([cat, sets]) => {
-                  const maxSets = topMuscles[0][1];
-                  return (
-                    <div key={cat} className="flex items-center gap-3">
-                      <span className={`text-xs font-semibold w-20 flex-shrink-0 ${
-                        cat === 'CHEST' ? 'text-blue-400' :
-                        cat === 'BACK' ? 'text-violet-400' :
-                        cat === 'LEGS' ? 'text-green-400' :
-                        cat === 'SHOULDERS' ? 'text-yellow-400' :
-                        cat === 'ARMS' ? 'text-orange-400' :
-                        'text-pink-400'
-                      }`}>
-                        {cat}
-                      </span>
-                      <div className="flex-1 bg-gray-800 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full transition-all ${
-                            cat === 'CHEST' ? 'bg-blue-500' :
-                            cat === 'BACK' ? 'bg-violet-500' :
-                            cat === 'LEGS' ? 'bg-green-500' :
-                            cat === 'SHOULDERS' ? 'bg-yellow-500' :
-                            cat === 'ARMS' ? 'bg-orange-500' :
-                            'bg-pink-500'
-                          }`}
-                          style={{ width: `${(sets / maxSets) * 100}%` }}
-                        />
-                      </div>
-                      <span className="text-gray-500 text-xs tabular-nums w-8 text-right">
-                        {sets}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+            <div className="text-lg font-bold text-white">{sessionsThisWeek}/3</div>
+            <div className="text-gray-600 text-xs mt-0.5">This week</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+            <div className={`text-lg font-bold ${streak > 0 ? 'text-orange-400' : 'text-white'}`}>
+              {streak > 0 ? `${streak}🔥` : '—'}
             </div>
-          )}
-        </>
+            <div className="text-gray-600 text-xs mt-0.5">Wk streak</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
+            <div className="text-lg font-bold text-white">
+              {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)}
+            </div>
+            <div className="text-gray-600 text-xs mt-0.5">kg Vol.</div>
+          </div>
+        </div>
       )}
 
+      {/* Recent workouts */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
           <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">Recent</p>
           {workouts.length > 4 && (
             <Link href="/workouts" className="text-blue-400 hover:text-blue-300 text-xs transition-colors">
-              See all →
+              See all &#8594;
             </Link>
           )}
         </div>
@@ -282,7 +233,7 @@ export default async function Home() {
             <p className="text-gray-600 font-medium mb-1">No workouts yet</p>
             <p className="text-gray-700 text-sm mb-4">Tap Day A or Day B above to get started</p>
             <Link href="/program" className="text-blue-400 text-sm hover:text-blue-300">
-              Read the program first →
+              Read the program first &#8594;
             </Link>
           </div>
         ) : (

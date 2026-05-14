@@ -41,7 +41,7 @@ export async function createWorkout(data: {
   date: string;
   notes?: string;
   duration?: number;
-  sets: Array<{ exerciseId: string; setNumber: number; reps: number; weight: number; notes?: string }>;
+  sets: Array<{ exerciseId: string; setNumber: number; reps: number; weight: number; notes?: string; rpe?: number }>;
 }) {
   const workout = await prisma.workout.create({
     data: {

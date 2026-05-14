@@ -33,6 +33,7 @@ model WorkoutSet {
   reps       Int
   weight     Float
   notes      String?
+  rpe        Int?
   workout    Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise   Exercise @relation(fields: [exerciseId], references: [id])
 }

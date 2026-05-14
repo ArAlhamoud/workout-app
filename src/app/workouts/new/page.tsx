@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { getExercises, getLastSessionForExercises, getPersonalRecords } from '../../actions';
+import { getExercises, getLastSessionForExercises, getPersonalRecords, getWorkouts } from '../../actions';
 import WorkoutForm from '@/components/WorkoutForm';
 import {
   getDayTemplate,
   getExercisesForDuration,
+  getPlankTarget,
   type Duration,
 } from '@/lib/program';
 
@@ -52,10 +53,22 @@ export default async function NewWorkoutPage({
   })();
 
   const exerciseIds = initialExercises.map((e) => e.exerciseId);
-  const [lastSession, personalRecords] = await Promise.all([
+  const [lastSession, personalRecords, allWorkouts] = await Promise.all([
     getLastSessionForExercises(exerciseIds),
     getPersonalRecords(),
+    getWorkouts(),
   ]);
+
+  let programWeek = 1;
+  if (allWorkouts.length > 0) {
+    const firstWorkout = allWorkouts[allWorkouts.length - 1];
+    const daysSinceStart = Math.floor((Date.now() - new Date(firstWorkout.date).getTime()) / 86400000);
+    programWeek = Math.min(12, Math.floor(daysSinceStart / 7) + 1);
+  }
+  const plankTarget = getPlankTarget(programWeek);
+  const finalExercises = initialExercises.map((ex) =>
+    ex.name === 'Plank' ? { ...ex, defaultReps: plankTarget.min } : ex
+  );
 
   return (
     <div className="space-y-5">
@@ -97,33 +110,10 @@ export default async function NewWorkoutPage({
         </div>
       )}
 
-      {!validDay && (
-        <div>
-          <p className="text-gray-400 text-xs uppercase tracking-widest font-bold mb-3">Quick Start</p>
-          <div className="grid grid-cols-2 gap-3">
-            {(['A', 'B'] as const).map((d) => (
-              <Link
-                key={d}
-                href={`/workouts/new?day=${d}&dur=60`}
-                className={`rounded-2xl px-4 py-5 text-center transition-colors ${
-                  d === 'A' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-violet-700 hover:bg-violet-600'
-                }`}
-              >
-                <div className="text-white font-black text-xl">Day {d}</div>
-                <div className={`text-xs mt-1.5 ${d === 'A' ? 'text-blue-200' : 'text-violet-200'}`}>
-                  {getDayTemplate(d).focus}
-                </div>
-              </Link>
-            ))}
-          </div>
-          <p className="text-gray-600 text-xs text-center mt-3">or add exercises manually below</p>
-        </div>
-      )}
-
       <WorkoutForm
         exercises={exercises}
         initialName={initialName}
-        initialExercises={initialExercises}
+        initialExercises={finalExercises}
         lastSession={lastSession}
         personalRecords={personalRecords}
       />
