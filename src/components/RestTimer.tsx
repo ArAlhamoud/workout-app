@@ -17,7 +17,7 @@ async function requestNotificationPermission(): Promise<boolean> {
 }
 
 async function scheduleSwNotification(delayMs: number, title: string, body: string) {
-  if (!(('serviceWorker' in navigator))) return;
+  if (!('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.ready;
     reg.active?.postMessage({ type: 'SCHEDULE_NOTIFICATION', delayMs, title, body });
@@ -27,7 +27,7 @@ async function scheduleSwNotification(delayMs: number, title: string, body: stri
 }
 
 async function cancelSwNotification() {
-  if (!(('serviceWorker' in navigator))) return;
+  if (!('serviceWorker' in navigator)) return;
   try {
     const reg = await navigator.serviceWorker.ready;
     reg.active?.postMessage({ type: 'CANCEL_NOTIFICATION' });
@@ -37,13 +37,7 @@ async function cancelSwNotification() {
 function showDirectNotification(title: string, body: string) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   try {
-    new Notification(title, {
-      body,
-      icon: '/icon-192.png',
-      tag: 'rest-timer',
-      renotify: true,
-      silent: false,
-    });
+    new Notification(title, { body, icon: '/icon-192.png', tag: 'rest-timer' });
   } catch { /* iOS Safari throws — ignore */ }
 }
 
@@ -58,9 +52,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
 
     async function setup() {
       permissionGranted.current = await requestNotificationPermission();
-
       if (cancelled) return;
-
       if (permissionGranted.current) {
         await scheduleSwNotification(
           totalSeconds * 1000,
@@ -83,13 +75,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
     if (remaining <= 0) {
       setFinished(true);
       if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 200]);
-
-      // Direct notification — most reliable when page is in foreground
-      showDirectNotification(
-        'Rest complete! 💪',
-        `Time for your next set of ${exerciseName}`,
-      );
-
+      showDirectNotification('Rest complete! 💪', `Time for your next set of ${exerciseName}`);
       const autoClose = setTimeout(onDismiss, 4000);
       return () => clearTimeout(autoClose);
     }
@@ -110,7 +96,6 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
             finished ? 'bg-green-950 border-green-700' : 'bg-gray-900 border-gray-700'
           }`}
         >
-          {/* Progress bar */}
           <div className="h-1.5 bg-gray-800">
             <div
               className={`h-full transition-all duration-1000 ease-linear ${
