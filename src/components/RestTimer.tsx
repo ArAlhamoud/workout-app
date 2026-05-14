@@ -64,7 +64,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
       if (permissionGranted.current) {
         await scheduleSwNotification(
           totalSeconds * 1000,
-          'Rest complete! \u{1F4AA}',
+          'Rest complete! 💪',
           `Time for your next set of ${exerciseName}`,
         );
       }
@@ -84,9 +84,9 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
       setFinished(true);
       if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 200]);
 
-      // Direct notification — most reliable when page is backgrounded
+      // Direct notification — most reliable when page is in foreground
       showDirectNotification(
-        'Rest complete! \u{1F4AA}',
+        'Rest complete! 💪',
         `Time for your next set of ${exerciseName}`,
       );
 
@@ -123,7 +123,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
           <div className="flex items-center justify-between px-4 py-3 gap-4">
             {finished ? (
               <div>
-                <p className="text-green-400 font-bold text-base">Rest complete! \u{1F4AA}</p>
+                <p className="text-green-400 font-bold text-base">Rest complete! 💪</p>
                 <p className="text-green-600 text-xs mt-0.5">Next set of {exerciseName}</p>
               </div>
             ) : (
