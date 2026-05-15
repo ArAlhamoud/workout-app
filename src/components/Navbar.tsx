@@ -75,13 +75,13 @@ export default function Navbar() {
         {/* Floating action button — raised above the bar */}
         <Link
           href="/workouts/new"
-          className={`absolute left-1/2 -translate-x-1/2 -top-7 w-[54px] h-[54px] rounded-full flex items-center justify-center shadow-xl transition-all active:scale-90 ring-4 ring-gray-950 ${
+          className={`absolute left-1/2 -translate-x-1/2 -top-6 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all active:scale-90 ring-[3px] ring-gray-950 shadow-[0_2px_16px_rgba(0,0,0,0.5)] ${
             isLog
-              ? 'bg-blue-500 shadow-blue-900/60'
-              : 'bg-blue-600 shadow-blue-900/50 hover:bg-blue-500'
+              ? 'bg-blue-500'
+              : 'bg-blue-600 hover:bg-blue-500'
           }`}
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
