@@ -29,7 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${inter.className} bg-gray-950 text-white min-h-screen`}>
-        <main className="mx-auto px-4 pt-6 pb-24 max-w-lg">
+        <main className="mx-auto px-4 pt-6 pb-32 max-w-lg">
           {children}
         </main>
         <Navbar />
