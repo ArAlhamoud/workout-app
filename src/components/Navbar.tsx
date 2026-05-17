@@ -75,7 +75,7 @@ export default function Navbar() {
         {/* Floating action button — raised above the bar */}
         <Link
           href="/workouts/new"
-          className={`absolute left-1/2 -translate-x-1/2 -top-6 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all active:scale-90 ring-[3px] ring-gray-950 shadow-[0_2px_16px_rgba(0,0,0,0.5)] ${
+          className={`absolute left-1/2 -translate-x-1/2 -top-6 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all active:scale-90 border-[3px] border-gray-950 ${
             isLog
               ? 'bg-blue-500'
               : 'bg-blue-600 hover:bg-blue-500'
@@ -87,7 +87,7 @@ export default function Navbar() {
           </svg>
         </Link>
 
-        <div className="bg-gray-950/96 backdrop-blur-md border-t border-gray-800/70 shadow-2xl">
+        <div className="bg-gray-950 border-t border-gray-800/70">
           <div className="grid grid-cols-5 h-[58px]">
             <Tab href="/" label="Home" icon={<IconHome active={isHome} />} active={isHome} />
             <Tab href="/workouts" label="History" icon={<IconHistory active={isHistory} />} active={isHistory} />
