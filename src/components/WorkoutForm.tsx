@@ -537,7 +537,7 @@ export default function WorkoutForm({
                                 : 'bg-gray-800 text-gray-500 active:bg-gray-700'
                             }`}
                           >
-                            {set.done ? '&#10003;' : set.setNumber}
+                            {set.done ? '✓' : set.setNumber}
                           </button>
 
                           {isTimed ? (
