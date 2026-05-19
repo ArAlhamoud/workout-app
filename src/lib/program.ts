@@ -45,7 +45,7 @@ export const DAY_B: DayTemplate = {
   warmup: '5 min elliptical (easy pace) + shoulder rolls + gentle torso twists + 10 cat-cows on mat + 8 bird-dogs each side',
   cardioFinisher: '25–30 min swimming (best cardio on this day) OR 15 min elliptical at moderate pace',
   exercises: [
-    { name: 'Romanian Deadlift', sets: 3, repsMin: 8, repsMax: 12, unit: 'reps', repsDisplay: '8–12', rest: '90s', machine: 'Smith Machine / Dumbbells', cues: 'Soft knees, push hips back. Weight slides down thighs to mid-shin. Neutral spine — chest up. Squeeze glutes hard at top. Start light, learn the hinge.', priority: 1 },
+    { name: 'Back Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '75s', machine: 'Hyperextension Bench / Roman Chair', cues: 'Hips on pad, feet secured. Lower torso slowly, then drive hips into pad to rise. Squeeze glutes at top — do NOT hyperextend the spine. Add a plate across chest when bodyweight feels easy.', priority: 1 },
     { name: 'Lat Pulldown', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hammer Strength', cues: 'Wide grip, pull to upper chest. Drive elbows down. Lean back 10°.', priority: 1 },
     { name: 'Mid Row', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hoist ROC-IT', cues: 'Feet on footrests. Pull handles back, squeeze shoulder blades 1s. Slow return.', priority: 1 },
     { name: 'Plank', sets: 3, repsMin: 20, repsMax: 60, unit: 'seconds', repsDisplay: '20–60s', rest: '45s', machine: 'Floor / mat', cues: 'Tight core, neutral spine, breathe. Dead bugs if plank too hard.', priority: 1 },
