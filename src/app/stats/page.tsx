@@ -2,6 +2,75 @@ import { getBodyStats, getWorkouts } from '../actions';
 import BodyStatForm from '@/components/BodyStatForm';
 import DeleteBodyStatButton from '@/components/DeleteBodyStatButton';
 
+function CalendarHeatmap({ workouts }: { workouts: { date: Date }[] }) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().split('T')[0];
+
+  // Start from the Sunday 11 weeks ago
+  const startDay = new Date(today);
+  startDay.setDate(today.getDate() - today.getDay() - 77); // 11 full prior weeks + this week
+
+  const workoutDays = new Set(workouts.map((w) => new Date(w.date).toISOString().split('T')[0]));
+
+  // Build 12 weeks × 7 days
+  const weeks: Date[][] = [];
+  for (let w = 0; w < 12; w++) {
+    const week: Date[] = [];
+    for (let d = 0; d < 7; d++) {
+      const day = new Date(startDay);
+      day.setDate(startDay.getDate() + w * 7 + d);
+      week.push(day);
+    }
+    weeks.push(week);
+  }
+
+  const dayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+  return (
+    <div>
+      <div className="flex gap-0.5">
+        {/* Day labels */}
+        <div className="flex flex-col gap-0.5 mr-1">
+          {dayLabels.map((l, i) => (
+            <div key={i} className="h-4 w-3 flex items-center justify-end">
+              <span className="text-[8px] text-gray-700 leading-none">{i % 2 === 1 ? l : ''}</span>
+            </div>
+          ))}
+        </div>
+        {/* Columns (weeks) */}
+        {weeks.map((week, wi) => (
+          <div key={wi} className="flex flex-col gap-0.5 flex-1">
+            {week.map((day, di) => {
+              const key = day.toISOString().split('T')[0];
+              const isFuture = day > today;
+              const hasWorkout = workoutDays.has(key);
+              const isToday = key === todayStr;
+              return (
+                <div
+                  key={di}
+                  title={key}
+                  className={`h-4 rounded-sm ${
+                    isFuture ? 'bg-gray-900' :
+                    hasWorkout ? 'bg-blue-500' :
+                    'bg-gray-800'
+                  } ${isToday ? 'ring-1 ring-white/40' : ''}`}
+                />
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-end gap-2 mt-2">
+        <span className="text-[10px] text-gray-700">Less</span>
+        <div className="w-3 h-3 rounded-sm bg-gray-800" />
+        <div className="w-3 h-3 rounded-sm bg-blue-500" />
+        <span className="text-[10px] text-gray-700">More</span>
+      </div>
+    </div>
+  );
+}
+
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     .format(new Date(date));
@@ -100,6 +169,36 @@ export default async function StatsPage() {
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 6);
 
+  // Week-over-week volume
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const thisWeekStart = new Date(now);
+  thisWeekStart.setDate(now.getDate() - now.getDay());
+  const lastWeekStart = new Date(thisWeekStart);
+  lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+
+  const thisWeekVol = workouts
+    .filter((w) => new Date(w.date) >= thisWeekStart)
+    .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0);
+  const lastWeekVol = workouts
+    .filter((w) => new Date(w.date) >= lastWeekStart && new Date(w.date) < thisWeekStart)
+    .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0);
+  const volChange = lastWeekVol > 0 ? Math.round(((thisWeekVol - lastWeekVol) / lastWeekVol) * 100) : null;
+
+  // Per-exercise weight progression for PRs
+  const sorted = [...workouts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const exerciseProgressions: Record<string, number[]> = {};
+  for (const w of sorted) {
+    const sessionMax: Record<string, number> = {};
+    for (const s of w.sets) {
+      if (s.weight > 0) sessionMax[s.exerciseId] = Math.max(sessionMax[s.exerciseId] ?? 0, s.weight);
+    }
+    for (const [id, weight] of Object.entries(sessionMax)) {
+      if (!exerciseProgressions[id]) exerciseProgressions[id] = [];
+      exerciseProgressions[id].push(weight);
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div>
@@ -122,6 +221,44 @@ export default async function StatsPage() {
           <div className="bg-gray-900 rounded-xl p-3.5 text-center border border-gray-800">
             <div className="text-xl font-bold text-white">{stats.length}</div>
             <div className="text-gray-600 text-xs mt-0.5">Weigh-ins</div>
+          </div>
+        </div>
+      )}
+
+      {/* Workout frequency heatmap */}
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold">Consistency · 12 weeks</p>
+          <span className="text-gray-600 text-xs">{workouts.length} sessions total</span>
+        </div>
+        <CalendarHeatmap workouts={workouts} />
+      </div>
+
+      {/* Week-over-week volume */}
+      {(thisWeekVol > 0 || lastWeekVol > 0) && (
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+            <div className="text-xl font-black text-white tabular-nums">
+              {thisWeekVol >= 1000 ? `${(thisWeekVol / 1000).toFixed(1)}k` : Math.round(thisWeekVol)}
+              <span className="text-gray-600 text-sm font-semibold ml-0.5">kg</span>
+            </div>
+            <div className="text-gray-600 text-xs mt-0.5">This week</div>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+            <div className={`text-xl font-black tabular-nums flex items-baseline gap-1 ${
+              volChange === null ? 'text-gray-600' :
+              volChange > 0 ? 'text-green-400' :
+              volChange < 0 ? 'text-red-400' : 'text-white'
+            }`}>
+              {lastWeekVol >= 1000 ? `${(lastWeekVol / 1000).toFixed(1)}k` : Math.round(lastWeekVol)}
+              <span className="text-gray-600 text-sm font-semibold">kg</span>
+              {volChange !== null && (
+                <span className="text-sm font-bold ml-1">
+                  {volChange > 0 ? `+${volChange}%` : volChange < 0 ? `${volChange}%` : '='}
+                </span>
+              )}
+            </div>
+            <div className="text-gray-600 text-xs mt-0.5">Last week</div>
           </div>
         </div>
       )}
@@ -192,15 +329,31 @@ export default async function StatsPage() {
             Personal Records
           </p>
           <div className="space-y-2">
-            {topPRs.map((pr) => (
-              <div
-                key={pr.name}
-                className="flex items-center justify-between bg-gray-900 rounded-xl px-4 py-3 border border-gray-800"
-              >
-                <span className="text-white text-sm">{pr.name}</span>
-                <span className="text-yellow-400 font-bold text-sm tabular-nums">{pr.weight} kg</span>
-              </div>
-            ))}
+            {topPRs.map((pr) => {
+              const progression = exerciseProgressions[
+                Object.keys(prByExercise).find((id) => prByExercise[id].name === pr.name) ?? ''
+              ] ?? [];
+              const uniqueWeights = [...new Set(progression)];
+              const progressStr = uniqueWeights.length > 1
+                ? uniqueWeights.length <= 3
+                  ? uniqueWeights.join(' → ')
+                  : `${uniqueWeights[0]} → ... → ${uniqueWeights[uniqueWeights.length - 1]}`
+                : null;
+              return (
+                <div
+                  key={pr.name}
+                  className="flex items-center justify-between bg-gray-900 rounded-xl px-4 py-3 border border-gray-800"
+                >
+                  <div>
+                    <span className="text-white text-sm">{pr.name}</span>
+                    {progressStr && (
+                      <p className="text-gray-600 text-xs mt-0.5 tabular-nums">{progressStr} kg</p>
+                    )}
+                  </div>
+                  <span className="text-yellow-400 font-bold text-sm tabular-nums">{pr.weight} kg</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

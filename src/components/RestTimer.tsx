@@ -129,6 +129,28 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
               {finished ? 'Done' : 'Skip'}
             </button>
           </div>
+          {!finished && (
+            <div className="px-4 pb-3 flex items-center gap-2">
+              <button
+                onClick={() => setRemaining((r) => Math.max(0, r - 15))}
+                className="text-xs bg-gray-800 text-gray-500 hover:text-gray-300 px-2.5 py-1 rounded-full border border-gray-700 hover:border-gray-600 transition-colors"
+              >
+                −15s
+              </button>
+              <button
+                onClick={() => setRemaining((r) => r + 15)}
+                className="text-xs bg-gray-800 text-gray-500 hover:text-gray-300 px-2.5 py-1 rounded-full border border-gray-700 hover:border-gray-600 transition-colors"
+              >
+                +15s
+              </button>
+              <button
+                onClick={() => setRemaining((r) => r + 30)}
+                className="text-xs bg-gray-800 text-gray-500 hover:text-gray-300 px-2.5 py-1 rounded-full border border-gray-700 hover:border-gray-600 transition-colors"
+              >
+                +30s
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

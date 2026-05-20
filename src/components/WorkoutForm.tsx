@@ -332,6 +332,17 @@ export default function WorkoutForm({
     );
   }
 
+  function fillDown(uid: string) {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.uid !== uid) return b;
+        const firstUndoneWeight = b.sets.find((s) => !s.done)?.weight ?? 0;
+        if (!firstUndoneWeight) return b;
+        return { ...b, sets: b.sets.map((s) => (s.done ? s : { ...s, weight: firstUndoneWeight })) };
+      }),
+    );
+  }
+
   function updateSetRpe(uid: string, idx: number, value: number) {
     setBlocks((prev) =>
       prev.map((b) =>
@@ -462,14 +473,14 @@ export default function WorkoutForm({
           return (
             <div
               key={block.uid}
-              className={`rounded-2xl border overflow-hidden transition-all duration-300 ${
+              className={`rounded-2xl border transition-all duration-300 ${
                 allDone
                   ? 'bg-green-950/20 border-green-800/40'
                   : 'bg-gray-900 border-gray-800'
               }`}
             >
-              {/* Header */}
-              <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+              {/* Header — sticky so exercise name stays visible while scrolling through sets */}
+              <div className={`sticky top-0 z-10 flex items-center gap-2 px-4 pt-4 pb-2 rounded-t-2xl ${allDone ? 'bg-green-950/30' : 'bg-gray-900'}`}>
                 <span className="text-gray-700 text-sm font-bold w-5 flex-shrink-0 tabular-nums">
                   {blockIdx + 1}
                 </span>
@@ -753,7 +764,7 @@ export default function WorkoutForm({
                 })}
               </div>
 
-              {/* Add set + note toggle row */}
+              {/* Add set + note toggle + fill-all row */}
               <div className="px-4 pb-4 pt-2 flex items-center gap-4">
                 <button
                   type="button"
@@ -769,6 +780,15 @@ export default function WorkoutForm({
                 >
                   &#183;&#183;&#183; note
                 </button>
+                {!isTimed && block.sets.filter((s) => !s.done).length > 1 && (block.sets.find((s) => !s.done)?.weight ?? 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => fillDown(block.uid)}
+                    className="text-xs text-gray-600 hover:text-gray-400 transition-colors ml-auto"
+                  >
+                    &#8595; fill all
+                  </button>
+                )}
               </div>
             </div>
           );
