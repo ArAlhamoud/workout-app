@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getWorkouts } from './actions';
-import { SCHEDULE, REST_ACTIVITIES, getExerciseCountForDuration } from '@/lib/program';
+import { SCHEDULE, REST_ACTIVITIES, PROGRESSION, getExerciseCountForDuration, getExercisesForDuration } from '@/lib/program';
 
 const DURATIONS = [30, 45, 60] as const;
 
@@ -70,6 +70,19 @@ export default async function Home() {
   const lastDay = workouts[0]?.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
   const suggestedDay = lastDay === 'A' ? 'B' : lastDay === 'B' ? 'A' : null;
 
+  // Program week + current phase
+  const programWeek = (() => {
+    if (!workouts.length) return 1;
+    const first = workouts[workouts.length - 1];
+    const days = Math.floor((Date.now() - new Date(first.date).getTime()) / 86400000);
+    return Math.min(12, Math.floor(days / 7) + 1);
+  })();
+  const currentPhase = PROGRESSION.find((p) => {
+    const parts = p.weeks.split('–').map((s) => parseInt(s.trim()));
+    const [start, end] = parts.length === 2 ? parts : [parts[0], parts[0]];
+    return programWeek >= start && programWeek <= end;
+  }) ?? PROGRESSION[0];
+
   return (
     <div className="space-y-4">
       {/* Contextual hero card — gym/rest/sunday merged into one */}
@@ -115,6 +128,29 @@ export default async function Home() {
         </div>
       </div>
 
+      {/* Phase banner */}
+      {workouts.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex items-center justify-between">
+          <div>
+            <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">Program</p>
+            <p className="text-white font-bold text-sm mt-0.5">
+              Week {programWeek}
+              <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-bold ${
+                currentPhase.phase === 'LEARN' ? 'bg-gray-800 text-gray-300' :
+                currentPhase.phase === 'BUILD' ? 'bg-blue-900/50 text-blue-300' :
+                currentPhase.phase === 'PUSH' ? 'bg-green-900/50 text-green-300' :
+                currentPhase.phase === 'DELOAD' ? 'bg-yellow-900/50 text-yellow-300' :
+                currentPhase.phase === 'REBUILD' ? 'bg-violet-900/50 text-violet-300' :
+                'bg-orange-900/50 text-orange-300'
+              }`}>{currentPhase.phase}</span>
+            </p>
+          </div>
+          <p className="text-gray-600 text-xs max-w-[160px] text-right leading-relaxed">
+            {currentPhase.desc.split('.')[0]}.
+          </p>
+        </div>
+      )}
+
       {/* Start workout */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
@@ -135,7 +171,7 @@ export default async function Home() {
               ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950 shadow-lg shadow-blue-950/50'
               : suggestedDay === 'B' ? 'opacity-60' : ''
           }`}>
-            <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
+            <div className="px-4 pt-3.5 pb-1 flex items-center justify-between">
               <div>
                 <div className="text-white font-black text-base tracking-tight">Day A</div>
                 <div className="text-blue-200 text-xs mt-0.5">Chest &middot; Quads &middot; Shoulders</div>
@@ -143,6 +179,12 @@ export default async function Home() {
               {suggestedDay === 'A' && (
                 <span className="text-xs bg-white/20 backdrop-blur text-white px-2.5 py-1 rounded-full font-bold">Next &#8593;</span>
               )}
+            </div>
+            <div className="px-4 pb-2">
+              <p className="text-blue-200/50 text-xs truncate">
+                {getExercisesForDuration('A', 45).slice(0, 4).map((e) => e.name).join(' · ')}
+                {getExerciseCountForDuration('A', 45) > 4 && ` +${getExerciseCountForDuration('A', 45) - 4}`}
+              </p>
             </div>
             <div className="grid grid-cols-3 gap-px bg-blue-800/40">
               {DURATIONS.map((d) => (
@@ -164,7 +206,7 @@ export default async function Home() {
               ? 'ring-2 ring-violet-400 ring-offset-2 ring-offset-gray-950 shadow-lg shadow-violet-950/50'
               : suggestedDay === 'A' ? 'opacity-60' : ''
           }`}>
-            <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
+            <div className="px-4 pt-3.5 pb-1 flex items-center justify-between">
               <div>
                 <div className="text-white font-black text-base tracking-tight">Day B</div>
                 <div className="text-violet-200 text-xs mt-0.5">Back &middot; Hamstrings &middot; Arms</div>
@@ -172,6 +214,12 @@ export default async function Home() {
               {suggestedDay === 'B' && (
                 <span className="text-xs bg-white/20 backdrop-blur text-white px-2.5 py-1 rounded-full font-bold">Next &#8593;</span>
               )}
+            </div>
+            <div className="px-4 pb-2">
+              <p className="text-violet-200/50 text-xs truncate">
+                {getExercisesForDuration('B', 45).slice(0, 4).map((e) => e.name).join(' · ')}
+                {getExerciseCountForDuration('B', 45) > 4 && ` +${getExerciseCountForDuration('B', 45) - 4}`}
+              </p>
             </div>
             <div className="grid grid-cols-3 gap-px bg-violet-900/40">
               {DURATIONS.map((d) => (

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import LogWorkoutSheet from './LogWorkoutSheet';
 
 function IconHome({ active }: { active: boolean }) {
   return (
@@ -72,20 +73,8 @@ export default function Navbar() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50">
       <div className="max-w-lg mx-auto relative">
-        {/* Floating action button — raised above the bar */}
-        <Link
-          href="/workouts/new"
-          className={`absolute left-1/2 -translate-x-1/2 -top-6 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all active:scale-90 border-[3px] border-gray-950 ${
-            isLog
-              ? 'bg-blue-500'
-              : 'bg-blue-600 hover:bg-blue-500'
-          }`}
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-        </Link>
+        {/* Floating action button — opens day/duration picker sheet */}
+        <LogWorkoutSheet />
 
         <div className="bg-gray-950 border-t border-gray-800/70">
           <div className="grid grid-cols-5 h-[58px]">

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, CARDIO, type Priority } from '@/lib/program';
 import { getExercises, getBodyStats } from '@/app/actions';
+import CollapsibleSection from '@/components/CollapsibleSection';
 
 const priorityBadge: Record<Priority, { label: string; cls: string }> = {
   1: { label: 'Always', cls: 'bg-green-900/40 text-green-300 border-green-800/40' },
@@ -62,7 +63,7 @@ export default async function ProgramPage() {
                   : 'bg-gray-900 border border-gray-800'
               }`}
             >
-              <div className="text-xs text-gray-500 font-medium">{s.day}</div>
+              <div className={`text-xs font-medium ${s.day === todayDayName ? 'text-white' : 'text-gray-500'}`}>{s.day}</div>
               {s.workout ? (
                 <div
                   className={`text-sm font-black mt-0.5 ${
@@ -80,14 +81,11 @@ export default async function ProgramPage() {
       </section>
 
       {/* Day A */}
-      <section>
+      <CollapsibleSection title="Day A" badge={DAY_A.focus} defaultOpen>
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold">Day A</p>
-            <h2 className="text-white font-bold text-lg">{DAY_A.focus}</h2>
-          </div>
+          <h2 className="text-white font-bold text-lg">{DAY_A.focus}</h2>
           <Link
-            href="/workouts/new?day=A"
+            href="/workouts/new?day=A&dur=45"
             className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
           >
             Start &#8594;
@@ -129,22 +127,17 @@ export default async function ProgramPage() {
           })}
         </div>
         <div className="bg-gray-900/50 rounded-xl border border-gray-800 px-4 py-3 mt-3">
-          <span className="text-gray-500 uppercase tracking-wide font-semibold text-xs">
-            Cardio finisher:{' '}
-          </span>
+          <span className="text-gray-500 uppercase tracking-wide font-semibold text-xs">Cardio finisher: </span>
           <span className="text-gray-400 text-xs">{DAY_A.cardioFinisher}</span>
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Day B */}
-      <section>
+      <CollapsibleSection title="Day B" badge={DAY_B.focus} defaultOpen>
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold">Day B</p>
-            <h2 className="text-white font-bold text-lg">{DAY_B.focus}</h2>
-          </div>
+          <h2 className="text-white font-bold text-lg">{DAY_B.focus}</h2>
           <Link
-            href="/workouts/new?day=B"
+            href="/workouts/new?day=B&dur=45"
             className="bg-violet-700 hover:bg-violet-600 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors"
           >
             Start &#8594;
@@ -186,18 +179,13 @@ export default async function ProgramPage() {
           })}
         </div>
         <div className="bg-gray-900/50 rounded-xl border border-gray-800 px-4 py-3 mt-3">
-          <span className="text-gray-500 uppercase tracking-wide font-semibold text-xs">
-            Cardio finisher:{' '}
-          </span>
+          <span className="text-gray-500 uppercase tracking-wide font-semibold text-xs">Cardio finisher: </span>
           <span className="text-gray-400 text-xs">{DAY_B.cardioFinisher}</span>
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* 12-Week Progression */}
-      <section>
-        <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-3">
-          12-Week Progression
-        </p>
+      <CollapsibleSection title="12-Week Progression">
         <div className="space-y-2">
           {PROGRESSION.map((p) => (
             <div
@@ -218,13 +206,10 @@ export default async function ProgramPage() {
             </div>
           ))}
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Cardio Rankings */}
-      <section>
-        <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-3">
-          Cardio Rankings
-        </p>
+      <CollapsibleSection title="Cardio Rankings">
         <div className="space-y-2">
           {CARDIO.map((c) => (
             <div
@@ -250,13 +235,11 @@ export default async function ProgramPage() {
             </div>
           ))}
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Your Profile */}
-      <section>
-        <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-3">
-          Your Profile
-        </p>
+      <CollapsibleSection title="Your Profile">
+
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
           <div className="grid grid-cols-3 divide-x divide-gray-800">
             <div className="p-3 text-center">
@@ -302,13 +285,10 @@ export default async function ProgramPage() {
             )}
           </div>
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Nutrition Guide */}
-      <section>
-        <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-3">
-          Nutrition Guide
-        </p>
+      <CollapsibleSection title="Nutrition Guide">
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
           <div className="p-4 border-b border-gray-800">
             <div className="text-white font-semibold text-sm mb-1">Calorie Target</div>
@@ -359,7 +339,7 @@ export default async function ProgramPage() {
             </ul>
           </div>
         </div>
-      </section>
+      </CollapsibleSection>
     </div>
   );
 }
