@@ -135,6 +135,14 @@ export default function WorkoutForm({
   const [initialized, setInitialized] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const startRef = useRef(Date.now());
+  const [autoTimer, setAutoTimer] = useState(true);
+  const [prToast, setPrToast] = useState<string | null>(null);
+  const [mood, setMood] = useState('');
+  const [showSummary, setShowSummary] = useState<{
+    sets: number; vol: number; prs: string[]; time: string;
+  } | null>(null);
+  const [swipedSet, setSwipedSet] = useState<{ uid: string; idx: number } | null>(null);
+  const touchStartX = useRef(0);
 
   // Restore draft on mount
   useEffect(() => {
@@ -174,6 +182,13 @@ export default function WorkoutForm({
     const t = setTimeout(() => setDraftRestored(false), 4000);
     return () => clearTimeout(t);
   }, [draftRestored]);
+
+  // Auto-dismiss PR toast
+  useEffect(() => {
+    if (!prToast) return;
+    const t = setTimeout(() => setPrToast(null), 3000);
+    return () => clearTimeout(t);
+  }, [prToast]);
 
   // Elapsed timer
   useEffect(() => {
@@ -263,11 +278,18 @@ export default function WorkoutForm({
           ? { ...b, sets: b.sets.map((s, i) => (i === idx ? { ...s, done: !s.done } : s)) }
           : b,
       );
-      const block = updated.find((b) => b.uid === uid);
-      const set = block?.sets[idx];
-      if (set?.done && block?.rest) {
+      const block = updated.find((b) => b.uid === uid)!;
+      const set = block.sets[idx];
+      if (set.done) {
         const exName = exerciseById.get(block.exerciseId)?.name ?? 'exercise';
-        setRestTimer({ seconds: parseRestSeconds(block.rest), exerciseName: exName });
+        if (autoTimer) {
+          const restSecs = block.rest ? parseRestSeconds(block.rest) : 90;
+          setRestTimer({ seconds: restSecs, exerciseName: exName });
+        }
+        const currentPR = personalRecords[block.exerciseId] ?? 0;
+        if (!block.unit && set.weight > 0 && set.weight > currentPR) {
+          setPrToast(exName);
+        }
       }
       return updated;
     });
@@ -358,13 +380,26 @@ export default function WorkoutForm({
     setError('');
     if (!name.trim()) { setError('Workout name is required'); return; }
     if (!blocks.length) { setError('Add at least one exercise'); return; }
+
+    const doneSets = blocks.reduce((n, b) => n + b.sets.filter((s) => s.done).length, 0);
+    const vol = Math.round(blocks.reduce((sum, b) => sum + b.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0));
+    const prs = blocks
+      .filter((b) => !b.unit && b.sets.some((s) => s.weight > (personalRecords[b.exerciseId] ?? 0)))
+      .map((b) => exerciseById.get(b.exerciseId)?.name ?? '')
+      .filter(Boolean);
+
+    setShowSummary({ sets: doneSets, vol, prs, time: formatElapsed(elapsed) });
     setSubmitting(true);
+
+    await new Promise((r) => setTimeout(r, 2200));
+
+    const fullNotes = [mood ? `Feeling ${mood}` : '', notes.trim()].filter(Boolean).join(' · ');
     localStorage.removeItem(DRAFT_KEY);
     try {
       await createWorkout({
         name: name.trim(),
         date,
-        notes: notes.trim() || undefined,
+        notes: fullNotes || undefined,
         duration: Math.floor((Date.now() - startRef.current) / 1000),
         sets: blocks.flatMap((b) =>
           b.sets.map(({ done: _d, notes: sn, rpe: r, ...rest }) => ({
@@ -377,6 +412,7 @@ export default function WorkoutForm({
     } catch {
       setError('Failed to save. Please try again.');
       setSubmitting(false);
+      setShowSummary(null);
     }
   }
 
@@ -409,9 +445,21 @@ export default function WorkoutForm({
             <span className="text-xs text-gray-500 uppercase tracking-widest font-semibold">
               Workout Details
             </span>
-            <span className="text-xs text-gray-600 tabular-nums font-mono">
-              &#9201; {formatElapsed(elapsed)}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAutoTimer((v) => !v)}
+                title="Toggle auto rest timer"
+                className={`text-[10px] px-2 py-1 rounded-full border transition-colors ${
+                  autoTimer ? 'border-blue-700 bg-blue-900/20 text-blue-400' : 'border-gray-700 text-gray-600'
+                }`}
+              >
+                ⏱ rest
+              </button>
+              <span className="text-xs text-gray-600 tabular-nums font-mono">
+                {formatElapsed(elapsed)}
+              </span>
+            </div>
           </div>
           <input
             type="text"
@@ -434,6 +482,25 @@ export default function WorkoutForm({
               placeholder="Notes (optional)"
               className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm"
             />
+          </div>
+          <div>
+            <p className="text-gray-700 text-xs mb-1.5">How do you feel?</p>
+            <div className="flex gap-2">
+              {(['😴', '🙂', '💪', '🔥'] as const).map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => setMood(mood === emoji ? '' : emoji)}
+                  className={`flex-1 py-2 rounded-xl border text-base transition-all ${
+                    mood === emoji
+                      ? 'border-blue-500 bg-blue-900/30'
+                      : 'border-gray-700 bg-gray-800/50 text-gray-400'
+                  }`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -618,10 +685,30 @@ export default function WorkoutForm({
                 {block.sets.map((set, i) => {
                   const isCurrentSet = !set.done && block.sets.slice(0, i).every((s) => s.done);
 
+                  const isSwipedOpen = !set.done && block.sets.length > 1 && swipedSet?.uid === block.uid && swipedSet?.idx === i;
                   return (
-                    <div key={i}>
-                      <div className={`transition-all ${set.done ? 'opacity-40' : ''}`}>
-                        <div className="flex items-center gap-2">
+                    <div
+                      key={i}
+                      onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
+                      onTouchEnd={(e) => {
+                        const dx = touchStartX.current - e.changedTouches[0].clientX;
+                        if (dx > 60 && !set.done && block.sets.length > 1) setSwipedSet({ uid: block.uid, idx: i });
+                        else if (dx < -20) setSwipedSet(null);
+                      }}
+                    >
+                      <div className={`relative overflow-hidden rounded-xl ${set.done ? 'opacity-40' : ''}`}>
+                        {isSwipedOpen && (
+                          <div className="absolute right-0 top-0 bottom-0 flex items-center z-10">
+                            <button
+                              type="button"
+                              onClick={() => { removeSet(block.uid, i); setSwipedSet(null); }}
+                              className="bg-red-600 h-full px-5 text-white font-bold text-xs rounded-r-xl"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                        <div className={`flex items-center gap-2 transition-transform duration-200 ${isSwipedOpen ? '-translate-x-16' : ''}`}>
                           <button
                             type="button"
                             onClick={() => toggleSetDone(block.uid, i)}
@@ -784,9 +871,9 @@ export default function WorkoutForm({
                   <button
                     type="button"
                     onClick={() => fillDown(block.uid)}
-                    className="text-xs text-gray-600 hover:text-gray-400 transition-colors ml-auto"
+                    className="text-xs text-blue-400 bg-blue-900/20 border border-blue-800/40 hover:bg-blue-900/40 transition-colors ml-auto px-3 py-1.5 rounded-full font-semibold"
                   >
-                    &#8595; fill all
+                    ↓ Fill all
                   </button>
                 )}
               </div>
@@ -832,6 +919,55 @@ export default function WorkoutForm({
           exerciseName={restTimer.exerciseName}
           onDismiss={() => setRestTimer(null)}
         />
+      )}
+
+      {prToast && (
+        <div className="fixed top-4 left-0 right-0 z-[60] px-4 pointer-events-none">
+          <div className="max-w-lg mx-auto bg-yellow-400 text-yellow-950 rounded-2xl px-5 py-3.5 flex items-center gap-3 shadow-2xl pointer-events-auto">
+            <span className="text-2xl leading-none">🏆</span>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-sm leading-tight">New Personal Record!</p>
+              <p className="text-yellow-700 text-xs mt-0.5 truncate">{prToast}</p>
+            </div>
+            <button type="button" onClick={() => setPrToast(null)} className="text-yellow-700 hover:text-yellow-900 text-xl leading-none flex-shrink-0">×</button>
+          </div>
+        </div>
+      )}
+
+      {showSummary && (
+        <div className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm flex items-center justify-center px-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-8 w-full max-w-sm text-center">
+            <div className="text-5xl mb-3 leading-none">🎉</div>
+            <h2 className="text-2xl font-black text-white mb-1">Workout Done!</h2>
+            <p className="text-gray-500 text-sm mb-5 truncate">{name}</p>
+            <div className="grid grid-cols-3 gap-2 mb-5">
+              <div className="bg-gray-800 rounded-xl p-3">
+                <div className="text-xl font-black text-white tabular-nums">{showSummary.sets}</div>
+                <div className="text-gray-600 text-xs mt-0.5">Sets</div>
+              </div>
+              <div className="bg-gray-800 rounded-xl p-3">
+                <div className="text-xl font-black text-white tabular-nums">
+                  {showSummary.vol >= 1000 ? `${(showSummary.vol / 1000).toFixed(1)}k` : showSummary.vol}
+                </div>
+                <div className="text-gray-600 text-xs mt-0.5">kg lifted</div>
+              </div>
+              <div className="bg-gray-800 rounded-xl p-3">
+                <div className="text-xl font-black text-white tabular-nums">{showSummary.time}</div>
+                <div className="text-gray-600 text-xs mt-0.5">Duration</div>
+              </div>
+            </div>
+            {showSummary.prs.length > 0 && (
+              <div className="bg-yellow-950/50 border border-yellow-800/40 rounded-xl px-4 py-3 mb-4">
+                <p className="text-yellow-400 font-bold text-xs uppercase tracking-widest mb-1.5">🏆 New PRs</p>
+                <p className="text-yellow-300 text-sm font-medium leading-relaxed">{showSummary.prs.join(' · ')}</p>
+              </div>
+            )}
+            <div className="flex items-center justify-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+              <p className="text-gray-600 text-xs">Saving your workout…</p>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

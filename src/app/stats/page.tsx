@@ -140,6 +140,49 @@ function BodyWeightChart({ stats }: { stats: { date: Date; weight: number | null
   );
 }
 
+function epley1RM(weight: number, reps: number): number {
+  if (reps <= 0 || weight <= 0) return 0;
+  if (reps === 1) return weight;
+  return Math.round(weight * (1 + reps / 30));
+}
+
+function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; reps: number; exercise: { category: string } }[] }[] }) {
+  const vol: Record<string, number> = {};
+  for (const w of workouts) {
+    for (const s of w.sets) {
+      const cat = s.exercise.category;
+      vol[cat] = (vol[cat] ?? 0) + s.weight * s.reps;
+    }
+  }
+  const order = ['CHEST', 'BACK', 'SHOULDERS', 'LEGS', 'ARMS', 'CORE'];
+  const entries = order.filter((c) => vol[c] > 0).map((c) => ({ cat: c, v: vol[c] }));
+  if (!entries.length) return null;
+  const max = Math.max(...entries.map((e) => e.v));
+  const label: Record<string, string> = { CHEST: 'Chest', BACK: 'Back', SHOULDERS: 'Shoulders', LEGS: 'Legs', ARMS: 'Arms', CORE: 'Core' };
+  const color: Record<string, string> = {
+    CHEST: 'bg-blue-500', BACK: 'bg-violet-500', SHOULDERS: 'bg-cyan-500',
+    LEGS: 'bg-green-500', ARMS: 'bg-orange-500', CORE: 'bg-rose-500',
+  };
+  return (
+    <div className="space-y-2.5">
+      {entries.map(({ cat, v }) => (
+        <div key={cat} className="flex items-center gap-3">
+          <span className="text-gray-500 text-xs w-20 flex-shrink-0">{label[cat]}</span>
+          <div className="flex-1 bg-gray-800 rounded-full h-2.5 overflow-hidden">
+            <div
+              className={`h-full rounded-full ${color[cat]}`}
+              style={{ width: `${(v / max) * 100}%` }}
+            />
+          </div>
+          <span className="text-gray-600 text-xs tabular-nums w-14 text-right flex-shrink-0">
+            {v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v)} kg
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default async function StatsPage() {
   const [stats, workouts] = await Promise.all([getBodyStats(), getWorkouts()]);
 
@@ -154,13 +197,13 @@ export default async function StatsPage() {
   );
   const totalSets = workouts.reduce((n, w) => n + w.sets.length, 0);
 
-  const prByExercise: Record<string, { name: string; weight: number }> = {};
+  const prByExercise: Record<string, { name: string; weight: number; reps: number }> = {};
   for (const w of workouts) {
     for (const s of w.sets) {
       if (s.weight > 0) {
         const existing = prByExercise[s.exerciseId];
         if (!existing || s.weight > existing.weight) {
-          prByExercise[s.exerciseId] = { name: s.exercise.name, weight: s.weight };
+          prByExercise[s.exerciseId] = { name: s.exercise.name, weight: s.weight, reps: s.reps };
         }
       }
     }
@@ -265,6 +308,13 @@ export default async function StatsPage() {
 
       <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4">
         <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-4">
+          Volume by Muscle Group
+        </p>
+        <MuscleVolumeChart workouts={workouts} />
+      </div>
+
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 p-4">
+        <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-4">
           Body Weight (kg)
         </p>
         <BodyWeightChart stats={stats} />
@@ -350,7 +400,12 @@ export default async function StatsPage() {
                       <p className="text-gray-600 text-xs mt-0.5 tabular-nums">{progressStr} kg</p>
                     )}
                   </div>
-                  <span className="text-yellow-400 font-bold text-sm tabular-nums">{pr.weight} kg</span>
+                  <div className="text-right">
+                    <div className="text-yellow-400 font-bold text-sm tabular-nums">{pr.weight} kg</div>
+                    {pr.reps > 1 && epley1RM(pr.weight, pr.reps) > pr.weight && (
+                      <div className="text-gray-600 text-xs tabular-nums">~{epley1RM(pr.weight, pr.reps)} kg 1RM</div>
+                    )}
+                  </div>
                 </div>
               );
             })}
