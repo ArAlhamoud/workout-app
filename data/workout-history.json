@@ -1,7 +1,7 @@
 {
-  "exportedAt": "2026-05-20T01:15:31.962Z",
+  "exportedAt": "2026-05-20T08:27:43.940Z",
   "totalWorkouts": 4,
-  "totalBodyStats": 0,
+  "totalBodyStats": 3,
   "workouts": [
     {
       "id": "cmp08dl8l00001n56x6935u5u",
@@ -1100,5 +1100,27 @@
       ]
     }
   ],
-  "bodyStats": []
+  "bodyStats": [
+    {
+      "id": "cmpdfwnaj0001fc6v2mxhrh9r",
+      "date": "2026-02-20T00:00:00.000Z",
+      "weight": 135,
+      "waist": null,
+      "createdAt": "2026-05-20T02:25:46.207Z"
+    },
+    {
+      "id": "cmpdfx78b0002fc6v37uyra0u",
+      "date": "2026-05-01T00:00:00.000Z",
+      "weight": 132,
+      "waist": null,
+      "createdAt": "2026-05-20T02:26:12.044Z"
+    },
+    {
+      "id": "cmpdfvoq80000fc6v03tc5pmx",
+      "date": "2026-05-20T00:00:00.000Z",
+      "weight": 131.3,
+      "waist": null,
+      "createdAt": "2026-05-20T02:25:01.422Z"
+    }
+  ]
 }
