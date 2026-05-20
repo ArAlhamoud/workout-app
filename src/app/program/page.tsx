@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, CARDIO, type Priority } from '@/lib/program';
-import { getExercises } from '@/app/actions';
+import { getExercises, getBodyStats } from '@/app/actions';
 
 const priorityBadge: Record<Priority, { label: string; cls: string }> = {
   1: { label: 'Always', cls: 'bg-green-900/40 text-green-300 border-green-800/40' },
@@ -25,8 +25,13 @@ const phaseColors: Record<string, string> = {
 };
 
 export default async function ProgramPage() {
-  const exercises = await getExercises();
+  const [exercises, bodyStats] = await Promise.all([getExercises(), getBodyStats()]);
   const exerciseIdByName = new Map(exercises.map((e) => [e.name, e.id]));
+
+  const todayDayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()];
+  const latestWeight = [...bodyStats].reverse().find((s) => s.weight !== null)?.weight ?? 132;
+  const firstWeight = bodyStats.find((s) => s.weight !== null)?.weight ?? null;
+  const weightChange = firstWeight !== null ? +(latestWeight - firstWeight).toFixed(1) : null;
 
   return (
     <div className="space-y-8 pb-8">
@@ -48,6 +53,8 @@ export default async function ProgramPage() {
             <div
               key={s.day}
               className={`rounded-xl p-2 text-center ${
+                s.day === todayDayName ? 'ring-2 ring-white/25 ring-offset-1 ring-offset-gray-950' : ''
+              } ${
                 s.type === 'gym'
                   ? s.workout && s.workout.includes('A')
                     ? 'bg-blue-600/15 border border-blue-700/40'
@@ -253,7 +260,7 @@ export default async function ProgramPage() {
         <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
           <div className="grid grid-cols-3 divide-x divide-gray-800">
             <div className="p-3 text-center">
-              <div className="text-white font-bold text-base">132 kg</div>
+              <div className="text-white font-bold text-base">{latestWeight} kg</div>
               <div className="text-gray-500 text-xs mt-0.5">Weight</div>
             </div>
             <div className="p-3 text-center">
@@ -283,9 +290,16 @@ export default async function ProgramPage() {
             <div className="text-gray-500 text-xs text-center">
               TDEE ~2,635 kcal · Target deficit −600 kcal/day · ~0.5–0.7 kg/week loss
             </div>
-            <div className="text-green-500 text-xs text-center mt-1 font-semibold">
-              Down 3 kg from start — keep going!
-            </div>
+            {weightChange !== null && weightChange < 0 && (
+              <div className="text-green-500 text-xs text-center mt-1 font-semibold">
+                Down {Math.abs(weightChange)} kg from start — keep going!
+              </div>
+            )}
+            {weightChange !== null && weightChange >= 0 && firstWeight !== null && (
+              <div className="text-gray-500 text-xs text-center mt-1">
+                Log weight in Stats to track progress
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -337,7 +351,7 @@ export default async function ProgramPage() {
             <div className="text-white font-semibold text-sm mb-2">Joint-First Approach</div>
             <ul className="space-y-1.5 text-gray-400 text-xs">
               <li>· All exercises are machine-based — no free-weight barbell loading on joints</li>
-              <li>· RDL only on Smith Machine or light dumbbells — learn the hinge before loading</li>
+              <li>· Back Extension: neutral spine only — do NOT hyperextend at the top, squeeze glutes instead</li>
               <li>· Avoid treadmill running — walking only at 4–5 km/h, low incline</li>
               <li>· Swimming is your best cardio — zero joint impact, maximum calorie burn</li>
               <li>· Progress weight slowly — joint adaptation lags behind muscle strength</li>

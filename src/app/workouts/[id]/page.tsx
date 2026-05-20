@@ -3,6 +3,11 @@ import Link from 'next/link';
 import { getWorkout } from '../../actions';
 import DeleteButton from '@/components/DeleteButton';
 
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
@@ -45,8 +50,9 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
   const totalVolume = workout.sets.reduce((sum, s) => sum + s.reps * s.weight, 0);
 
   const dayMatch = workout.name.match(/Day ([AB])/i);
+  const durMatch = workout.name.match(/(\d+)m/);
   const logAgainHref = dayMatch
-    ? `/workouts/new?day=${dayMatch[1].toUpperCase()}`
+    ? `/workouts/new?day=${dayMatch[1].toUpperCase()}${durMatch ? `&dur=${durMatch[1]}` : ''}`
     : '/workouts/new';
 
   return (
@@ -67,21 +73,27 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className={`grid gap-2 ${workout.duration ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <div className="bg-gray-900 rounded-xl p-3.5 text-center border border-gray-800">
           <div className="text-xl font-bold text-white">{exerciseOrder.length}</div>
           <div className="text-gray-600 text-xs mt-0.5">Exercises</div>
         </div>
         <div className="bg-gray-900 rounded-xl p-3.5 text-center border border-gray-800">
           <div className="text-xl font-bold text-white">{workout.sets.length}</div>
-          <div className="text-gray-600 text-xs mt-0.5">Total Sets</div>
+          <div className="text-gray-600 text-xs mt-0.5">Sets</div>
         </div>
         <div className="bg-gray-900 rounded-xl p-3.5 text-center border border-gray-800">
           <div className="text-xl font-bold text-white">
             {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume.toLocaleString()}
           </div>
-          <div className="text-gray-600 text-xs mt-0.5">kg Volume</div>
+          <div className="text-gray-600 text-xs mt-0.5">kg Vol</div>
         </div>
+        {workout.duration && (
+          <div className="bg-gray-900 rounded-xl p-3.5 text-center border border-gray-800">
+            <div className="text-xl font-bold text-white">{formatDuration(workout.duration)}</div>
+            <div className="text-gray-600 text-xs mt-0.5">Duration</div>
+          </div>
+        )}
       </div>
 
       {workout.notes && (
