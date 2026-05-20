@@ -45,6 +45,8 @@ interface ExerciseBlock {
   lastSession?: { weight: number; reps: number; rpe: number | null };
 }
 
+const DRAFT_KEY = 'workout-draft';
+
 const rpeOptions = [
   { v: 1, l: 'Easy',  c: 'bg-green-900/40 border-green-700 text-green-400' },
   { v: 2, l: 'Med',   c: 'bg-yellow-900/40 border-yellow-700 text-yellow-400' },
@@ -130,14 +132,59 @@ export default function WorkoutForm({
   const [error, setError] = useState('');
   const [restTimer, setRestTimer] = useState<{ seconds: number; exerciseName: string } | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [initialized, setInitialized] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
   const startRef = useRef(Date.now());
 
+  // Restore draft on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        const age = Date.now() - (draft.savedAt ?? 0);
+        if (age < 24 * 60 * 60 * 1000 && Array.isArray(draft.blocks) && draft.blocks.length > 0) {
+          setName(draft.name ?? initialName);
+          setDate(draft.date ?? today);
+          setNotes(draft.notes ?? '');
+          setBlocks(draft.blocks);
+          if (draft.startTime) startRef.current = draft.startTime;
+          setDraftRestored(true);
+        } else {
+          localStorage.removeItem(DRAFT_KEY);
+        }
+      }
+    } catch {
+      localStorage.removeItem(DRAFT_KEY);
+    }
+    setInitialized(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto-save draft on every change (skips until draft check is done)
+  useEffect(() => {
+    if (!initialized) return;
+    const draft = { savedAt: Date.now(), name, date, notes, blocks, startTime: startRef.current };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  }, [initialized, name, date, notes, blocks]);
+
+  // Elapsed timer
   useEffect(() => {
     const tick = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
     }, 1000);
     return () => clearInterval(tick);
   }, []);
+
+  function clearDraft() {
+    localStorage.removeItem(DRAFT_KEY);
+    setName(initialName);
+    setDate(today);
+    setNotes('');
+    setBlocks(buildBlocks(initialExercises, lastSession));
+    startRef.current = Date.now();
+    setDraftRestored(false);
+  }
 
   const exerciseGroups = exercises.reduce<Record<string, Exercise[]>>((acc, ex) => {
     if (!acc[ex.category]) acc[ex.category] = [];
@@ -294,6 +341,7 @@ export default function WorkoutForm({
     if (!name.trim()) { setError('Workout name is required'); return; }
     if (!blocks.length) { setError('Add at least one exercise'); return; }
     setSubmitting(true);
+    localStorage.removeItem(DRAFT_KEY);
     try {
       await createWorkout({
         name: name.trim(),
@@ -320,6 +368,23 @@ export default function WorkoutForm({
   return (
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
+
+        {/* Draft restored notice */}
+        {draftRestored && (
+          <div className="bg-blue-950/50 border border-blue-800/60 rounded-2xl px-4 py-3 flex items-center justify-between">
+            <span className="text-blue-300 text-sm">
+              ↩ Workout restored
+            </span>
+            <button
+              type="button"
+              onClick={clearDraft}
+              className="text-blue-500 text-xs font-semibold hover:text-blue-300 transition-colors"
+            >
+              Start fresh
+            </button>
+          </div>
+        )}
+
         {/* Workout details */}
         <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-3">
           <div className="flex items-center justify-between">
@@ -527,14 +592,12 @@ export default function WorkoutForm({
               {/* Sets */}
               <div className="px-4 space-y-1.5 pb-1 pt-1">
                 {block.sets.map((set, i) => {
-                  // Highlight the first undone set as "current"
                   const isCurrentSet = !set.done && block.sets.slice(0, i).every((s) => s.done);
 
                   return (
                     <div key={i}>
                       <div className={`transition-all ${set.done ? 'opacity-40' : ''}`}>
                         <div className="flex items-center gap-2">
-                          {/* Done button — blue ring on current set */}
                           <button
                             type="button"
                             onClick={() => toggleSetDone(block.uid, i)}
@@ -571,7 +634,6 @@ export default function WorkoutForm({
                             </div>
                           ) : (
                             <>
-                              {/* Weight stepper — bigger hit area */}
                               <div className="flex items-center flex-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
                                 <button
                                   type="button"
@@ -603,7 +665,6 @@ export default function WorkoutForm({
                                 </button>
                               </div>
 
-                              {/* Reps stepper — bigger hit area */}
                               <div className="flex items-center w-[108px] flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
                                 <button
                                   type="button"

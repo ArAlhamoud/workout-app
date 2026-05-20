@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/Navbar';
 import InstallPrompt from '@/components/InstallPrompt';
+import WorkoutDraftBanner from '@/components/WorkoutDraftBanner';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="mx-auto px-4 pt-6 pb-32 max-w-lg">
           {children}
         </main>
+        <WorkoutDraftBanner />
         <Navbar />
         <InstallPrompt />
       </body>
