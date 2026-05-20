@@ -42,7 +42,7 @@ interface ExerciseBlock {
   unit?: 'reps' | 'seconds';
   showCues: boolean;
   expandedNoteIdx: number | null;
-  lastSession?: { weight: number; reps: number };
+  lastSession?: { weight: number; reps: number; rpe: number | null };
 }
 
 const rpeOptions = [
@@ -78,7 +78,7 @@ function formatElapsed(seconds: number): string {
 
 function buildBlocks(
   initialExercises: InitialExercise[],
-  lastSession: Record<string, { weight: number; reps: number }>,
+  lastSession: Record<string, { weight: number; reps: number; rpe: number | null }>,
 ): ExerciseBlock[] {
   return initialExercises.map((ie) => {
     const prev = lastSession[ie.exerciseId];
@@ -110,13 +110,13 @@ export default function WorkoutForm({
   exercises,
   initialName = '',
   initialExercises = [],
-  lastSession = {},
+  lastSession = {} as Record<string, { weight: number; reps: number; rpe: number | null }>,
   personalRecords = {},
 }: {
   exercises: Exercise[];
   initialName?: string;
   initialExercises?: InitialExercise[];
-  lastSession?: Record<string, { weight: number; reps: number }>;
+  lastSession?: Record<string, { weight: number; reps: number; rpe: number | null }>;
   personalRecords?: Record<string, number>;
 }) {
   const today = new Date().toISOString().split('T')[0];
@@ -438,6 +438,15 @@ export default function WorkoutForm({
                 {block.lastSession && !isTimed && (
                   <span className="text-xs bg-gray-800 text-gray-400 px-2.5 py-1 rounded-full border border-gray-700">
                     Last: {block.lastSession.weight} kg &#215; {block.lastSession.reps}
+                    {block.lastSession.rpe != null && block.lastSession.rpe > 0 && (
+                      <span className={`ml-1.5 font-semibold ${
+                        block.lastSession.rpe === 1 ? 'text-green-400' :
+                        block.lastSession.rpe === 2 ? 'text-yellow-400' :
+                        block.lastSession.rpe === 3 ? 'text-orange-400' : 'text-red-400'
+                      }`}>
+                        · {['','Easy','Med','Hard','Grind'][block.lastSession.rpe]}
+                      </span>
+                    )}
                   </span>
                 )}
                 {block.lastSession && isTimed && (

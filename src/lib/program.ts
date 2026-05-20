@@ -28,13 +28,13 @@ export const DAY_A: DayTemplate = {
   warmup: '5 min upright bike (easy, low resistance) + 10 arm circles + 10 seated leg lifts + 10 cat-cows on mat + 8 bird-dogs each side',
   cardioFinisher: '10 min upright bike, moderate resistance, RPM 60–70',
   exercises: [
-    { name: 'Leg Press', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '90s', machine: 'Leg Press Machine', cues: "Feet high & wide. Press through heels. Stop at 90° knee bend. Don't lock out.", priority: 1 },
+    { name: 'Leg Press', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '120s', machine: 'Leg Press Machine', cues: "Feet high & wide. Press through heels. Stop at 90° knee bend. Don't lock out.", priority: 1 },
     { name: 'Chest Press', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hoist ROC-IT', cues: 'Handles at mid-chest. 2s press, 2s return. Back flat on pad.', priority: 1 },
     { name: 'Shoulder Press', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hammer Strength', cues: "Start at ear level. Press up, don't lock elbows. No back arching.", priority: 1 },
-    { name: 'Ab Crunch', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Ab Machine', cues: 'Slow and controlled. Exhale as you crunch. No jerking.', priority: 1 },
+    { name: 'Hip Thrust Machine', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Hip Thrust Machine / Glute Bridge on mat', cues: 'Drive through heels, squeeze glutes hard at top. Hold 1s. Counteracts desk posture and protects lower back.', priority: 1 },
     { name: 'Leg Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness', cues: 'Pad above ankles. Squeeze quads 1s at top. Lower slowly (3s down).', priority: 2 },
     { name: 'Pec Fly', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Hoist ROC-IT', cues: "Don't open too far back. Arc together, squeeze chest. Slight elbow bend.", priority: 2 },
-    { name: 'Hip Thrust Machine', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Hip Thrust Machine / Glute Bridge on mat', cues: 'Drive through heels, squeeze glutes hard at top. Hold 1s. Counteracts desk posture and protects lower back.', priority: 2 },
+    { name: 'Ab Crunch', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Ab Machine', cues: 'Slow and controlled. Exhale as you crunch. No jerking.', priority: 2 },
     { name: 'Lateral Raise', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Light weight. Raise to shoulder height only. Control the negative.', priority: 3 },
   ],
 };
@@ -52,9 +52,8 @@ export const DAY_B: DayTemplate = {
     { name: 'Leg Curl', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness', cues: 'Pad above heels. Curl fully, squeeze hamstrings. 3s lowering.', priority: 2 },
     { name: 'Bicep Curl', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness / Cable', cues: 'Lock upper arms. Curl fully, squeeze at top. No swinging.', priority: 2 },
     { name: 'Triceps Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Arms on pad. Extend fully, squeeze triceps. Control return.', priority: 2 },
-    { name: 'Rear Delt Fly', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit facing pad. Open arms outward. Light weight — small muscle group.', priority: 3 },
-    { name: 'Cable Face Pull', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Life Fitness Dual Pulley', cues: 'Cable at face height, rope attachment. Pull apart to ears. Builds posture.', priority: 3 },
-    { name: 'Standing Calf Raise', sets: 2, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Hammer Strength', cues: 'Full range — stretch at bottom, squeeze at top. Slow and controlled.', priority: 3 },
+    { name: 'Rear Delt Fly', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit facing pad. Open arms outward. Light weight — small muscle group.', priority: 2 },
+    { name: 'Cable Face Pull', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Life Fitness Dual Pulley', cues: 'Cable at face height, rope attachment. Pull apart to ears. Builds posture.', priority: 2 },
   ],
 };
 
