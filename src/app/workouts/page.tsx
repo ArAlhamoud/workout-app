@@ -1,6 +1,11 @@
 import Link from 'next/link';
 import { getWorkouts } from '../actions';
 
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
@@ -115,6 +120,7 @@ export default async function WorkoutsPage() {
                           <div className="text-xs text-gray-700 mt-0.5">
                             {workout.sets.length} sets
                             {totalVolume > 0 && <span> &middot; {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)} kg</span>}
+                            {workout.duration ? <span> &middot; {formatDuration(workout.duration)}</span> : null}
                           </div>
                         </div>
                       </Link>

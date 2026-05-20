@@ -168,6 +168,13 @@ export default function WorkoutForm({
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   }, [initialized, name, date, notes, blocks]);
 
+  // Auto-dismiss draft restored banner after 4s
+  useEffect(() => {
+    if (!draftRestored) return;
+    const t = setTimeout(() => setDraftRestored(false), 4000);
+    return () => clearTimeout(t);
+  }, [draftRestored]);
+
   // Elapsed timer
   useEffect(() => {
     const tick = setInterval(() => {
@@ -442,10 +449,11 @@ export default function WorkoutForm({
           const hasNewPR = !isTimed && block.sets.some((s) => s.weight > 0 && s.weight > pr);
           const allDone = block.sets.length > 0 && block.sets.every((s) => s.done);
 
-          const suggestWeight =
-            !isTimed && block.lastSession?.weight
-              ? +(block.lastSession.weight + 2.5).toFixed(1)
-              : null;
+          const lastRpe = block.lastSession?.rpe ?? null;
+          const shouldHold = !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3;
+          const suggestWeight = !isTimed && block.lastSession?.weight != null && !shouldHold
+            ? +(block.lastSession.weight + (lastRpe === 1 ? 5 : 2.5)).toFixed(1)
+            : null;
 
           const est1RM = !isTimed
             ? block.sets.reduce((best, s) => Math.max(best, epley1RM(s.weight, s.reps)), 0)
@@ -517,6 +525,11 @@ export default function WorkoutForm({
                 {block.lastSession && isTimed && (
                   <span className="text-xs bg-gray-800 text-gray-400 px-2.5 py-1 rounded-full border border-gray-700">
                     Last: {formatSeconds(block.lastSession.reps)}
+                  </span>
+                )}
+                {shouldHold && !allDone && (
+                  <span className="text-xs bg-orange-950/50 text-orange-400 px-2.5 py-1 rounded-full border border-orange-800/40 font-medium">
+                    &#9888; Hold weight
                   </span>
                 )}
                 {suggestWeight && !allDone && (
