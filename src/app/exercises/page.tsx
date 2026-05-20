@@ -23,7 +23,8 @@ export default async function ExercisesPage() {
 
       {exercises.length === 0 ? (
         <div className="bg-gray-900 rounded-xl p-8 text-center border border-gray-800 border-dashed">
-          <p className="text-gray-400">No exercises yet. Add your first one above.</p>
+          <div className="text-4xl mb-3">📋</div>
+          <p className="text-gray-400">No exercises yet. Add your first one above, or run <code className="text-blue-400">npm run db:seed</code> to load defaults.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -34,7 +35,10 @@ export default async function ExercisesPage() {
               </h2>
               <div className="space-y-1">
                 {exs.map((ex) => (
-                  <div key={ex.id} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0">
+                  <div
+                    key={ex.id}
+                    className="flex items-center justify-between py-2 border-b border-gray-800 last:border-0"
+                  >
                     <span className="text-white">{ex.name}</span>
                   </div>
                 ))}

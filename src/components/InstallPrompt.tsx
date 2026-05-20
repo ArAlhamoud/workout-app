@@ -7,12 +7,10 @@ export default function InstallPrompt() {
   const [swReady, setSwReady] = useState(false);
 
   useEffect(() => {
-    // Register service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').then(() => setSwReady(true));
     }
 
-    // Show install hint on iOS Safari (not already installed as PWA)
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
     const dismissed = localStorage.getItem('install-dismissed');

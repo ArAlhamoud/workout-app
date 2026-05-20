@@ -41,7 +41,7 @@ export async function createWorkout(data: {
   date: string;
   notes?: string;
   duration?: number;
-  sets: Array<{ exerciseId: string; setNumber: number; reps: number; weight: number }>;
+  sets: Array<{ exerciseId: string; setNumber: number; reps: number; weight: number; notes?: string; rpe?: number }>;
 }) {
   const workout = await prisma.workout.create({
     data: {
@@ -54,7 +54,7 @@ export async function createWorkout(data: {
   });
   revalidatePath('/workouts');
   revalidatePath('/');
-  redirect(`/workouts/${workout.id}`);
+  redirect(`/workouts/${workout.id}?new=1`);
 }
 
 export async function deleteWorkout(id: string) {
@@ -66,16 +66,16 @@ export async function deleteWorkout(id: string) {
 
 export async function getLastSessionForExercises(
   exerciseIds: string[],
-): Promise<Record<string, { weight: number; reps: number }>> {
+): Promise<Record<string, { weight: number; reps: number; rpe: number | null }>> {
   if (!exerciseIds.length) return {};
   const lastSets = await prisma.workoutSet.findMany({
     where: { exerciseId: { in: exerciseIds } },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
     distinct: ['exerciseId'],
-    select: { exerciseId: true, weight: true, reps: true },
+    select: { exerciseId: true, weight: true, reps: true, rpe: true },
   });
-  return lastSets.reduce<Record<string, { weight: number; reps: number }>>((acc, s) => {
-    acc[s.exerciseId] = { weight: s.weight, reps: s.reps };
+  return lastSets.reduce<Record<string, { weight: number; reps: number; rpe: number | null }>>((acc, s) => {
+    acc[s.exerciseId] = { weight: s.weight, reps: s.reps, rpe: s.rpe };
     return acc;
   }, {});
 }
@@ -108,7 +108,6 @@ export async function getExerciseHistory(exerciseId: string) {
     },
   });
 
-  // One data point per session = max weight that session
   const bySession = new Map<
     string,
     { date: Date; maxWeight: number; reps: number; sessionName: string }
@@ -132,4 +131,25 @@ export async function getExerciseHistory(exerciseId: string) {
   const pr = history.reduce((m, h) => Math.max(m, h.maxWeight), 0);
 
   return { exercise, history, pr, totalSessions: history.length };
+}
+
+// Body stats
+export async function getBodyStats() {
+  return prisma.bodyStat.findMany({ orderBy: { date: 'asc' } });
+}
+
+export async function addBodyStat(data: { weight?: number; waist?: number; date: string }) {
+  await prisma.bodyStat.create({
+    data: {
+      date: new Date(data.date),
+      weight: data.weight ?? null,
+      waist: data.waist ?? null,
+    },
+  });
+  revalidatePath('/stats');
+}
+
+export async function deleteBodyStat(id: string) {
+  await prisma.bodyStat.delete({ where: { id } });
+  revalidatePath('/stats');
 }

@@ -12,6 +12,15 @@ function IconHome({ active }: { active: boolean }) {
   );
 }
 
+function IconHistory({ active }: { active: boolean }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <polyline points="12 7 12 12 15 15" />
+    </svg>
+  );
+}
+
 function IconProgram({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -23,21 +32,31 @@ function IconProgram({ active }: { active: boolean }) {
   );
 }
 
-function IconHistory({ active }: { active: boolean }) {
+function IconStats({ active }: { active: boolean }) {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <polyline points="12 7 12 12 15 15" />
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
     </svg>
   );
 }
 
-function IconPlus() {
+function Tab({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
+    <Link
+      href={href}
+      className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${
+        active ? 'text-white' : 'text-gray-600 hover:text-gray-400'
+      }`}
+    >
+      <div className={`transition-transform duration-150 ${active ? 'scale-110' : ''}`}>
+        {icon}
+      </div>
+      <span className={`text-[9px] font-bold tracking-widest uppercase ${active ? 'text-white' : 'text-gray-700'}`}>
+        {label}
+      </span>
+    </Link>
   );
 }
 
@@ -45,52 +64,39 @@ export default function Navbar() {
   const pathname = usePathname();
 
   const isHome = pathname === '/';
-  const isProgram = pathname === '/program';
   const isHistory = pathname.startsWith('/workouts') && !pathname.startsWith('/workouts/new');
   const isLog = pathname.startsWith('/workouts/new');
+  const isProgram = pathname === '/program';
+  const isStats = pathname === '/stats';
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-gray-950/98 backdrop-blur-sm border-t border-gray-800">
-      <div className="grid grid-cols-4 max-w-lg mx-auto" style={{ height: '60px' }}>
-        <Link
-          href="/"
-          className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${isHome ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
-        >
-          <IconHome active={isHome} />
-          <span className="text-[10px] font-semibold tracking-wide">HOME</span>
-          <div className={`h-0.5 w-4 rounded-full transition-all ${isHome ? 'bg-white' : 'bg-transparent'}`} />
-        </Link>
-
-        <Link
-          href="/program"
-          className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${isProgram ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
-        >
-          <IconProgram active={isProgram} />
-          <span className="text-[10px] font-semibold tracking-wide">PROGRAM</span>
-          <div className={`h-0.5 w-4 rounded-full transition-all ${isProgram ? 'bg-white' : 'bg-transparent'}`} />
-        </Link>
-
-        <Link
-          href="/workouts"
-          className={`flex flex-col items-center justify-center gap-0.5 transition-colors ${isHistory ? 'text-white' : 'text-gray-600 hover:text-gray-400'}`}
-        >
-          <IconHistory active={isHistory} />
-          <span className="text-[10px] font-semibold tracking-wide">HISTORY</span>
-          <div className={`h-0.5 w-4 rounded-full transition-all ${isHistory ? 'bg-white' : 'bg-transparent'}`} />
-        </Link>
-
+    <nav className="fixed bottom-0 left-0 right-0 z-50">
+      <div className="max-w-lg mx-auto relative">
+        {/* Floating action button — raised above the bar */}
         <Link
           href="/workouts/new"
-          className="flex flex-col items-center justify-center gap-0.5"
+          className={`absolute left-1/2 -translate-x-1/2 -top-6 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all active:scale-90 border-[3px] border-gray-950 ${
+            isLog
+              ? 'bg-blue-500'
+              : 'bg-blue-600 hover:bg-blue-500'
+          }`}
         >
-          <div className={`w-10 h-7 rounded-lg flex items-center justify-center transition-colors ${isLog ? 'bg-blue-500' : 'bg-blue-600 hover:bg-blue-500'}`}>
-            <IconPlus />
-          </div>
-          <span className={`text-[10px] font-semibold tracking-wide transition-colors ${isLog ? 'text-blue-400' : 'text-blue-500'}`}>
-            LOG
-          </span>
-          <div className={`h-0.5 w-4 rounded-full transition-all ${isLog ? 'bg-blue-400' : 'bg-transparent'}`} />
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
         </Link>
+
+        <div className="bg-gray-950 border-t border-gray-800/70">
+          <div className="grid grid-cols-5 h-[58px]">
+            <Tab href="/" label="Home" icon={<IconHome active={isHome} />} active={isHome} />
+            <Tab href="/workouts" label="History" icon={<IconHistory active={isHistory} />} active={isHistory} />
+            {/* Center spacer for FAB */}
+            <div />
+            <Tab href="/program" label="Program" icon={<IconProgram active={isProgram} />} active={isProgram} />
+            <Tab href="/stats" label="Stats" icon={<IconStats active={isStats} />} active={isStats} />
+          </div>
+        </div>
       </div>
     </nav>
   );

@@ -12,20 +12,26 @@ function formatDate(date: Date): string {
   }).format(new Date(date));
 }
 
+const rpeBadge: Record<number, { label: string; cls: string }> = {
+  1: { label: 'Easy',  cls: 'text-green-400 bg-green-900/30 border-green-800/40' },
+  2: { label: 'Med',   cls: 'text-yellow-400 bg-yellow-900/30 border-yellow-800/40' },
+  3: { label: 'Hard',  cls: 'text-orange-400 bg-orange-900/30 border-orange-800/40' },
+  4: { label: 'Grind', cls: 'text-red-400 bg-red-900/30 border-red-800/40' },
+};
+
 const categoryColor: Record<string, string> = {
-  CHEST: 'text-blue-400 bg-blue-900/30 border-blue-800/40',
-  BACK: 'text-violet-400 bg-violet-900/30 border-violet-800/40',
-  LEGS: 'text-green-400 bg-green-900/30 border-green-800/40',
+  CHEST:     'text-blue-400 bg-blue-900/30 border-blue-800/40',
+  BACK:      'text-violet-400 bg-violet-900/30 border-violet-800/40',
+  LEGS:      'text-green-400 bg-green-900/30 border-green-800/40',
   SHOULDERS: 'text-yellow-400 bg-yellow-900/30 border-yellow-800/40',
-  ARMS: 'text-orange-400 bg-orange-900/30 border-orange-800/40',
-  CORE: 'text-pink-400 bg-pink-900/30 border-pink-800/40',
+  ARMS:      'text-orange-400 bg-orange-900/30 border-orange-800/40',
+  CORE:      'text-pink-400 bg-pink-900/30 border-pink-800/40',
 };
 
 export default async function WorkoutDetailPage({ params }: { params: { id: string } }) {
   const workout = await getWorkout(params.id);
   if (!workout) notFound();
 
-  // Group sets by exercise, preserving order
   const exerciseOrder: string[] = [];
   const exerciseMap = new Map<string, typeof workout.sets>();
   for (const set of workout.sets) {
@@ -38,7 +44,6 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
 
   const totalVolume = workout.sets.reduce((sum, s) => sum + s.reps * s.weight, 0);
 
-  // Detect Day A or B from name for "log again" link
   const dayMatch = workout.name.match(/Day ([AB])/i);
   const logAgainHref = dayMatch
     ? `/workouts/new?day=${dayMatch[1].toUpperCase()}`
@@ -53,7 +58,7 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
             href="/workouts"
             className="text-gray-500 hover:text-gray-300 text-sm transition-colors inline-flex items-center gap-1 mb-2"
           >
-            ← History
+            &#8592; History
           </Link>
           <h1 className="text-xl font-bold text-white leading-tight">{workout.name}</h1>
           <p className="text-gray-500 text-sm mt-0.5">{formatDate(workout.date)}</p>
@@ -73,9 +78,7 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
         </div>
         <div className="bg-gray-900 rounded-xl p-3.5 text-center border border-gray-800">
           <div className="text-xl font-bold text-white">
-            {totalVolume >= 1000
-              ? `${(totalVolume / 1000).toFixed(1)}k`
-              : totalVolume.toLocaleString()}
+            {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume.toLocaleString()}
           </div>
           <div className="text-gray-600 text-xs mt-0.5">kg Volume</div>
         </div>
@@ -111,26 +114,36 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
                 </span>
               </div>
 
-              {/* Set rows */}
-              <div className="px-4 py-3 space-y-2">
-                <div className="grid grid-cols-4 text-xs text-gray-600 font-semibold uppercase tracking-wide">
+              {/* Set rows — 3 columns: [Set + RPE] [Weight × Reps] [Volume] */}
+              <div className="px-4 py-3 space-y-1.5">
+                <div className="grid grid-cols-3 text-xs text-gray-600 font-semibold uppercase tracking-wide mb-2">
                   <span>Set</span>
-                  <span>Weight</span>
-                  <span>Reps</span>
-                  <span className="text-right">Vol.</span>
+                  <span>Weight &times; Reps</span>
+                  <span className="text-right">Volume</span>
                 </div>
-                {sets.map((set) => (
-                  <div key={set.id} className="grid grid-cols-4 text-sm items-center">
-                    <span className="text-gray-600 tabular-nums">{set.setNumber}</span>
-                    <span className="text-white tabular-nums">{set.weight} kg</span>
-                    <span className="text-white tabular-nums">{set.reps}</span>
-                    <span className="text-gray-600 text-xs text-right tabular-nums">
-                      {set.reps * set.weight > 0
-                        ? `${(set.reps * set.weight).toFixed(0)} kg`
-                        : '—'}
-                    </span>
-                  </div>
-                ))}
+                {sets.map((set) => {
+                  const rpe = set.rpe ? rpeBadge[set.rpe] : null;
+                  return (
+                    <div key={set.id} className="grid grid-cols-3 text-sm items-center py-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-gray-500 tabular-nums w-4 text-center">{set.setNumber}</span>
+                        {rpe && (
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold leading-none ${rpe.cls}`}>
+                            {rpe.label}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-white tabular-nums">
+                        {set.weight > 0 ? `${set.weight} kg` : '—'}
+                        <span className="text-gray-600 mx-1">&times;</span>
+                        {set.reps}
+                      </span>
+                      <span className="text-gray-600 text-xs text-right tabular-nums">
+                        {set.reps * set.weight > 0 ? `${(set.reps * set.weight).toFixed(0)} kg` : '—'}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -140,9 +153,9 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
       {/* Log again */}
       <Link
         href={logAgainHref}
-        className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-gray-600 rounded-2xl py-3.5 text-gray-300 hover:text-white text-sm font-medium transition-colors"
+        className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-gray-800 active:bg-gray-800/80 border border-gray-700 hover:border-gray-600 rounded-2xl py-4 text-gray-300 hover:text-white text-sm font-semibold transition-all active:scale-[0.99]"
       >
-        Repeat this workout →
+        Repeat this workout &#8594;
       </Link>
     </div>
   );

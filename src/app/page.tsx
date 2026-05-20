@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getWorkouts } from './actions';
-import { SCHEDULE, getExerciseCountForDuration } from '@/lib/program';
+import { SCHEDULE, REST_ACTIVITIES, getExerciseCountForDuration } from '@/lib/program';
 
 const DURATIONS = [30, 45, 60] as const;
 
@@ -21,7 +21,6 @@ export default async function Home() {
   const workouts = await getWorkouts();
   const recentWorkouts = workouts.slice(0, 4);
 
-  const totalSets = workouts.reduce((sum, w) => sum + w.sets.length, 0);
   const totalVolume = workouts.reduce(
     (sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0),
     0,
@@ -33,7 +32,7 @@ export default async function Home() {
   weekStart.setHours(0, 0, 0, 0);
   const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
 
-  // Consecutive week streak
+  // Streak
   const workoutWeeks = new Set(
     workouts.map((w) => {
       const d = new Date(w.date);
@@ -53,10 +52,12 @@ export default async function Home() {
     else break;
   }
 
-  // Today's schedule
+  // Today
   const todayIdx = new Date().getDay();
   const today = SCHEDULE[todayIdx];
   const isGymDay = today?.type === 'gym';
+  const isSunday = todayIdx === 0;
+  const restActivity = REST_ACTIVITIES[todayIdx] ?? null;
   let nextGymDay: (typeof SCHEDULE)[0] | null = null;
   if (!isGymDay) {
     for (let i = 1; i <= 7; i++) {
@@ -65,98 +66,122 @@ export default async function Home() {
     }
   }
 
-  // Suggest next day based on last workout
+  // Next suggested day
   const lastDay = workouts[0]?.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
   const suggestedDay = lastDay === 'A' ? 'B' : lastDay === 'B' ? 'A' : null;
 
   return (
-    <div className="space-y-5">
-      {/* Today banner */}
-      {isGymDay ? (
-        <div className="rounded-2xl bg-green-950/40 border border-green-800/40 px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-green-500 text-xs font-bold uppercase tracking-widest">Today</p>
-            <p className="text-white font-semibold text-sm mt-0.5">Gym day — pick a workout below</p>
-          </div>
-          <span className="text-green-500 text-xl">↓</span>
-        </div>
-      ) : (
-        <div className="rounded-2xl bg-gray-900 border border-gray-800 px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-gray-600 text-xs font-bold uppercase tracking-widest">Today</p>
-            <p className="text-gray-300 font-semibold text-sm mt-0.5">Rest day — recover well</p>
-          </div>
-          {nextGymDay && (
-            <p className="text-gray-600 text-xs text-right">
-              Next gym<br />
-              <span className="text-gray-300 font-semibold">{nextGymDay.day}</span>
+    <div className="space-y-4">
+      {/* Contextual hero card — gym/rest/sunday merged into one */}
+      <div className={`rounded-2xl border overflow-hidden ${
+        isGymDay
+          ? 'bg-gradient-to-br from-green-950/60 to-gray-950 border-green-800/40'
+          : 'bg-gray-900 border-gray-800'
+      }`}>
+        <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            {/* Sunday weigh-in badge */}
+            {isSunday && (
+              <Link href="/stats" className="inline-flex items-center gap-1.5 mb-2 text-amber-400 hover:text-amber-300 transition-colors">
+                <span className="text-xs font-bold uppercase tracking-widest">&#9878; Sunday check-in</span>
+                <span className="text-xs opacity-70">&#8594;</span>
+              </Link>
+            )}
+            <p className={`text-xs font-bold uppercase tracking-widest ${isGymDay ? 'text-green-500' : 'text-gray-600'}`}>
+              {isGymDay ? 'Gym Day' : 'Rest Day'}
             </p>
-          )}
+            <p className={`font-semibold text-sm mt-0.5 ${isGymDay ? 'text-white' : 'text-gray-300'}`}>
+              {isGymDay ? 'Pick your workout below' : (restActivity ?? 'Recover & recharge')}
+            </p>
+          </div>
+          {isGymDay ? (
+            <span className="text-green-500 text-xl mt-0.5 flex-shrink-0">&#8595;</span>
+          ) : nextGymDay ? (
+            <div className="text-right flex-shrink-0">
+              <p className="text-gray-600 text-xs">Next gym</p>
+              <p className="text-gray-300 font-semibold text-sm">{nextGymDay.day}</p>
+            </div>
+          ) : null}
         </div>
-      )}
+        {/* Step goal footer strip */}
+        <div className={`px-4 py-2.5 border-t flex items-center gap-2 ${
+          isGymDay ? 'border-green-900/40 bg-green-950/20' : 'border-gray-800 bg-gray-950/40'
+        }`}>
+          <span className="text-base leading-none">&#128694;</span>
+          <span className="text-xs text-gray-600">
+            Daily NEAT goal: <span className="text-gray-400 font-semibold">8,000 steps</span>
+            <span className="text-gray-700"> &mdash; ~40&ndash;50 kcal per 1k steps</span>
+          </span>
+        </div>
+      </div>
 
-      {/* Start workout — pick a day & duration */}
+      {/* Start workout */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
-          <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">
-            Start a Workout
-          </p>
+          <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">Start a Workout</p>
           {suggestedDay && (
             <span className="text-xs text-gray-500">
-              Do Day <span className={suggestedDay === 'A' ? 'text-blue-400 font-bold' : 'text-violet-400 font-bold'}>{suggestedDay}</span> next
+              Do Day{' '}
+              <span className={suggestedDay === 'A' ? 'text-blue-400 font-bold' : 'text-violet-400 font-bold'}>
+                {suggestedDay}
+              </span>{' '}next
             </span>
           )}
         </div>
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {/* Day A */}
-          <div className={`bg-blue-600 rounded-2xl overflow-hidden transition-all ${suggestedDay === 'A' ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950' : suggestedDay === 'B' ? 'opacity-70' : ''}`}>
-            <div className="px-4 pt-3 pb-2.5 flex items-center justify-between">
+          <div className={`bg-blue-600 rounded-2xl overflow-hidden transition-all ${
+            suggestedDay === 'A'
+              ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950 shadow-lg shadow-blue-950/50'
+              : suggestedDay === 'B' ? 'opacity-60' : ''
+          }`}>
+            <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
               <div>
-                <div className="text-white font-black text-base">Day A</div>
-                <div className="text-blue-200 text-xs mt-0.5">Chest · Quads · Shoulders</div>
+                <div className="text-white font-black text-base tracking-tight">Day A</div>
+                <div className="text-blue-200 text-xs mt-0.5">Chest &middot; Quads &middot; Shoulders</div>
               </div>
               {suggestedDay === 'A' && (
-                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-semibold">Next ↑</span>
+                <span className="text-xs bg-white/20 backdrop-blur text-white px-2.5 py-1 rounded-full font-bold">Next &#8593;</span>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-px bg-blue-800/50">
+            <div className="grid grid-cols-3 gap-px bg-blue-800/40">
               {DURATIONS.map((d) => (
                 <Link
                   key={d}
                   href={`/workouts/new?day=A&dur=${d}`}
-                  className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 px-2 py-3 text-center transition-colors"
+                  className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 px-2 py-3.5 text-center transition-colors"
                 >
                   <div className="text-white font-bold text-sm">{d} min</div>
-                  <div className="text-blue-200 text-xs mt-0.5">
-                    {getExerciseCountForDuration('A', d)} exercises
-                  </div>
+                  <div className="text-blue-200/80 text-xs mt-0.5">{getExerciseCountForDuration('A', d)} exercises</div>
                 </Link>
               ))}
             </div>
           </div>
 
           {/* Day B */}
-          <div className={`bg-violet-700 rounded-2xl overflow-hidden transition-all ${suggestedDay === 'B' ? 'ring-2 ring-violet-400 ring-offset-2 ring-offset-gray-950' : suggestedDay === 'A' ? 'opacity-70' : ''}`}>
-            <div className="px-4 pt-3 pb-2.5 flex items-center justify-between">
+          <div className={`bg-violet-700 rounded-2xl overflow-hidden transition-all ${
+            suggestedDay === 'B'
+              ? 'ring-2 ring-violet-400 ring-offset-2 ring-offset-gray-950 shadow-lg shadow-violet-950/50'
+              : suggestedDay === 'A' ? 'opacity-60' : ''
+          }`}>
+            <div className="px-4 pt-3.5 pb-2.5 flex items-center justify-between">
               <div>
-                <div className="text-white font-black text-base">Day B</div>
-                <div className="text-violet-200 text-xs mt-0.5">Back · Hamstrings · Arms</div>
+                <div className="text-white font-black text-base tracking-tight">Day B</div>
+                <div className="text-violet-200 text-xs mt-0.5">Back &middot; Hamstrings &middot; Arms</div>
               </div>
               {suggestedDay === 'B' && (
-                <span className="text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-semibold">Next ↑</span>
+                <span className="text-xs bg-white/20 backdrop-blur text-white px-2.5 py-1 rounded-full font-bold">Next &#8593;</span>
               )}
             </div>
-            <div className="grid grid-cols-3 gap-px bg-violet-900/50">
+            <div className="grid grid-cols-3 gap-px bg-violet-900/40">
               {DURATIONS.map((d) => (
                 <Link
                   key={d}
                   href={`/workouts/new?day=B&dur=${d}`}
-                  className="bg-violet-700 hover:bg-violet-600 active:bg-violet-800 px-2 py-3 text-center transition-colors"
+                  className="bg-violet-700 hover:bg-violet-600 active:bg-violet-800 px-2 py-3.5 text-center transition-colors"
                 >
                   <div className="text-white font-bold text-sm">{d} min</div>
-                  <div className="text-violet-200 text-xs mt-0.5">
-                    {getExerciseCountForDuration('B', d)} exercises
-                  </div>
+                  <div className="text-violet-200/80 text-xs mt-0.5">{getExerciseCountForDuration('B', d)} exercises</div>
                 </Link>
               ))}
             </div>
@@ -166,26 +191,27 @@ export default async function Home() {
 
       {/* Stats */}
       {workouts.length > 0 && (
-        <div className="grid grid-cols-4 gap-2">
-          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-            <div className="text-lg font-bold text-white">{workouts.length}</div>
-            <div className="text-gray-600 text-xs mt-0.5">Sessions</div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+            <div className="text-2xl font-black text-white tabular-nums">{workouts.length}</div>
+            <div className="text-gray-600 text-xs mt-0.5">Total sessions</div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-            <div className="text-lg font-bold text-white">{sessionsThisWeek}/3</div>
+          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+            <div className="text-2xl font-black text-white tabular-nums">{sessionsThisWeek}<span className="text-gray-600 text-base font-semibold">/3</span></div>
             <div className="text-gray-600 text-xs mt-0.5">This week</div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-            <div className={`text-lg font-bold ${streak > 0 ? 'text-orange-400' : 'text-white'}`}>
-              {streak > 0 ? `${streak}🔥` : '—'}
+          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+            <div className={`text-2xl font-black tabular-nums ${streak > 0 ? 'text-orange-400' : 'text-gray-700'}`}>
+              {streak > 0 ? streak : '—'}
+              {streak > 0 && <span className="text-lg ml-0.5">&#128293;</span>}
             </div>
-            <div className="text-gray-600 text-xs mt-0.5">Wk streak</div>
+            <div className="text-gray-600 text-xs mt-0.5">Week streak</div>
           </div>
-          <div className="bg-gray-900 rounded-xl p-3 text-center border border-gray-800">
-            <div className="text-lg font-bold text-white">
+          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+            <div className="text-2xl font-black text-white tabular-nums">
               {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)}
             </div>
-            <div className="text-gray-600 text-xs mt-0.5">kg Vol.</div>
+            <div className="text-gray-600 text-xs mt-0.5">kg lifted</div>
           </div>
         </div>
       )}
@@ -196,7 +222,7 @@ export default async function Home() {
           <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">Recent</p>
           {workouts.length > 4 && (
             <Link href="/workouts" className="text-blue-400 hover:text-blue-300 text-xs transition-colors">
-              See all →
+              See all &#8594;
             </Link>
           )}
         </div>
@@ -204,21 +230,29 @@ export default async function Home() {
         {recentWorkouts.length === 0 ? (
           <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800 border-dashed">
             <p className="text-gray-600 font-medium mb-1">No workouts yet</p>
-            <p className="text-gray-700 text-sm mb-4">Tap Day A or Day B above to get started</p>
-            <Link href="/program" className="text-blue-400 text-sm hover:text-blue-300">
-              Read the program first →
+            <p className="text-gray-700 text-sm mb-4">Tap a duration button above to begin</p>
+            <Link href="/program" className="text-blue-400 text-sm hover:text-blue-300 transition-colors">
+              Read the program first &#8594;
             </Link>
           </div>
         ) : (
           <div className="space-y-2">
             {recentWorkouts.map((workout) => {
               const exerciseNames = Array.from(new Set(workout.sets.map((s) => s.exercise.name)));
+              const dayLetter = workout.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
               return (
                 <Link
                   key={workout.id}
                   href={`/workouts/${workout.id}`}
-                  className="flex items-center bg-gray-900 rounded-xl px-4 py-3 border border-gray-800 hover:border-gray-700 hover:bg-gray-800/60 transition-all"
+                  className="flex items-center bg-gray-900 rounded-xl px-4 py-3.5 border border-gray-800 hover:border-gray-700 hover:bg-gray-800/60 active:scale-[0.99] transition-all"
                 >
+                  {dayLetter && (
+                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md mr-2.5 flex-shrink-0 ${
+                      dayLetter === 'A' ? 'bg-blue-600/25 text-blue-400' : 'bg-violet-700/25 text-violet-400'
+                    }`}>
+                      {dayLetter}
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-white text-sm truncate">{workout.name}</div>
                     <div className="text-gray-600 text-xs mt-0.5 truncate">

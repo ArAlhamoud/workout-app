@@ -11,8 +11,7 @@ const exercises = [
   { name: 'Leg Extension', category: 'LEGS' },
   { name: 'Lateral Raise', category: 'SHOULDERS' },
   { name: 'Pec Fly', category: 'CHEST' },
-  { name: 'Standing Calf Raise', category: 'LEGS' },
-  { name: 'Plank', category: 'CORE' },
+  { name: 'Hip Thrust Machine', category: 'LEGS' },
   // Day B — Back / Hamstrings / Arms
   { name: 'Romanian Deadlift', category: 'LEGS' },
   { name: 'Lat Pulldown', category: 'BACK' },
@@ -23,6 +22,8 @@ const exercises = [
   { name: 'Triceps Extension', category: 'ARMS' },
   { name: 'Cable Face Pull', category: 'SHOULDERS' },
   { name: 'Ab Crunch', category: 'CORE' },
+  { name: 'Plank', category: 'CORE' },
+  { name: 'Standing Calf Raise', category: 'LEGS' },
 ];
 
 async function main() {

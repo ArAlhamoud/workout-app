@@ -36,7 +36,6 @@ export default function ProgressChart({ data }: { data: DataPoint[] }) {
   const fmt = (d: Date) =>
     new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(d));
 
-  // Y-axis: 3 labels
   const yTicks = [minW, minW + range / 2, maxW];
 
   return (
@@ -53,7 +52,6 @@ export default function ProgressChart({ data }: { data: DataPoint[] }) {
         </linearGradient>
       </defs>
 
-      {/* Grid lines */}
       {yTicks.map((v) => (
         <line
           key={v}
@@ -63,7 +61,6 @@ export default function ProgressChart({ data }: { data: DataPoint[] }) {
         />
       ))}
 
-      {/* Y labels */}
       {yTicks.map((v, i) => (
         <text
           key={i}
@@ -74,10 +71,8 @@ export default function ProgressChart({ data }: { data: DataPoint[] }) {
         </text>
       ))}
 
-      {/* Area */}
       <path d={areaPath} fill="url(#chartGrad)" />
 
-      {/* Line */}
       <path
         d={linePath}
         fill="none"
@@ -87,7 +82,6 @@ export default function ProgressChart({ data }: { data: DataPoint[] }) {
         strokeLinejoin="round"
       />
 
-      {/* Dots */}
       {data.map((d, i) => (
         <circle
           key={i}
@@ -98,7 +92,6 @@ export default function ProgressChart({ data }: { data: DataPoint[] }) {
         />
       ))}
 
-      {/* X labels: first and last */}
       <text x={pad.left} y={H - 2} textAnchor="start" fill="#4b5563" fontSize="8">
         {fmt(data[0].date)}
       </text>

@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { getExercises, getLastSessionForExercises, getPersonalRecords } from '../../actions';
+import { getExercises, getLastSessionForExercises, getPersonalRecords, getWorkouts } from '../../actions';
 import WorkoutForm from '@/components/WorkoutForm';
 import {
   getDayTemplate,
   getExercisesForDuration,
+  getPlankTarget,
   type Duration,
 } from '@/lib/program';
 
@@ -45,16 +46,29 @@ export default async function NewWorkoutPage({
           cues: te.cues,
           rest: te.rest,
           targetReps: te.repsDisplay,
+          unit: te.unit,
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
   })();
 
   const exerciseIds = initialExercises.map((e) => e.exerciseId);
-  const [lastSession, personalRecords] = await Promise.all([
+  const [lastSession, personalRecords, allWorkouts] = await Promise.all([
     getLastSessionForExercises(exerciseIds),
     getPersonalRecords(),
+    getWorkouts(),
   ]);
+
+  let programWeek = 1;
+  if (allWorkouts.length > 0) {
+    const firstWorkout = allWorkouts[allWorkouts.length - 1];
+    const daysSinceStart = Math.floor((Date.now() - new Date(firstWorkout.date).getTime()) / 86400000);
+    programWeek = Math.min(12, Math.floor(daysSinceStart / 7) + 1);
+  }
+  const plankTarget = getPlankTarget(programWeek);
+  const finalExercises = initialExercises.map((ex) =>
+    ex.name === 'Plank' ? { ...ex, defaultReps: plankTarget.min } : ex
+  );
 
   return (
     <div className="space-y-5">
@@ -99,7 +113,7 @@ export default async function NewWorkoutPage({
       <WorkoutForm
         exercises={exercises}
         initialName={initialName}
-        initialExercises={initialExercises}
+        initialExercises={finalExercises}
         lastSession={lastSession}
         personalRecords={personalRecords}
       />
