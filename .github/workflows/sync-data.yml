@@ -1,0 +1,35 @@
+name: Sync workout data
+
+on:
+  schedule:
+    - cron: '0 5 * * *'   # daily at 5am UTC
+  workflow_dispatch:        # manual trigger from GitHub Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Export workout data
+        run: node scripts/export-data.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/workout-history.json
+          git diff --staged --quiet && echo "No changes" || git commit -m "chore: sync workout data $(date -u +%Y-%m-%d)"
+          git push
