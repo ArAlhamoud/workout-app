@@ -46,6 +46,7 @@ interface ExerciseBlock {
 }
 
 const DRAFT_KEY = 'workout-draft';
+const NOTES_KEY = 'exercise-notes';
 
 const rpeOptions = [
   { v: 1, l: 'Easy',  c: 'bg-green-900/40 border-green-700 text-green-400' },
@@ -114,12 +115,14 @@ export default function WorkoutForm({
   initialExercises = [],
   lastSession = {} as Record<string, { weight: number; reps: number; rpe: number | null }>,
   personalRecords = {},
+  progressionHints = {},
 }: {
   exercises: Exercise[];
   initialName?: string;
   initialExercises?: InitialExercise[];
   lastSession?: Record<string, { weight: number; reps: number; rpe: number | null }>;
   personalRecords?: Record<string, number>;
+  progressionHints?: Record<string, boolean>;
 }) {
   const today = new Date().toISOString().split('T')[0];
   const [name, setName] = useState(initialName);
@@ -143,6 +146,11 @@ export default function WorkoutForm({
   } | null>(null);
   const [swipedSet, setSwipedSet] = useState<{ uid: string; idx: number } | null>(null);
   const touchStartX = useRef(0);
+  const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>(() => {
+    if (typeof window === 'undefined') return {};
+    try { return JSON.parse(localStorage.getItem(NOTES_KEY) ?? '{}'); } catch { return {}; }
+  });
+  const [editingNoteFor, setEditingNoteFor] = useState<string | null>(null);
 
   // Restore draft on mount
   useEffect(() => {
@@ -363,6 +371,13 @@ export default function WorkoutForm({
         return { ...b, sets: b.sets.map((s) => (s.done ? s : { ...s, weight: firstUndoneWeight })) };
       }),
     );
+  }
+
+  function saveExerciseNote(exerciseId: string, note: string) {
+    const updated = { ...exerciseNotes, [exerciseId]: note };
+    if (!note.trim()) delete updated[exerciseId];
+    setExerciseNotes(updated);
+    try { localStorage.setItem(NOTES_KEY, JSON.stringify(updated)); } catch { /* ignore */ }
   }
 
   function updateSetRpe(uid: string, idx: number, value: number) {
@@ -615,6 +630,11 @@ export default function WorkoutForm({
                     &#8594; Try {suggestWeight} kg
                   </span>
                 )}
+                {progressionHints[block.exerciseId] && !shouldHold && !allDone && (
+                  <span className="text-xs bg-blue-950/50 text-blue-400 px-2.5 py-1 rounded-full border border-blue-800/40 font-medium">
+                    ⬆ Ready to progress
+                  </span>
+                )}
                 {block.targetReps && (
                   <span className="text-xs bg-gray-800 text-gray-500 px-2.5 py-1 rounded-full border border-gray-700">
                     Target {block.targetReps}
@@ -651,6 +671,30 @@ export default function WorkoutForm({
                     }`}
                   >
                     {block.showCues ? 'Hide tip' : '? Tip'}
+                  </button>
+                )}
+                {/* Machine / equipment note */}
+                {editingNoteFor === block.exerciseId ? (
+                  <input
+                    autoFocus
+                    type="text"
+                    defaultValue={exerciseNotes[block.exerciseId] ?? ''}
+                    onBlur={(e) => { saveExerciseNote(block.exerciseId, e.target.value); setEditingNoteFor(null); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingNoteFor(null); }}
+                    placeholder="e.g. Seat 4, pin 8…"
+                    className="text-xs bg-gray-800 border border-blue-600/60 rounded-full px-3 py-1 text-white placeholder-gray-600 focus:outline-none w-40"
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setEditingNoteFor(block.exerciseId)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex-shrink-0 ${
+                      exerciseNotes[block.exerciseId]
+                        ? 'bg-amber-950/40 text-amber-400 border-amber-800/40'
+                        : 'bg-gray-800 text-gray-600 border-gray-700 hover:text-gray-400'
+                    }`}
+                  >
+                    {exerciseNotes[block.exerciseId] ? `⚙ ${exerciseNotes[block.exerciseId]}` : '⚙ note'}
                   </button>
                 )}
               </div>

@@ -70,6 +70,18 @@ export default async function Home() {
   const lastDay = workouts[0]?.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
   const suggestedDay = lastDay === 'A' ? 'B' : lastDay === 'B' ? 'A' : null;
 
+  // Deload signal: if >50% of logged sets (with RPE) in last 14 days were Hard/Grind
+  const deloadWarning = (() => {
+    const cutoff = new Date(Date.now() - 14 * 86400000);
+    const recentSets = workouts
+      .filter((w) => new Date(w.date) >= cutoff)
+      .flatMap((w) => w.sets)
+      .filter((s) => s.rpe != null && s.rpe > 0);
+    if (recentSets.length < 6) return false; // not enough data
+    const hardCount = recentSets.filter((s) => s.rpe! >= 3).length;
+    return hardCount / recentSets.length > 0.5;
+  })();
+
   // Program week + current phase
   const programWeek = (() => {
     if (!workouts.length) return 1;
@@ -148,6 +160,19 @@ export default async function Home() {
           <p className="text-gray-600 text-xs max-w-[160px] text-right leading-relaxed">
             {currentPhase.desc.split('.')[0]}.
           </p>
+        </div>
+      )}
+
+      {/* Deload warning */}
+      {deloadWarning && (
+        <div className="bg-orange-950/40 border border-orange-800/50 rounded-2xl px-4 py-3.5 flex items-start gap-3">
+          <span className="text-xl leading-none mt-0.5">⚠️</span>
+          <div>
+            <p className="text-orange-300 font-bold text-sm">Your body is signalling fatigue</p>
+            <p className="text-orange-600 text-xs mt-0.5 leading-relaxed">
+              Over 50% of your sets in the last 2 weeks were Hard or Grind. Consider a lighter session this week — reduce weights by 40–50% and focus on form.
+            </p>
+          </div>
         </div>
       )}
 

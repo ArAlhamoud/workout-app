@@ -162,6 +162,51 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
         })}
       </div>
 
+      {/* Next session targets */}
+      {(() => {
+        const targets: { name: string; current: number; next: number; note: string }[] = [];
+        for (const exId of exerciseOrder) {
+          const sets = exerciseMap.get(exId)!;
+          const maxWeight = Math.max(...sets.map((s) => s.weight));
+          if (maxWeight <= 0) continue;
+          const maxRpe = sets.reduce((m, s) => (s.rpe && s.rpe > m ? s.rpe : m), 0);
+          let next = maxWeight;
+          let note = '';
+          if (maxRpe === 0) { next = +(maxWeight + 2.5).toFixed(1); note = 'no RPE — try +2.5'; }
+          else if (maxRpe === 1) { next = +(maxWeight + 5).toFixed(1); note = 'felt Easy — add 5 kg'; }
+          else if (maxRpe === 2) { next = +(maxWeight + 2.5).toFixed(1); note = 'felt Medium — add 2.5 kg'; }
+          else if (maxRpe === 3) { next = maxWeight; note = 'felt Hard — hold weight'; }
+          else if (maxRpe === 4) { next = +(maxWeight - 2.5).toFixed(1); note = 'felt like a Grind — drop 2.5 kg'; }
+          targets.push({ name: sets[0].exercise.name, current: maxWeight, next, note });
+        }
+        if (!targets.length) return null;
+        return (
+          <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-800">
+              <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold">Next Session Targets</p>
+            </div>
+            <div className="divide-y divide-gray-800">
+              {targets.map((t) => (
+                <div key={t.name} className="px-4 py-3 flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{t.name}</p>
+                    <p className="text-gray-600 text-xs mt-0.5">{t.note}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <span className={`text-sm font-bold tabular-nums ${t.next > t.current ? 'text-green-400' : t.next < t.current ? 'text-red-400' : 'text-gray-400'}`}>
+                      {t.next} kg
+                    </span>
+                    {t.next !== t.current && (
+                      <p className="text-gray-700 text-xs tabular-nums">was {t.current} kg</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Log again */}
       <Link
         href={logAgainHref}

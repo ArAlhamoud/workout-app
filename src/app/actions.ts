@@ -138,12 +138,13 @@ export async function getBodyStats() {
   return prisma.bodyStat.findMany({ orderBy: { date: 'asc' } });
 }
 
-export async function addBodyStat(data: { weight?: number; waist?: number; date: string }) {
+export async function addBodyStat(data: { weight?: number; waist?: number; arms?: number; date: string }) {
   await prisma.bodyStat.create({
     data: {
       date: new Date(data.date),
       weight: data.weight ?? null,
       waist: data.waist ?? null,
+      arms: data.arms ?? null,
     },
   });
   revalidatePath('/stats');

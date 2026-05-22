@@ -43,5 +43,6 @@ model BodyStat {
   date      DateTime @default(now())
   weight    Float?
   waist     Float?
+  arms      Float?
   createdAt DateTime @default(now())
 }
