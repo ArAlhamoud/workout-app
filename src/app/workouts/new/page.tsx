@@ -59,6 +59,31 @@ export default async function NewWorkoutPage({
     getWorkouts(),
   ]);
 
+  // Compute progression hints: exerciseId → true if same weight 2+ sessions with Easy/Med RPE
+  const last2ByExercise: Record<string, { weight: number; rpe: number | null }[]> = {};
+  for (const workout of allWorkouts) {
+    const seen = new Set<string>();
+    for (const set of workout.sets) {
+      if (set.weight <= 0 || seen.has(set.exerciseId)) continue;
+      seen.add(set.exerciseId);
+      if (!last2ByExercise[set.exerciseId]) last2ByExercise[set.exerciseId] = [];
+      if (last2ByExercise[set.exerciseId].length < 2) {
+        const maxW = Math.max(...workout.sets.filter((s) => s.exerciseId === set.exerciseId && s.weight > 0).map((s) => s.weight));
+        const rpEs = workout.sets.filter((s) => s.exerciseId === set.exerciseId && s.rpe != null && s.rpe > 0).map((s) => s.rpe!);
+        last2ByExercise[set.exerciseId].push({ weight: maxW, rpe: rpEs.length ? Math.max(...rpEs) : null });
+      }
+    }
+  }
+  const progressionHints: Record<string, boolean> = {};
+  for (const [exId, sessions] of Object.entries(last2ByExercise)) {
+    if (sessions.length === 2) {
+      const [recent, prev] = sessions;
+      if (recent.weight === prev.weight && recent.rpe != null && recent.rpe <= 2) {
+        progressionHints[exId] = true;
+      }
+    }
+  }
+
   let programWeek = 1;
   if (allWorkouts.length > 0) {
     const firstWorkout = allWorkouts[allWorkouts.length - 1];
@@ -116,6 +141,7 @@ export default async function NewWorkoutPage({
         initialExercises={finalExercises}
         lastSession={lastSession}
         personalRecords={personalRecords}
+        progressionHints={progressionHints}
       />
     </div>
   );

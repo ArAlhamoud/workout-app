@@ -340,6 +340,9 @@ export default async function StatsPage() {
                   {s.waist !== null && (
                     <span className="text-gray-500 text-xs ml-2">· {s.waist} cm waist</span>
                   )}
+                  {s.arms !== null && (
+                    <span className="text-gray-500 text-xs ml-2">· {s.arms} cm arms</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-gray-500 text-xs">{formatDate(s.date)}</span>
