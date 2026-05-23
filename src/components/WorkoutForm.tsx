@@ -17,6 +17,7 @@ interface InitialExercise {
   defaultReps: number;
   name: string;
   cues?: string;
+  youtubeUrl?: string;
   rest?: string;
   targetReps?: string;
   unit?: 'reps' | 'seconds';
@@ -37,6 +38,7 @@ interface ExerciseBlock {
   exerciseId: string;
   sets: SetEntry[];
   cues?: string;
+  youtubeUrl?: string;
   rest?: string;
   targetReps?: string;
   unit?: 'reps' | 'seconds';
@@ -90,6 +92,7 @@ function buildBlocks(
       uid: Math.random().toString(36).slice(2),
       exerciseId: ie.exerciseId,
       cues: ie.cues,
+      youtubeUrl: ie.youtubeUrl,
       rest: ie.rest,
       targetReps: ie.targetReps,
       unit: ie.unit,
@@ -672,6 +675,16 @@ export default function WorkoutForm({
                   >
                     {block.showCues ? 'Hide tip' : '? Tip'}
                   </button>
+                )}
+                {block.youtubeUrl && (
+                  <a
+                    href={block.youtubeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs px-2.5 py-1 rounded-full border bg-red-950/40 text-red-400 border-red-800/40 hover:bg-red-900/50 transition-colors flex-shrink-0"
+                  >
+                    ▶ Watch
+                  </a>
                 )}
                 {/* Machine / equipment note */}
                 {editingNoteFor === block.exerciseId ? (

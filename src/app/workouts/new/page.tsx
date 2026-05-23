@@ -44,6 +44,7 @@ export default async function NewWorkoutPage({
           defaultReps: te.repsMin,
           name: te.name,
           cues: te.cues,
+          youtubeUrl: te.youtubeUrl,
           rest: te.rest,
           targetReps: te.repsDisplay,
           unit: te.unit,
