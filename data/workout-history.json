@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-05-22T08:23:14.149Z",
+  "exportedAt": "2026-05-23T07:33:17.738Z",
   "totalWorkouts": 4,
   "totalBodyStats": 3,
   "workouts": [
@@ -1106,6 +1106,7 @@
       "date": "2026-02-20T00:00:00.000Z",
       "weight": 135,
       "waist": null,
+      "arms": null,
       "createdAt": "2026-05-20T02:25:46.207Z"
     },
     {
@@ -1113,6 +1114,7 @@
       "date": "2026-05-01T00:00:00.000Z",
       "weight": 132,
       "waist": null,
+      "arms": null,
       "createdAt": "2026-05-20T02:26:12.044Z"
     },
     {
@@ -1120,6 +1122,7 @@
       "date": "2026-05-20T00:00:00.000Z",
       "weight": 131.3,
       "waist": null,
+      "arms": null,
       "createdAt": "2026-05-20T02:25:01.422Z"
     }
   ]
