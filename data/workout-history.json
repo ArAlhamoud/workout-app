@@ -1,7 +1,7 @@
 {
-  "exportedAt": "2026-05-27T08:40:02.279Z",
+  "exportedAt": "2026-05-28T08:44:00.330Z",
   "totalWorkouts": 5,
-  "totalBodyStats": 3,
+  "totalBodyStats": 4,
   "workouts": [
     {
       "id": "cmp08dl8l00001n56x6935u5u",
@@ -1406,6 +1406,14 @@
       "waist": null,
       "arms": null,
       "createdAt": "2026-05-20T02:25:01.422Z"
+    },
+    {
+      "id": "cmpp77m8d00007oacsygjg8c4",
+      "date": "2026-05-28T00:00:00.000Z",
+      "weight": 130,
+      "waist": null,
+      "arms": null,
+      "createdAt": "2026-05-28T07:55:35.626Z"
     }
   ]
 }
