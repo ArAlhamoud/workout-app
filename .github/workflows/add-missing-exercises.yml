@@ -1,0 +1,29 @@
+name: Add missing exercises
+
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: npm install --no-audit --progress=false
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Add Hip Thrust Machine and Back Extension
+        run: node scripts/add-missing-exercises.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
