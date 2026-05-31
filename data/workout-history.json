@@ -1,7 +1,124 @@
 {
-  "exportedAt": "2026-05-30T18:23:25.334Z",
+  "exportedAt": "2026-05-31T08:15:58.294Z",
   "totalWorkouts": 6,
   "totalBodyStats": 4,
+  "totalExercises": 19,
+  "exercises": [
+    {
+      "id": "cmo0gr46p000f11byzmt808od",
+      "name": "Ab Crunch",
+      "category": "CORE",
+      "createdAt": "2026-04-15T19:48:45.170Z"
+    },
+    {
+      "id": "cmpsvzab1000114d5pfwtnq3i",
+      "name": "Back Extension",
+      "category": "BACK",
+      "createdAt": "2026-05-30T21:52:15.854Z"
+    },
+    {
+      "id": "cmo0gr469000c11byf8hj8hzj",
+      "name": "Bicep Curl",
+      "category": "ARMS",
+      "createdAt": "2026-04-15T19:48:45.154Z"
+    },
+    {
+      "id": "cmo0gr46k000e11by41cdclm9",
+      "name": "Cable Face Pull",
+      "category": "SHOULDERS",
+      "createdAt": "2026-04-15T19:48:45.165Z"
+    },
+    {
+      "id": "cmo0gr44i000111bygug550i3",
+      "name": "Chest Press",
+      "category": "CHEST",
+      "createdAt": "2026-04-15T19:48:45.091Z"
+    },
+    {
+      "id": "cmpsvzaa3000014d5squs5art",
+      "name": "Hip Thrust Machine",
+      "category": "LEGS",
+      "createdAt": "2026-05-30T21:52:15.820Z"
+    },
+    {
+      "id": "cmo0gr45m000811bylyejpvpk",
+      "name": "Lat Pulldown",
+      "category": "BACK",
+      "createdAt": "2026-04-15T19:48:45.131Z"
+    },
+    {
+      "id": "cmo0gr450000411byjly8eyiy",
+      "name": "Lateral Raise",
+      "category": "SHOULDERS",
+      "createdAt": "2026-04-15T19:48:45.109Z"
+    },
+    {
+      "id": "cmo0gr45x000a11bygxz3rzq0",
+      "name": "Leg Curl",
+      "category": "LEGS",
+      "createdAt": "2026-04-15T19:48:45.142Z"
+    },
+    {
+      "id": "cmo0gr44u000311bypxi03ywu",
+      "name": "Leg Extension",
+      "category": "LEGS",
+      "createdAt": "2026-04-15T19:48:45.103Z"
+    },
+    {
+      "id": "cmo0gr447000011byrx817v5l",
+      "name": "Leg Press",
+      "category": "LEGS",
+      "createdAt": "2026-04-15T19:48:45.080Z"
+    },
+    {
+      "id": "cmo0gr45s000911by7xs3v5nq",
+      "name": "Mid Row",
+      "category": "BACK",
+      "createdAt": "2026-04-15T19:48:45.137Z"
+    },
+    {
+      "id": "cmo0gr456000511byjzz673fg",
+      "name": "Pec Fly",
+      "category": "CHEST",
+      "createdAt": "2026-04-15T19:48:45.114Z"
+    },
+    {
+      "id": "cmo0gr45h000711byn7tp5i02",
+      "name": "Plank",
+      "category": "CORE",
+      "createdAt": "2026-04-15T19:48:45.125Z"
+    },
+    {
+      "id": "cmo0gr464000b11byotiuejog",
+      "name": "Rear Delt Fly",
+      "category": "SHOULDERS",
+      "createdAt": "2026-04-15T19:48:45.148Z"
+    },
+    {
+      "id": "cmorlfjby0000ybpqtevxgvkf",
+      "name": "Romanian Deadlift",
+      "category": "LEGS",
+      "createdAt": "2026-05-04T19:29:29.759Z"
+    },
+    {
+      "id": "cmo0gr44o000211byjdmy1avq",
+      "name": "Shoulder Press",
+      "category": "SHOULDERS",
+      "createdAt": "2026-04-15T19:48:45.097Z"
+    },
+    {
+      "id": "cmo0gr45b000611by7l61s1ss",
+      "name": "Standing Calf Raise",
+      "category": "LEGS",
+      "createdAt": "2026-04-15T19:48:45.120Z"
+    },
+    {
+      "id": "cmo0gr46f000d11byrg1aizdn",
+      "name": "Triceps Extension",
+      "category": "ARMS",
+      "createdAt": "2026-04-15T19:48:45.159Z"
+    }
+  ],
   "workouts": [
     {
       "id": "cmp08dl8l00001n56x6935u5u",
