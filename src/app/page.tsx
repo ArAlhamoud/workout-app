@@ -17,6 +17,17 @@ function formatDuration(seconds: number): string {
   return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function getToday(): string {
+  return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
+}
+
 export default async function Home() {
   const workouts = await getWorkouts();
   const recentWorkouts = workouts.slice(0, 4);
@@ -32,7 +43,12 @@ export default async function Home() {
   weekStart.setHours(0, 0, 0, 0);
   const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
 
-  // Streak
+  // Week volume
+  const weekVolume = workouts
+    .filter((w) => new Date(w.date) >= weekStart)
+    .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0);
+
+  // Streak (week-based)
   const workoutWeeks = new Set(
     workouts.map((w) => {
       const d = new Date(w.date);
@@ -52,7 +68,7 @@ export default async function Home() {
     else break;
   }
 
-  // Today
+  // Today's schedule
   const todayIdx = new Date().getDay();
   const today = SCHEDULE[todayIdx];
   const isGymDay = today?.type === 'gym';
@@ -70,19 +86,19 @@ export default async function Home() {
   const lastDay = workouts[0]?.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
   const suggestedDay = lastDay === 'A' ? 'B' : lastDay === 'B' ? 'A' : null;
 
-  // Deload signal: if >50% of logged sets (with RPE) in last 14 days were Hard/Grind
+  // Deload signal
   const deloadWarning = (() => {
     const cutoff = new Date(Date.now() - 14 * 86400000);
     const recentSets = workouts
       .filter((w) => new Date(w.date) >= cutoff)
       .flatMap((w) => w.sets)
       .filter((s) => s.rpe != null && s.rpe > 0);
-    if (recentSets.length < 6) return false; // not enough data
+    if (recentSets.length < 6) return false;
     const hardCount = recentSets.filter((s) => s.rpe! >= 3).length;
     return hardCount / recentSets.length > 0.5;
   })();
 
-  // Program week + current phase
+  // Program week + phase
   const programWeek = (() => {
     if (!workouts.length) return 1;
     const first = workouts[workouts.length - 1];
@@ -95,166 +111,194 @@ export default async function Home() {
     return programWeek >= start && programWeek <= end;
   }) ?? PROGRESSION[0];
 
+  const phaseColor: Record<string, string> = {
+    LEARN:    'bg-slate-700/60 text-slate-300',
+    BUILD:    'bg-blue-900/60 text-blue-300',
+    PUSH:     'bg-teal-900/60 text-teal-300',
+    DELOAD:   'bg-amber-900/60 text-amber-300',
+    REBUILD:  'bg-violet-900/60 text-violet-300',
+    EVALUATE: 'bg-orange-900/60 text-orange-300',
+  };
+
   return (
     <div className="space-y-4">
-      {/* Contextual hero card — gym/rest/sunday merged into one */}
-      <div className={`rounded-2xl border overflow-hidden ${
+
+      {/* ── Greeting header ─────────────────────────────── */}
+      <div className="flex items-start justify-between pt-1">
+        <div>
+          <p className="text-app-tx2 text-sm">{getToday()}</p>
+          <h1 className="text-xl font-bold text-app-tx1 mt-0.5">{getGreeting()} 👋</h1>
+        </div>
+        {isSunday && (
+          <Link href="/stats" className="flex items-center gap-1.5 bg-amber-950/50 border border-amber-700/40 rounded-full px-3 py-1.5 transition-colors hover:bg-amber-900/50">
+            <span className="text-amber-400 text-xs font-bold">☀ Weigh-in</span>
+          </Link>
+        )}
+      </div>
+
+      {/* ── Metric strip ────────────────────────────────── */}
+      {workouts.length > 0 && (
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            {
+              value: workouts.length.toString(),
+              label: 'Sessions',
+              color: 'text-app-tx1',
+            },
+            {
+              value: `${sessionsThisWeek}/3`,
+              label: 'This week',
+              color: sessionsThisWeek >= 3 ? 'text-teal-400' : 'text-app-tx1',
+            },
+            {
+              value: streak > 0 ? `${streak}🔥` : '—',
+              label: 'Wk streak',
+              color: streak > 0 ? 'text-orange-400' : 'text-app-tx3',
+            },
+            {
+              value: totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(0)}k` : Math.round(totalVolume).toString(),
+              label: 'kg lifted',
+              color: 'text-app-tx1',
+            },
+          ].map((m) => (
+            <div key={m.label} className="card p-3 text-center">
+              <div className={`text-lg font-black tabular-nums leading-tight ${m.color}`}>{m.value}</div>
+              <div className="text-[10px] text-app-tx3 mt-0.5 leading-tight">{m.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Status card: gym / rest ──────────────────────── */}
+      <div className={`rounded-card-lg border overflow-hidden shadow-card ${
         isGymDay
-          ? 'bg-gradient-to-br from-green-950/60 to-gray-950 border-green-800/40'
-          : 'bg-gray-900 border-gray-800'
+          ? 'bg-gradient-to-br from-teal-950/50 to-app-surface border-teal-800/30'
+          : 'bg-app-surface border-app-border'
       }`}>
         <div className="px-4 pt-4 pb-3 flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            {/* Sunday weigh-in badge */}
-            {isSunday && (
-              <Link href="/stats" className="inline-flex items-center gap-1.5 mb-2 text-amber-400 hover:text-amber-300 transition-colors">
-                <span className="text-xs font-bold uppercase tracking-widest">&#9878; Sunday check-in</span>
-                <span className="text-xs opacity-70">&#8594;</span>
-              </Link>
-            )}
-            <p className={`text-xs font-bold uppercase tracking-widest ${isGymDay ? 'text-green-500' : 'text-gray-600'}`}>
-              {isGymDay ? 'Gym Day' : 'Rest Day'}
+            <p className={`text-[11px] font-bold uppercase tracking-widest ${isGymDay ? 'text-teal-400' : 'text-app-tx3'}`}>
+              {isGymDay ? '● Gym Day' : '◌ Rest Day'}
             </p>
-            <p className={`font-semibold text-sm mt-0.5 ${isGymDay ? 'text-white' : 'text-gray-300'}`}>
+            <p className="font-semibold text-sm mt-1 text-app-tx1">
               {isGymDay ? 'Pick your workout below' : (restActivity ?? 'Recover & recharge')}
             </p>
           </div>
           {isGymDay ? (
-            <span className="text-green-500 text-xl mt-0.5 flex-shrink-0">&#8595;</span>
+            <div className={`chip ${phaseColor[currentPhase.phase] ?? 'bg-slate-700/60 text-slate-300'} flex-shrink-0`}>
+              Wk {programWeek} · {currentPhase.phase}
+            </div>
           ) : nextGymDay ? (
             <div className="text-right flex-shrink-0">
-              <p className="text-gray-600 text-xs">Next gym</p>
-              <p className="text-gray-300 font-semibold text-sm">{nextGymDay.day}</p>
+              <p className="text-app-tx3 text-xs">Next gym</p>
+              <p className="text-app-tx1 font-semibold text-sm">{nextGymDay.day}</p>
             </div>
           ) : null}
         </div>
-        {/* Step goal footer strip */}
         <div className={`px-4 py-2.5 border-t flex items-center gap-2 ${
-          isGymDay ? 'border-green-900/40 bg-green-950/20' : 'border-gray-800 bg-gray-950/40'
+          isGymDay ? 'border-teal-900/40 bg-teal-950/20' : 'border-app-border bg-black/10'
         }`}>
-          <span className="text-base leading-none">&#128694;</span>
-          <span className="text-xs text-gray-600">
-            Daily NEAT goal: <span className="text-gray-400 font-semibold">8,000 steps</span>
-            <span className="text-gray-700"> &mdash; ~40&ndash;50 kcal per 1k steps</span>
+          <span className="text-sm leading-none">🚶</span>
+          <span className="text-[11px] text-app-tx3">
+            Daily NEAT goal: <span className="text-app-tx2 font-semibold">8,000 steps</span>
+            <span className="text-app-tx3"> · ~40–50 kcal per 1k steps</span>
           </span>
         </div>
       </div>
 
-      {/* Phase banner */}
-      {workouts.length > 0 && (
-        <div className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">Program</p>
-            <p className="text-white font-bold text-sm mt-0.5">
-              Week {programWeek}
-              <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-bold ${
-                currentPhase.phase === 'LEARN' ? 'bg-gray-800 text-gray-300' :
-                currentPhase.phase === 'BUILD' ? 'bg-blue-900/50 text-blue-300' :
-                currentPhase.phase === 'PUSH' ? 'bg-green-900/50 text-green-300' :
-                currentPhase.phase === 'DELOAD' ? 'bg-yellow-900/50 text-yellow-300' :
-                currentPhase.phase === 'REBUILD' ? 'bg-violet-900/50 text-violet-300' :
-                'bg-orange-900/50 text-orange-300'
-              }`}>{currentPhase.phase}</span>
-            </p>
-          </div>
-          <p className="text-gray-600 text-xs max-w-[160px] text-right leading-relaxed">
-            {currentPhase.desc.split('.')[0]}.
-          </p>
-        </div>
-      )}
-
-      {/* Deload warning */}
+      {/* ── Deload warning ──────────────────────────────── */}
       {deloadWarning && (
-        <div className="bg-orange-950/40 border border-orange-800/50 rounded-2xl px-4 py-3.5 flex items-start gap-3">
-          <span className="text-xl leading-none mt-0.5">⚠️</span>
+        <div className="bg-orange-950/40 border border-orange-800/40 rounded-card-lg px-4 py-3.5 flex items-start gap-3">
+          <span className="text-xl leading-none mt-0.5 flex-shrink-0">⚠️</span>
           <div>
             <p className="text-orange-300 font-bold text-sm">Your body is signalling fatigue</p>
             <p className="text-orange-600 text-xs mt-0.5 leading-relaxed">
-              Over 50% of your sets in the last 2 weeks were Hard or Grind. Consider a lighter session this week — reduce weights by 40–50% and focus on form.
+              Over 50% of your sets in the last 2 weeks were Hard or Grind. Consider a lighter session — reduce weights by 40–50% and focus on form.
             </p>
           </div>
         </div>
       )}
 
-      {/* Start workout */}
+      {/* ── Start a workout ─────────────────────────────── */}
       <div>
-        <div className="flex items-center justify-between mb-2.5">
-          <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">Start a Workout</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="section-label">Start a Workout</p>
           {suggestedDay && (
-            <span className="text-xs text-gray-500">
+            <span className="text-[11px] text-app-tx2">
               Do Day{' '}
-              <span className={suggestedDay === 'A' ? 'text-blue-400 font-bold' : 'text-violet-400 font-bold'}>
+              <span className={`font-bold ${suggestedDay === 'A' ? 'text-blue-400' : 'text-violet-400'}`}>
                 {suggestedDay}
               </span>{' '}next
             </span>
           )}
         </div>
+
         <div className="space-y-2.5">
           {/* Day A */}
-          <div className={`bg-blue-600 rounded-2xl overflow-hidden transition-all ${
+          <div className={`rounded-card-lg overflow-hidden transition-all ${
             suggestedDay === 'A'
-              ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-gray-950 shadow-lg shadow-blue-950/50'
-              : suggestedDay === 'B' ? 'opacity-60' : ''
+              ? 'shadow-glow-blue ring-1 ring-blue-500/50'
+              : suggestedDay === 'B' ? 'opacity-50' : ''
           }`}>
-            <div className="px-4 pt-3.5 pb-1 flex items-center justify-between">
-              <div>
-                <div className="text-white font-black text-base tracking-tight">Day A</div>
-                <div className="text-blue-200 text-xs mt-0.5">Chest &middot; Quads &middot; Shoulders</div>
+            <div className="bg-gradient-to-br from-blue-600 to-blue-700 px-4 pt-4 pb-2">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-white font-black text-lg tracking-tight">Day A</div>
+                  <div className="text-blue-200 text-xs mt-0.5">Chest · Quads · Shoulders</div>
+                </div>
+                {suggestedDay === 'A' && (
+                  <span className="chip bg-white/20 text-white backdrop-blur-sm">Next ↑</span>
+                )}
               </div>
-              {suggestedDay === 'A' && (
-                <span className="text-xs bg-white/20 backdrop-blur text-white px-2.5 py-1 rounded-full font-bold">Next &#8593;</span>
-              )}
-            </div>
-            <div className="px-4 pb-2">
-              <p className="text-blue-200/50 text-xs truncate">
+              <p className="text-blue-200/50 text-[11px] mt-2 truncate">
                 {getExercisesForDuration('A', 45).slice(0, 4).map((e) => e.name).join(' · ')}
                 {getExerciseCountForDuration('A', 45) > 4 && ` +${getExerciseCountForDuration('A', 45) - 4}`}
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-px bg-blue-800/40">
+            <div className="grid grid-cols-3 divide-x divide-blue-800/40 bg-blue-700/80">
               {DURATIONS.map((d) => (
                 <Link
                   key={d}
                   href={`/workouts/new?day=A&dur=${d}`}
-                  className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 px-2 py-3.5 text-center transition-colors"
+                  className="py-3 text-center hover:bg-blue-600/60 active:bg-blue-800/60 transition-colors"
                 >
                   <div className="text-white font-bold text-sm">{d} min</div>
-                  <div className="text-blue-200/80 text-xs mt-0.5">{getExerciseCountForDuration('A', d)} exercises</div>
+                  <div className="text-blue-200/70 text-[10px] mt-0.5">{getExerciseCountForDuration('A', d)} exercises</div>
                 </Link>
               ))}
             </div>
           </div>
 
           {/* Day B */}
-          <div className={`bg-violet-700 rounded-2xl overflow-hidden transition-all ${
+          <div className={`rounded-card-lg overflow-hidden transition-all ${
             suggestedDay === 'B'
-              ? 'ring-2 ring-violet-400 ring-offset-2 ring-offset-gray-950 shadow-lg shadow-violet-950/50'
-              : suggestedDay === 'A' ? 'opacity-60' : ''
+              ? 'shadow-glow-violet ring-1 ring-violet-400/50'
+              : suggestedDay === 'A' ? 'opacity-50' : ''
           }`}>
-            <div className="px-4 pt-3.5 pb-1 flex items-center justify-between">
-              <div>
-                <div className="text-white font-black text-base tracking-tight">Day B</div>
-                <div className="text-violet-200 text-xs mt-0.5">Back &middot; Hamstrings &middot; Arms</div>
+            <div className="bg-gradient-to-br from-violet-600 to-violet-700 px-4 pt-4 pb-2">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-white font-black text-lg tracking-tight">Day B</div>
+                  <div className="text-violet-200 text-xs mt-0.5">Back · Hamstrings · Arms</div>
+                </div>
+                {suggestedDay === 'B' && (
+                  <span className="chip bg-white/20 text-white backdrop-blur-sm">Next ↑</span>
+                )}
               </div>
-              {suggestedDay === 'B' && (
-                <span className="text-xs bg-white/20 backdrop-blur text-white px-2.5 py-1 rounded-full font-bold">Next &#8593;</span>
-              )}
-            </div>
-            <div className="px-4 pb-2">
-              <p className="text-violet-200/50 text-xs truncate">
+              <p className="text-violet-200/50 text-[11px] mt-2 truncate">
                 {getExercisesForDuration('B', 45).slice(0, 4).map((e) => e.name).join(' · ')}
                 {getExerciseCountForDuration('B', 45) > 4 && ` +${getExerciseCountForDuration('B', 45) - 4}`}
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-px bg-violet-900/40">
+            <div className="grid grid-cols-3 divide-x divide-violet-800/40 bg-violet-700/80">
               {DURATIONS.map((d) => (
                 <Link
                   key={d}
                   href={`/workouts/new?day=B&dur=${d}`}
-                  className="bg-violet-700 hover:bg-violet-600 active:bg-violet-800 px-2 py-3.5 text-center transition-colors"
+                  className="py-3 text-center hover:bg-violet-600/60 active:bg-violet-800/60 transition-colors"
                 >
                   <div className="text-white font-bold text-sm">{d} min</div>
-                  <div className="text-violet-200/80 text-xs mt-0.5">{getExerciseCountForDuration('B', d)} exercises</div>
+                  <div className="text-violet-200/70 text-[10px] mt-0.5">{getExerciseCountForDuration('B', d)} exercises</div>
                 </Link>
               ))}
             </div>
@@ -262,50 +306,48 @@ export default async function Home() {
         </div>
       </div>
 
-      {/* Stats */}
-      {workouts.length > 0 && (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <div className="text-2xl font-black text-white tabular-nums">{workouts.length}</div>
-            <div className="text-gray-600 text-xs mt-0.5">Total sessions</div>
+      {/* ── This week summary ───────────────────────────── */}
+      {sessionsThisWeek > 0 && (
+        <div className="card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="section-label">This Week</p>
+            <span className="text-[11px] text-app-tx2">
+              {weekVolume >= 1000 ? `${(weekVolume / 1000).toFixed(1)}k` : Math.round(weekVolume)} kg lifted
+            </span>
           </div>
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <div className="text-2xl font-black text-white tabular-nums">{sessionsThisWeek}<span className="text-gray-600 text-base font-semibold">/3</span></div>
-            <div className="text-gray-600 text-xs mt-0.5">This week</div>
-          </div>
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <div className={`text-2xl font-black tabular-nums ${streak > 0 ? 'text-orange-400' : 'text-gray-700'}`}>
-              {streak > 0 ? streak : '—'}
-              {streak > 0 && <span className="text-lg ml-0.5">&#128293;</span>}
+          {/* Progress bar toward 3-session goal */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 bg-app-surface2 rounded-full h-2 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-teal-500 transition-all"
+                style={{ width: `${Math.min(100, (sessionsThisWeek / 3) * 100)}%` }}
+              />
             </div>
-            <div className="text-gray-600 text-xs mt-0.5">Week streak</div>
+            <span className="text-[11px] font-bold text-app-tx2 flex-shrink-0">{sessionsThisWeek}/3 sessions</span>
           </div>
-          <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-            <div className="text-2xl font-black text-white tabular-nums">
-              {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)}
-            </div>
-            <div className="text-gray-600 text-xs mt-0.5">kg lifted</div>
-          </div>
+          {sessionsThisWeek >= 3 && (
+            <p className="text-teal-400 text-[11px] font-bold mt-2">✓ Weekly goal hit</p>
+          )}
         </div>
       )}
 
-      {/* Recent workouts */}
+      {/* ── Recent workouts ─────────────────────────────── */}
       <div>
-        <div className="flex items-center justify-between mb-2.5">
-          <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">Recent</p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="section-label">Recent</p>
           {workouts.length > 4 && (
-            <Link href="/workouts" className="text-blue-400 hover:text-blue-300 text-xs transition-colors">
-              See all &#8594;
+            <Link href="/workouts" className="text-[11px] font-semibold text-teal-400 hover:text-teal-300 transition-colors">
+              See all →
             </Link>
           )}
         </div>
 
         {recentWorkouts.length === 0 ? (
-          <div className="bg-gray-900 rounded-2xl p-8 text-center border border-gray-800 border-dashed">
-            <p className="text-gray-600 font-medium mb-1">No workouts yet</p>
-            <p className="text-gray-700 text-sm mb-4">Tap a duration button above to begin</p>
-            <Link href="/program" className="text-blue-400 text-sm hover:text-blue-300 transition-colors">
-              Read the program first &#8594;
+          <div className="card-lg p-8 text-center border-dashed">
+            <p className="text-app-tx2 font-medium mb-1">No workouts yet</p>
+            <p className="text-app-tx3 text-sm mb-4">Tap a duration above to begin</p>
+            <Link href="/program" className="text-teal-400 text-sm hover:text-teal-300 transition-colors">
+              Read the program first →
             </Link>
           </div>
         ) : (
@@ -313,31 +355,40 @@ export default async function Home() {
             {recentWorkouts.map((workout) => {
               const exerciseNames = Array.from(new Set(workout.sets.map((s) => s.exercise.name)));
               const dayLetter = workout.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
+              const vol = workout.sets.reduce((s, set) => s + set.weight * set.reps, 0);
               return (
                 <Link
                   key={workout.id}
                   href={`/workouts/${workout.id}`}
-                  className="flex items-center bg-gray-900 rounded-xl px-4 py-3.5 border border-gray-800 hover:border-gray-700 hover:bg-gray-800/60 active:scale-[0.99] transition-all"
+                  className="flex items-center card px-4 py-3.5 hover:border-white/15 hover:bg-app-surface2/60 active:scale-[0.99] transition-all pressable"
                 >
-                  {dayLetter && (
-                    <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md mr-2.5 flex-shrink-0 ${
-                      dayLetter === 'A' ? 'bg-blue-600/25 text-blue-400' : 'bg-violet-700/25 text-violet-400'
+                  {/* Day badge */}
+                  {dayLetter ? (
+                    <span className={`text-[10px] font-black w-7 h-7 rounded-lg flex items-center justify-center mr-3 flex-shrink-0 ${
+                      dayLetter === 'A'
+                        ? 'bg-blue-600/25 text-blue-400'
+                        : 'bg-violet-700/25 text-violet-400'
                     }`}>
                       {dayLetter}
                     </span>
+                  ) : (
+                    <span className="w-7 h-7 rounded-lg bg-app-surface2 mr-3 flex-shrink-0" />
                   )}
+
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-white text-sm truncate">{workout.name}</div>
-                    <div className="text-gray-600 text-xs mt-0.5 truncate">
+                    <div className="font-semibold text-app-tx1 text-sm truncate">{workout.name}</div>
+                    <div className="text-app-tx3 text-[11px] mt-0.5 truncate">
                       {exerciseNames.slice(0, 3).join(' · ')}
                       {exerciseNames.length > 3 && ` +${exerciseNames.length - 3}`}
                     </div>
                   </div>
+
                   <div className="text-right ml-4 flex-shrink-0">
-                    <div className="text-gray-500 text-xs">{formatRelative(workout.date)}</div>
-                    {workout.duration && (
-                      <div className="text-gray-700 text-xs mt-0.5">{formatDuration(workout.duration)}</div>
-                    )}
+                    <div className="text-app-tx2 text-[11px]">{formatRelative(workout.date)}</div>
+                    <div className="text-app-tx3 text-[11px] mt-0.5">
+                      {vol > 0 && `${vol >= 1000 ? `${(vol / 1000).toFixed(1)}k` : Math.round(vol)} kg`}
+                      {workout.duration ? ` · ${formatDuration(workout.duration)}` : ''}
+                    </div>
                   </div>
                 </Link>
               );

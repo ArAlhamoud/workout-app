@@ -32,7 +32,7 @@ export default function WorkoutDraftBanner() {
   return (
     <Link
       href="/workouts/new"
-      className="fixed bottom-[58px] left-0 right-0 z-40 bg-blue-600 text-white text-sm font-semibold py-2.5 px-4 flex items-center justify-center gap-2.5 max-w-lg mx-auto"
+      className="fixed bottom-[60px] left-0 right-0 z-40 bg-teal-600/95 backdrop-blur-sm text-white text-sm font-semibold py-2.5 px-4 flex items-center justify-center gap-2.5 max-w-lg mx-auto"
     >
       <span className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
       <span className="truncate">{draftName} in progress</span>

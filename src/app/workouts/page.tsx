@@ -56,20 +56,23 @@ export default async function WorkoutsPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-white">History</h1>
-        <span className="text-gray-600 text-sm">{workouts.length} sessions</span>
+      {/* Header */}
+      <div className="flex items-center justify-between pt-1">
+        <div>
+          <h1 className="text-xl font-bold text-app-tx1">History</h1>
+          <p className="text-app-tx3 text-sm mt-0.5">{workouts.length} sessions logged</p>
+        </div>
       </div>
 
       {workouts.length === 0 ? (
-        <div className="bg-gray-900 rounded-2xl p-10 text-center border border-gray-800 border-dashed">
-          <p className="text-gray-500 font-medium mb-1">No sessions yet</p>
-          <Link href="/" className="text-blue-400 text-sm mt-2 inline-block hover:text-blue-300 transition-colors">
-            Start from home &#8594;
+        <div className="card-lg p-10 text-center border-dashed">
+          <p className="text-app-tx2 font-medium mb-1">No sessions yet</p>
+          <Link href="/" className="text-teal-400 text-sm mt-2 inline-block hover:text-teal-300 transition-colors">
+            Start from home →
           </Link>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-6">
           {groups.map((group) => {
             const weekVol = group.items.reduce(
               (sum, w) => sum + w.sets.reduce((s, set) => s + set.reps * set.weight, 0),
@@ -78,13 +81,13 @@ export default async function WorkoutsPage() {
             return (
               <div key={group.monday.toISOString()}>
                 {/* Week header */}
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
-                    {group.label}
-                  </p>
-                  <p className="text-xs text-gray-700">
+                <div className="flex items-center justify-between mb-2.5">
+                  <p className="section-label">{group.label}</p>
+                  <p className="text-[11px] text-app-tx3">
                     {group.items.length} session{group.items.length !== 1 ? 's' : ''}
-                    {weekVol > 0 && <span> &middot; {weekVol >= 1000 ? `${(weekVol / 1000).toFixed(1)}k` : Math.round(weekVol)} kg</span>}
+                    {weekVol > 0 && (
+                      <span> · {weekVol >= 1000 ? `${(weekVol / 1000).toFixed(1)}k` : Math.round(weekVol)} kg</span>
+                    )}
                   </p>
                 </div>
 
@@ -97,30 +100,37 @@ export default async function WorkoutsPage() {
                       <Link
                         key={workout.id}
                         href={`/workouts/${workout.id}`}
-                        className="flex items-center bg-gray-900 rounded-xl px-4 py-3.5 border border-gray-800 hover:border-gray-700 hover:bg-gray-800/60 active:scale-[0.99] transition-all"
+                        className="flex items-center card px-4 py-3.5 hover:border-white/15 hover:bg-app-surface2/50 active:scale-[0.99] transition-all pressable"
                       >
-                        {dayLetter && (
-                          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md mr-3 flex-shrink-0 ${
+                        {/* Day badge */}
+                        {dayLetter ? (
+                          <span className={`text-[10px] font-black w-7 h-7 rounded-lg flex items-center justify-center mr-3 flex-shrink-0 ${
                             dayLetter === 'A'
                               ? 'bg-blue-600/25 text-blue-400'
                               : 'bg-violet-700/25 text-violet-400'
                           }`}>
                             {dayLetter}
                           </span>
+                        ) : (
+                          <span className="w-7 h-7 rounded-lg bg-app-surface2 mr-3 flex-shrink-0" />
                         )}
+
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium text-white text-sm truncate">{workout.name}</div>
-                          <div className="text-gray-600 text-xs mt-0.5 truncate">
+                          <div className="font-semibold text-app-tx1 text-sm truncate">{workout.name}</div>
+                          <div className="text-app-tx3 text-[11px] mt-0.5 truncate">
                             {exerciseNames.slice(0, 4).join(' · ')}
                             {exerciseNames.length > 4 && ` +${exerciseNames.length - 4}`}
                           </div>
                         </div>
+
                         <div className="text-right ml-4 flex-shrink-0">
-                          <div className="text-xs text-gray-500">{formatDate(workout.date)}</div>
-                          <div className="text-xs text-gray-700 mt-0.5">
+                          <div className="text-[11px] text-app-tx2">{formatDate(workout.date)}</div>
+                          <div className="text-[11px] text-app-tx3 mt-0.5">
                             {workout.sets.length} sets
-                            {totalVolume > 0 && <span> &middot; {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)} kg</span>}
-                            {workout.duration ? <span> &middot; {formatDuration(workout.duration)}</span> : null}
+                            {totalVolume > 0 && (
+                              <span> · {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)} kg</span>
+                            )}
+                            {workout.duration ? <span> · {formatDuration(workout.duration)}</span> : null}
                           </div>
                         </div>
                       </Link>
