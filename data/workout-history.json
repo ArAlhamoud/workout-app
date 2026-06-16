@@ -1,6 +1,6 @@
 {
-  "exportedAt": "2026-06-15T10:55:57.771Z",
-  "totalWorkouts": 6,
+  "exportedAt": "2026-06-16T10:10:20.521Z",
+  "totalWorkouts": 7,
   "totalBodyStats": 4,
   "totalExercises": 19,
   "exercises": [
@@ -129,22 +129,6 @@
       "createdAt": "2026-05-10T20:33:59.491Z",
       "sets": [
         {
-          "id": "cmp08dl8l00021n56p5qzxdey",
-          "workoutId": "cmp08dl8l00001n56x6935u5u",
-          "exerciseId": "cmo0gr456000511byjzz673fg",
-          "setNumber": 1,
-          "reps": 8,
-          "weight": 17.5,
-          "notes": null,
-          "rpe": null,
-          "exercise": {
-            "id": "cmo0gr456000511byjzz673fg",
-            "name": "Pec Fly",
-            "category": "CHEST",
-            "createdAt": "2026-04-15T19:48:45.114Z"
-          }
-        },
-        {
           "id": "cmp08dl8l00081n560x380uhw",
           "workoutId": "cmp08dl8l00001n56x6935u5u",
           "exerciseId": "cmo0gr45s000911by7xs3v5nq",
@@ -190,6 +174,22 @@
             "name": "Ab Crunch",
             "category": "CORE",
             "createdAt": "2026-04-15T19:48:45.170Z"
+          }
+        },
+        {
+          "id": "cmp08dl8l00021n56p5qzxdey",
+          "workoutId": "cmp08dl8l00001n56x6935u5u",
+          "exerciseId": "cmo0gr456000511byjzz673fg",
+          "setNumber": 1,
+          "reps": 8,
+          "weight": 17.5,
+          "notes": null,
+          "rpe": null,
+          "exercise": {
+            "id": "cmo0gr456000511byjzz673fg",
+            "name": "Pec Fly",
+            "category": "CHEST",
+            "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
         {
@@ -257,6 +257,22 @@
           }
         },
         {
+          "id": "cmp08dl8l000d1n56g2tresfo",
+          "workoutId": "cmp08dl8l00001n56x6935u5u",
+          "exerciseId": "cmo0gr46p000f11byzmt808od",
+          "setNumber": 3,
+          "reps": 15,
+          "weight": 20,
+          "notes": null,
+          "rpe": null,
+          "exercise": {
+            "id": "cmo0gr46p000f11byzmt808od",
+            "name": "Ab Crunch",
+            "category": "CORE",
+            "createdAt": "2026-04-15T19:48:45.170Z"
+          }
+        },
+        {
           "id": "cmp08dl8l000a1n56epbwlunr",
           "workoutId": "cmp08dl8l00001n56x6935u5u",
           "exerciseId": "cmo0gr45s000911by7xs3v5nq",
@@ -302,22 +318,6 @@
             "name": "Lat Pulldown",
             "category": "BACK",
             "createdAt": "2026-04-15T19:48:45.131Z"
-          }
-        },
-        {
-          "id": "cmp08dl8l000d1n56g2tresfo",
-          "workoutId": "cmp08dl8l00001n56x6935u5u",
-          "exerciseId": "cmo0gr46p000f11byzmt808od",
-          "setNumber": 3,
-          "reps": 15,
-          "weight": 20,
-          "notes": null,
-          "rpe": null,
-          "exercise": {
-            "id": "cmo0gr46p000f11byzmt808od",
-            "name": "Ab Crunch",
-            "category": "CORE",
-            "createdAt": "2026-04-15T19:48:45.170Z"
           }
         }
       ]
@@ -629,38 +629,6 @@
       "createdAt": "2026-05-17T22:43:43.233Z",
       "sets": [
         {
-          "id": "cmpad3dvo0008tpmxqbe8rib3",
-          "workoutId": "cmpad3dvo0000tpmx84db16hi",
-          "exerciseId": "cmo0gr44o000211byjdmy1avq",
-          "setNumber": 1,
-          "reps": 10,
-          "weight": 26,
-          "notes": null,
-          "rpe": 3,
-          "exercise": {
-            "id": "cmo0gr44o000211byjdmy1avq",
-            "name": "Shoulder Press",
-            "category": "SHOULDERS",
-            "createdAt": "2026-04-15T19:48:45.097Z"
-          }
-        },
-        {
-          "id": "cmpad3dvo000btpmxefrb273i",
-          "workoutId": "cmpad3dvo0000tpmx84db16hi",
-          "exerciseId": "cmo0gr46p000f11byzmt808od",
-          "setNumber": 1,
-          "reps": 15,
-          "weight": 29,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr46p000f11byzmt808od",
-            "name": "Ab Crunch",
-            "category": "CORE",
-            "createdAt": "2026-04-15T19:48:45.170Z"
-          }
-        },
-        {
           "id": "cmpad3dvo000etpmxe6h8lekc",
           "workoutId": "cmpad3dvo0000tpmx84db16hi",
           "exerciseId": "cmo0gr44u000311bypxi03ywu",
@@ -722,6 +690,38 @@
             "name": "Chest Press",
             "category": "CHEST",
             "createdAt": "2026-04-15T19:48:45.091Z"
+          }
+        },
+        {
+          "id": "cmpad3dvo0008tpmxqbe8rib3",
+          "workoutId": "cmpad3dvo0000tpmx84db16hi",
+          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 26,
+          "notes": null,
+          "rpe": 3,
+          "exercise": {
+            "id": "cmo0gr44o000211byjdmy1avq",
+            "name": "Shoulder Press",
+            "category": "SHOULDERS",
+            "createdAt": "2026-04-15T19:48:45.097Z"
+          }
+        },
+        {
+          "id": "cmpad3dvo000btpmxefrb273i",
+          "workoutId": "cmpad3dvo0000tpmx84db16hi",
+          "exerciseId": "cmo0gr46p000f11byzmt808od",
+          "setNumber": 1,
+          "reps": 15,
+          "weight": 29,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr46p000f11byzmt808od",
+            "name": "Ab Crunch",
+            "category": "CORE",
+            "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
         {
@@ -821,6 +821,22 @@
           }
         },
         {
+          "id": "cmpad3dvo000dtpmxc5vc7qx7",
+          "workoutId": "cmpad3dvo0000tpmx84db16hi",
+          "exerciseId": "cmo0gr46p000f11byzmt808od",
+          "setNumber": 3,
+          "reps": 15,
+          "weight": 29,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr46p000f11byzmt808od",
+            "name": "Ab Crunch",
+            "category": "CORE",
+            "createdAt": "2026-04-15T19:48:45.170Z"
+          }
+        },
+        {
           "id": "cmpad3dvo000atpmxl5d16gxu",
           "workoutId": "cmpad3dvo0000tpmx84db16hi",
           "exerciseId": "cmo0gr44o000211byjdmy1avq",
@@ -899,22 +915,6 @@
             "category": "LEGS",
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
-        },
-        {
-          "id": "cmpad3dvo000dtpmxc5vc7qx7",
-          "workoutId": "cmpad3dvo0000tpmx84db16hi",
-          "exerciseId": "cmo0gr46p000f11byzmt808od",
-          "setNumber": 3,
-          "reps": 15,
-          "weight": 29,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr46p000f11byzmt808od",
-            "name": "Ab Crunch",
-            "category": "CORE",
-            "createdAt": "2026-04-15T19:48:45.170Z"
-          }
         }
       ]
     },
@@ -926,22 +926,6 @@
       "duration": 1780,
       "createdAt": "2026-05-19T20:08:04.218Z",
       "sets": [
-        {
-          "id": "cmpd2ex6k000hxuvox9vdr5ir",
-          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr46f000d11byrg1aizdn",
-            "name": "Triceps Extension",
-            "category": "ARMS",
-            "createdAt": "2026-04-15T19:48:45.159Z"
-          }
-        },
         {
           "id": "cmpd2ex6k0002xuvo00al8y2u",
           "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
@@ -956,22 +940,6 @@
             "name": "Lat Pulldown",
             "category": "BACK",
             "createdAt": "2026-04-15T19:48:45.131Z"
-          }
-        },
-        {
-          "id": "cmpd2ex6k000exuvobs05psuy",
-          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr469000c11byf8hj8hzj",
-            "name": "Bicep Curl",
-            "category": "ARMS",
-            "createdAt": "2026-04-15T19:48:45.154Z"
           }
         },
         {
@@ -991,6 +959,22 @@
           }
         },
         {
+          "id": "cmpd2ex6k0008xuvoslqxl0jb",
+          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
+          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "setNumber": 1,
+          "reps": 16,
+          "weight": 0,
+          "notes": null,
+          "rpe": 2,
+          "exercise": {
+            "id": "cmo0gr45h000711byn7tp5i02",
+            "name": "Plank",
+            "category": "CORE",
+            "createdAt": "2026-04-15T19:48:45.125Z"
+          }
+        },
+        {
           "id": "cmpd2ex6k000bxuvoh4hwj7re",
           "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
           "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
@@ -1007,19 +991,35 @@
           }
         },
         {
-          "id": "cmpd2ex6k0008xuvoslqxl0jb",
+          "id": "cmpd2ex6k000hxuvox9vdr5ir",
           "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
           "setNumber": 1,
-          "reps": 16,
-          "weight": 0,
+          "reps": 12,
+          "weight": 20,
           "notes": null,
-          "rpe": 2,
+          "rpe": 1,
           "exercise": {
-            "id": "cmo0gr45h000711byn7tp5i02",
-            "name": "Plank",
-            "category": "CORE",
-            "createdAt": "2026-04-15T19:48:45.125Z"
+            "id": "cmo0gr46f000d11byrg1aizdn",
+            "name": "Triceps Extension",
+            "category": "ARMS",
+            "createdAt": "2026-04-15T19:48:45.159Z"
+          }
+        },
+        {
+          "id": "cmpd2ex6k000exuvobs05psuy",
+          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
+          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 20,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr469000c11byf8hj8hzj",
+            "name": "Bicep Curl",
+            "category": "ARMS",
+            "createdAt": "2026-04-15T19:48:45.154Z"
           }
         },
         {
@@ -1119,6 +1119,54 @@
           }
         },
         {
+          "id": "cmpd2ex6k000gxuvov4o844o1",
+          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
+          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 20,
+          "notes": null,
+          "rpe": 2,
+          "exercise": {
+            "id": "cmo0gr469000c11byf8hj8hzj",
+            "name": "Bicep Curl",
+            "category": "ARMS",
+            "createdAt": "2026-04-15T19:48:45.154Z"
+          }
+        },
+        {
+          "id": "cmpd2ex6k000dxuvophfbbh6u",
+          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
+          "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
+          "setNumber": 3,
+          "reps": 9,
+          "weight": 20,
+          "notes": null,
+          "rpe": 3,
+          "exercise": {
+            "id": "cmo0gr45x000a11bygxz3rzq0",
+            "name": "Leg Curl",
+            "category": "LEGS",
+            "createdAt": "2026-04-15T19:48:45.142Z"
+          }
+        },
+        {
+          "id": "cmpd2ex6k000jxuvoqtcccb91",
+          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
+          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 20,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr46f000d11byrg1aizdn",
+            "name": "Triceps Extension",
+            "category": "ARMS",
+            "createdAt": "2026-04-15T19:48:45.159Z"
+          }
+        },
+        {
           "id": "cmpd2ex6k000axuvojkitj2l3",
           "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
           "exerciseId": "cmo0gr45h000711byn7tp5i02",
@@ -1151,22 +1199,6 @@
           }
         },
         {
-          "id": "cmpd2ex6k000dxuvophfbbh6u",
-          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
-          "setNumber": 3,
-          "reps": 9,
-          "weight": 20,
-          "notes": null,
-          "rpe": 3,
-          "exercise": {
-            "id": "cmo0gr45x000a11bygxz3rzq0",
-            "name": "Leg Curl",
-            "category": "LEGS",
-            "createdAt": "2026-04-15T19:48:45.142Z"
-          }
-        },
-        {
           "id": "cmpd2ex6k0004xuvo3c8mms3b",
           "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
           "exerciseId": "cmo0gr45m000811bylyejpvpk",
@@ -1181,38 +1213,6 @@
             "category": "BACK",
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
-        },
-        {
-          "id": "cmpd2ex6k000gxuvov4o844o1",
-          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": 2,
-          "exercise": {
-            "id": "cmo0gr469000c11byf8hj8hzj",
-            "name": "Bicep Curl",
-            "category": "ARMS",
-            "createdAt": "2026-04-15T19:48:45.154Z"
-          }
-        },
-        {
-          "id": "cmpd2ex6k000jxuvoqtcccb91",
-          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr46f000d11byrg1aizdn",
-            "name": "Triceps Extension",
-            "category": "ARMS",
-            "createdAt": "2026-04-15T19:48:45.159Z"
-          }
         }
       ]
     },
@@ -1224,54 +1224,6 @@
       "duration": 2632,
       "createdAt": "2026-05-23T18:10:35.780Z",
       "sets": [
-        {
-          "id": "cmpinz98n0008it4d1j7nim3y",
-          "workoutId": "cmpinz98m0000it4djbf3n4px",
-          "exerciseId": "cmo0gr44o000211byjdmy1avq",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 26,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr44o000211byjdmy1avq",
-            "name": "Shoulder Press",
-            "category": "SHOULDERS",
-            "createdAt": "2026-04-15T19:48:45.097Z"
-          }
-        },
-        {
-          "id": "cmpinz98n0005it4dqtl2lsb1",
-          "workoutId": "cmpinz98m0000it4djbf3n4px",
-          "exerciseId": "cmo0gr44i000111bygug550i3",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 27.5,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr44i000111bygug550i3",
-            "name": "Chest Press",
-            "category": "CHEST",
-            "createdAt": "2026-04-15T19:48:45.091Z"
-          }
-        },
-        {
-          "id": "cmpinz98n0002it4dg4scdf96",
-          "workoutId": "cmpinz98m0000it4djbf3n4px",
-          "exerciseId": "cmo0gr447000011byrx817v5l",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 27.5,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr447000011byrx817v5l",
-            "name": "Leg Press",
-            "category": "LEGS",
-            "createdAt": "2026-04-15T19:48:45.080Z"
-          }
-        },
         {
           "id": "cmpinz98n000git4drxfidt6t",
           "workoutId": "cmpinz98m0000it4djbf3n4px",
@@ -1318,6 +1270,54 @@
             "name": "Leg Extension",
             "category": "LEGS",
             "createdAt": "2026-04-15T19:48:45.103Z"
+          }
+        },
+        {
+          "id": "cmpinz98n0008it4d1j7nim3y",
+          "workoutId": "cmpinz98m0000it4djbf3n4px",
+          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 26,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr44o000211byjdmy1avq",
+            "name": "Shoulder Press",
+            "category": "SHOULDERS",
+            "createdAt": "2026-04-15T19:48:45.097Z"
+          }
+        },
+        {
+          "id": "cmpinz98n0005it4dqtl2lsb1",
+          "workoutId": "cmpinz98m0000it4djbf3n4px",
+          "exerciseId": "cmo0gr44i000111bygug550i3",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 27.5,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr44i000111bygug550i3",
+            "name": "Chest Press",
+            "category": "CHEST",
+            "createdAt": "2026-04-15T19:48:45.091Z"
+          }
+        },
+        {
+          "id": "cmpinz98n0002it4dg4scdf96",
+          "workoutId": "cmpinz98m0000it4djbf3n4px",
+          "exerciseId": "cmo0gr447000011byrx817v5l",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 27.5,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr447000011byrx817v5l",
+            "name": "Leg Press",
+            "category": "LEGS",
+            "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
         {
@@ -1417,38 +1417,6 @@
           }
         },
         {
-          "id": "cmpinz98n000ait4dpfw8idgh",
-          "workoutId": "cmpinz98m0000it4djbf3n4px",
-          "exerciseId": "cmo0gr44o000211byjdmy1avq",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 26,
-          "notes": null,
-          "rpe": 2,
-          "exercise": {
-            "id": "cmo0gr44o000211byjdmy1avq",
-            "name": "Shoulder Press",
-            "category": "SHOULDERS",
-            "createdAt": "2026-04-15T19:48:45.097Z"
-          }
-        },
-        {
-          "id": "cmpinz98n000dit4d4hjhrmm6",
-          "workoutId": "cmpinz98m0000it4djbf3n4px",
-          "exerciseId": "cmo0gr44u000311bypxi03ywu",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 29,
-          "notes": null,
-          "rpe": 2,
-          "exercise": {
-            "id": "cmo0gr44u000311bypxi03ywu",
-            "name": "Leg Extension",
-            "category": "LEGS",
-            "createdAt": "2026-04-15T19:48:45.103Z"
-          }
-        },
-        {
           "id": "cmpinz98n000iit4ddl3ym2lu",
           "workoutId": "cmpinz98m0000it4djbf3n4px",
           "exerciseId": "cmo0gr46p000f11byzmt808od",
@@ -1495,6 +1463,38 @@
             "category": "CHEST",
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
+        },
+        {
+          "id": "cmpinz98n000ait4dpfw8idgh",
+          "workoutId": "cmpinz98m0000it4djbf3n4px",
+          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 26,
+          "notes": null,
+          "rpe": 2,
+          "exercise": {
+            "id": "cmo0gr44o000211byjdmy1avq",
+            "name": "Shoulder Press",
+            "category": "SHOULDERS",
+            "createdAt": "2026-04-15T19:48:45.097Z"
+          }
+        },
+        {
+          "id": "cmpinz98n000dit4d4hjhrmm6",
+          "workoutId": "cmpinz98m0000it4djbf3n4px",
+          "exerciseId": "cmo0gr44u000311bypxi03ywu",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 29,
+          "notes": null,
+          "rpe": 2,
+          "exercise": {
+            "id": "cmo0gr44u000311bypxi03ywu",
+            "name": "Leg Extension",
+            "category": "LEGS",
+            "createdAt": "2026-04-15T19:48:45.103Z"
+          }
         }
       ]
     },
@@ -1506,6 +1506,22 @@
       "duration": 4365,
       "createdAt": "2026-05-30T18:02:10.301Z",
       "sets": [
+        {
+          "id": "cmpsnrdvl000n742qqnoun5fl",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr46k000e11by41cdclm9",
+          "setNumber": 1,
+          "reps": 15,
+          "weight": 7.5,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr46k000e11by41cdclm9",
+            "name": "Cable Face Pull",
+            "category": "SHOULDERS",
+            "createdAt": "2026-04-15T19:48:45.165Z"
+          }
+        },
         {
           "id": "cmpsnrdvl000k742q23qge125",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
@@ -1520,6 +1536,38 @@
             "name": "Rear Delt Fly",
             "category": "SHOULDERS",
             "createdAt": "2026-04-15T19:48:45.148Z"
+          }
+        },
+        {
+          "id": "cmpsnrdvl000h742qx5scd7j3",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 27.5,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr46f000d11byrg1aizdn",
+            "name": "Triceps Extension",
+            "category": "ARMS",
+            "createdAt": "2026-04-15T19:48:45.159Z"
+          }
+        },
+        {
+          "id": "cmpsnrdvl000e742qpd929xxv",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 22.5,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr469000c11byf8hj8hzj",
+            "name": "Bicep Curl",
+            "category": "ARMS",
+            "createdAt": "2026-04-15T19:48:45.154Z"
           }
         },
         {
@@ -1555,22 +1603,6 @@
           }
         },
         {
-          "id": "cmpsnrdvl000h742qx5scd7j3",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
-          "setNumber": 1,
-          "reps": 10,
-          "weight": 27.5,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr46f000d11byrg1aizdn",
-            "name": "Triceps Extension",
-            "category": "ARMS",
-            "createdAt": "2026-04-15T19:48:45.159Z"
-          }
-        },
-        {
           "id": "cmpsnrdvl0005742qnhtv5ie8",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
           "exerciseId": "cmo0gr45s000911by7xs3v5nq",
@@ -1603,51 +1635,19 @@
           }
         },
         {
-          "id": "cmpsnrdvl000n742qqnoun5fl",
+          "id": "cmpsnrdvl0009742q39lj7ww1",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr46k000e11by41cdclm9",
-          "setNumber": 1,
-          "reps": 15,
-          "weight": 7.5,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr46k000e11by41cdclm9",
-            "name": "Cable Face Pull",
-            "category": "SHOULDERS",
-            "createdAt": "2026-04-15T19:48:45.165Z"
-          }
-        },
-        {
-          "id": "cmpsnrdvl000e742qpd929xxv",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 22.5,
-          "notes": null,
-          "rpe": 1,
-          "exercise": {
-            "id": "cmo0gr469000c11byf8hj8hzj",
-            "name": "Bicep Curl",
-            "category": "ARMS",
-            "createdAt": "2026-04-15T19:48:45.154Z"
-          }
-        },
-        {
-          "id": "cmpsnrdvl000c742qrvjtwjtw",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
+          "exerciseId": "cmo0gr45h000711byn7tp5i02",
           "setNumber": 2,
-          "reps": 12,
-          "weight": 20,
+          "reps": 21,
+          "weight": 0,
           "notes": null,
           "rpe": 1,
           "exercise": {
-            "id": "cmo0gr45x000a11bygxz3rzq0",
-            "name": "Leg Curl",
-            "category": "LEGS",
-            "createdAt": "2026-04-15T19:48:45.142Z"
+            "id": "cmo0gr45h000711byn7tp5i02",
+            "name": "Plank",
+            "category": "CORE",
+            "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
         {
@@ -1683,19 +1683,19 @@
           }
         },
         {
-          "id": "cmpsnrdvl0009742q39lj7ww1",
+          "id": "cmpsnrdvl000c742qrvjtwjtw",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
           "setNumber": 2,
-          "reps": 21,
-          "weight": 0,
+          "reps": 12,
+          "weight": 20,
           "notes": null,
           "rpe": 1,
           "exercise": {
-            "id": "cmo0gr45h000711byn7tp5i02",
-            "name": "Plank",
-            "category": "CORE",
-            "createdAt": "2026-04-15T19:48:45.125Z"
+            "id": "cmo0gr45x000a11bygxz3rzq0",
+            "name": "Leg Curl",
+            "category": "LEGS",
+            "createdAt": "2026-04-15T19:48:45.142Z"
           }
         },
         {
@@ -1763,19 +1763,67 @@
           }
         },
         {
-          "id": "cmpsnrdvl000m742qmy1irih4",
+          "id": "cmpsnrdvl0004742qp4i1ovas",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr464000b11byotiuejog",
+          "exerciseId": "cmo0gr45m000811bylyejpvpk",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 40,
+          "notes": null,
+          "rpe": 2,
+          "exercise": {
+            "id": "cmo0gr45m000811bylyejpvpk",
+            "name": "Lat Pulldown",
+            "category": "BACK",
+            "createdAt": "2026-04-15T19:48:45.131Z"
+          }
+        },
+        {
+          "id": "cmpsnrdvl0007742qc4i273b8",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 29,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "createdAt": "2026-04-15T19:48:45.137Z"
+          }
+        },
+        {
+          "id": "cmpsnrdvl000a742q30abngfm",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "setNumber": 3,
+          "reps": 21,
+          "weight": 0,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr45h000711byn7tp5i02",
+            "name": "Plank",
+            "category": "CORE",
+            "createdAt": "2026-04-15T19:48:45.125Z"
+          }
+        },
+        {
+          "id": "cmpsnrdvl000d742qzgyqqkz4",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
           "setNumber": 3,
           "reps": 12,
           "weight": 20,
           "notes": null,
           "rpe": 1,
           "exercise": {
-            "id": "cmo0gr464000b11byotiuejog",
-            "name": "Rear Delt Fly",
-            "category": "SHOULDERS",
-            "createdAt": "2026-04-15T19:48:45.148Z"
+            "id": "cmo0gr45x000a11bygxz3rzq0",
+            "name": "Leg Curl",
+            "category": "LEGS",
+            "createdAt": "2026-04-15T19:48:45.142Z"
           }
         },
         {
@@ -1811,35 +1859,19 @@
           }
         },
         {
-          "id": "cmpsnrdvl0004742qp4i1ovas",
+          "id": "cmpsnrdvl000m742qmy1irih4",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr45m000811bylyejpvpk",
+          "exerciseId": "cmo0gr464000b11byotiuejog",
           "setNumber": 3,
-          "reps": 10,
-          "weight": 40,
-          "notes": null,
-          "rpe": 2,
-          "exercise": {
-            "id": "cmo0gr45m000811bylyejpvpk",
-            "name": "Lat Pulldown",
-            "category": "BACK",
-            "createdAt": "2026-04-15T19:48:45.131Z"
-          }
-        },
-        {
-          "id": "cmpsnrdvl0007742qc4i273b8",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
-          "setNumber": 3,
-          "reps": 10,
-          "weight": 29,
+          "reps": 12,
+          "weight": 20,
           "notes": null,
           "rpe": 1,
           "exercise": {
-            "id": "cmo0gr45s000911by7xs3v5nq",
-            "name": "Mid Row",
-            "category": "BACK",
-            "createdAt": "2026-04-15T19:48:45.137Z"
+            "id": "cmo0gr464000b11byotiuejog",
+            "name": "Rear Delt Fly",
+            "category": "SHOULDERS",
+            "createdAt": "2026-04-15T19:48:45.148Z"
           }
         },
         {
@@ -1857,37 +1889,207 @@
             "category": "SHOULDERS",
             "createdAt": "2026-04-15T19:48:45.165Z"
           }
-        },
+        }
+      ]
+    },
+    {
+      "id": "cmqg9c8yl0000h62ay3fd3y5o",
+      "name": "Day A 30m — Jun 16",
+      "date": "2026-06-16T00:00:00.000Z",
+      "notes": null,
+      "duration": 1367,
+      "createdAt": "2026-06-16T06:24:57.691Z",
+      "sets": [
         {
-          "id": "cmpsnrdvl000a742q30abngfm",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr45h000711byn7tp5i02",
-          "setNumber": 3,
-          "reps": 21,
-          "weight": 0,
+          "id": "cmqg9c8ym0005h62akmg9syc5",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr44i000111bygug550i3",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 23,
           "notes": null,
           "rpe": 1,
           "exercise": {
-            "id": "cmo0gr45h000711byn7tp5i02",
-            "name": "Plank",
-            "category": "CORE",
-            "createdAt": "2026-04-15T19:48:45.125Z"
+            "id": "cmo0gr44i000111bygug550i3",
+            "name": "Chest Press",
+            "category": "CHEST",
+            "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
         {
-          "id": "cmpsnrdvl000d742qzgyqqkz4",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 20,
+          "id": "cmqg9c8ym000bh62ahthg5v60",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 27,
           "notes": null,
           "rpe": 1,
           "exercise": {
-            "id": "cmo0gr45x000a11bygxz3rzq0",
-            "name": "Leg Curl",
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "createdAt": "2026-04-15T19:48:45.137Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym0002h62ambrc6q21",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr447000011byrx817v5l",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 36,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr447000011byrx817v5l",
+            "name": "Leg Press",
             "category": "LEGS",
-            "createdAt": "2026-04-15T19:48:45.142Z"
+            "createdAt": "2026-04-15T19:48:45.080Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym0008h62af1i3tv74",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 27,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr44o000211byjdmy1avq",
+            "name": "Shoulder Press",
+            "category": "SHOULDERS",
+            "createdAt": "2026-04-15T19:48:45.097Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym0003h62atrb3sdje",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr447000011byrx817v5l",
+          "setNumber": 2,
+          "reps": 12,
+          "weight": 36,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr447000011byrx817v5l",
+            "name": "Leg Press",
+            "category": "LEGS",
+            "createdAt": "2026-04-15T19:48:45.080Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym0006h62ajzorc3dd",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr44i000111bygug550i3",
+          "setNumber": 2,
+          "reps": 10,
+          "weight": 23,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr44i000111bygug550i3",
+            "name": "Chest Press",
+            "category": "CHEST",
+            "createdAt": "2026-04-15T19:48:45.091Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym0009h62a088ktwxf",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "setNumber": 2,
+          "reps": 10,
+          "weight": 27,
+          "notes": null,
+          "rpe": 2,
+          "exercise": {
+            "id": "cmo0gr44o000211byjdmy1avq",
+            "name": "Shoulder Press",
+            "category": "SHOULDERS",
+            "createdAt": "2026-04-15T19:48:45.097Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym000ch62ardiqy4cu",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 2,
+          "reps": 10,
+          "weight": 27,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "createdAt": "2026-04-15T19:48:45.137Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym000ah62awxscqjbf",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 27,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr44o000211byjdmy1avq",
+            "name": "Shoulder Press",
+            "category": "SHOULDERS",
+            "createdAt": "2026-04-15T19:48:45.097Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym0004h62aqf202cr1",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr447000011byrx817v5l",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 36,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr447000011byrx817v5l",
+            "name": "Leg Press",
+            "category": "LEGS",
+            "createdAt": "2026-04-15T19:48:45.080Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym0007h62awv98um6k",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr44i000111bygug550i3",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 23,
+          "notes": null,
+          "rpe": null,
+          "exercise": {
+            "id": "cmo0gr44i000111bygug550i3",
+            "name": "Chest Press",
+            "category": "CHEST",
+            "createdAt": "2026-04-15T19:48:45.091Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym000dh62aq2gz2dy0",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 27,
+          "notes": null,
+          "rpe": 1,
+          "exercise": {
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "createdAt": "2026-04-15T19:48:45.137Z"
           }
         }
       ]
