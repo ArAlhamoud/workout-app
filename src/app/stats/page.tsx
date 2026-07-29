@@ -2,11 +2,52 @@ import type { Metadata } from 'next';
 import { getBodyStats, getWorkouts } from '../actions';
 import BodyStatForm from '@/components/BodyStatForm';
 import DeleteBodyStatButton from '@/components/DeleteBodyStatButton';
-import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact } from '@/lib/format';
+import { effortDistribution, weeklyReport, type EffortDistribution, type Rpe } from '@/lib/coach';
+import { getTrainingStatus } from '@/lib/program';
+import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: 'Progress' };
+
+const RPE_BAR_COLORS: Record<Rpe, string> = {
+  1: 'bg-green-400',
+  2: 'bg-yellow-400',
+  3: 'bg-orange-400',
+  4: 'bg-red-400',
+};
+const RPE_VALUES: Rpe[] = [1, 2, 3, 4];
+
+function EffortBalanceRow({ effort }: { effort: EffortDistribution }) {
+  if (!effort.total) {
+    return <p className="text-app-tx3 text-xs">Tag your sets with RPE to see effort balance.</p>;
+  }
+  return (
+    <div>
+      <div className="flex h-2 rounded-full overflow-hidden bg-app-surface2">
+        {RPE_VALUES.map((r) =>
+          effort.share[r] > 0 ? (
+            <div
+              key={r}
+              className={RPE_BAR_COLORS[r]}
+              style={{ width: `${effort.share[r] * 100}%` }}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="flex items-center gap-3 mt-2 flex-wrap">
+        {RPE_VALUES.map((r) => (
+          <span key={r} className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${RPE_BAR_COLORS[r]}`} />
+            <span className="text-[10px] text-app-tx3">
+              {RPE_LABELS[r]} {Math.round(effort.share[r] * 100)}%
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function CalendarHeatmap({ workouts }: { workouts: { date: Date }[] }) {
   const today = new Date();
@@ -217,6 +258,11 @@ export default async function StatsPage() {
     .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0);
   const volChange = lastWeekVol > 0 ? Math.round(((thisWeekVol - lastWeekVol) / lastWeekVol) * 100) : null;
 
+  // Coach intelligence
+  const status = getTrainingStatus(workouts.map((w) => w.date));
+  const report = weeklyReport(workouts, stats, status);
+  const effort = effortDistribution(workouts);
+
   const sorted = [...workouts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   const exerciseProgressions: Record<string, number[]> = {};
   for (const w of sorted) {
@@ -237,6 +283,43 @@ export default async function StatsPage() {
         <h1 className="text-xl font-bold text-app-tx1">Progress</h1>
         <p className="text-app-tx3 text-sm mt-0.5">Body stats & personal records</p>
       </div>
+
+      {/* Coach report */}
+      {workouts.length > 0 && (
+        <div className="card-lg p-4">
+          <p className="section-label mb-2">Coach Report</p>
+          <p className="text-app-tx1 font-bold text-sm leading-snug">{report.headline}</p>
+          {report.wins.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {report.wins.map((win, i) => (
+                <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
+                  <span className="text-teal-400 font-bold flex-shrink-0">✓</span>
+                  <span>{win}</span>
+                </p>
+              ))}
+            </div>
+          )}
+          {report.focus.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {report.focus.map((item, i) => (
+                <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
+                  <span className="text-amber-400 font-bold flex-shrink-0">→</span>
+                  <span>{item}</span>
+                </p>
+              ))}
+            </div>
+          )}
+          <div className="mt-4 pt-3 border-t border-app-border">
+            <div className="flex items-center justify-between mb-2">
+              <p className="section-label">Effort Balance (4 wk)</p>
+              {effort.total > 0 && (
+                <span className="text-[10px] text-app-tx3">{effort.total} rated sets</span>
+              )}
+            </div>
+            <EffortBalanceRow effort={effort} />
+          </div>
+        </div>
+      )}
 
       {/* Body weight metrics */}
       {latestWeight !== null && (

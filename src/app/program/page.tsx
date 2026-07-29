@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, RETURN_PROGRAM, BREAK_THRESHOLD_DAYS, CARDIO, type Priority } from '@/lib/program';
-import { getExercises, getBodyStats } from '@/app/actions';
+import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, RETURN_PROGRAM, BREAK_THRESHOLD_DAYS, CARDIO, getTrainingStatus, type Priority } from '@/lib/program';
+import { getExercises, getBodyStats, getWorkouts } from '@/app/actions';
 import CollapsibleSection from '@/components/CollapsibleSection';
-import { RPE_LABELS } from '@/lib/format';
+import { getMondayOfWeek, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,8 +32,23 @@ const phaseColors: Record<string, string> = {
 };
 
 export default async function ProgramPage() {
-  const [exercises, bodyStats] = await Promise.all([getExercises(), getBodyStats()]);
+  const [exercises, bodyStats, workouts] = await Promise.all([
+    getExercises(),
+    getBodyStats(),
+    getWorkouts(),
+  ]);
   const exerciseIdByName = new Map(exercises.map((e) => [e.name, e.id]));
+
+  // Where the lifter actually is this week
+  const status = getTrainingStatus(workouts.map((w) => w.date));
+  const weekStart = getMondayOfWeek(new Date());
+  const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
+  const currentPhase =
+    PROGRESSION.find((p) => {
+      const parts = p.weeks.split('–').map((s) => parseInt(s.trim()));
+      const [start, end] = parts.length === 2 ? parts : [parts[0], parts[0]];
+      return status.week >= start && status.week <= end;
+    }) ?? PROGRESSION[0];
 
   const todayDayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()];
   const latestWeight = [...bodyStats].reverse().find((s) => s.weight !== null)?.weight ?? 132;
@@ -49,6 +64,51 @@ export default async function ProgramPage() {
         </p>
         <h1 className="text-2xl font-black text-app-tx1">Your Program</h1>
       </div>
+
+      {/* This Week — live status */}
+      {status.mode === 'return' ? (
+        <section className="rounded-card-lg border border-amber-700/40 bg-gradient-to-br from-amber-950/50 to-app-surface shadow-card p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-amber-500">
+              This Week · Return Ramp
+            </p>
+            <span className="chip bg-amber-900/60 text-amber-300 flex-shrink-0">
+              {status.returnWeek.phase}
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            {[
+              { value: `${status.week}/4`, label: 'Ramp week' },
+              { value: `${status.returnWeek.loadPct}%`, label: 'Load' },
+              { value: `${sessionsThisWeek}/${status.returnWeek.sessions}`, label: 'Sessions' },
+              { value: RPE_LABELS[status.returnWeek.rpeCap], label: 'RPE cap' },
+            ].map((m) => (
+              <div key={m.label}>
+                <div className="text-app-tx1 font-bold text-base tabular-nums">{m.value}</div>
+                <div className="metric-label">{m.label}</div>
+              </div>
+            ))}
+          </div>
+          <p className="text-amber-200/50 text-xs mt-3 leading-relaxed">{status.returnWeek.desc}</p>
+        </section>
+      ) : (
+        <section className="card-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="section-label">This Week</p>
+            <span
+              className={`chip flex-shrink-0 ${
+                phaseColors[currentPhase.phase] || 'bg-app-surface2 text-app-tx2'
+              }`}
+            >
+              Wk {status.week} · {currentPhase.phase}
+            </span>
+          </div>
+          <p className="text-app-tx2 text-xs leading-relaxed">{currentPhase.desc}</p>
+          <p className="text-app-tx3 text-xs mt-2">
+            {sessionsThisWeek}/3 sessions logged this week
+          </p>
+        </section>
+      )}
 
       {/* Weekly Schedule */}
       <section>

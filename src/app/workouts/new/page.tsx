@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getExercises, getLastSessionForExercises, getPersonalRecords, getWorkouts } from '../../actions';
 import WorkoutForm from '@/components/WorkoutForm';
+import { combineIncrement, learnPinIncrements } from '@/lib/coach';
 import {
   getDayTemplate,
   getExercisesForDuration,
@@ -82,6 +83,14 @@ export default async function NewWorkoutPage({
   const status = getTrainingStatus(allWorkouts.map((w) => w.date));
   const isReturning = status.mode === 'return';
 
+  // Per-machine pin spacing: learned from weight-jump history, with any
+  // manual pinIncrement on the exercise taking precedence.
+  const learnedIncrements = learnPinIncrements(allWorkouts);
+  const pinIncrements: Record<string, number> = {};
+  for (const ex of exercises) {
+    pinIncrements[ex.id] = combineIncrement(learnedIncrements[ex.id], ex.pinIncrement);
+  }
+
   // "Ready to progress" is derived from pre-break sessions, so it is
   // actively wrong while ramping back — the return target replaces it.
   const progressionHints: Record<string, boolean> = {};
@@ -150,6 +159,7 @@ export default async function NewWorkoutPage({
         progressionHints={progressionHints}
         returnLoadPct={isReturning ? status.returnWeek.loadPct : undefined}
         returnRpeCap={isReturning ? status.returnWeek.rpeCap : undefined}
+        pinIncrements={pinIncrements}
       />
     </div>
   );

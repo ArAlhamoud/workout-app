@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getWorkouts } from './actions';
+import { getBodyStats, getWorkouts } from './actions';
 import { SCHEDULE, REST_ACTIVITIES, PROGRESSION, getTrainingStatus, getExerciseCountForDuration, getExercisesForDuration } from '@/lib/program';
 import { formatDuration, formatRelative, getMondayOfWeek, kgCompact, RPE_LABELS, weekKey } from '@/lib/format';
 
@@ -19,8 +19,14 @@ function getToday(): string {
 }
 
 export default async function Home() {
-  const workouts = await getWorkouts();
+  const [workouts, bodyStats] = await Promise.all([getWorkouts(), getBodyStats()]);
   const recentWorkouts = workouts.slice(0, 4);
+
+  // Weigh-in nudge: bodyStats come back date-ascending
+  const lastBodyStat = bodyStats[bodyStats.length - 1];
+  const daysSinceWeighIn = lastBodyStat
+    ? Math.floor((Date.now() - new Date(lastBodyStat.date).getTime()) / 86400000)
+    : null;
 
   const totalVolume = workouts.reduce(
     (sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0),
@@ -146,6 +152,19 @@ export default async function Home() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* ── Weigh-in nudge ──────────────────────────────── */}
+      {daysSinceWeighIn !== null && daysSinceWeighIn > 7 && (
+        <Link
+          href="/stats"
+          className="flex items-center gap-3 rounded-card-lg border border-amber-700/40 bg-amber-950/40 px-4 py-3 hover:bg-amber-900/40 transition-colors pressable"
+        >
+          <span className="chip bg-amber-900/60 text-amber-300 flex-shrink-0">⚖ Weigh-in</span>
+          <span className="text-amber-200/80 text-xs">
+            Last weigh-in {daysSinceWeighIn}d ago — log your weight →
+          </span>
+        </Link>
       )}
 
       {/* ── Return protocol banner ──────────────────────── */}
