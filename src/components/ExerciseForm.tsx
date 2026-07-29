@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { createExercise } from '@/app/actions';
 
+const inputCls = 'bg-app-surface2 border border-app-border rounded-card px-3 py-2.5 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-teal-500/60 text-sm transition-colors';
+
 export default function ExerciseForm({ categories }: { categories: string[] }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState(categories[0] ?? 'CHEST');
@@ -21,20 +23,20 @@ export default function ExerciseForm({ categories }: { categories: string[] }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-gray-900 rounded-xl p-5 border border-gray-800">
-      <h2 className="font-semibold text-white mb-4">Add Exercise</h2>
-      <div className="flex gap-3">
+    <form onSubmit={handleSubmit} className="card-lg p-4">
+      <p className="section-label mb-3">Add Exercise</p>
+      <div className="flex gap-2">
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Exercise name..."
-          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          className={`flex-1 min-w-0 ${inputCls}`}
         />
         <select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+          className={inputCls}
         >
           {categories.map((c) => (
             <option key={c} value={c}>{c}</option>
@@ -43,7 +45,7 @@ export default function ExerciseForm({ categories }: { categories: string[] }) {
         <button
           type="submit"
           disabled={submitting || !name.trim()}
-          className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:text-blue-400 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+          className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:bg-app-surface2 disabled:text-app-tx3 text-white text-sm font-semibold rounded-card transition-colors flex-shrink-0"
         >
           {submitting ? '...' : 'Add'}
         </button>

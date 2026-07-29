@@ -51,6 +51,10 @@ interface ExerciseBlock {
 
 const DRAFT_KEY = 'workout-draft';
 const NOTES_KEY = 'exercise-notes';
+const DEFAULT_PIN_INCREMENT = 2.5;
+
+const inputCls =
+  'w-full bg-app-surface2 border border-app-border rounded-card px-4 py-3 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-teal-500/60 text-sm transition-colors';
 
 const rpeOptions = [
   { v: 1, l: 'Easy',  c: 'bg-green-900/40 border-green-700 text-green-400' },
@@ -133,6 +137,7 @@ export default function WorkoutForm({
   progressionHints = {},
   returnLoadPct,
   returnRpeCap,
+  pinIncrements = {},
 }: {
   exercises: Exercise[];
   initialName?: string;
@@ -142,6 +147,7 @@ export default function WorkoutForm({
   progressionHints?: Record<string, boolean>;
   returnLoadPct?: number;
   returnRpeCap?: number;
+  pinIncrements?: Record<string, number>;
 }) {
   const router = useRouter();
   const today = localTodayStr();
@@ -374,6 +380,23 @@ export default function WorkoutForm({
     );
   }
 
+  // Step the weight by the exercise's pin increment. Stepping from an empty
+  // (zero) weight jumps to the last-session weight when known — scaled during
+  // the return protocol, same as the pre-fill — else to one pin increment.
+  function stepWeight(block: ExerciseBlock, idx: number, dir: 1 | -1) {
+    const inc = pinIncrements[block.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+    const cur = block.sets[idx].weight;
+    const next =
+      cur > 0
+        ? Math.max(0, +(cur + dir * inc).toFixed(2))
+        : block.lastSession?.weight
+          ? (returnLoadPct
+              ? scaleReturnWeight(block.lastSession.weight, returnLoadPct)
+              : block.lastSession.weight)
+          : inc;
+    updateSet(block.uid, idx, 'weight', next);
+  }
+
   function updateSetNote(uid: string, idx: number, note: string) {
     setBlocks((prev) =>
       prev.map((b) =>
@@ -476,14 +499,14 @@ export default function WorkoutForm({
 
         {/* Draft restored notice */}
         {draftRestored && (
-          <div className="bg-blue-950/50 border border-blue-800/60 rounded-2xl px-4 py-3 flex items-center justify-between">
-            <span className="text-blue-300 text-sm">
+          <div className="bg-teal-950/40 border border-teal-800/40 rounded-card px-4 py-3 flex items-center justify-between">
+            <span className="text-teal-300 text-sm">
               ↩ Workout restored
             </span>
             <button
               type="button"
               onClick={clearDraft}
-              className="text-blue-500 text-xs font-semibold hover:text-blue-300 transition-colors"
+              className="text-teal-400 text-xs font-semibold hover:text-teal-200 transition-colors py-2 -my-2 px-2 -mx-2"
             >
               Start fresh
             </button>
@@ -491,9 +514,9 @@ export default function WorkoutForm({
         )}
 
         {/* Workout details */}
-        <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-3">
+        <div className="card-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500 uppercase tracking-widest font-semibold">
+            <span className="section-label">
               Workout Details
             </span>
             <div className="flex items-center gap-2">
@@ -501,13 +524,13 @@ export default function WorkoutForm({
                 type="button"
                 onClick={() => setAutoTimer((v) => !v)}
                 title="Toggle auto rest timer"
-                className={`text-[10px] px-2 py-1 rounded-full border transition-colors ${
-                  autoTimer ? 'border-blue-700 bg-blue-900/20 text-blue-400' : 'border-gray-700 text-gray-600'
+                className={`text-[10px] px-3 py-1.5 rounded-full border transition-colors ${
+                  autoTimer ? 'border-teal-600/60 bg-teal-500/10 text-teal-400' : 'border-app-border text-app-tx3'
                 }`}
               >
                 ⏱ rest
               </button>
-              <span className="text-xs text-gray-600 tabular-nums font-mono">
+              <span className="text-xs text-app-tx3 tabular-nums font-mono">
                 {formatElapsed(elapsed)}
               </span>
             </div>
@@ -517,35 +540,35 @@ export default function WorkoutForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Day A — Apr 15"
-            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm"
+            className={inputCls}
           />
           <div className="grid grid-cols-2 gap-3">
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-blue-500 text-sm"
+              className={inputCls}
             />
             <input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Notes (optional)"
-              className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 text-sm"
+              className={inputCls}
             />
           </div>
           <div>
-            <p className="text-gray-700 text-xs mb-1.5">How do you feel?</p>
+            <p className="text-app-tx3 text-xs mb-1.5">How do you feel?</p>
             <div className="flex gap-2">
               {(['😴', '🙂', '💪', '🔥'] as const).map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
                   onClick={() => setMood(mood === emoji ? '' : emoji)}
-                  className={`flex-1 py-2 rounded-xl border text-base transition-all ${
+                  className={`flex-1 h-11 rounded-card border text-base transition-all ${
                     mood === emoji
-                      ? 'border-blue-500 bg-blue-900/30'
-                      : 'border-gray-700 bg-gray-800/50 text-gray-400'
+                      ? 'border-teal-500/70 bg-teal-500/10'
+                      : 'border-app-border bg-app-surface2/60 text-app-tx2'
                   }`}
                 >
                   {emoji}
@@ -558,13 +581,13 @@ export default function WorkoutForm({
         {/* Progress bar */}
         {totalSets > 0 && (
           <div className="flex items-center gap-3">
-            <div className="flex-1 bg-gray-800 rounded-full h-1.5 overflow-hidden">
+            <div className="flex-1 bg-app-surface2 rounded-full h-1.5 overflow-hidden">
               <div
                 className="bg-green-500 h-full rounded-full transition-all duration-300"
                 style={{ width: `${(doneCount / totalSets) * 100}%` }}
               />
             </div>
-            <span className="text-gray-600 text-xs tabular-nums flex-shrink-0">
+            <span className="text-app-tx3 text-xs tabular-nums flex-shrink-0">
               {doneCount}/{totalSets}
             </span>
           </div>
@@ -572,7 +595,7 @@ export default function WorkoutForm({
 
         {/* Return protocol reminder — visible while logging */}
         {returnLoadPct && (
-          <div className="bg-amber-950/40 border border-amber-800/40 rounded-2xl px-4 py-3 flex items-start gap-3">
+          <div className="bg-amber-950/40 border border-amber-800/40 rounded-card px-4 py-3 flex items-start gap-3">
             <span className="text-lg leading-none mt-0.5 flex-shrink-0">&#8595;</span>
             <div className="min-w-0">
               <p className="text-amber-300 font-bold text-sm">
@@ -615,21 +638,19 @@ export default function WorkoutForm({
           return (
             <div
               key={block.uid}
-              className={`rounded-2xl border transition-all duration-300 ${
-                allDone
-                  ? 'bg-green-950/20 border-green-800/40'
-                  : 'bg-gray-900 border-gray-800'
+              className={`card-lg transition-all duration-300 ${
+                allDone ? 'bg-green-950/20 border-green-800/40' : ''
               }`}
             >
               {/* Header — sticky so exercise name stays visible while scrolling through sets */}
-              <div className={`sticky top-0 z-10 flex items-center gap-2 px-4 pt-4 pb-2 rounded-t-2xl ${allDone ? 'bg-green-950/30' : 'bg-gray-900'}`}>
-                <span className="text-gray-700 text-sm font-bold w-5 flex-shrink-0 tabular-nums">
+              <div className={`sticky top-0 z-10 flex items-center gap-2 px-4 pt-4 pb-2 rounded-t-card-lg ${allDone ? 'bg-green-950/30' : 'bg-app-surface'}`}>
+                <span className="text-app-tx3 text-sm font-bold w-5 flex-shrink-0 tabular-nums">
                   {blockIdx + 1}
                 </span>
                 <select
                   value={block.exerciseId}
                   onChange={(e) => updateBlockExercise(block.uid, e.target.value)}
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500 min-w-0"
+                  className="flex-1 bg-app-surface2 border border-app-border rounded-card px-3 h-11 text-app-tx1 text-sm focus:outline-none focus:border-teal-500/60 min-w-0 transition-colors"
                 >
                   {Object.entries(exerciseGroups)
                     .sort(([a], [b]) => a.localeCompare(b))
@@ -645,7 +666,7 @@ export default function WorkoutForm({
                 </select>
                 <Link
                   href={`/progress/${block.exerciseId}`}
-                  className="text-gray-700 hover:text-blue-400 transition-colors text-base flex-shrink-0 px-0.5"
+                  className="text-app-tx3 hover:text-teal-400 transition-colors text-base flex-shrink-0 w-8 h-11 flex items-center justify-center"
                   title="View progress"
                 >
                   &#128200;
@@ -653,7 +674,7 @@ export default function WorkoutForm({
                 <button
                   type="button"
                   onClick={() => removeBlock(block.uid)}
-                  className="text-gray-700 hover:text-red-400 transition-colors text-xl leading-none px-1 flex-shrink-0"
+                  className="text-app-tx3 hover:text-red-400 transition-colors text-xl leading-none flex-shrink-0 w-8 h-11 flex items-center justify-center"
                 >
                   &#215;
                 </button>
@@ -662,7 +683,7 @@ export default function WorkoutForm({
               {/* Meta row */}
               <div className="flex items-center gap-2 px-4 pb-3 flex-wrap">
                 {block.lastSession && !isTimed && (
-                  <span className="text-xs bg-gray-800 text-gray-400 px-2.5 py-1 rounded-full border border-gray-700">
+                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
                     Last: {block.lastSession.weight} kg &#215; {block.lastSession.reps}
                     {block.lastSession.rpe != null && block.lastSession.rpe > 0 && (
                       <span className={`ml-1.5 font-semibold ${
@@ -676,7 +697,7 @@ export default function WorkoutForm({
                   </span>
                 )}
                 {block.lastSession && isTimed && (
-                  <span className="text-xs bg-gray-800 text-gray-400 px-2.5 py-1 rounded-full border border-gray-700">
+                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
                     Last: {formatSeconds(block.lastSession.reps)}
                   </span>
                 )}
@@ -696,22 +717,22 @@ export default function WorkoutForm({
                   </span>
                 )}
                 {progressionHints[block.exerciseId] && !shouldHold && !allDone && (
-                  <span className="text-xs bg-blue-950/50 text-blue-400 px-2.5 py-1 rounded-full border border-blue-800/40 font-medium">
+                  <span className="text-xs bg-teal-950/50 text-teal-400 px-2.5 py-1 rounded-full border border-teal-800/40 font-medium">
                     ⬆ Ready to progress
                   </span>
                 )}
                 {block.targetReps && (
-                  <span className="text-xs bg-gray-800 text-gray-500 px-2.5 py-1 rounded-full border border-gray-700">
+                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
                     Target {block.targetReps}
                   </span>
                 )}
                 {block.rest && (
-                  <span className="text-xs bg-gray-800 text-gray-500 px-2.5 py-1 rounded-full border border-gray-700">
+                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
                     Rest {block.rest}
                   </span>
                 )}
                 {est1RM > 0 && !isTimed && (
-                  <span className="text-xs bg-gray-800 text-gray-500 px-2.5 py-1 rounded-full border border-gray-700 tabular-nums">
+                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border tabular-nums">
                     ~{est1RM} kg 1RM
                   </span>
                 )}
@@ -729,10 +750,10 @@ export default function WorkoutForm({
                   <button
                     type="button"
                     onClick={() => toggleCues(block.uid)}
-                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                       block.showCues
-                        ? 'bg-blue-900/40 text-blue-300 border-blue-700/50'
-                        : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'
+                        ? 'bg-teal-900/40 text-teal-300 border-teal-700/50'
+                        : 'bg-app-surface2 text-app-tx2 border-app-border hover:text-app-tx1'
                     }`}
                   >
                     {block.showCues ? 'Hide tip' : '? Tip'}
@@ -743,7 +764,7 @@ export default function WorkoutForm({
                     href={block.youtubeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs px-2.5 py-1 rounded-full border bg-red-950/40 text-red-400 border-red-800/40 hover:bg-red-900/50 transition-colors flex-shrink-0"
+                    className="text-xs px-3 py-1.5 rounded-full border bg-red-950/40 text-red-400 border-red-800/40 hover:bg-red-900/50 transition-colors flex-shrink-0"
                   >
                     ▶ Watch
                   </a>
@@ -757,16 +778,16 @@ export default function WorkoutForm({
                     onBlur={(e) => { saveExerciseNote(block.exerciseId, e.target.value); setEditingNoteFor(null); }}
                     onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingNoteFor(null); }}
                     placeholder="e.g. Seat 4, pin 8…"
-                    className="text-xs bg-gray-800 border border-blue-600/60 rounded-full px-3 py-1 text-white placeholder-gray-600 focus:outline-none w-40"
+                    className="text-xs bg-app-surface2 border border-teal-500/60 rounded-full px-3 py-1.5 text-app-tx1 placeholder-app-tx3 focus:outline-none w-40"
                   />
                 ) : (
                   <button
                     type="button"
                     onClick={() => setEditingNoteFor(block.exerciseId)}
-                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex-shrink-0 ${
+                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
                       exerciseNotes[block.exerciseId]
-                        ? 'bg-amber-950/40 text-amber-400 border-amber-800/40'
-                        : 'bg-gray-800 text-gray-600 border-gray-700 hover:text-gray-400'
+                        ? 'bg-app-primary-muted text-teal-300 border-teal-800/40'
+                        : 'bg-app-surface2 text-app-tx3 border-app-border hover:text-app-tx2'
                     }`}
                   >
                     {exerciseNotes[block.exerciseId] ? `⚙ ${exerciseNotes[block.exerciseId]}` : '⚙ note'}
@@ -776,24 +797,24 @@ export default function WorkoutForm({
 
               {/* Cues */}
               {block.showCues && block.cues && (
-                <div className="mx-4 mb-3 bg-blue-950/30 border border-blue-900/40 rounded-xl px-3.5 py-2.5">
-                  <p className="text-blue-200 text-xs leading-relaxed">{block.cues}</p>
+                <div className="mx-4 mb-3 bg-teal-950/30 border border-teal-900/40 rounded-xl px-3.5 py-2.5">
+                  <p className="text-teal-200 text-xs leading-relaxed">{block.cues}</p>
                 </div>
               )}
 
               {/* Column headers */}
               <div className="px-4 pb-1">
                 {isTimed ? (
-                  <div className="flex items-center gap-2 text-xs text-gray-600 font-semibold uppercase tracking-wide">
+                  <div className="flex items-center gap-1.5 text-xs text-app-tx3 font-semibold uppercase tracking-wide">
                     <span className="w-12 flex-shrink-0 text-center">Set</span>
                     <span className="flex-1 text-center">Duration</span>
-                    <span className="w-16 flex-shrink-0" />
+                    <span className="w-5 flex-shrink-0" />
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2 text-xs text-gray-600 font-semibold uppercase tracking-wide">
+                  <div className="flex items-center gap-1.5 text-xs text-app-tx3 font-semibold uppercase tracking-wide">
                     <span className="w-12 flex-shrink-0 text-center">Set</span>
-                    <span className="flex-1 text-center">Weight &middot; kg</span>
-                    <span className="w-[108px] flex-shrink-0 text-center">Reps</span>
+                    <span className="flex-[3] min-w-0 text-center">Weight &middot; kg</span>
+                    <span className="flex-[2] min-w-0 text-center">Reps</span>
                     <span className="w-5 flex-shrink-0" />
                   </div>
                 )}
@@ -827,7 +848,7 @@ export default function WorkoutForm({
                             </button>
                           </div>
                         )}
-                        <div className={`flex items-center gap-2 transition-transform duration-200 ${isSwipedOpen ? '-translate-x-16' : ''}`}>
+                        <div className={`flex items-center gap-1.5 transition-transform duration-200 ${isSwipedOpen ? '-translate-x-16' : ''}`}>
                           <button
                             type="button"
                             onClick={() => toggleSetDone(block.uid, i)}
@@ -835,42 +856,40 @@ export default function WorkoutForm({
                               set.done
                                 ? 'bg-green-600 text-white shadow-md shadow-green-900/30'
                                 : isCurrentSet
-                                ? 'bg-gray-800 border-2 border-blue-600/70 text-white'
-                                : 'bg-gray-800 text-gray-500 active:bg-gray-700'
+                                ? 'bg-app-surface2 border-2 border-teal-500/70 text-app-tx1'
+                                : 'bg-app-surface2 text-app-tx2 active:bg-white/5'
                             }`}
                           >
                             {set.done ? '✓' : set.setNumber}
                           </button>
 
                           {isTimed ? (
-                            <div className="flex items-center flex-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                            <div className="flex items-center flex-1 min-w-0 h-12 bg-app-surface2 border border-app-border rounded-xl overflow-hidden">
                               <button
                                 type="button"
                                 onClick={() => updateSet(block.uid, i, 'reps', Math.max(5, set.reps - 5))}
-                                className="px-4 py-3 text-gray-300 active:bg-gray-700 font-bold text-sm flex-shrink-0 select-none"
+                                className="min-w-[44px] h-full px-2 flex items-center justify-center text-app-tx2 active:bg-white/5 font-bold text-sm flex-shrink-0 select-none"
                               >
                                 &#8722;5s
                               </button>
-                              <span className="flex-1 text-white text-sm text-center tabular-nums py-3 font-medium">
+                              <span className="flex-1 min-w-0 text-app-tx1 text-sm text-center tabular-nums font-medium">
                                 {formatSeconds(set.reps)}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => updateSet(block.uid, i, 'reps', set.reps + 5)}
-                                className="px-4 py-3 text-gray-300 active:bg-gray-700 font-bold text-sm flex-shrink-0 select-none"
+                                className="min-w-[44px] h-full px-2 flex items-center justify-center text-app-tx2 active:bg-white/5 font-bold text-sm flex-shrink-0 select-none"
                               >
                                 +5s
                               </button>
                             </div>
                           ) : (
                             <>
-                              <div className="flex items-center flex-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                              <div className="flex items-center flex-[3] min-w-0 h-12 bg-app-surface2 border border-app-border rounded-xl overflow-hidden">
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    updateSet(block.uid, i, 'weight', Math.max(0, +(set.weight - 2.5).toFixed(1)))
-                                  }
-                                  className="px-4 py-3 text-gray-300 active:bg-gray-700 font-bold text-lg flex-shrink-0 select-none leading-none"
+                                  onClick={() => stepWeight(block, i, -1)}
+                                  className="w-11 h-full flex items-center justify-center text-app-tx2 active:bg-white/5 font-bold text-lg flex-shrink-0 select-none leading-none"
                                 >
                                   &#8722;
                                 </button>
@@ -878,28 +897,28 @@ export default function WorkoutForm({
                                   type="number"
                                   value={set.weight}
                                   min="0"
-                                  step="0.5"
+                                  step="any"
+                                  inputMode="decimal"
+                                  onFocus={(e) => e.currentTarget.select()}
                                   onChange={(e) =>
                                     updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)
                                   }
-                                  className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-3"
+                                  className="flex-1 bg-transparent text-app-tx1 text-sm text-center focus:outline-none tabular-nums min-w-0 h-full"
                                 />
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    updateSet(block.uid, i, 'weight', +(set.weight + 2.5).toFixed(1))
-                                  }
-                                  className="px-4 py-3 text-gray-300 active:bg-gray-700 font-bold text-lg flex-shrink-0 select-none leading-none"
+                                  onClick={() => stepWeight(block, i, 1)}
+                                  className="w-11 h-full flex items-center justify-center text-app-tx2 active:bg-white/5 font-bold text-lg flex-shrink-0 select-none leading-none"
                                 >
                                   +
                                 </button>
                               </div>
 
-                              <div className="flex items-center w-[108px] flex-shrink-0 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden">
+                              <div className="flex items-center flex-[2] min-w-0 h-12 bg-app-surface2 border border-app-border rounded-xl overflow-hidden">
                                 <button
                                   type="button"
                                   onClick={() => updateSet(block.uid, i, 'reps', Math.max(0, set.reps - 1))}
-                                  className="px-3 py-3 text-gray-300 active:bg-gray-700 font-bold text-lg flex-shrink-0 select-none leading-none"
+                                  className="w-11 h-full flex items-center justify-center text-app-tx2 active:bg-white/5 font-bold text-lg flex-shrink-0 select-none leading-none"
                                 >
                                   &#8722;
                                 </button>
@@ -907,15 +926,18 @@ export default function WorkoutForm({
                                   type="number"
                                   value={set.reps}
                                   min="0"
+                                  step="1"
+                                  inputMode="numeric"
+                                  onFocus={(e) => e.currentTarget.select()}
                                   onChange={(e) =>
                                     updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
                                   }
-                                  className="flex-1 bg-transparent text-white text-sm text-center focus:outline-none tabular-nums min-w-0 py-3"
+                                  className="flex-1 bg-transparent text-app-tx1 text-sm text-center focus:outline-none tabular-nums min-w-0 h-full"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => updateSet(block.uid, i, 'reps', set.reps + 1)}
-                                  className="px-3 py-3 text-gray-300 active:bg-gray-700 font-bold text-lg flex-shrink-0 select-none leading-none"
+                                  className="w-11 h-full flex items-center justify-center text-app-tx2 active:bg-white/5 font-bold text-lg flex-shrink-0 select-none leading-none"
                                 >
                                   +
                                 </button>
@@ -927,7 +949,7 @@ export default function WorkoutForm({
                             type="button"
                             onClick={() => removeSet(block.uid, i)}
                             disabled={block.sets.length === 1}
-                            className="w-5 flex-shrink-0 text-gray-700 hover:text-red-400 transition-colors disabled:opacity-20 text-xl leading-none text-center"
+                            className="w-5 h-12 flex-shrink-0 flex items-center justify-center text-app-tx3 hover:text-red-400 transition-colors disabled:opacity-20 text-xl leading-none"
                           >
                             &#215;
                           </button>
@@ -942,14 +964,14 @@ export default function WorkoutForm({
                               type="button"
                               key={v}
                               onClick={() => updateSetRpe(block.uid, i, set.rpe === v ? 0 : v)}
-                              className={`text-xs px-2.5 py-1 rounded-full border transition-colors flex-shrink-0 ${
-                                set.rpe === v ? c : 'bg-gray-800 border-gray-700 text-gray-600'
+                              className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
+                                set.rpe === v ? c : 'bg-app-surface2 border-app-border text-app-tx3'
                               }`}
                             >
                               {l}
                             </button>
                           ))}
-                          <span className="text-gray-700 text-xs self-center">effort</span>
+                          <span className="text-app-tx3 text-xs self-center">effort</span>
                         </div>
                       )}
 
@@ -961,7 +983,7 @@ export default function WorkoutForm({
                             value={set.notes}
                             onChange={(e) => updateSetNote(block.uid, i, e.target.value)}
                             placeholder="Note for this set&#8230;"
-                            className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-xs placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                            className="w-full bg-app-surface2 border border-app-border rounded-lg px-3 py-2 text-app-tx1 text-xs placeholder-app-tx3 focus:outline-none focus:border-teal-500/60 transition-colors"
                           />
                         </div>
                       )}
@@ -971,18 +993,18 @@ export default function WorkoutForm({
               </div>
 
               {/* Add set + note toggle + fill-all row */}
-              <div className="px-4 pb-4 pt-2 flex items-center gap-4">
+              <div className="px-4 pb-3 pt-1 flex items-center gap-4">
                 <button
                   type="button"
                   onClick={() => addSet(block.uid)}
-                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-semibold"
+                  className="text-xs text-teal-400 hover:text-teal-300 transition-colors font-semibold h-11 flex items-center"
                 >
                   + Add set
                 </button>
                 <button
                   type="button"
                   onClick={() => toggleNoteIdx(block.uid, block.expandedNoteIdx !== null ? block.expandedNoteIdx : block.sets.length - 1)}
-                  className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                  className="text-xs text-app-tx3 hover:text-app-tx2 transition-colors h-11 flex items-center"
                 >
                   &#183;&#183;&#183; note
                 </button>
@@ -990,7 +1012,7 @@ export default function WorkoutForm({
                   <button
                     type="button"
                     onClick={() => fillDown(block.uid)}
-                    className="text-xs text-blue-400 bg-blue-900/20 border border-blue-800/40 hover:bg-blue-900/40 transition-colors ml-auto px-3 py-1.5 rounded-full font-semibold"
+                    className="text-xs text-teal-400 bg-teal-500/10 border border-teal-800/40 hover:bg-teal-500/20 transition-colors ml-auto px-4 h-9 flex items-center rounded-full font-semibold"
                   >
                     ↓ Fill all
                   </button>
@@ -1004,12 +1026,12 @@ export default function WorkoutForm({
           <button
             type="button"
             onClick={addExercise}
-            className="w-full bg-gray-900 border border-gray-700 border-dashed hover:border-blue-500 rounded-2xl py-4 text-gray-500 hover:text-blue-400 text-sm font-semibold transition-colors"
+            className="w-full bg-app-surface border border-app-border border-dashed hover:border-teal-500/60 rounded-card-lg py-4 text-app-tx2 hover:text-teal-400 text-sm font-semibold transition-colors"
           >
             + Add Exercise
           </button>
         ) : (
-          <div className="bg-gray-900 border border-yellow-900/50 rounded-2xl p-4 text-yellow-400 text-sm text-center">
+          <div className="bg-app-surface border border-yellow-900/50 rounded-card-lg p-4 text-yellow-400 text-sm text-center">
             No exercises in library.{' '}
             <Link href="/exercises" className="underline">
               Add exercises first
@@ -1018,7 +1040,7 @@ export default function WorkoutForm({
         )}
 
         {error && (
-          <div className="bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-3 text-red-400 text-sm">
+          <div className="bg-red-950/40 border border-red-800/50 rounded-card px-4 py-3 text-red-400 text-sm">
             {error}
           </div>
         )}
@@ -1026,9 +1048,9 @@ export default function WorkoutForm({
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:bg-blue-900 disabled:text-blue-500 text-white py-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.99]"
+          className="btn-primary w-full text-sm shadow-glow-teal disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none transition-all active:scale-[0.99]"
         >
-          {submitting ? 'Saving&#8230;' : 'Save Workout'}
+          {submitting ? 'Saving…' : 'Save Workout'}
         </button>
       </form>
 
@@ -1042,48 +1064,48 @@ export default function WorkoutForm({
 
       {prToast && (
         <div className="fixed top-4 left-0 right-0 z-[60] px-4 pointer-events-none">
-          <div className="max-w-lg mx-auto bg-yellow-400 text-yellow-950 rounded-2xl px-5 py-3.5 flex items-center gap-3 shadow-2xl pointer-events-auto">
+          <div className="max-w-lg mx-auto bg-yellow-400 text-yellow-950 rounded-card px-5 py-3.5 flex items-center gap-3 shadow-2xl pointer-events-auto">
             <span className="text-2xl leading-none">🏆</span>
             <div className="flex-1 min-w-0">
               <p className="font-black text-sm leading-tight">New Personal Record!</p>
               <p className="text-yellow-700 text-xs mt-0.5 truncate">{prToast}</p>
             </div>
-            <button type="button" onClick={() => setPrToast(null)} className="text-yellow-700 hover:text-yellow-900 text-xl leading-none flex-shrink-0">×</button>
+            <button type="button" onClick={() => setPrToast(null)} className="text-yellow-700 hover:text-yellow-900 text-xl leading-none flex-shrink-0 w-11 h-11 flex items-center justify-center -mr-3">×</button>
           </div>
         </div>
       )}
 
       {showSummary && (
         <div className="fixed inset-0 z-[70] bg-black/85 backdrop-blur-sm flex items-center justify-center px-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-3xl p-8 w-full max-w-sm text-center">
+          <div className="bg-app-surface border border-app-border rounded-card-lg shadow-card-lg p-8 w-full max-w-sm text-center">
             <div className="text-5xl mb-3 leading-none">🎉</div>
-            <h2 className="text-2xl font-black text-white mb-1">Workout Done!</h2>
-            <p className="text-gray-500 text-sm mb-5 truncate">{name}</p>
+            <h2 className="text-2xl font-black text-app-tx1 mb-1">Workout Done!</h2>
+            <p className="text-app-tx2 text-sm mb-5 truncate">{name}</p>
             <div className="grid grid-cols-3 gap-2 mb-5">
-              <div className="bg-gray-800 rounded-xl p-3">
-                <div className="text-xl font-black text-white tabular-nums">{showSummary.sets}</div>
-                <div className="text-gray-600 text-xs mt-0.5">Sets</div>
+              <div className="bg-app-surface2 rounded-card p-3">
+                <div className="text-xl font-black text-app-tx1 tabular-nums">{showSummary.sets}</div>
+                <div className="text-app-tx2 text-xs mt-0.5">Sets</div>
               </div>
-              <div className="bg-gray-800 rounded-xl p-3">
-                <div className="text-xl font-black text-white tabular-nums">
+              <div className="bg-app-surface2 rounded-card p-3">
+                <div className="text-xl font-black text-app-tx1 tabular-nums">
                   {showSummary.vol >= 1000 ? `${(showSummary.vol / 1000).toFixed(1)}k` : showSummary.vol}
                 </div>
-                <div className="text-gray-600 text-xs mt-0.5">kg lifted</div>
+                <div className="text-app-tx2 text-xs mt-0.5">kg lifted</div>
               </div>
-              <div className="bg-gray-800 rounded-xl p-3">
-                <div className="text-xl font-black text-white tabular-nums">{showSummary.time}</div>
-                <div className="text-gray-600 text-xs mt-0.5">Duration</div>
+              <div className="bg-app-surface2 rounded-card p-3">
+                <div className="text-xl font-black text-app-tx1 tabular-nums">{showSummary.time}</div>
+                <div className="text-app-tx2 text-xs mt-0.5">Duration</div>
               </div>
             </div>
             {showSummary.prs.length > 0 && (
-              <div className="bg-yellow-950/50 border border-yellow-800/40 rounded-xl px-4 py-3 mb-4">
+              <div className="bg-yellow-950/50 border border-yellow-800/40 rounded-card px-4 py-3 mb-4">
                 <p className="text-yellow-400 font-bold text-xs uppercase tracking-widest mb-1.5">🏆 New PRs</p>
                 <p className="text-yellow-300 text-sm font-medium leading-relaxed">{showSummary.prs.join(' · ')}</p>
               </div>
             )}
             <div className="flex items-center justify-center gap-1.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              <p className="text-gray-600 text-xs">Saving your workout…</p>
+              <div className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
+              <p className="text-app-tx2 text-xs">Saving your workout…</p>
             </div>
           </div>
         </div>

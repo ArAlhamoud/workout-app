@@ -92,11 +92,11 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
     <div className="fixed bottom-16 left-0 right-0 z-50 px-4 pointer-events-none">
       <div className="max-w-lg mx-auto pointer-events-auto">
         <div
-          className={`rounded-2xl border shadow-2xl overflow-hidden transition-colors duration-500 ${
-            finished ? 'bg-green-950 border-green-700' : 'bg-gray-900 border-gray-700'
+          className={`rounded-card-lg border shadow-card overflow-hidden transition-colors duration-500 ${
+            finished ? 'bg-green-950 border-green-700' : 'bg-app-surface border-app-border'
           }`}
         >
-          <div className="h-1.5 bg-gray-800">
+          <div className="h-1.5 bg-app-surface2">
             <div
               className={`h-full transition-all duration-1000 ease-linear ${
                 finished ? 'bg-green-500' : 'bg-blue-500'
@@ -113,18 +113,18 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
               </div>
             ) : (
               <div>
-                <p className="text-gray-500 text-xs mb-0.5">Resting · {exerciseName}</p>
+                <p className="text-app-tx2 text-xs mb-0.5">Resting · {exerciseName}</p>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-white font-mono font-bold text-3xl tabular-nums leading-none">
+                  <span className="text-app-tx1 font-mono font-bold text-3xl tabular-nums leading-none">
                     {timeStr}
                   </span>
-                  <span className="text-gray-600 text-sm">/ {totalSeconds}s</span>
+                  <span className="text-app-tx3 text-sm">/ {totalSeconds}s</span>
                 </div>
               </div>
             )}
             <button
               onClick={onDismiss}
-              className="text-gray-500 hover:text-white text-sm transition-colors px-3 py-2 rounded-xl hover:bg-gray-800 flex-shrink-0"
+              className="text-app-tx2 hover:text-app-tx1 text-sm transition-colors px-3 py-2 rounded-card hover:bg-app-surface2 flex-shrink-0"
             >
               {finished ? 'Done' : 'Skip'}
             </button>
@@ -133,19 +133,19 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
             <div className="px-4 pb-3 flex items-center gap-2">
               <button
                 onClick={() => setRemaining((r) => Math.max(0, r - 15))}
-                className="text-xs bg-gray-800 text-gray-500 hover:text-gray-300 px-2.5 py-1 rounded-full border border-gray-700 hover:border-gray-600 transition-colors"
+                className="text-xs bg-app-surface2 text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-white/15 transition-colors"
               >
                 −15s
               </button>
               <button
                 onClick={() => setRemaining((r) => r + 15)}
-                className="text-xs bg-gray-800 text-gray-500 hover:text-gray-300 px-2.5 py-1 rounded-full border border-gray-700 hover:border-gray-600 transition-colors"
+                className="text-xs bg-app-surface2 text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-white/15 transition-colors"
               >
                 +15s
               </button>
               <button
                 onClick={() => setRemaining((r) => r + 30)}
-                className="text-xs bg-gray-800 text-gray-500 hover:text-gray-300 px-2.5 py-1 rounded-full border border-gray-700 hover:border-gray-600 transition-colors"
+                className="text-xs bg-app-surface2 text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-white/15 transition-colors"
               >
                 +30s
               </button>

@@ -103,11 +103,11 @@ export default async function NewWorkoutPage({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-white">
+      <div className="pt-1">
+        <h1 className="text-xl font-bold text-app-tx1">
           {validDay ? `Day ${validDay} Workout` : 'Log Workout'}
         </h1>
-        <p className="text-gray-500 mt-1 text-sm">
+        <p className="text-app-tx3 text-sm mt-0.5">
           {validDay ? getDayTemplate(validDay).focus : 'Record your training session'}
         </p>
       </div>
@@ -115,7 +115,7 @@ export default async function NewWorkoutPage({
       {/* Duration switcher pills */}
       {validDay && (
         <div>
-          <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold mb-2">
+          <p className="section-label mb-2">
             Duration · {initialExercises.length} exercises
           </p>
           <div className="grid grid-cols-3 gap-2">
@@ -125,12 +125,12 @@ export default async function NewWorkoutPage({
                 <Link
                   key={d}
                   href={`/workouts/new?day=${validDay}&dur=${d}`}
-                  className={`text-center px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                  className={`text-center px-3 py-2.5 rounded-card text-sm font-semibold transition-colors pressable ${
                     active
                       ? validDay === 'A'
                         ? 'bg-blue-600 text-white'
                         : 'bg-violet-700 text-white'
-                      : 'bg-gray-900 border border-gray-800 text-gray-400 hover:border-gray-700 hover:text-white'
+                      : 'card text-app-tx2 hover:border-white/15 hover:text-app-tx1'
                   }`}
                 >
                   {d} min
