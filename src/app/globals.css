@@ -2,8 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Design tokens ─────────────────────────────────────────── */
+:root {
+  /* Backgrounds */
+  --app-bg:       #0A0F1E;
+  --app-surface:  #121828;
+  --app-surface2: #1A2138;
+
+  /* Borders */
+  --app-border:   rgba(255,255,255,0.07);
+
+  /* Text */
+  --app-tx1:  #EEF2FF;
+  --app-tx2:  #7A8BAD;
+  --app-tx3:  #3D4E6E;
+
+  /* Primary health accent — teal */
+  --app-primary:       #2DD4BF;
+  --app-primary-muted: rgba(45,212,191,0.12);
+}
+
+/* ── Base styles ───────────────────────────────────────────── */
+body {
+  background-color: var(--app-bg);
+  color: var(--app-tx1);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Reusable component utilities ──────────────────────────── */
+@layer components {
+  .card {
+    @apply bg-app-surface rounded-card border border-app-border shadow-card;
+  }
+  .card-lg {
+    @apply bg-app-surface rounded-card-lg border border-app-border shadow-card;
+  }
+  .section-label {
+    @apply text-[11px] font-bold uppercase tracking-[0.12em] text-app-tx3;
+  }
+  .metric-value {
+    @apply text-2xl font-black tabular-nums text-app-tx1;
+  }
+  .metric-label {
+    @apply text-[11px] text-app-tx2 mt-0.5;
+  }
+  .chip {
+    @apply text-[11px] font-bold px-2.5 py-1 rounded-full;
+  }
+  .btn-primary {
+    @apply bg-teal-500 hover:bg-teal-400 active:bg-teal-600 text-white font-bold py-4 rounded-card transition-colors;
+  }
+  .btn-ghost {
+    @apply bg-app-surface2 border border-app-border text-app-tx1 font-semibold py-3 rounded-card transition-colors hover:border-white/15;
+  }
+}
+
+/* ── Form input theming ────────────────────────────────────── */
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.6);
+  filter: invert(0.55) brightness(1.1);
   cursor: pointer;
+}
+
+/* ── Press feedback ────────────────────────────────────────── */
+.pressable {
+  @apply active:scale-[0.98] transition-transform duration-100;
 }

@@ -6,9 +6,9 @@ import LogWorkoutSheet from './LogWorkoutSheet';
 
 function IconHome({ active }: { active: boolean }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 1.8} strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 10L12 3l9 7v10a1 1 0 01-1 1H4a1 1 0 01-1-1z" />
-      <polyline points="9 21 9 13 15 13 15 21" />
+      <polyline points="9 21 9 13 15 13 15 21" fill={active ? 'var(--app-bg)' : 'none'} stroke={active ? 'var(--app-bg)' : 'none'} strokeWidth="1.8" />
     </svg>
   );
 }
@@ -47,14 +47,20 @@ function Tab({ href, label, icon, active }: { href: string; label: string; icon:
   return (
     <Link
       href={href}
-      className={`flex flex-col items-center justify-center gap-1 transition-all active:scale-95 ${
-        active ? 'text-white' : 'text-gray-600 hover:text-gray-400'
-      }`}
+      className="flex flex-col items-center justify-center gap-1 relative transition-all active:scale-95"
     >
-      <div className={`transition-transform duration-150 ${active ? 'scale-110' : ''}`}>
+      {/* Teal top indicator bar */}
+      <span
+        className={`absolute top-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all duration-300 ${
+          active ? 'w-6 bg-teal-400' : 'w-0 bg-transparent'
+        }`}
+      />
+      <div className={`transition-all duration-200 ${active ? 'text-teal-400 scale-110' : 'text-app-tx3 hover:text-app-tx2'}`}>
         {icon}
       </div>
-      <span className={`text-[9px] font-bold tracking-widest uppercase ${active ? 'text-white' : 'text-gray-700'}`}>
+      <span className={`text-[9px] font-bold tracking-widest uppercase transition-colors duration-200 ${
+        active ? 'text-teal-400' : 'text-app-tx3'
+      }`}>
         {label}
       </span>
     </Link>
@@ -64,26 +70,25 @@ function Tab({ href, label, icon, active }: { href: string; label: string; icon:
 export default function Navbar() {
   const pathname = usePathname();
 
-  const isHome = pathname === '/';
+  const isHome    = pathname === '/';
   const isHistory = pathname.startsWith('/workouts') && !pathname.startsWith('/workouts/new');
-  const isLog = pathname.startsWith('/workouts/new');
+  const isLog     = pathname.startsWith('/workouts/new');
   const isProgram = pathname === '/program';
-  const isStats = pathname === '/stats';
+  const isStats   = pathname === '/stats';
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50">
       <div className="max-w-lg mx-auto relative">
-        {/* Floating action button — opens day/duration picker sheet */}
         <LogWorkoutSheet />
-
-        <div className="bg-gray-950 border-t border-gray-800/70">
-          <div className="grid grid-cols-5 h-[58px]">
-            <Tab href="/" label="Home" icon={<IconHome active={isHome} />} active={isHome} />
+        {/* Frosted glass bar */}
+        <div className="bg-app-surface/95 backdrop-blur-xl border-t border-app-border">
+          <div className="grid grid-cols-5 h-[60px]">
+            <Tab href="/"        label="Home"    icon={<IconHome    active={isHome}    />} active={isHome}    />
             <Tab href="/workouts" label="History" icon={<IconHistory active={isHistory} />} active={isHistory} />
             {/* Center spacer for FAB */}
             <div />
-            <Tab href="/program" label="Program" icon={<IconProgram active={isProgram} />} active={isProgram} />
-            <Tab href="/stats" label="Stats" icon={<IconStats active={isStats} />} active={isStats} />
+            <Tab href="/program" label="Program"  icon={<IconProgram active={isProgram} />} active={isProgram} />
+            <Tab href="/stats"   label="Stats"    icon={<IconStats   active={isStats}   />} active={isStats}   />
           </div>
         </div>
       </div>
