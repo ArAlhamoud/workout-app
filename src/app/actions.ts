@@ -54,7 +54,7 @@ export async function createWorkout(data: {
   });
   revalidatePath('/workouts');
   revalidatePath('/');
-  redirect(`/workouts/${workout.id}?new=1`);
+  return { id: workout.id };
 }
 
 export async function deleteWorkout(id: string) {

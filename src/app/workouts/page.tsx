@@ -1,10 +1,11 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { getWorkouts } from '../actions';
+import { formatDuration, getMondayOfWeek, kgCompact } from '@/lib/format';
 
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
-}
+export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = { title: 'History' };
 
 function formatDate(date: Date): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -12,15 +13,6 @@ function formatDate(date: Date): string {
     month: 'short',
     day: 'numeric',
   }).format(new Date(date));
-}
-
-function getMondayOfWeek(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = (day === 0 ? -6 : 1 - day);
-  d.setDate(d.getDate() + diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
 }
 
 function weekLabel(monday: Date): string {
@@ -86,7 +78,7 @@ export default async function WorkoutsPage() {
                   <p className="text-[11px] text-app-tx3">
                     {group.items.length} session{group.items.length !== 1 ? 's' : ''}
                     {weekVol > 0 && (
-                      <span> · {weekVol >= 1000 ? `${(weekVol / 1000).toFixed(1)}k` : Math.round(weekVol)} kg</span>
+                      <span> · {kgCompact(weekVol)} kg</span>
                     )}
                   </p>
                 </div>
@@ -128,7 +120,7 @@ export default async function WorkoutsPage() {
                           <div className="text-[11px] text-app-tx3 mt-0.5">
                             {workout.sets.length} sets
                             {totalVolume > 0 && (
-                              <span> · {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume)} kg</span>
+                              <span> · {kgCompact(totalVolume)} kg</span>
                             )}
                             {workout.duration ? <span> · {formatDuration(workout.duration)}</span> : null}
                           </div>

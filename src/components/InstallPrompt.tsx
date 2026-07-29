@@ -4,11 +4,10 @@ import { useState, useEffect } from 'react';
 
 export default function InstallPrompt() {
   const [visible, setVisible] = useState(false);
-  const [swReady, setSwReady] = useState(false);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then(() => setSwReady(true));
+      navigator.serviceWorker.register('/sw.js');
     }
 
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);

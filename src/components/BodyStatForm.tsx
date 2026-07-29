@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import { addBodyStat } from '@/app/actions';
+import { localTodayISO } from '@/lib/format';
 
 const inputCls = 'w-full bg-app-surface2 border border-app-border rounded-card px-3 py-2.5 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-teal-500/60 text-sm transition-colors';
 
 export default function BodyStatForm() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = localTodayISO();
   const [weight, setWeight] = useState('');
   const [waist, setWaist]   = useState('');
   const [arms, setArms]     = useState('');

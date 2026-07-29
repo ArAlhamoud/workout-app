@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { getExercises, getLastSessionForExercises, getPersonalRecords, getWorkouts } from '../../actions';
 import WorkoutForm from '@/components/WorkoutForm';
 import {
@@ -8,6 +9,8 @@ import {
   getTrainingStatus,
   type Duration,
 } from '@/lib/program';
+
+export const metadata: Metadata = { title: 'Log Workout' };
 
 const DURATIONS: Duration[] = [30, 45, 60];
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createWorkout } from '@/app/actions';
 import RestTimer from './RestTimer';
 import { scaleReturnWeight } from '@/lib/program';
@@ -76,6 +77,11 @@ function epley1RM(weight: number, reps: number): number {
   return Math.round(weight * (1 + reps / 30));
 }
 
+function localTodayStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
@@ -137,7 +143,8 @@ export default function WorkoutForm({
   returnLoadPct?: number;
   returnRpeCap?: number;
 }) {
-  const today = new Date().toISOString().split('T')[0];
+  const router = useRouter();
+  const today = localTodayStr();
   const [name, setName] = useState(initialName);
   const [date, setDate] = useState(today);
   const [notes, setNotes] = useState('');
@@ -159,11 +166,13 @@ export default function WorkoutForm({
   } | null>(null);
   const [swipedSet, setSwipedSet] = useState<{ uid: string; idx: number } | null>(null);
   const touchStartX = useRef(0);
-  const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>(() => {
-    if (typeof window === 'undefined') return {};
-    try { return JSON.parse(localStorage.getItem(NOTES_KEY) ?? '{}'); } catch { return {}; }
-  });
+  const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>({});
   const [editingNoteFor, setEditingNoteFor] = useState<string | null>(null);
+
+  // Load per-exercise machine notes after mount (avoids hydration mismatch)
+  useEffect(() => {
+    try { setExerciseNotes(JSON.parse(localStorage.getItem(NOTES_KEY) ?? '{}')); } catch { /* ignore */ }
+  }, []);
 
   // Restore draft on mount
   useEffect(() => {
@@ -409,34 +418,48 @@ export default function WorkoutForm({
     if (!name.trim()) { setError('Workout name is required'); return; }
     if (!blocks.length) { setError('Add at least one exercise'); return; }
 
-    const doneSets = blocks.reduce((n, b) => n + b.sets.filter((s) => s.done).length, 0);
-    const vol = Math.round(blocks.reduce((sum, b) => sum + b.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0));
-    const prs = blocks
-      .filter((b) => !b.unit && b.sets.some((s) => s.weight > (personalRecords[b.exerciseId] ?? 0)))
-      .map((b) => exerciseById.get(b.exerciseId)?.name ?? '')
+    // If any set is ticked done, save only done sets; otherwise the user
+    // forgot to tick — save every non-empty set so nothing is lost.
+    const anyDone = blocks.some((b) => b.sets.some((s) => s.done));
+    const isEmpty = (b: ExerciseBlock, s: SetEntry) =>
+      b.unit === 'seconds' ? s.reps <= 0 : s.weight <= 0 && s.reps <= 0;
+    const submitBlocks = blocks.map((b) => ({
+      block: b,
+      sets: b.sets.filter((s) => (anyDone ? s.done : !isEmpty(b, s))),
+    }));
+    const setsToSave = submitBlocks.flatMap(({ sets }) =>
+      sets.map(({ done: _d, notes: sn, rpe: r, ...rest }, i) => ({
+        ...rest,
+        setNumber: i + 1,
+        notes: sn || undefined,
+        rpe: r || undefined,
+      })),
+    );
+    if (!setsToSave.length) { setError('Log at least one set'); return; }
+
+    const vol = Math.round(setsToSave.reduce((sum, s) => sum + s.weight * s.reps, 0));
+    const prs = submitBlocks
+      .filter(({ block: b, sets }) => !b.unit && sets.some((s) => s.weight > (personalRecords[b.exerciseId] ?? 0)))
+      .map(({ block: b }) => exerciseById.get(b.exerciseId)?.name ?? '')
       .filter(Boolean);
 
-    setShowSummary({ sets: doneSets, vol, prs, time: formatElapsed(elapsed) });
+    setShowSummary({ sets: setsToSave.length, vol, prs, time: formatElapsed(elapsed) });
     setSubmitting(true);
 
     await new Promise((r) => setTimeout(r, 2200));
 
     const fullNotes = [mood ? `Feeling ${mood}` : '', notes.trim()].filter(Boolean).join(' · ');
-    localStorage.removeItem(DRAFT_KEY);
     try {
-      await createWorkout({
+      const { id } = await createWorkout({
         name: name.trim(),
-        date,
+        date: date || localTodayStr(),
         notes: fullNotes || undefined,
         duration: Math.floor((Date.now() - startRef.current) / 1000),
-        sets: blocks.flatMap((b) =>
-          b.sets.map(({ done: _d, notes: sn, rpe: r, ...rest }) => ({
-            ...rest,
-            notes: sn || undefined,
-            rpe: r || undefined,
-          }))
-        ),
+        sets: setsToSave,
       });
+      // Only clear the draft once the save has actually succeeded.
+      localStorage.removeItem(DRAFT_KEY);
+      router.push(`/workouts/${id}?new=1`);
     } catch {
       setError('Failed to save. Please try again.');
       setSubmitting(false);
@@ -988,9 +1011,9 @@ export default function WorkoutForm({
         ) : (
           <div className="bg-gray-900 border border-yellow-900/50 rounded-2xl p-4 text-yellow-400 text-sm text-center">
             No exercises in library.{' '}
-            <a href="/exercises" className="underline">
+            <Link href="/exercises" className="underline">
               Add exercises first
-            </a>
+            </Link>
           </div>
         )}
 

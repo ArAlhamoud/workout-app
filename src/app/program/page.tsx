@@ -1,7 +1,13 @@
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, RETURN_PROGRAM, BREAK_THRESHOLD_DAYS, CARDIO, type Priority } from '@/lib/program';
 import { getExercises, getBodyStats } from '@/app/actions';
 import CollapsibleSection from '@/components/CollapsibleSection';
+import { RPE_LABELS } from '@/lib/format';
+
+export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = { title: 'Program' };
 
 const priorityBadge: Record<Priority, { label: string; cls: string }> = {
   1: { label: 'Always', cls: 'bg-green-900/40 text-green-300 border-green-800/40' },
@@ -203,7 +209,7 @@ export default async function ProgramPage() {
               <div className="min-w-0">
                 <div className="text-gray-400 text-xs font-semibold mb-0.5">
                   Week {r.week} &middot; {r.loadPct}% load &middot; {r.sessions} sessions &middot; max{' '}
-                  {['', 'Easy', 'Med', 'Hard', 'Grind'][r.rpeCap]}
+                  {RPE_LABELS[r.rpeCap]}
                 </div>
                 <div className="text-gray-300 text-xs leading-relaxed">{r.desc}</div>
               </div>
@@ -356,7 +362,7 @@ export default async function ProgramPage() {
               <li>· Eat within 60 min after each workout (prioritise protein)</li>
               <li>· Limit ultra-processed foods — not zero, just not daily</li>
               <li>· Drink 3–4 L water/day (higher at your bodyweight)</li>
-              <li>· Don't eat back gym calories — deficit is already moderate</li>
+              <li>· Don&apos;t eat back gym calories — deficit is already moderate</li>
             </ul>
           </div>
           <div className="p-4">

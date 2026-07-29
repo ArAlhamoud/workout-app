@@ -1,21 +1,11 @@
 import Link from 'next/link';
 import { getWorkouts } from './actions';
 import { SCHEDULE, REST_ACTIVITIES, PROGRESSION, getTrainingStatus, getExerciseCountForDuration, getExercisesForDuration } from '@/lib/program';
+import { formatDuration, formatRelative, getMondayOfWeek, kgCompact, RPE_LABELS, weekKey } from '@/lib/format';
+
+export const dynamic = 'force-dynamic';
 
 const DURATIONS = [30, 45, 60] as const;
-
-function formatRelative(date: Date): string {
-  const diffDays = Math.floor((Date.now() - new Date(date).getTime()) / 86400000);
-  if (diffDays === 0) return 'Today';
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(date));
-}
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
-}
 
 function getGreeting(): string {
   const h = new Date().getHours();
@@ -37,10 +27,8 @@ export default async function Home() {
     0,
   );
 
-  // Week stats
-  const weekStart = new Date();
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-  weekStart.setHours(0, 0, 0, 0);
+  // Week stats (Monday-start weeks)
+  const weekStart = getMondayOfWeek(new Date());
   const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
 
   // Week volume
@@ -48,24 +36,19 @@ export default async function Home() {
     .filter((w) => new Date(w.date) >= weekStart)
     .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0);
 
-  // Streak (week-based)
-  const workoutWeeks = new Set(
-    workouts.map((w) => {
-      const d = new Date(w.date);
-      const jan1 = new Date(d.getFullYear(), 0, 1);
-      return `${d.getFullYear()}-${Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7)}`;
-    }),
-  );
+  // Streak: consecutive ISO weeks (Monday-start) with at least one workout,
+  // walking backwards from this week. No workout yet in the current week
+  // doesn't break the streak — it just doesn't count.
+  const workoutWeeks = new Set(workouts.map((w) => weekKey(new Date(w.date))));
   let streak = 0;
-  const now = new Date();
-  for (let i = 0; i < 52; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i * 7);
-    const jan1 = new Date(d.getFullYear(), 0, 1);
-    const key = `${d.getFullYear()}-${Math.ceil(((d.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7)}`;
-    if (workoutWeeks.has(key)) streak++;
-    else if (i === 0) continue;
-    else break;
+  {
+    const cursor = getMondayOfWeek(new Date());
+    if (workoutWeeks.has(weekKey(cursor))) streak++;
+    cursor.setDate(cursor.getDate() - 7);
+    while (workoutWeeks.has(weekKey(cursor))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 7);
+    }
   }
 
   // Today's schedule
@@ -152,7 +135,7 @@ export default async function Home() {
               color: streak > 0 ? 'text-orange-400' : 'text-app-tx3',
             },
             {
-              value: totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(0)}k` : Math.round(totalVolume).toString(),
+              value: kgCompact(totalVolume),
               label: 'kg lifted',
               color: 'text-app-tx1',
             },
@@ -193,7 +176,7 @@ export default async function Home() {
             <span className="text-[11px] text-app-tx3">
               Max effort{' '}
               <span className="text-amber-300 font-semibold">
-                {['', 'Easy', 'Med', 'Hard', 'Grind'][status.returnWeek.rpeCap]}
+                {RPE_LABELS[status.returnWeek.rpeCap]}
               </span>
             </span>
             <span className="text-[11px] text-app-tx3 ml-auto">{status.daysOff}d off</span>
@@ -350,7 +333,7 @@ export default async function Home() {
           <div className="flex items-center justify-between mb-3">
             <p className="section-label">This Week</p>
             <span className="text-[11px] text-app-tx2">
-              {weekVolume >= 1000 ? `${(weekVolume / 1000).toFixed(1)}k` : Math.round(weekVolume)} kg lifted
+              {kgCompact(weekVolume)} kg lifted
             </span>
           </div>
           {/* Progress bar toward 3-session goal */}
@@ -424,7 +407,7 @@ export default async function Home() {
                   <div className="text-right ml-4 flex-shrink-0">
                     <div className="text-app-tx2 text-[11px]">{formatRelative(workout.date)}</div>
                     <div className="text-app-tx3 text-[11px] mt-0.5">
-                      {vol > 0 && `${vol >= 1000 ? `${(vol / 1000).toFixed(1)}k` : Math.round(vol)} kg`}
+                      {vol > 0 && `${kgCompact(vol)} kg`}
                       {workout.duration ? ` · ${formatDuration(workout.duration)}` : ''}
                     </div>
                   </div>

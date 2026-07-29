@@ -2,35 +2,13 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getWorkout } from '../../actions';
 import DeleteButton from '@/components/DeleteButton';
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
-}
-
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date(date));
-}
+import { CATEGORY_BADGE, formatDateLong, formatDuration, kgCompact, RPE_LABELS } from '@/lib/format';
 
 const rpeBadge: Record<number, { label: string; cls: string }> = {
-  1: { label: 'Easy',  cls: 'text-green-400 bg-green-900/30 border-green-800/40' },
-  2: { label: 'Med',   cls: 'text-yellow-400 bg-yellow-900/30 border-yellow-800/40' },
-  3: { label: 'Hard',  cls: 'text-orange-400 bg-orange-900/30 border-orange-800/40' },
-  4: { label: 'Grind', cls: 'text-red-400 bg-red-900/30 border-red-800/40' },
-};
-
-const categoryColor: Record<string, string> = {
-  CHEST:     'text-blue-400 bg-blue-900/30 border-blue-800/40',
-  BACK:      'text-violet-400 bg-violet-900/30 border-violet-800/40',
-  LEGS:      'text-teal-400 bg-teal-900/30 border-teal-800/40',
-  SHOULDERS: 'text-yellow-400 bg-yellow-900/30 border-yellow-800/40',
-  ARMS:      'text-orange-400 bg-orange-900/30 border-orange-800/40',
-  CORE:      'text-pink-400 bg-pink-900/30 border-pink-800/40',
+  1: { label: RPE_LABELS[1], cls: 'text-green-400 bg-green-900/30 border-green-800/40' },
+  2: { label: RPE_LABELS[2], cls: 'text-yellow-400 bg-yellow-900/30 border-yellow-800/40' },
+  3: { label: RPE_LABELS[3], cls: 'text-orange-400 bg-orange-900/30 border-orange-800/40' },
+  4: { label: RPE_LABELS[4], cls: 'text-red-400 bg-red-900/30 border-red-800/40' },
 };
 
 export default async function WorkoutDetailPage({ params }: { params: { id: string } }) {
@@ -67,7 +45,7 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
             ← History
           </Link>
           <h1 className="text-xl font-bold text-app-tx1 leading-tight">{workout.name}</h1>
-          <p className="text-app-tx3 text-sm mt-0.5">{formatDate(workout.date)}</p>
+          <p className="text-app-tx3 text-sm mt-0.5">{formatDateLong(workout.date)}</p>
         </div>
         <DeleteButton workoutId={workout.id} />
       </div>
@@ -78,7 +56,7 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
           { value: exerciseOrder.length.toString(), label: 'Exercises' },
           { value: workout.sets.length.toString(), label: 'Sets' },
           {
-            value: totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume.toLocaleString(),
+            value: kgCompact(totalVolume),
             label: 'kg Vol',
           },
           ...(workout.duration ? [{ value: formatDuration(workout.duration), label: 'Duration' }] : []),
@@ -102,7 +80,7 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
         {exerciseOrder.map((exId) => {
           const sets = exerciseMap.get(exId)!;
           const exercise = sets[0].exercise;
-          const colorClass = categoryColor[exercise.category] ?? 'text-app-tx2 bg-app-surface2 border-app-border';
+          const colorClass = CATEGORY_BADGE[exercise.category] ?? 'text-app-tx2 bg-app-surface2 border-app-border';
           const exVolume = sets.reduce((s, set) => s + set.reps * set.weight, 0);
 
           return (

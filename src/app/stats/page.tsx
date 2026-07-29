@@ -1,6 +1,12 @@
+import type { Metadata } from 'next';
 import { getBodyStats, getWorkouts } from '../actions';
 import BodyStatForm from '@/components/BodyStatForm';
 import DeleteBodyStatButton from '@/components/DeleteBodyStatButton';
+import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact } from '@/lib/format';
+
+export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = { title: 'Progress' };
 
 function CalendarHeatmap({ workouts }: { workouts: { date: Date }[] }) {
   const today = new Date();
@@ -67,11 +73,6 @@ function CalendarHeatmap({ workouts }: { workouts: { date: Date }[] }) {
   );
 }
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    .format(new Date(date));
-}
-
 function BodyWeightChart({ stats }: { stats: { date: Date; weight: number | null }[] }) {
   const weighted = stats.filter((s): s is { date: Date; weight: number } => s.weight !== null);
   if (weighted.length < 2) {
@@ -113,8 +114,8 @@ function BodyWeightChart({ stats }: { stats: { date: Date; weight: number | null
           <stop offset="100%" stopColor="#2dd4bf" stopOpacity="0" />
         </linearGradient>
       </defs>
-      {yTicks.map((v) => (
-        <line key={v} x1={pad.left} y1={cy(v).toFixed(1)} x2={pad.left + pw} y2={cy(v).toFixed(1)} stroke="#1A2138" strokeWidth="1" />
+      {yTicks.map((v, i) => (
+        <line key={i} x1={pad.left} y1={cy(v).toFixed(1)} x2={pad.left + pw} y2={cy(v).toFixed(1)} stroke="#1A2138" strokeWidth="1" />
       ))}
       {yTicks.map((v, i) => (
         <text key={i} x={pad.left - 4} y={cy(v) + 3} textAnchor="end" fill="#3D4E6E" fontSize="8">
@@ -134,12 +135,6 @@ function BodyWeightChart({ stats }: { stats: { date: Date; weight: number | null
       </text>
     </svg>
   );
-}
-
-function epley1RM(weight: number, reps: number): number {
-  if (reps <= 0 || weight <= 0) return 0;
-  if (reps === 1) return weight;
-  return Math.round(weight * (1 + reps / 30));
 }
 
 function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; reps: number; exercise: { category: string } }[] }[] }) {
@@ -171,7 +166,7 @@ function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; r
             />
           </div>
           <span className="text-app-tx3 text-xs tabular-nums w-14 text-right flex-shrink-0">
-            {v >= 1000 ? `${(v / 1000).toFixed(1)}k` : Math.round(v)} kg
+            {kgCompact(v)} kg
           </span>
         </div>
       ))}
@@ -204,14 +199,13 @@ export default async function StatsPage() {
       }
     }
   }
-  const topPRs = Object.values(prByExercise)
+  const topPRs = Object.entries(prByExercise)
+    .map(([exerciseId, pr]) => ({ exerciseId, ...pr }))
     .sort((a, b) => b.weight - a.weight)
     .slice(0, 6);
 
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const thisWeekStart = new Date(now);
-  thisWeekStart.setDate(now.getDate() - now.getDay());
+  // Monday-start weeks
+  const thisWeekStart = getMondayOfWeek(new Date());
   const lastWeekStart = new Date(thisWeekStart);
   lastWeekStart.setDate(thisWeekStart.getDate() - 7);
 
@@ -287,7 +281,7 @@ export default async function StatsPage() {
         <div className="grid grid-cols-2 gap-2">
           <div className="card p-4">
             <div className="metric-value">
-              {thisWeekVol >= 1000 ? `${(thisWeekVol / 1000).toFixed(1)}k` : Math.round(thisWeekVol)}
+              {kgCompact(thisWeekVol)}
               <span className="text-app-tx3 text-sm font-semibold ml-0.5">kg</span>
             </div>
             <div className="metric-label">This week</div>
@@ -298,7 +292,7 @@ export default async function StatsPage() {
               volChange > 0 ? 'text-teal-400' :
               volChange < 0 ? 'text-red-400' : 'text-app-tx1'
             }`}>
-              {lastWeekVol >= 1000 ? `${(lastWeekVol / 1000).toFixed(1)}k` : Math.round(lastWeekVol)}
+              {kgCompact(lastWeekVol)}
               <span className="text-app-tx3 text-sm font-semibold ml-0.5">kg</span>
               {volChange !== null && (
                 <span className="text-sm font-bold ml-1">
@@ -324,7 +318,7 @@ export default async function StatsPage() {
           {[
             { value: workouts.length.toString(), label: 'Sessions' },
             { value: totalSets.toString(), label: 'Sets' },
-            { value: totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : Math.round(totalVolume).toString(), label: 'kg Vol' },
+            { value: kgCompact(totalVolume), label: 'kg Vol' },
           ].map((s) => (
             <div key={s.label}>
               <div className="text-xl font-bold text-app-tx1 tabular-nums">{s.value}</div>
@@ -340,9 +334,7 @@ export default async function StatsPage() {
           <p className="section-label mb-3">Personal Records</p>
           <div className="space-y-2">
             {topPRs.map((pr) => {
-              const progression = exerciseProgressions[
-                Object.keys(prByExercise).find((id) => prByExercise[id].name === pr.name) ?? ''
-              ] ?? [];
+              const progression = exerciseProgressions[pr.exerciseId] ?? [];
               const uniqueWeights = [...new Set(progression)];
               const progressStr = uniqueWeights.length > 1
                 ? uniqueWeights.length <= 3
@@ -351,7 +343,7 @@ export default async function StatsPage() {
                 : null;
               return (
                 <div
-                  key={pr.name}
+                  key={pr.exerciseId}
                   className="card flex items-center justify-between px-4 py-3"
                 >
                   <div>
@@ -395,7 +387,7 @@ export default async function StatsPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-app-tx3 text-xs">{formatDate(s.date)}</span>
+                  <span className="text-app-tx3 text-xs">{formatDateShort(s.date)}</span>
                   <DeleteBodyStatButton statId={s.id} />
                 </div>
               </div>

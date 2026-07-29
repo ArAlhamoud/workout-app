@@ -1,5 +1,10 @@
+import type { Metadata } from 'next';
 import { getExercises } from '../actions';
 import ExerciseForm from '@/components/ExerciseForm';
+
+export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = { title: 'Exercises' };
 
 const CATEGORIES = ['CHEST', 'BACK', 'LEGS', 'SHOULDERS', 'ARMS', 'CORE', 'CARDIO', 'OTHER'];
 
