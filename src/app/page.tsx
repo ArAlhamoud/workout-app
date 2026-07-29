@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getWorkouts } from './actions';
-import { SCHEDULE, REST_ACTIVITIES, PROGRESSION, getExerciseCountForDuration, getExercisesForDuration } from '@/lib/program';
+import { SCHEDULE, REST_ACTIVITIES, PROGRESSION, BREAK_THRESHOLD_DAYS, getTrainingStatus, getExerciseCountForDuration, getExercisesForDuration } from '@/lib/program';
 
 const DURATIONS = [30, 45, 60] as const;
 
@@ -82,13 +82,9 @@ export default async function Home() {
     return hardCount / recentSets.length > 0.5;
   })();
 
-  // Program week + current phase
-  const programWeek = (() => {
-    if (!workouts.length) return 1;
-    const first = workouts[workouts.length - 1];
-    const days = Math.floor((Date.now() - new Date(first.date).getTime()) / 86400000);
-    return Math.min(12, Math.floor(days / 7) + 1);
-  })();
+  // Where the lifter actually is: fresh, ramping back after a layoff, or mid-program
+  const status = getTrainingStatus(workouts.map((w) => w.date));
+  const programWeek = status.week;
   const currentPhase = PROGRESSION.find((p) => {
     const parts = p.weeks.split('–').map((s) => parseInt(s.trim()));
     const [start, end] = parts.length === 2 ? parts : [parts[0], parts[0]];
@@ -140,8 +136,46 @@ export default async function Home() {
         </div>
       </div>
 
+      {/* Return protocol banner — replaces the phase banner while ramping back */}
+      {status.mode === 'return' && (
+        <div className="bg-gradient-to-br from-amber-950/50 to-gray-950 border border-amber-800/40 rounded-2xl overflow-hidden">
+          <div className="px-4 pt-3.5 pb-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-amber-500 text-xs uppercase tracking-widest font-bold">
+                  Return Protocol &middot; Week {status.week} of {4}
+                </p>
+                <p className="text-white font-black text-lg mt-1 leading-tight">
+                  {status.returnWeek.loadPct}% of pre-break weights
+                </p>
+              </div>
+              <span className="text-xs bg-amber-900/50 text-amber-300 px-2.5 py-1 rounded-full font-bold flex-shrink-0">
+                {status.returnWeek.phase}
+              </span>
+            </div>
+            <p className="text-amber-200/50 text-xs mt-2 leading-relaxed">
+              {status.returnWeek.desc}
+            </p>
+          </div>
+          <div className="px-4 py-2.5 border-t border-amber-900/40 bg-amber-950/20 flex items-center gap-4">
+            <span className="text-xs text-gray-500">
+              Target <span className="text-amber-300 font-semibold">{status.returnWeek.sessions} sessions</span>
+            </span>
+            <span className="text-xs text-gray-500">
+              Max effort{' '}
+              <span className="text-amber-300 font-semibold">
+                {['', 'Easy', 'Med', 'Hard', 'Grind'][status.returnWeek.rpeCap]}
+              </span>
+            </span>
+            {status.daysOff >= BREAK_THRESHOLD_DAYS && status.week === 1 && (
+              <span className="text-xs text-gray-600 ml-auto">{status.daysOff}d off</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Phase banner */}
-      {workouts.length > 0 && (
+      {status.mode !== 'return' && workouts.length > 0 && (
         <div className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex items-center justify-between">
           <div>
             <p className="text-gray-600 text-xs uppercase tracking-widest font-semibold">Program</p>

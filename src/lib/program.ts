@@ -111,6 +111,86 @@ export const PROGRESSION = [
   { weeks: '11–12', phase: 'EVALUATE', desc: 'Measure: weight, how clothes fit, strength gains. Reassess if plateau.' },
 ];
 
+// ── Return-to-training protocol ──────────────────────────────
+// A break of this many days or more resets the program into the
+// 4-week return ramp below instead of continuing where it left off.
+export const BREAK_THRESHOLD_DAYS = 21;
+
+// After the ramp, rejoin the main program at BUILD (week 3) — the
+// LEARN weeks are redundant for someone who already knows the machines.
+export const REJOIN_AT_WEEK = 3;
+
+export interface ReturnWeek {
+  week: number;
+  phase: string;
+  loadPct: number;   // % of pre-break working weight
+  sessions: string;  // target sessions for the week
+  rpeCap: number;    // hardest RPE allowed
+  desc: string;
+}
+
+export const RETURN_PROGRAM: ReturnWeek[] = [
+  { week: 1, phase: 'REBOOT',  loadPct: 60,  sessions: '2',   rpeCap: 2,
+    desc: 'Re-teach the movements. Every set should feel easy — you are waking the muscles up, not training them hard.' },
+  { week: 2, phase: 'REBUILD', loadPct: 70,  sessions: '2–3', rpeCap: 2,
+    desc: 'Add a third session if recovery felt fine. Weights stay deliberately conservative.' },
+  { week: 3, phase: 'RELOAD',  loadPct: 85,  sessions: '3',   rpeCap: 3,
+    desc: 'Approaching pre-break numbers. Form first — only take the next pin if the last set was clean.' },
+  { week: 4, phase: 'RESTORE', loadPct: 100, sessions: '3',   rpeCap: 3,
+    desc: 'Back to pre-break weights. Normal progression resumes next week.' },
+];
+
+export type TrainingStatus =
+  | { mode: 'fresh';  week: number }
+  | { mode: 'return'; week: number; returnWeek: ReturnWeek; daysOff: number }
+  | { mode: 'normal'; week: number };
+
+/**
+ * Works out where the lifter actually is: starting out, ramping back
+ * after a layoff, or mid-program. Counting weeks from the very first
+ * workout would put someone who took two months off in week 12.
+ */
+export function getTrainingStatus(dates: Date[], now: Date = new Date()): TrainingStatus {
+  if (!dates.length) return { mode: 'fresh', week: 1 };
+
+  const desc = dates.map((d) => new Date(d)).sort((a, b) => b.getTime() - a.getTime());
+  const daysBetween = (a: Date, b: Date) => Math.floor((a.getTime() - b.getTime()) / 86400000);
+
+  // Still inside the layoff — today is day 1 of the return block.
+  const daysSinceLast = daysBetween(now, desc[0]);
+  if (daysSinceLast >= BREAK_THRESHOLD_DAYS) {
+    return { mode: 'return', week: 1, returnWeek: RETURN_PROGRAM[0], daysOff: daysSinceLast };
+  }
+
+  // Walk back to the start of the current unbroken training block.
+  let blockStart = desc[0];
+  let daysOff = 0;
+  for (let i = 0; i < desc.length - 1; i++) {
+    const gap = daysBetween(desc[i], desc[i + 1]);
+    if (gap >= BREAK_THRESHOLD_DAYS) { daysOff = gap; break; }
+    blockStart = desc[i + 1];
+  }
+
+  const weeksIn = Math.floor(daysBetween(now, blockStart) / 7) + 1;
+
+  if (daysOff > 0 && weeksIn <= RETURN_PROGRAM.length) {
+    return { mode: 'return', week: weeksIn, returnWeek: RETURN_PROGRAM[weeksIn - 1], daysOff };
+  }
+
+  const week = daysOff > 0 ? weeksIn - RETURN_PROGRAM.length + REJOIN_AT_WEEK - 1 : weeksIn;
+  return { mode: 'normal', week: Math.min(12, Math.max(1, week)) };
+}
+
+/**
+ * Scales a pre-break weight down for the return ramp, floored to the
+ * nearest 2.5 kg so it lands on a real pin rather than a decimal.
+ */
+export function scaleReturnWeight(weight: number, loadPct: number): number {
+  if (weight <= 0) return 0;
+  if (loadPct >= 100) return weight; // full load returns the exact pre-break weight
+  return Math.max(2.5, Math.floor((weight * loadPct) / 100 / 2.5) * 2.5);
+}
+
 export const CARDIO = [
   { rank: 1, name: 'Swimming', badge: 'BEST', desc: 'Zero joint impact. Highest calorie burn. 20–30 min any stroke.' },
   { rank: 2, name: 'Upright Bike', badge: 'GREAT', desc: 'No weight on joints. Best for warm-ups and cardio finishers.' },

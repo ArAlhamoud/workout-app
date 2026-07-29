@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, CARDIO, type Priority } from '@/lib/program';
+import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, RETURN_PROGRAM, BREAK_THRESHOLD_DAYS, CARDIO, type Priority } from '@/lib/program';
 import { getExercises, getBodyStats } from '@/app/actions';
 import CollapsibleSection from '@/components/CollapsibleSection';
 
@@ -182,6 +182,38 @@ export default async function ProgramPage() {
           <span className="text-gray-500 uppercase tracking-wide font-semibold text-xs">Cardio finisher: </span>
           <span className="text-gray-400 text-xs">{DAY_B.cardioFinisher}</span>
         </div>
+      </CollapsibleSection>
+
+      {/* Return protocol */}
+      <CollapsibleSection title="Return After a Break">
+        <p className="text-gray-500 text-xs leading-relaxed mb-3">
+          After {BREAK_THRESHOLD_DAYS}+ days off, the app switches to this 4-week ramp
+          automatically and pre-scales every weight. Muscle memory rebuilds fast — the risk
+          in the first weeks back is injury, not lost time.
+        </p>
+        <div className="space-y-2">
+          {RETURN_PROGRAM.map((r) => (
+            <div
+              key={r.week}
+              className="bg-gray-900 rounded-xl p-4 border border-gray-800 flex items-start gap-3"
+            >
+              <div className="flex-shrink-0 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-900/50 text-amber-300">
+                {r.phase}
+              </div>
+              <div className="min-w-0">
+                <div className="text-gray-400 text-xs font-semibold mb-0.5">
+                  Week {r.week} &middot; {r.loadPct}% load &middot; {r.sessions} sessions &middot; max{' '}
+                  {['', 'Easy', 'Med', 'Hard', 'Grind'][r.rpeCap]}
+                </div>
+                <div className="text-gray-300 text-xs leading-relaxed">{r.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-gray-600 text-xs leading-relaxed mt-3">
+          Week 5 rejoins the main program at BUILD — the LEARN weeks are redundant once you
+          already know the machines.
+        </p>
       </CollapsibleSection>
 
       {/* 12-Week Progression */}

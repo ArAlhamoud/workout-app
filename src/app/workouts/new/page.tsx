@@ -5,6 +5,7 @@ import {
   getDayTemplate,
   getExercisesForDuration,
   getPlankTarget,
+  getTrainingStatus,
   type Duration,
 } from '@/lib/program';
 
@@ -75,23 +76,24 @@ export default async function NewWorkoutPage({
       }
     }
   }
+  const status = getTrainingStatus(allWorkouts.map((w) => w.date));
+  const isReturning = status.mode === 'return';
+
+  // "Ready to progress" is derived from pre-break sessions, so it is
+  // actively wrong while ramping back — the return target replaces it.
   const progressionHints: Record<string, boolean> = {};
-  for (const [exId, sessions] of Object.entries(last2ByExercise)) {
-    if (sessions.length === 2) {
-      const [recent, prev] = sessions;
-      if (recent.weight === prev.weight && recent.rpe != null && recent.rpe <= 2) {
-        progressionHints[exId] = true;
+  if (!isReturning) {
+    for (const [exId, sessions] of Object.entries(last2ByExercise)) {
+      if (sessions.length === 2) {
+        const [recent, prev] = sessions;
+        if (recent.weight === prev.weight && recent.rpe != null && recent.rpe <= 2) {
+          progressionHints[exId] = true;
+        }
       }
     }
   }
 
-  let programWeek = 1;
-  if (allWorkouts.length > 0) {
-    const firstWorkout = allWorkouts[allWorkouts.length - 1];
-    const daysSinceStart = Math.floor((Date.now() - new Date(firstWorkout.date).getTime()) / 86400000);
-    programWeek = Math.min(12, Math.floor(daysSinceStart / 7) + 1);
-  }
-  const plankTarget = getPlankTarget(programWeek);
+  const plankTarget = getPlankTarget(status.week);
   const finalExercises = initialExercises.map((ex) =>
     ex.name === 'Plank' ? { ...ex, defaultReps: plankTarget.min } : ex
   );
@@ -143,6 +145,8 @@ export default async function NewWorkoutPage({
         lastSession={lastSession}
         personalRecords={personalRecords}
         progressionHints={progressionHints}
+        returnLoadPct={isReturning ? status.returnWeek.loadPct : undefined}
+        returnRpeCap={isReturning ? status.returnWeek.rpeCap : undefined}
       />
     </div>
   );

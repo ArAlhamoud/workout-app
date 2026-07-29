@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { createWorkout } from '@/app/actions';
 import RestTimer from './RestTimer';
+import { scaleReturnWeight } from '@/lib/program';
 
 interface Exercise {
   id: string;
@@ -84,6 +85,7 @@ function formatElapsed(seconds: number): string {
 function buildBlocks(
   initialExercises: InitialExercise[],
   lastSession: Record<string, { weight: number; reps: number; rpe: number | null }>,
+  returnLoadPct?: number,
 ): ExerciseBlock[] {
   return initialExercises.map((ie) => {
     const prev = lastSession[ie.exerciseId];
@@ -103,7 +105,11 @@ function buildBlocks(
         exerciseId: ie.exerciseId,
         setNumber: i + 1,
         reps: isTimed ? (prev?.reps ?? ie.defaultReps) : ie.defaultReps,
-        weight: isTimed ? 0 : (prev?.weight ?? 0),
+        weight: isTimed
+          ? 0
+          : prev?.weight
+            ? (returnLoadPct ? scaleReturnWeight(prev.weight, returnLoadPct) : prev.weight)
+            : 0,
         done: false,
         notes: '',
         rpe: 0,
@@ -119,6 +125,8 @@ export default function WorkoutForm({
   lastSession = {} as Record<string, { weight: number; reps: number; rpe: number | null }>,
   personalRecords = {},
   progressionHints = {},
+  returnLoadPct,
+  returnRpeCap,
 }: {
   exercises: Exercise[];
   initialName?: string;
@@ -126,13 +134,15 @@ export default function WorkoutForm({
   lastSession?: Record<string, { weight: number; reps: number; rpe: number | null }>;
   personalRecords?: Record<string, number>;
   progressionHints?: Record<string, boolean>;
+  returnLoadPct?: number;
+  returnRpeCap?: number;
 }) {
   const today = new Date().toISOString().split('T')[0];
   const [name, setName] = useState(initialName);
   const [date, setDate] = useState(today);
   const [notes, setNotes] = useState('');
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
-    buildBlocks(initialExercises, lastSession),
+    buildBlocks(initialExercises, lastSession, returnLoadPct),
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -214,7 +224,7 @@ export default function WorkoutForm({
     setName(initialName);
     setDate(today);
     setNotes('');
-    setBlocks(buildBlocks(initialExercises, lastSession));
+    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct));
     startRef.current = Date.now();
     setDraftRestored(false);
   }
@@ -537,6 +547,25 @@ export default function WorkoutForm({
           </div>
         )}
 
+        {/* Return protocol reminder — visible while logging */}
+        {returnLoadPct && (
+          <div className="bg-amber-950/40 border border-amber-800/40 rounded-2xl px-4 py-3 flex items-start gap-3">
+            <span className="text-lg leading-none mt-0.5 flex-shrink-0">&#8595;</span>
+            <div className="min-w-0">
+              <p className="text-amber-300 font-bold text-sm">
+                Return week &mdash; weights pre-set to {returnLoadPct}%
+              </p>
+              <p className="text-amber-200/50 text-xs mt-0.5 leading-relaxed">
+                Stop every set at{' '}
+                <span className="font-semibold text-amber-300">
+                  {['', 'Easy', 'Med', 'Hard', 'Grind'][returnRpeCap ?? 2]}
+                </span>
+                . If a set goes past that, drop a pin — the ramp matters more than the number.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Exercise blocks */}
         {blocks.map((block, blockIdx) => {
           const ex = exerciseById.get(block.exerciseId);
@@ -546,8 +575,13 @@ export default function WorkoutForm({
           const allDone = block.sets.length > 0 && block.sets.every((s) => s.done);
 
           const lastRpe = block.lastSession?.rpe ?? null;
-          const shouldHold = !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3;
-          const suggestWeight = !isTimed && block.lastSession?.weight != null && !shouldHold
+          // While ramping back, the scaled target replaces the normal
+          // progress/hold advice — that advice reads pre-break sessions.
+          const returnTarget = returnLoadPct && !isTimed && block.lastSession?.weight
+            ? scaleReturnWeight(block.lastSession.weight, returnLoadPct)
+            : null;
+          const shouldHold = !returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3;
+          const suggestWeight = !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold
             ? +(block.lastSession.weight + (lastRpe === 1 ? 5 : 2.5)).toFixed(1)
             : null;
 
@@ -631,6 +665,11 @@ export default function WorkoutForm({
                 {suggestWeight && !allDone && (
                   <span className="text-xs bg-green-950/50 text-green-400 px-2.5 py-1 rounded-full border border-green-800/40 font-medium">
                     &#8594; Try {suggestWeight} kg
+                  </span>
+                )}
+                {returnTarget && !allDone && (
+                  <span className="text-xs bg-amber-950/50 text-amber-400 px-2.5 py-1 rounded-full border border-amber-800/40 font-medium">
+                    &#8595; Return target {returnTarget} kg
                   </span>
                 )}
                 {progressionHints[block.exerciseId] && !shouldHold && !allDone && (
