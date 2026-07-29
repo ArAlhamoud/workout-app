@@ -1,19 +1,11 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface RestTimerProps {
   totalSeconds: number;
   exerciseName: string;
   onDismiss: () => void;
-}
-
-async function requestNotificationPermission(): Promise<boolean> {
-  if (typeof Notification === 'undefined') return false;
-  if (Notification.permission === 'granted') return true;
-  if (Notification.permission === 'denied') return false;
-  const result = await Notification.requestPermission();
-  return result === 'granted';
 }
 
 async function scheduleSwNotification(delayMs: number, title: string, body: string) {
@@ -41,49 +33,81 @@ function showDirectNotification(title: string, body: string) {
   } catch { /* iOS Safari throws — ignore */ }
 }
 
+function remainingSeconds(endsAt: number): number {
+  return Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+}
+
+// Ask for notification permission only while it is still undecided.
+function requestPermissionIfNeeded(onGranted: () => void) {
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'default') return;
+  Notification.requestPermission().then((result) => {
+    if (result === 'granted') onGranted();
+  });
+}
+
 export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: RestTimerProps) {
+  // Timestamp-based countdown: remaining is always recomputed from Date.now(),
+  // so the timer stays correct through iOS suspend/resume.
+  const [endsAt, setEndsAt] = useState(() => Date.now() + totalSeconds * 1000);
   const [remaining, setRemaining] = useState(totalSeconds);
-  const [finished, setFinished] = useState(false);
-  const permissionGranted = useRef(false);
+  const [canNotify, setCanNotify] = useState(
+    () => typeof Notification !== 'undefined' && Notification.permission === 'granted',
+  );
+  const firedRef = useRef(false);
 
-  // Step 1: request permission, THEN schedule SW notification
+  // Permission is requested only from user gestures: the timer mounts as a
+  // direct result of the tap that completes a set (so this effect runs inside
+  // that gesture's activation window), and the adjust buttons re-request while
+  // permission is still 'default'.
   useEffect(() => {
-    let cancelled = false;
+    requestPermissionIfNeeded(() => setCanNotify(true));
+  }, []);
 
-    async function setup() {
-      permissionGranted.current = await requestNotificationPermission();
-      if (cancelled) return;
-      if (permissionGranted.current) {
-        await scheduleSwNotification(
-          totalSeconds * 1000,
-          'Rest complete! 💪',
-          `Time for your next set of ${exerciseName}`,
-        );
-      }
-    }
-
-    setup();
-
+  // One interval per timer instance, keyed on endsAt only.
+  useEffect(() => {
+    setRemaining(remainingSeconds(endsAt));
+    const tick = setInterval(() => setRemaining(remainingSeconds(endsAt)), 500);
+    const onVisible = () => setRemaining(remainingSeconds(endsAt));
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
-      cancelled = true;
+      clearInterval(tick);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [endsAt]);
+
+  // Background notification via SW, rescheduled whenever the deadline moves.
+  useEffect(() => {
+    if (!canNotify) return;
+    const delayMs = endsAt - Date.now();
+    if (delayMs <= 0) return;
+    scheduleSwNotification(delayMs, 'Rest complete! 💪', `Time for your next set of ${exerciseName}`);
+    return () => {
       cancelSwNotification();
     };
-  }, [totalSeconds, exerciseName]);
+  }, [endsAt, canNotify, exerciseName]);
 
-  // Step 2: countdown + direct notification when done
+  // Completion: vibrate + direct notification once, then auto-close.
+  const finished = remaining <= 0;
   useEffect(() => {
-    if (remaining <= 0) {
-      setFinished(true);
-      if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 200]);
-      showDirectNotification('Rest complete! 💪', `Time for your next set of ${exerciseName}`);
-      const autoClose = setTimeout(onDismiss, 4000);
-      return () => clearTimeout(autoClose);
-    }
-    const tick = setInterval(() => setRemaining((r) => r - 1), 1000);
-    return () => clearInterval(tick);
-  }, [remaining, onDismiss, exerciseName]);
+    if (!finished || firedRef.current) return;
+    firedRef.current = true;
+    if ('vibrate' in navigator) navigator.vibrate([200, 100, 200, 100, 200]);
+    showDirectNotification('Rest complete! 💪', `Time for your next set of ${exerciseName}`);
+  }, [finished, exerciseName]);
 
-  const pct = Math.min(100, ((totalSeconds - remaining) / totalSeconds) * 100);
+  useEffect(() => {
+    if (!finished) return;
+    const autoClose = setTimeout(onDismiss, 4000);
+    return () => clearTimeout(autoClose);
+  }, [finished, onDismiss]);
+
+  function adjust(deltaSeconds: number) {
+    requestPermissionIfNeeded(() => setCanNotify(true));
+    setEndsAt((e) => Math.max(Date.now(), e + deltaSeconds * 1000));
+  }
+
+  const pct = Math.min(100, Math.max(0, ((totalSeconds - remaining) / totalSeconds) * 100));
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
   const timeStr = mins > 0 ? `${mins}:${String(secs).padStart(2, '0')}` : `${secs}`;
@@ -132,19 +156,19 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
           {!finished && (
             <div className="px-4 pb-3 flex items-center gap-2">
               <button
-                onClick={() => setRemaining((r) => Math.max(0, r - 15))}
+                onClick={() => adjust(-15)}
                 className="text-xs bg-app-surface2 text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-white/15 transition-colors"
               >
                 −15s
               </button>
               <button
-                onClick={() => setRemaining((r) => r + 15)}
+                onClick={() => adjust(15)}
                 className="text-xs bg-app-surface2 text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-white/15 transition-colors"
               >
                 +15s
               </button>
               <button
-                onClick={() => setRemaining((r) => r + 30)}
+                onClick={() => adjust(30)}
                 className="text-xs bg-app-surface2 text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-white/15 transition-colors"
               >
                 +30s
