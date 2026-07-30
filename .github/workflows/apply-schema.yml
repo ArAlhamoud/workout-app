@@ -1,0 +1,40 @@
+name: Apply schema
+
+on:
+  workflow_dispatch:
+    inputs:
+      accept_data_loss:
+        description: 'Pass --accept-data-loss (only after reviewing a previous run''s warnings)'
+        type: boolean
+        default: false
+
+jobs:
+  push-schema:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: npm install --no-audit --progress=false
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Preview pending changes
+        # Shows exactly what would change on the live DB before anything runs
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script || true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Push schema to database
+        run: npx prisma db push ${{ inputs.accept_data_loss && '--accept-data-loss' || '' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
