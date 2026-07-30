@@ -162,23 +162,37 @@ export function getTrainingStatus(dates: Date[], now: Date = new Date()): Traini
     return { mode: 'return', week: 1, returnWeek: RETURN_PROGRAM[0], daysOff: daysSinceLast };
   }
 
-  // Walk back to the start of the current unbroken training block.
+  // Walk back to the start of the current unbroken training block,
+  // counting the sessions inside it as we go.
   let blockStart = desc[0];
+  let sessionsInBlock = 1;
   let daysOff = 0;
   for (let i = 0; i < desc.length - 1; i++) {
     const gap = daysBetween(desc[i], desc[i + 1]);
     if (gap >= BREAK_THRESHOLD_DAYS) { daysOff = gap; break; }
     blockStart = desc[i + 1];
+    sessionsInBlock++;
   }
 
-  const weeksIn = Math.floor(daysBetween(now, blockStart) / 7) + 1;
+  const weeksElapsed = Math.floor(daysBetween(now, blockStart) / 7);
 
-  if (daysOff > 0 && weeksIn <= RETURN_PROGRAM.length) {
-    return { mode: 'return', week: weeksIn, returnWeek: RETURN_PROGRAM[weeksIn - 1], daysOff };
+  if (daysOff > 0) {
+    // Session-based ramp pacing: every 2 completed sessions advance a ramp
+    // week, but never faster than the calendar — a triple session day
+    // doesn't skip ahead, and a slow week doesn't skip either.
+    const rampSessionsComplete = sessionsInBlock >= 2 * RETURN_PROGRAM.length;
+    if (!(rampSessionsComplete && weeksElapsed >= RETURN_PROGRAM.length)) {
+      const week =
+        Math.min(Math.floor(sessionsInBlock / 2), weeksElapsed, RETURN_PROGRAM.length - 1) + 1;
+      return { mode: 'return', week, returnWeek: RETURN_PROGRAM[week - 1], daysOff };
+    }
+    // Ramp sessions done AND 4+ calendar weeks back — rejoin the main
+    // program at BUILD and progress weekly from there.
+    const week = weeksElapsed - RETURN_PROGRAM.length + REJOIN_AT_WEEK;
+    return { mode: 'normal', week: Math.min(12, Math.max(1, week)) };
   }
 
-  const week = daysOff > 0 ? weeksIn - RETURN_PROGRAM.length + REJOIN_AT_WEEK - 1 : weeksIn;
-  return { mode: 'normal', week: Math.min(12, Math.max(1, week)) };
+  return { mode: 'normal', week: Math.min(12, Math.max(1, weeksElapsed + 1)) };
 }
 
 /**

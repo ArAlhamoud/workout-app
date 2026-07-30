@@ -14,11 +14,26 @@ async function main() {
     prisma.exercise.findMany({ orderBy: { name: 'asc' } }),
   ]);
 
+  // Apple Health samples — tolerate the table not existing yet (schema not applied).
+  let healthSamplesTotal = 0;
+  let latestWeightSample = null;
+  try {
+    healthSamplesTotal = await prisma.healthSample.count();
+    latestWeightSample = await prisma.healthSample.findFirst({
+      where: { type: 'weight' },
+      orderBy: { date: 'desc' },
+    });
+  } catch (e) {
+    console.warn('HealthSample table unavailable, skipping health export:', e.message);
+  }
+
   const data = {
     exportedAt: new Date().toISOString(),
     totalWorkouts: workouts.length,
     totalBodyStats: stats.length,
     totalExercises: exercises.length,
+    totalHealthSamples: healthSamplesTotal,
+    latestWeightSample,
     exercises,
     workouts,
     bodyStats: stats,

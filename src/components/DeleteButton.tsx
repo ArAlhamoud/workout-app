@@ -10,7 +10,7 @@ export default function DeleteButton({ workoutId }: { workoutId: string }) {
           await deleteWorkout(workoutId);
         }
       }}
-      className="text-red-400 hover:text-red-300 text-sm border border-red-900 hover:border-red-700 px-3 py-2 rounded-lg transition-colors"
+      className="text-red-400 hover:text-red-300 text-sm font-medium border border-red-900/50 hover:border-red-700/60 px-3 py-2 rounded-card transition-colors pressable flex-shrink-0"
     >
       Delete
     </button>

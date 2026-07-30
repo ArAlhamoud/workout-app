@@ -8,7 +8,7 @@ import WorkoutDraftBanner from '@/components/WorkoutDraftBanner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const viewport: Viewport = {
-  themeColor: '#030712',
+  themeColor: '#0A0F1E',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   title: 'Workout Tracker',
   description: 'Track your 12-week fat loss program',
   manifest: '/manifest.webmanifest',
+  icons: {
+    icon: '/icon-192.png',
+    apple: '/apple-touch-icon.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -29,8 +33,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-950 text-white min-h-screen`}>
-        <main className="mx-auto px-4 pt-6 pb-32 max-w-lg">
+      <body className={`${inter.className} bg-app-bg text-app-tx1 min-h-screen`}>
+        <main className="mx-auto px-4 pt-5 pb-32 max-w-lg">
           {children}
         </main>
         <WorkoutDraftBanner />

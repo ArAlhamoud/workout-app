@@ -8,21 +8,28 @@ datasource db {
 }
 
 model Exercise {
-  id        String       @id @default(cuid())
-  name      String
-  category  String
-  createdAt DateTime     @default(now())
-  sets      WorkoutSet[]
+  id           String       @id @default(cuid())
+  name         String
+  category     String
+  pinIncrement Float?
+  createdAt    DateTime     @default(now())
+  sets         WorkoutSet[]
 }
 
 model Workout {
-  id        String       @id @default(cuid())
-  name      String
-  date      DateTime     @default(now())
-  notes     String?
-  duration  Int?
-  sets      WorkoutSet[]
-  createdAt DateTime     @default(now())
+  id             String       @id @default(cuid())
+  name           String
+  date           DateTime     @default(now())
+  notes          String?
+  duration       Int?
+  avgHr          Int?
+  maxHr          Int?
+  activeKcal     Int?
+  healthSyncedAt DateTime?
+  sets           WorkoutSet[]
+  createdAt      DateTime     @default(now())
+
+  @@index([date])
 }
 
 model WorkoutSet {
@@ -36,6 +43,9 @@ model WorkoutSet {
   rpe        Int?
   workout    Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise   Exercise @relation(fields: [exerciseId], references: [id])
+
+  @@index([workoutId])
+  @@index([exerciseId])
 }
 
 model BodyStat {
@@ -44,5 +54,20 @@ model BodyStat {
   weight    Float?
   waist     Float?
   arms      Float?
+  source    String   @default("manual")
   createdAt DateTime @default(now())
+}
+
+model HealthSample {
+  id        String   @id @default(cuid())
+  type      String
+  date      DateTime
+  value     Float
+  unit      String
+  source    String   @default("apple-health")
+  meta      String?
+  createdAt DateTime @default(now())
+
+  @@unique([type, date, source])
+  @@index([type, date])
 }

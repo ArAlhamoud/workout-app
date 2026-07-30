@@ -18,11 +18,11 @@ export default function LogWorkoutSheet() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Log workout"
-        className={`absolute left-1/2 -translate-x-1/2 -top-6 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all active:scale-90 border-[3px] border-gray-950 ${
-          isLog ? 'bg-blue-500' : 'bg-blue-600 hover:bg-blue-500'
+        className={`absolute left-1/2 -translate-x-1/2 -top-6 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all active:scale-90 border-[3px] border-app-bg shadow-glow-teal ${
+          isLog ? 'bg-teal-400' : 'bg-teal-500 hover:bg-teal-400'
         }`}
       >
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--app-bg)" strokeWidth="2.5" strokeLinecap="round">
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
@@ -42,11 +42,11 @@ export default function LogWorkoutSheet() {
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
-        <div className="bg-gray-900 rounded-t-2xl border-t border-gray-800 px-4 pt-5 pb-8">
+        <div className="bg-app-surface rounded-t-card-lg border-t border-app-border shadow-card-lg px-4 pt-5 pb-8">
           {/* Handle */}
-          <div className="w-10 h-1 bg-gray-700 rounded-full mx-auto mb-5" />
+          <div className="w-10 h-1 bg-white/15 rounded-full mx-auto mb-5" />
 
-          <p className="text-gray-500 text-xs uppercase tracking-widest font-semibold mb-4">
+          <p className="section-label mb-4">
             Start a Workout
           </p>
 
@@ -64,7 +64,7 @@ export default function LogWorkoutSheet() {
                     key={d}
                     href={`/workouts/new?day=${day}&dur=${d}`}
                     onClick={() => setOpen(false)}
-                    className={`flex items-center justify-between px-4 py-3 rounded-xl transition-colors active:scale-[0.98] ${
+                    className={`flex items-center justify-between px-4 py-3 min-h-[44px] rounded-card transition-colors active:scale-[0.98] ${
                       day === 'A'
                         ? 'bg-blue-600/15 border border-blue-700/30 hover:bg-blue-600/25 active:bg-blue-600/30'
                         : 'bg-violet-700/15 border border-violet-700/30 hover:bg-violet-700/25 active:bg-violet-700/30'
@@ -73,7 +73,7 @@ export default function LogWorkoutSheet() {
                     <span className={`font-bold text-sm ${day === 'A' ? 'text-blue-300' : 'text-violet-300'}`}>
                       {d} min
                     </span>
-                    <span className="text-gray-500 text-xs">{DURATION_LABELS[d]}</span>
+                    <span className="text-app-tx2 text-xs">{DURATION_LABELS[d]}</span>
                   </Link>
                 ))}
               </div>
@@ -84,7 +84,7 @@ export default function LogWorkoutSheet() {
           <Link
             href="/workouts/new"
             onClick={() => setOpen(false)}
-            className="mt-4 w-full flex items-center justify-center py-3 rounded-xl border border-gray-700 border-dashed text-gray-500 hover:text-gray-400 hover:border-gray-600 text-sm transition-colors"
+            className="mt-4 w-full flex items-center justify-center py-3 min-h-[44px] rounded-card border border-app-border border-dashed text-app-tx2 hover:text-app-tx1 hover:border-white/15 text-sm transition-colors"
           >
             Custom / free-form log
           </Link>

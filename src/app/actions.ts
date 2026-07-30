@@ -54,7 +54,7 @@ export async function createWorkout(data: {
   });
   revalidatePath('/workouts');
   revalidatePath('/');
-  redirect(`/workouts/${workout.id}?new=1`);
+  return { id: workout.id };
 }
 
 export async function deleteWorkout(id: string) {
@@ -153,4 +153,28 @@ export async function addBodyStat(data: { weight?: number; waist?: number; arms?
 export async function deleteBodyStat(id: string) {
   await prisma.bodyStat.delete({ where: { id } });
   revalidatePath('/stats');
+}
+
+// Apple Health bridge
+export async function getHealthOverview(): Promise<{
+  lastWeightSync: Date | null;
+  samplesTotal: number;
+  enrichedWorkouts: number;
+}> {
+  const [lastWeight, samplesTotal, enrichedWorkouts] = await Promise.all([
+    prisma.healthSample.findFirst({
+      where: { type: 'weight' },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    }),
+    prisma.healthSample.count(),
+    prisma.workout.count({
+      where: { OR: [{ avgHr: { not: null } }, { activeKcal: { not: null } }] },
+    }),
+  ]);
+  return {
+    lastWeightSync: lastWeight?.date ?? null,
+    samplesTotal,
+    enrichedWorkouts,
+  };
 }
