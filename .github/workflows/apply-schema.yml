@@ -2,6 +2,11 @@ name: Apply schema
 
 on:
   workflow_dispatch:
+    inputs:
+      accept_data_loss:
+        description: 'Pass --accept-data-loss (only after reviewing a previous run''s warnings)'
+        type: boolean
+        default: false
 
 jobs:
   push-schema:
@@ -23,7 +28,13 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
+      - name: Preview pending changes
+        # Shows exactly what would change on the live DB before anything runs
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script || true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
       - name: Push schema to database
-        run: npx prisma db push
+        run: npx prisma db push ${{ inputs.accept_data_loss && '--accept-data-loss' || '' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

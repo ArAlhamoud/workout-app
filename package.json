@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "rm -f next.config.ts && prisma generate && prisma db push && next build",
+    "build": "rm -f next.config.ts && prisma generate && next build",
+    "db:apply": "prisma db push",
     "start": "next start",
     "lint": "next lint",
     "db:push": "prisma db push",
