@@ -39,6 +39,7 @@ const DAY_ACCENT: Record<DayId, {
   tag: string;
   chip: string;
   accentText: string;
+  start: string;
 }> = {
   A: {
     glowCard: 'border-acc-violet/30 shadow-glow-violet',
@@ -48,6 +49,8 @@ const DAY_ACCENT: Record<DayId, {
     tag: 'bg-gradient-to-r from-acc-violet to-[#a78bfa] text-[#14082e] shadow-[0_0_14px_-2px_rgba(139,92,246,0.7)]',
     chip: 'border-acc-violet/50 bg-gradient-to-br from-acc-violet/25 to-acc-violet-deep/10 text-violet-100 shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)]',
     accentText: 'text-acc-violet',
+    start:
+      'bg-gradient-to-r from-acc-violet to-acc-violet-deep text-[#14082e] shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_30px_-6px_rgba(139,92,246,0.8)]',
   },
   B: {
     glowCard: 'border-acc-teal/30 shadow-glow-teal',
@@ -57,8 +60,13 @@ const DAY_ACCENT: Record<DayId, {
     tag: 'bg-gradient-to-r from-acc-teal to-acc-cyan text-[#062521] shadow-[0_0_14px_-2px_rgba(94,234,212,0.7)]',
     chip: 'border-acc-teal/50 bg-gradient-to-br from-acc-teal/25 to-acc-teal-deep/10 text-teal-100 shadow-[0_0_18px_-4px_rgba(45,212,191,0.55)]',
     accentText: 'text-acc-teal',
+    start:
+      'bg-gradient-to-r from-acc-teal to-acc-cyan text-[#062521] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_30px_-6px_rgba(45,212,191,0.8)]',
   },
 };
+
+/* Quiet duration chip — plain glass, only the 45-min default lights up */
+const CHIP_QUIET = 'border-app-border bg-white/[0.04] text-app-tx2 hover:border-app-border-hi';
 
 /* Effort spectrum segments for the lockout ladder (index by RPE 1–4) */
 const RPE_SEG_ON = [
@@ -149,7 +157,7 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
               key={d}
               href={`/workouts/new?day=${day}&dur=${d}`}
               className={`pressable flex flex-col items-center justify-center gap-0.5 rounded-xl border py-2.5 transition-colors ${
-                primary ? accent.chip : 'border-app-border bg-white/[0.04] text-app-tx2 hover:border-app-border-hi'
+                primary && d === 45 ? accent.chip : CHIP_QUIET
               }`}
             >
               <span className="font-round text-[17px] font-semibold leading-none tabular-nums">
@@ -162,6 +170,18 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
             </Link>
           ))}
         </div>
+        {/* The boldest object on the page — full-width gradient Start */}
+        {primary && (
+          <Link
+            href={`/workouts/new?day=${day}&dur=45`}
+            className={`pressable mt-3 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-round text-[15px] font-bold tracking-tight transition-all hover:brightness-110 active:brightness-95 ${accent.start}`}
+          >
+            <svg width="13" height="14" viewBox="0 0 13 14" fill="none" aria-hidden="true" className="flex-none">
+              <path d="M1.5 1.6c0-.9 1-1.5 1.8-1L12 6a1.2 1.2 0 0 1 0 2.1L3.3 13.4c-.8.5-1.8-.1-1.8-1z" fill="currentColor" />
+            </svg>
+            Start Day {day} · 45 min
+          </Link>
+        )}
       </div>
     </section>
   );
@@ -176,6 +196,12 @@ export default async function Home() {
   const daysSinceWeighIn = lastBodyStat
     ? Math.floor((Date.now() - new Date(lastBodyStat.date).getTime()) / 86400000)
     : null;
+
+  // Body-weight card: latest recorded weight, trend vs the first recorded
+  const weightStats = bodyStats.filter((s) => s.weight != null);
+  const latestWeight = weightStats.length > 0 ? weightStats[weightStats.length - 1] : null;
+  const firstWeight = weightStats.length > 0 ? weightStats[0] : null;
+  const weightDelta = latestWeight && firstWeight ? latestWeight.weight! - firstWeight.weight! : 0;
 
   const totalVolume = workouts.reduce(
     (sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0),
@@ -281,9 +307,9 @@ export default async function Home() {
           {isSunday && (
             <Link
               href="/stats"
-              className="pressable flex items-center gap-1.5 rounded-full border border-acc-ember/40 bg-acc-ember/10 px-3 py-1.5 transition-colors hover:bg-acc-ember/20"
+              className="pressable flex items-center gap-1.5 rounded-full border border-acc-teal/40 bg-acc-teal/10 px-3 py-1.5 shadow-[0_0_18px_-6px_rgba(45,212,191,0.5)] transition-colors hover:bg-acc-teal/20"
             >
-              <span className="text-xs font-bold text-acc-ember">☀ Weigh-in</span>
+              <span className="text-xs font-bold text-acc-teal">☀ Weigh-in</span>
             </Link>
           )}
           <div
@@ -395,7 +421,7 @@ export default async function Home() {
                 <Link
                   key={d}
                   href={`/workouts/new?day=${suggestedDay}&dur=${d}`}
-                  className={`pressable flex flex-col items-center justify-center gap-0.5 rounded-xl border py-2.5 ${suggestedAccent.chip}`}
+                  className={`pressable flex flex-col items-center justify-center gap-0.5 rounded-xl border py-2.5 transition-colors ${d === 45 ? suggestedAccent.chip : CHIP_QUIET}`}
                 >
                   <span className="font-round text-[17px] font-semibold leading-none tabular-nums">
                     {d}
@@ -530,10 +556,10 @@ export default async function Home() {
       {daysSinceWeighIn !== null && daysSinceWeighIn > 7 && (
         <Link
           href="/stats"
-          className="card-lg pressable flex items-center gap-3 border-acc-ember/30 bg-acc-ember/[0.06] px-4 py-3 transition-colors hover:border-acc-ember/50"
+          className="card-lg pressable flex items-center gap-3 border-acc-teal/30 bg-acc-teal/[0.06] px-4 py-3 shadow-[0_0_24px_-8px_rgba(45,212,191,0.45)] transition-colors hover:border-acc-teal/50"
         >
-          <span className="chip flex-shrink-0 border border-acc-ember/40 bg-acc-ember/10 text-acc-ember">⚖ Weigh-in</span>
-          <span className="text-xs text-acc-ember/80">
+          <span className="chip flex-shrink-0 border border-acc-teal/40 bg-acc-teal/10 text-acc-teal">⚖ Weigh-in</span>
+          <span className="text-xs text-acc-teal/80">
             Last weigh-in {daysSinceWeighIn}d ago — log your weight →
           </span>
         </Link>
@@ -616,6 +642,38 @@ export default async function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Body weight — teal-green is the body's color ── */}
+      {latestWeight && (
+        <section className="card-lg flex items-center justify-between px-4 py-3.5">
+          <div className="flex flex-col gap-0.5">
+            <b className="glow-teal font-round text-[27px] font-light leading-none tabular-nums tracking-tight">
+              {latestWeight.weight!.toFixed(1)}
+              <span className="ml-1 text-[13px] font-semibold text-app-tx3">kg</span>
+            </b>
+            <span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-app-tx3">Body weight</span>
+          </div>
+          {firstWeight && firstWeight !== latestWeight && (
+            <div className="flex flex-col items-end gap-0.5">
+              <b
+                className={`flex items-center gap-1 font-round text-[13px] font-semibold tabular-nums ${
+                  weightDelta > 0 ? 'text-rpe-grind' : 'text-acc-teal'
+                }`}
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true" className="flex-none">
+                  {weightDelta > 0 ? (
+                    <path d="M1.5 7l3.5-4 3.5 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  ) : (
+                    <path d="M1.5 3l3.5 4 3.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  )}
+                </svg>
+                {Math.abs(weightDelta).toFixed(1)} kg
+              </b>
+              <span className="text-[10px] text-app-tx3">from {Number(firstWeight.weight!.toFixed(1))}</span>
+            </div>
+          )}
+        </section>
       )}
 
       {/* ── Recent workouts ─────────────────────────────── */}
