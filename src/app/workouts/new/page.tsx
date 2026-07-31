@@ -128,21 +128,18 @@ export default async function NewWorkoutPage({
     <div className="space-y-5">
       <div className="pt-1">
         <p className={`section-label ${eyebrowAccent}`}>
-          {validDay ? `Day ${validDay} · Under the lights` : 'Freestyle session'}
+          {validDay ? getDayTemplate(validDay).focus : 'Freestyle'}
         </p>
         <h1 className={`text-2xl font-bold font-round tracking-tight mt-0.5 ${titleGradient}`}>
           {validDay ? `Day ${validDay} Workout` : 'Log Workout'}
         </h1>
-        <p className="text-app-tx3 text-sm mt-0.5">
-          {validDay ? getDayTemplate(validDay).focus : 'Record your training session'}
-        </p>
       </div>
 
       {/* Duration switcher pills */}
       {validDay && (
         <div>
           <p className="section-label mb-2">
-            Duration · {initialExercises.length} exercises
+            Minutes · {initialExercises.length} exercises
           </p>
           <div className="grid grid-cols-3 gap-2">
             {DURATIONS.map((d) => {
@@ -157,7 +154,7 @@ export default async function NewWorkoutPage({
                       : 'text-app-tx2 hover:border-app-border-hi hover:text-app-tx1'
                   }`}
                 >
-                  {d} min
+                  {d}
                 </Link>
               );
             })}

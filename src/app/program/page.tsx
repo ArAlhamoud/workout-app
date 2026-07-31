@@ -48,6 +48,47 @@ const dayAccent = {
   },
 } as const;
 
+/* Rotating chevron for disclosure summaries */
+function Chevron({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={`transition-transform duration-200 group-open:rotate-180 ${className}`}
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+/* Quiet aurora disclosure — the glance stays clean, detail lives one tap away */
+function Details({
+  label,
+  children,
+  className = '',
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <details className={`group ${className}`}>
+      <summary className="inline-flex cursor-pointer select-none list-none items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3 transition-colors hover:text-app-tx2 [&::-webkit-details-marker]:hidden">
+        {label}
+        <Chevron />
+      </summary>
+      <div className="mt-1.5">{children}</div>
+    </details>
+  );
+}
+
 /* Effort-ceiling lockout ladder segments (index by RPE 1–4) —
    Hard/Grind render unlit while the return protocol caps effort */
 const RPE_SEG_ON = [
@@ -144,13 +185,17 @@ export default async function ProgramPage() {
               </span>
             </div>
 
-            {/* Coach voice — second-person imperative, stencil-flavored */}
+            {/* Coach voice — the directive keeps its single line; prose lives one tap away */}
             <p className="mt-3 border-t border-white/10 pt-3 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
-              <span className="glow-amber">We rebuild. We don&apos;t test.</span>{' '}
-              Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
-              <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
+              <span className="glow-amber">We rebuild. We don&apos;t test.</span>
             </p>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
+            <Details label="More" className="mt-1">
+              <p className="text-[11px] leading-relaxed text-app-tx3">
+                Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
+                <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
+            </Details>
 
             <div className="mt-3 flex border-t border-white/10 pt-3">
               <div className="flex flex-1 flex-col gap-0.5">
@@ -201,7 +246,7 @@ export default async function ProgramPage() {
         </section>
       ) : (
         <section className="card-lg p-4">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between">
             <p className="section-label">This Week</p>
             <span
               className={`chip flex-shrink-0 ${
@@ -211,10 +256,15 @@ export default async function ProgramPage() {
               Wk {status.week} · {currentPhase.phase}
             </span>
           </div>
-          <p className="text-app-tx2 text-xs leading-relaxed">{currentPhase.desc}</p>
-          <p className="text-app-tx3 text-xs mt-2">
-            {sessionsThisWeek}/3 sessions logged this week
-          </p>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="font-round text-2xl font-light tabular-nums tracking-tight text-app-tx1">
+              {sessionsThisWeek}/3
+            </span>
+            <span className="text-xs text-app-tx3">sessions</span>
+          </div>
+          <Details label="More" className="mt-1.5">
+            <p className="text-app-tx2 text-xs leading-relaxed">{currentPhase.desc}</p>
+          </Details>
         </section>
       )}
 
@@ -272,10 +322,13 @@ export default async function ProgramPage() {
             Start &#8594;
           </Link>
         </div>
-        <div className="bg-app-surface/60 rounded-card border border-app-border px-4 py-3 mb-3">
-          <span className="text-app-tx3 uppercase tracking-wide font-semibold text-xs">Warm-up: </span>
-          <span className="text-app-tx2 text-xs">{DAY_A.warmup}</span>
-        </div>
+        <details className="group bg-app-surface/60 rounded-card border border-app-border px-4 py-3 mb-3">
+          <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+            <span className="text-app-tx3 uppercase tracking-wide font-semibold text-xs">Warm-up</span>
+            <Chevron className="text-app-tx3" />
+          </summary>
+          <p className="text-app-tx2 text-xs mt-2 leading-relaxed">{DAY_A.warmup}</p>
+        </details>
         <div className="space-y-2">
           {DAY_A.exercises.map((ex, i) => {
             const exId = exerciseIdByName.get(ex.name);
@@ -299,7 +352,9 @@ export default async function ProgramPage() {
                       )}
                     </div>
                     <div className="text-app-tx3 text-xs mt-1">{ex.machine} · {ex.rest} rest</div>
-                    <div className="text-app-tx2 text-xs mt-1.5 leading-relaxed">{ex.cues}</div>
+                    <Details label="Technique" className="mt-1.5">
+                      <p className="text-app-tx2 text-xs leading-relaxed">{ex.cues}</p>
+                    </Details>
                   </div>
                   <div className="text-app-tx3 text-lg font-black flex-shrink-0 tabular-nums">{i + 1}</div>
                 </div>
@@ -307,10 +362,13 @@ export default async function ProgramPage() {
             );
           })}
         </div>
-        <div className="bg-app-surface/60 rounded-card border border-app-border px-4 py-3 mt-3">
-          <span className="text-app-tx3 uppercase tracking-wide font-semibold text-xs">Cardio finisher: </span>
-          <span className="text-app-tx2 text-xs">{DAY_A.cardioFinisher}</span>
-        </div>
+        <details className="group bg-app-surface/60 rounded-card border border-app-border px-4 py-3 mt-3">
+          <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+            <span className="text-app-tx3 uppercase tracking-wide font-semibold text-xs">Cardio finisher</span>
+            <Chevron className="text-app-tx3" />
+          </summary>
+          <p className="text-app-tx2 text-xs mt-2 leading-relaxed">{DAY_A.cardioFinisher}</p>
+        </details>
       </CollapsibleSection>
 
       {/* Day B */}
@@ -324,10 +382,13 @@ export default async function ProgramPage() {
             Start &#8594;
           </Link>
         </div>
-        <div className="bg-app-surface/60 rounded-card border border-app-border px-4 py-3 mb-3">
-          <span className="text-app-tx3 uppercase tracking-wide font-semibold text-xs">Warm-up: </span>
-          <span className="text-app-tx2 text-xs">{DAY_B.warmup}</span>
-        </div>
+        <details className="group bg-app-surface/60 rounded-card border border-app-border px-4 py-3 mb-3">
+          <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+            <span className="text-app-tx3 uppercase tracking-wide font-semibold text-xs">Warm-up</span>
+            <Chevron className="text-app-tx3" />
+          </summary>
+          <p className="text-app-tx2 text-xs mt-2 leading-relaxed">{DAY_B.warmup}</p>
+        </details>
         <div className="space-y-2">
           {DAY_B.exercises.map((ex, i) => {
             const exId = exerciseIdByName.get(ex.name);
@@ -351,7 +412,9 @@ export default async function ProgramPage() {
                       )}
                     </div>
                     <div className="text-app-tx3 text-xs mt-1">{ex.machine} · {ex.rest} rest</div>
-                    <div className="text-app-tx2 text-xs mt-1.5 leading-relaxed">{ex.cues}</div>
+                    <Details label="Technique" className="mt-1.5">
+                      <p className="text-app-tx2 text-xs leading-relaxed">{ex.cues}</p>
+                    </Details>
                   </div>
                   <div className="text-app-tx3 text-lg font-black flex-shrink-0 tabular-nums">{i + 1}</div>
                 </div>
@@ -359,22 +422,31 @@ export default async function ProgramPage() {
             );
           })}
         </div>
-        <div className="bg-app-surface/60 rounded-card border border-app-border px-4 py-3 mt-3">
-          <span className="text-app-tx3 uppercase tracking-wide font-semibold text-xs">Cardio finisher: </span>
-          <span className="text-app-tx2 text-xs">{DAY_B.cardioFinisher}</span>
-        </div>
+        <details className="group bg-app-surface/60 rounded-card border border-app-border px-4 py-3 mt-3">
+          <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+            <span className="text-app-tx3 uppercase tracking-wide font-semibold text-xs">Cardio finisher</span>
+            <Chevron className="text-app-tx3" />
+          </summary>
+          <p className="text-app-tx2 text-xs mt-2 leading-relaxed">{DAY_B.cardioFinisher}</p>
+        </details>
       </CollapsibleSection>
 
       {/* Return protocol */}
       <CollapsibleSection title="Return After a Break">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.13em] leading-loose text-app-tx2 mb-2">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.13em] leading-loose text-app-tx2">
           <span className="text-acc-ember">We rebuild. We don&apos;t test.</span>
         </p>
-        <p className="text-app-tx2 text-xs leading-relaxed mb-3">
-          After {BREAK_THRESHOLD_DAYS}+ days off, the app switches to this 4-week ramp
-          automatically and pre-scales every weight. Muscle memory rebuilds fast — the risk
-          in the first weeks back is injury, not lost time.
-        </p>
+        <Details label="How it works" className="mt-1 mb-3">
+          <p className="text-app-tx2 text-xs leading-relaxed">
+            After {BREAK_THRESHOLD_DAYS}+ days off, the app switches to this 4-week ramp
+            automatically and pre-scales every weight. Muscle memory rebuilds fast — the risk
+            in the first weeks back is injury, not lost time.
+          </p>
+          <p className="text-app-tx3 text-xs leading-relaxed mt-1.5">
+            Week 5 rejoins the main program at BUILD — the LEARN weeks are redundant once you
+            already know the machines.
+          </p>
+        </Details>
         <div className="space-y-2">
           {RETURN_PROGRAM.map((r) => (
             <div
@@ -384,20 +456,18 @@ export default async function ProgramPage() {
               <div className="chip border border-acc-ember/40 bg-acc-ember/10 text-acc-ember flex-shrink-0">
                 {r.phase}
               </div>
-              <div className="min-w-0">
-                <div className="text-app-tx3 text-xs font-semibold mb-0.5">
+              <div className="min-w-0 flex-1">
+                <div className="text-app-tx3 text-xs font-semibold">
                   Week {r.week} &middot; <b className="text-acc-ember/90 font-semibold">{r.loadPct}% load</b> &middot; {r.sessions} sessions &middot; max{' '}
                   <b className="text-acc-ember/90 font-semibold">{RPE_LABELS[r.rpeCap]}</b>
                 </div>
-                <div className="text-app-tx2 text-xs leading-relaxed">{r.desc}</div>
+                <Details label="More" className="mt-1">
+                  <p className="text-app-tx2 text-xs leading-relaxed">{r.desc}</p>
+                </Details>
               </div>
             </div>
           ))}
         </div>
-        <p className="text-app-tx3 text-xs leading-relaxed mt-3">
-          Week 5 rejoins the main program at BUILD — the LEARN weeks are redundant once you
-          already know the machines.
-        </p>
       </CollapsibleSection>
 
       {/* 12-Week Progression */}
@@ -415,9 +485,11 @@ export default async function ProgramPage() {
               >
                 {p.phase}
               </div>
-              <div>
-                <div className="text-app-tx3 text-xs font-semibold mb-0.5">Week {p.weeks}</div>
-                <div className="text-app-tx2 text-xs leading-relaxed">{p.desc}</div>
+              <div className="min-w-0 flex-1">
+                <div className="text-app-tx3 text-xs font-semibold">Week {p.weeks}</div>
+                <Details label="More" className="mt-1">
+                  <p className="text-app-tx2 text-xs leading-relaxed">{p.desc}</p>
+                </Details>
               </div>
             </div>
           ))}
@@ -446,7 +518,9 @@ export default async function ProgramPage() {
                     {c.badge}
                   </span>
                 </div>
-                <div className="text-app-tx2 text-xs mt-1">{c.desc}</div>
+                <Details label="More" className="mt-1">
+                  <p className="text-app-tx2 text-xs leading-relaxed">{c.desc}</p>
+                </Details>
               </div>
             </div>
           ))}
@@ -486,12 +560,12 @@ export default async function ProgramPage() {
             </div>
           </div>
           <div className="border-t border-app-border p-3">
-            <div className="text-app-tx2 text-xs text-center">
-              TDEE ~2,635 kcal · Target deficit −600 kcal/day · ~0.5–0.7 kg/week loss
+            <div className="text-app-tx2 text-xs text-center tabular-nums">
+              TDEE ~2,635 kcal · −600 kcal/day · −0.5–0.7 kg/wk
             </div>
             {weightChange !== null && weightChange < 0 && (
-              <div className="text-acc-teal text-xs text-center mt-1 font-semibold">
-                Down {Math.abs(weightChange)} kg from start — keep going!
+              <div className="text-acc-teal text-xs text-center mt-1 font-semibold tabular-nums">
+                −{Math.abs(weightChange)} kg from start
               </div>
             )}
             {weightChange !== null && weightChange >= 0 && firstWeight !== null && (
@@ -507,10 +581,17 @@ export default async function ProgramPage() {
       <CollapsibleSection title="Nutrition Guide">
         <div className="card overflow-hidden">
           <div className="p-4 border-b border-app-border">
-            <div className="text-app-tx1 font-semibold text-sm mb-1">Calorie Target</div>
-            <div className="text-app-tx2 text-xs">
-              ~2,050 kcal/day — calculated from your TDEE (2,635) minus a 600 kcal deficit
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="text-app-tx1 font-semibold text-sm">Calorie Target</div>
+              <div className="font-round font-light text-lg tabular-nums text-app-tx1">
+                ~2,050 <span className="text-xs text-app-tx3">kcal/day</span>
+              </div>
             </div>
+            <Details label="More" className="mt-1">
+              <p className="text-app-tx2 text-xs">
+                Calculated from your TDEE (2,635) minus a 600 kcal deficit
+              </p>
+            </Details>
           </div>
           <div className="p-4 border-b border-app-border">
             <div className="text-app-tx1 font-semibold text-sm mb-3">Daily Macros</div>
@@ -532,9 +613,12 @@ export default async function ProgramPage() {
               </div>
             </div>
           </div>
-          <div className="p-4 border-b border-app-border">
-            <div className="text-app-tx1 font-semibold text-sm mb-2">Rules</div>
-            <ul className="space-y-1.5 text-app-tx2 text-xs">
+          <details className="group p-4 border-b border-app-border">
+            <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+              <span className="text-app-tx1 font-semibold text-sm">Rules · 6</span>
+              <Chevron className="text-app-tx3" />
+            </summary>
+            <ul className="mt-2 space-y-1.5 text-app-tx2 text-xs">
               <li>· Protein at every meal — chicken, eggs, Greek yogurt, legumes, cottage cheese</li>
               <li>· Vegetables fill half the plate — non-negotiable</li>
               <li>· Eat within 60 min after each workout (prioritise protein)</li>
@@ -542,10 +626,13 @@ export default async function ProgramPage() {
               <li>· Drink 3–4 L water/day (higher at your bodyweight)</li>
               <li>· Don&apos;t eat back gym calories — deficit is already moderate</li>
             </ul>
-          </div>
-          <div className="p-4">
-            <div className="text-app-tx1 font-semibold text-sm mb-2">Joint-First Approach</div>
-            <ul className="space-y-1.5 text-app-tx2 text-xs">
+          </details>
+          <details className="group p-4">
+            <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+              <span className="text-app-tx1 font-semibold text-sm">Joint-First · 6</span>
+              <Chevron className="text-app-tx3" />
+            </summary>
+            <ul className="mt-2 space-y-1.5 text-app-tx2 text-xs">
               <li>· All exercises are machine-based — no free-weight barbell loading on joints</li>
               <li>· Back Extension: neutral spine only — do NOT hyperextend at the top, squeeze glutes instead</li>
               <li>· Avoid treadmill running — walking only at 4–5 km/h, low incline</li>
@@ -553,7 +640,7 @@ export default async function ProgramPage() {
               <li>· Progress weight slowly — joint adaptation lags behind muscle strength</li>
               <li>· Pre-lift spinal mobility: 10 cat-cows + 8 bird-dogs each side before every session</li>
             </ul>
-          </div>
+          </details>
         </div>
       </CollapsibleSection>
     </div>

@@ -54,7 +54,7 @@ export default async function WorkoutsPage() {
           <h1 className="text-xl font-bold font-round tracking-tight bg-clip-text text-transparent bg-[linear-gradient(100deg,#ffffff_20%,#c7d2fe_60%,#99f6e4_100%)]">
             History
           </h1>
-          <p className="text-app-tx3 text-sm mt-0.5 tabular-nums">{workouts.length} sessions logged</p>
+          <p className="text-app-tx3 text-sm mt-0.5 tabular-nums">{workouts.length} sessions</p>
         </div>
       </div>
 
@@ -87,7 +87,6 @@ export default async function WorkoutsPage() {
 
                 <div className="space-y-2">
                   {group.items.map((workout) => {
-                    const exerciseNames = Array.from(new Set(workout.sets.map((s) => s.exercise.name)));
                     const totalVolume = workout.sets.reduce((sum, s) => sum + s.reps * s.weight, 0);
                     const dayLetter = workout.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
                     return (
@@ -111,10 +110,6 @@ export default async function WorkoutsPage() {
 
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-app-tx1 text-sm truncate">{workout.name}</div>
-                          <div className="text-app-tx3 text-[11px] mt-0.5 truncate">
-                            {exerciseNames.slice(0, 4).join(' · ')}
-                            {exerciseNames.length > 4 && ` +${exerciseNames.length - 4}`}
-                          </div>
                         </div>
 
                         <div className="text-right ml-4 flex-shrink-0">

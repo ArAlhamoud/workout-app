@@ -179,6 +179,14 @@ export default function WorkoutForm({
   const touchStartX = useRef(0);
   const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>({});
   const [editingNoteFor, setEditingNoteFor] = useState<string | null>(null);
+  // Glance layer — per-block "ⓘ" detail row (target/rest/1RM/video/note) and
+  // the return-protocol expander. Presentation state only.
+  const [infoOpen, setInfoOpen] = useState<Record<string, boolean>>({});
+  const [showReturnInfo, setShowReturnInfo] = useState(false);
+
+  function toggleInfo(uid: string) {
+    setInfoOpen((prev) => ({ ...prev, [uid]: !prev[uid] }));
+  }
 
   // Load per-exercise machine notes after mount (avoids hydration mismatch)
   useEffect(() => {
@@ -618,21 +626,75 @@ export default function WorkoutForm({
               className="pointer-events-none absolute inset-0 bg-[radial-gradient(240px_120px_at_8%_0%,rgba(245,158,11,0.14),transparent_70%)]"
             />
             <div className="relative min-w-0">
-              <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-acc-ember/90">
-                Coach directive · Return protocol
-              </p>
-              <p className="glow-amber font-round font-bold text-sm uppercase tracking-[0.05em] mt-1.5">
-                We rebuild. We don&apos;t test.
-              </p>
-              <p className="text-app-tx2 text-xs mt-1 leading-relaxed">
-                Weights pre-set to{' '}
-                <span className="font-semibold text-acc-ember">{returnLoadPct}%</span> of pre-break.
-                Stop every set at{' '}
-                <span className="font-semibold text-acc-ember">
-                  {['', 'Easy', 'Med', 'Hard', 'Grind'][returnRpeCap ?? 2]}
-                </span>
-                {' '}&mdash; past that, drop a pin. The ramp beats the number.
-              </p>
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-acc-ember/90">
+                  Return protocol ·{' '}
+                  <span className="glow-amber font-round text-xs tracking-[0.05em] tabular-nums">
+                    {returnLoadPct}%
+                  </span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowReturnInfo((v) => !v)}
+                  aria-expanded={showReturnInfo}
+                  className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 flex-shrink-0 ${
+                    showReturnInfo
+                      ? 'bg-acc-ember/15 text-acc-ember border-acc-ember/40'
+                      : 'bg-app-surface2 text-app-tx3 border-app-border hover:text-app-tx2'
+                  }`}
+                >
+                  More
+                  <span
+                    aria-hidden
+                    className={`inline-block transition-transform duration-200 ${showReturnInfo ? 'rotate-180' : ''}`}
+                  >
+                    ▾
+                  </span>
+                </button>
+              </div>
+              {/* Cap ladder — allowed effort lit, locked effort struck */}
+              <div className="mt-2 flex gap-1.5 flex-wrap">
+                {rpeOptions.map(({ v, l, c }) => {
+                  const cap = returnRpeCap ?? 2;
+                  const locked = v > cap;
+                  return (
+                    <span
+                      key={v}
+                      className={`relative text-[10px] font-bold uppercase tracking-[0.08em] px-3 py-1 rounded-full border ${
+                        locked
+                          ? 'bg-transparent border-white/[0.07] text-[rgba(206,213,248,0.32)] line-through decoration-[rgba(206,213,248,0.4)]'
+                          : c
+                      }`}
+                    >
+                      {l}
+                      {v === cap && (
+                        <span className="absolute -top-2 -right-1.5 text-[7px] font-extrabold tracking-[0.12em] leading-none px-1 py-0.5 rounded bg-[#1a1206] border border-acc-ember/60 text-acc-ember no-underline">
+                          CAP
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
+              </div>
+              {showReturnInfo && (
+                <div className="mt-2.5">
+                  <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-acc-ember/70">
+                    Coach directive
+                  </p>
+                  <p className="glow-amber font-round font-bold text-sm uppercase tracking-[0.05em] mt-1">
+                    We rebuild. We don&apos;t test.
+                  </p>
+                  <p className="text-app-tx2 text-xs mt-1 leading-relaxed">
+                    Weights pre-set to{' '}
+                    <span className="font-semibold text-acc-ember">{returnLoadPct}%</span> of pre-break.
+                    Stop every set at{' '}
+                    <span className="font-semibold text-acc-ember">
+                      {['', 'Easy', 'Med', 'Hard', 'Grind'][returnRpeCap ?? 2]}
+                    </span>
+                    {' '}&mdash; past that, drop a pin. The ramp beats the number.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -728,39 +790,20 @@ export default function WorkoutForm({
                     Last: {formatSeconds(block.lastSession.reps)}
                   </span>
                 )}
+                {/* One actionable suggestion — return target while ramping, else hold/try */}
+                {returnTarget && !allDone && (
+                  <span className="text-xs bg-acc-ember/10 text-acc-ember px-2.5 py-1 rounded-full border border-acc-ember/30 font-medium tabular-nums shadow-[0_0_14px_-4px_rgba(245,158,11,0.6)]">
+                    &#8595; Return {returnTarget} kg
+                  </span>
+                )}
                 {shouldHold && !allDone && (
                   <span className="text-xs bg-rpe-hard/10 text-rpe-hard px-2.5 py-1 rounded-full border border-rpe-hard/30 font-medium">
-                    &#9888; Hold weight
+                    &#9888; Hold
                   </span>
                 )}
                 {suggestWeight && !allDone && (
-                  <span className="text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium">
+                  <span className="text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium tabular-nums">
                     &#8594; Try {suggestWeight} kg
-                  </span>
-                )}
-                {returnTarget && !allDone && (
-                  <span className="text-xs bg-acc-ember/10 text-acc-ember px-2.5 py-1 rounded-full border border-acc-ember/30 font-medium shadow-[0_0_14px_-4px_rgba(245,158,11,0.6)]">
-                    &#8595; Return target {returnTarget} kg
-                  </span>
-                )}
-                {progressionHints[block.exerciseId] && !shouldHold && !allDone && (
-                  <span className="text-xs bg-acc-teal/10 text-acc-teal px-2.5 py-1 rounded-full border border-acc-teal/30 font-medium">
-                    ⬆ Ready to progress
-                  </span>
-                )}
-                {block.targetReps && (
-                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
-                    Target {block.targetReps}
-                  </span>
-                )}
-                {block.rest && (
-                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
-                    Rest {block.rest}
-                  </span>
-                )}
-                {est1RM > 0 && !isTimed && (
-                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border tabular-nums">
-                    ~{est1RM} kg 1RM
                   </span>
                 )}
                 {allDone && (
@@ -770,57 +813,104 @@ export default function WorkoutForm({
                 )}
                 {hasNewPR && !allDone && (
                   <span className="text-xs bg-acc-gold/10 text-acc-gold px-2.5 py-1 rounded-full border border-acc-gold/40 font-semibold shadow-[0_0_14px_-4px_rgba(250,204,21,0.7)]">
-                    &#127942; New PR!
+                    &#127942; PR
                   </span>
                 )}
                 {block.cues && (
                   <button
                     type="button"
                     onClick={() => toggleCues(block.uid)}
+                    aria-expanded={block.showCues}
                     className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
                       block.showCues
                         ? 'bg-acc-teal/15 text-[#ccfbf1] border-acc-teal/40'
                         : 'bg-app-surface2 text-app-tx2 border-app-border hover:text-app-tx1'
                     }`}
                   >
-                    {block.showCues ? 'Hide tip' : '? Tip'}
+                    ? Tip
                   </button>
                 )}
-                {block.youtubeUrl && (
-                  <a
-                    href={block.youtubeUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs px-3 py-1.5 rounded-full border bg-red-950/40 text-red-400 border-red-800/40 hover:bg-red-900/50 transition-colors flex-shrink-0"
+                {/* Detail layer toggle — target/rest/1RM/video/machine note */}
+                <button
+                  type="button"
+                  onClick={() => toggleInfo(block.uid)}
+                  aria-expanded={!!infoOpen[block.uid]}
+                  title="Exercise details"
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex items-center gap-1 flex-shrink-0 ${
+                    infoOpen[block.uid]
+                      ? 'bg-acc-teal/15 text-[#ccfbf1] border-acc-teal/40'
+                      : 'bg-app-surface2 text-app-tx3 border-app-border hover:text-app-tx2'
+                  }`}
+                >
+                  ⓘ
+                  <span
+                    aria-hidden
+                    className={`inline-block text-[9px] transition-transform duration-200 ${infoOpen[block.uid] ? 'rotate-180' : ''}`}
                   >
-                    ▶ Watch
-                  </a>
-                )}
-                {/* Machine / equipment note */}
-                {editingNoteFor === block.exerciseId ? (
-                  <input
-                    autoFocus
-                    type="text"
-                    defaultValue={exerciseNotes[block.exerciseId] ?? ''}
-                    onBlur={(e) => { saveExerciseNote(block.exerciseId, e.target.value); setEditingNoteFor(null); }}
-                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingNoteFor(null); }}
-                    placeholder="e.g. Seat 4, pin 8…"
-                    className="text-xs bg-app-surface2 border border-acc-teal/60 rounded-full px-3 py-1.5 text-app-tx1 placeholder-app-tx3 focus:outline-none w-40"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setEditingNoteFor(block.exerciseId)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
-                      exerciseNotes[block.exerciseId]
-                        ? 'bg-app-primary-muted text-[#ccfbf1] border-acc-teal/30'
-                        : 'bg-app-surface2 text-app-tx3 border-app-border hover:text-app-tx2'
-                    }`}
-                  >
-                    {exerciseNotes[block.exerciseId] ? `⚙ ${exerciseNotes[block.exerciseId]}` : '⚙ note'}
-                  </button>
-                )}
+                    ▾
+                  </span>
+                </button>
               </div>
+
+              {/* Detail layer — relocated glance-row chips, one tap away */}
+              {infoOpen[block.uid] && (
+                <div className="mx-4 mb-3 bg-white/[0.03] border border-app-border rounded-xl px-3 py-2.5 flex items-center gap-2 flex-wrap">
+                  {progressionHints[block.exerciseId] && !shouldHold && !allDone && (
+                    <span className="text-xs bg-acc-teal/10 text-acc-teal px-2.5 py-1 rounded-full border border-acc-teal/30 font-medium">
+                      ⬆ Ready to progress
+                    </span>
+                  )}
+                  {block.targetReps && (
+                    <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
+                      Target {block.targetReps}
+                    </span>
+                  )}
+                  {block.rest && (
+                    <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
+                      Rest {block.rest}
+                    </span>
+                  )}
+                  {est1RM > 0 && !isTimed && (
+                    <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border tabular-nums">
+                      ~{est1RM} kg 1RM
+                    </span>
+                  )}
+                  {block.youtubeUrl && (
+                    <a
+                      href={block.youtubeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs px-3 py-1.5 rounded-full border bg-red-950/40 text-red-400 border-red-800/40 hover:bg-red-900/50 transition-colors flex-shrink-0"
+                    >
+                      ▶ Watch
+                    </a>
+                  )}
+                  {/* Machine / equipment note */}
+                  {editingNoteFor === block.exerciseId ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      defaultValue={exerciseNotes[block.exerciseId] ?? ''}
+                      onBlur={(e) => { saveExerciseNote(block.exerciseId, e.target.value); setEditingNoteFor(null); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingNoteFor(null); }}
+                      placeholder="e.g. Seat 4, pin 8…"
+                      className="text-xs bg-app-surface2 border border-acc-teal/60 rounded-full px-3 py-1.5 text-app-tx1 placeholder-app-tx3 focus:outline-none w-40"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setEditingNoteFor(block.exerciseId)}
+                      className={`text-xs px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
+                        exerciseNotes[block.exerciseId]
+                          ? 'bg-app-primary-muted text-[#ccfbf1] border-acc-teal/30'
+                          : 'bg-app-surface2 text-app-tx3 border-app-border hover:text-app-tx2'
+                      }`}
+                    >
+                      {exerciseNotes[block.exerciseId] ? `⚙ ${exerciseNotes[block.exerciseId]}` : '⚙ note'}
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Cues */}
               {block.showCues && block.cues && (

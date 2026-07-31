@@ -26,6 +26,40 @@ const RPE_RUNG_LIT: Record<Rpe, string> = {
 };
 const RPE_VALUES: Rpe[] = [1, 2, 3, 4];
 
+/* Quiet aurora disclosure — the glance stays clean, detail lives one tap away */
+function Details({
+  label,
+  children,
+  className = '',
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <details className={`group ${className}`}>
+      <summary className="inline-flex cursor-pointer select-none list-none items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3 transition-colors hover:text-app-tx2 [&::-webkit-details-marker]:hidden">
+        {label}
+        <svg
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className="transition-transform duration-200 group-open:rotate-180"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </summary>
+      <div className="mt-1.5">{children}</div>
+    </details>
+  );
+}
+
 function EffortBalanceRow({ effort, rpeCap }: { effort: EffortDistribution; rpeCap: number | null }) {
   if (!effort.total) {
     return <p className="text-app-tx3 text-xs">Tag your sets with RPE to see effort balance.</p>;
@@ -346,14 +380,13 @@ export default async function StatsPage() {
         <h1 className="text-xl font-bold font-round bg-gradient-to-r from-white via-indigo-200 to-teal-200 bg-clip-text text-transparent">
           Progress
         </h1>
-        <p className="text-app-tx3 text-sm mt-0.5">The long exposure — body, effort, records</p>
       </div>
 
       {/* Coach report */}
       {workouts.length > 0 && (
         <div className="card-lg p-4">
           <p className={`section-label mb-2 ${status.mode === 'return' ? 'text-acc-ember/85' : ''}`}>
-            {status.mode === 'return' ? 'Coach Directive' : 'From the Observatory'}
+            {status.mode === 'return' ? 'Coach Directive' : 'Coach Report'}
           </p>
           <p
             className={`font-bold text-sm leading-snug ${
@@ -362,25 +395,59 @@ export default async function StatsPage() {
           >
             {report.headline}
           </p>
-          {report.wins.length > 0 && (
+          {/* Glance: the strongest win and the strongest focus — everything else one tap away */}
+          {(report.wins.length > 0 || report.focus.length > 0) && (
             <div className="mt-3 space-y-1.5">
-              {report.wins.map((win, i) => (
+              {report.wins.slice(0, 1).map((win, i) => (
                 <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
                   <span className="text-acc-teal font-bold flex-shrink-0">✓</span>
                   <span>{win}</span>
                 </p>
               ))}
-            </div>
-          )}
-          {report.focus.length > 0 && (
-            <div className="mt-3 space-y-1.5">
-              {report.focus.map((item, i) => (
+              {report.focus.slice(0, 1).map((item, i) => (
                 <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
                   <span className="text-rpe-hard font-bold flex-shrink-0">→</span>
                   <span>{item}</span>
                 </p>
               ))}
             </div>
+          )}
+          {(report.wins.length > 1 || report.focus.length > 1 || report.nextSession.length > 0) && (
+            <Details label="Full report" className="mt-2">
+              {report.wins.length > 0 && (
+                <div className="space-y-1.5">
+                  {report.wins.map((win, i) => (
+                    <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
+                      <span className="text-acc-teal font-bold flex-shrink-0">✓</span>
+                      <span>{win}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+              {report.focus.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  {report.focus.map((item, i) => (
+                    <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
+                      <span className="text-rpe-hard font-bold flex-shrink-0">→</span>
+                      <span>{item}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
+              {report.nextSession.length > 0 && (
+                <div className="mt-3">
+                  <p className="section-label mb-1.5">Next Session</p>
+                  <div className="space-y-1.5">
+                    {report.nextSession.map((item, i) => (
+                      <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
+                        <span className="text-app-tx3 font-bold flex-shrink-0">·</span>
+                        <span>{item}</span>
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Details>
           )}
           <div className="mt-4 pt-3 border-t border-app-border">
             <div className="flex items-center justify-between mb-2">
@@ -472,7 +539,7 @@ export default async function StatsPage() {
 
       {/* Workout totals — constellation stats */}
       <div className="card-lg p-4">
-        <p className="section-label mb-4">All-Time Under This Sky</p>
+        <p className="section-label mb-4">All-Time</p>
         <div className="grid grid-cols-3 gap-3 text-center">
           {[
             { value: workouts.length.toString(), label: 'Sessions', glow: 'glow-violet' },

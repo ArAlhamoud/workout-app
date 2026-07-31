@@ -68,6 +68,25 @@ const DAY_ACCENT: Record<DayId, {
 /* Quiet duration chip — plain glass, only the 45-min default lights up */
 const CHIP_QUIET = 'border-app-border bg-white/[0.04] text-app-tx2 hover:border-app-border-hi';
 
+/* Quiet aurora affordance for <details> summaries — full copy lives one tap away */
+const SUMMARY_CHIP =
+  'chip inline-flex w-fit cursor-pointer select-none list-none items-center gap-1.5 border border-app-border bg-white/5 text-[10px] uppercase tracking-[0.12em] text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx2 [&::-webkit-details-marker]:hidden';
+
+function Chevron() {
+  return (
+    <svg
+      width="8"
+      height="8"
+      viewBox="0 0 10 10"
+      fill="none"
+      aria-hidden="true"
+      className="flex-none transition-transform duration-200 group-open:rotate-180"
+    >
+      <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 /* Effort spectrum segments for the lockout ladder (index by RPE 1–4) */
 const RPE_SEG_ON = [
   '',
@@ -106,11 +125,7 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
             {day}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-baseline gap-2">
-              <h3 className="font-round text-sm font-bold text-app-tx1">Day {day}</h3>
-              <p className="truncate text-[11px] text-app-tx3">{DAY_FOCUS[day]}</p>
-            </div>
-            <p className="mt-0.5 truncate text-[10px] text-app-tx3">{preview}</p>
+            <h3 className="font-round text-sm font-bold text-app-tx1">Day {day}</h3>
           </div>
           <span className="chip flex-none border border-app-border bg-white/5 text-[9px] uppercase tracking-[0.12em] text-app-tx3">
             Done {doneWhen}
@@ -123,7 +138,7 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
               href={`/workouts/new?day=${day}&dur=${d}`}
               className="pressable rounded-lg border border-app-border bg-white/[0.03] py-1.5 text-center text-[11px] font-semibold tabular-nums text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx1"
             >
-              {d}m · {getExerciseCountForDuration(day, d)} ex
+              {d}m
             </Link>
           ))}
         </div>
@@ -150,22 +165,18 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
             <span className={`chip ml-auto flex-none text-[9px] uppercase tracking-[0.13em] ${accent.tag}`}>Up next</span>
           )}
         </div>
-        <p className="mt-2.5 truncate text-[11px] text-app-tx3">{preview}</p>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {DURATIONS.map((d) => (
             <Link
               key={d}
               href={`/workouts/new?day=${day}&dur=${d}`}
-              className={`pressable flex flex-col items-center justify-center gap-0.5 rounded-xl border py-2.5 transition-colors ${
+              className={`pressable flex items-center justify-center rounded-xl border py-3 transition-colors ${
                 primary && d === 45 ? accent.chip : CHIP_QUIET
               }`}
             >
               <span className="font-round text-[17px] font-semibold leading-none tabular-nums">
                 {d}
                 <span className="ml-0.5 text-[9px] font-bold uppercase tracking-[0.12em] opacity-70">min</span>
-              </span>
-              <span className="text-[9px] font-semibold uppercase tracking-[0.1em] opacity-60">
-                {getExerciseCountForDuration(day, d)} exercises
               </span>
             </Link>
           ))}
@@ -182,6 +193,17 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
             Start Day {day} · 45 min
           </Link>
         )}
+        {/* Exercise preview — one tap away */}
+        <details className="group mt-2.5">
+          <summary className={SUMMARY_CHIP}>
+            Exercises
+            <Chevron />
+          </summary>
+          <p className="mt-2 text-[11px] leading-relaxed text-app-tx3">{preview}</p>
+          <p className="mt-1 text-[10px] tabular-nums text-app-tx3">
+            {DURATIONS.map((d) => `${d}m ${getExerciseCountForDuration(day, d)} ex`).join(' · ')}
+          </p>
+        </details>
       </div>
     </section>
   );
@@ -384,25 +406,27 @@ export default async function Home() {
             <h2 className="font-round text-lg font-bold tracking-tight text-app-tx1">
               {isGymDay ? `${heroVerb} you lift.` : 'Today you recover.'}
             </h2>
-            <p className="text-xs leading-relaxed text-app-tx2">
-              {isGymDay ? (
-                suggestedDay ? (
-                  <>Day <b className={`font-semibold ${suggestedAccent?.accentText ?? ''}`}>{suggestedDay}</b> is queued — {DAY_FOCUS[suggestedDay]}.</>
+            {isGymDay ? (
+              <p className="text-xs text-app-tx2">
+                {suggestedDay ? (
+                  <>Day <b className={`font-semibold ${suggestedAccent?.accentText ?? ''}`}>{suggestedDay}</b> queued</>
                 ) : (
-                  <>Pick Day A or B below and begin.</>
-                )
-              ) : (
-                <>
-                  {restActivity ?? 'Recover & recharge'}.
-                  {nextGymDay && (
-                    <> Next gym <b className="font-semibold text-app-tx1">{nextGymDay.day}</b>{suggestedDay ? <> — Day <b className={`font-semibold ${suggestedAccent?.accentText ?? ''}`}>{suggestedDay}</b> waits</> : null}.</>
-                  )}
-                </>
-              )}
-              {sessionsThisWeek > 0 && <> <b className="font-semibold text-[#99f6e4]">{kgCompact(weekVolume)} kg</b> moved this week.</>}
-            </p>
+                  <>Pick Day A or B below</>
+                )}
+              </p>
+            ) : nextGymDay ? (
+              <p className="text-xs text-app-tx2">
+                Next gym <b className="font-semibold text-app-tx1">{nextGymDay.day}</b>
+                {suggestedDay ? <> · Day <b className={`font-semibold ${suggestedAccent?.accentText ?? ''}`}>{suggestedDay}</b></> : null}
+              </p>
+            ) : null}
+            {sessionsThisWeek > 0 && (
+              <p className="text-xs tabular-nums text-app-tx2">
+                <b className="font-semibold text-[#99f6e4]">{kgCompact(weekVolume)} kg</b> this week
+              </p>
+            )}
             {sessionsThisWeek >= 3 && (
-              <p className="text-[11px] font-bold text-acc-teal">✓ Ring closed — weekly goal hit</p>
+              <p className="text-[11px] font-bold text-acc-teal">✓ Ring closed</p>
             )}
           </div>
         </div>
@@ -421,14 +445,11 @@ export default async function Home() {
                 <Link
                   key={d}
                   href={`/workouts/new?day=${suggestedDay}&dur=${d}`}
-                  className={`pressable flex flex-col items-center justify-center gap-0.5 rounded-xl border py-2.5 transition-colors ${d === 45 ? suggestedAccent.chip : CHIP_QUIET}`}
+                  className={`pressable flex items-center justify-center rounded-xl border py-3 transition-colors ${d === 45 ? suggestedAccent.chip : CHIP_QUIET}`}
                 >
                   <span className="font-round text-[17px] font-semibold leading-none tabular-nums">
                     {d}
                     <span className="ml-0.5 text-[9px] font-bold uppercase tracking-[0.12em] opacity-70">min</span>
-                  </span>
-                  <span className="text-[9px] font-semibold uppercase tracking-[0.1em] opacity-60">
-                    {getExerciseCountForDuration(suggestedDay, d)} exercises
                   </span>
                 </Link>
               ))}
@@ -436,13 +457,21 @@ export default async function Home() {
           </div>
         )}
 
-        {/* Footer strip: NEAT goal + phase */}
-        <div className="relative mt-3.5 flex items-center gap-2 border-t border-white/10 pt-3">
-          <span className="text-sm leading-none" aria-hidden="true">🚶</span>
-          <span className="min-w-0 flex-1 text-[11px] text-app-tx3">
-            Daily NEAT goal: <span className="font-semibold text-app-tx2">8,000 steps</span>
-            <span className="text-app-tx3"> · ~40–50 kcal per 1k steps</span>
-          </span>
+        {/* Footer strip: NEAT + rest-activity detail one tap away, phase chip on glance */}
+        <div className="relative mt-3.5 flex items-start gap-2 border-t border-white/10 pt-3">
+          <details className="group min-w-0 flex-1">
+            <summary className={SUMMARY_CHIP}>
+              <span aria-hidden="true">🚶</span> 8k steps
+              <Chevron />
+            </summary>
+            <div className="mt-2 space-y-1 text-[11px] leading-relaxed text-app-tx3">
+              <p>
+                Daily NEAT goal: <span className="font-semibold text-app-tx2">8,000 steps</span>
+                {' '}· ~40–50 kcal per 1k steps
+              </p>
+              {!isGymDay && <p>{restActivity ?? 'Recover & recharge'}.</p>}
+            </div>
+          </details>
           {isGymDay && (
             status.mode === 'return' ? (
               <span className="chip flex-none border border-acc-ember/40 bg-acc-ember/10 text-acc-ember">
@@ -470,7 +499,7 @@ export default async function Home() {
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" className="flex-none">
                 <path d="M7 1.2c1.4 2 .3 3-.4 4.2C5.8 6.7 6 8.2 7.4 9c-.2-1 .2-1.8 1-2.5.9 1.1 2.1 2.5 2.1 4.1A3.9 3.9 0 0 1 6.6 14 4.6 4.6 0 0 1 2.5 9.4C2.5 5.6 6.4 4.4 7 1.2z" fill="#fcd34d" opacity=".9" />
               </svg>
-              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">Coach directive · Return protocol</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">Return protocol</span>
               <span className="chip ml-auto flex-none bg-gradient-to-r from-acc-ember to-acc-ember-deep text-[9px] uppercase tracking-[0.14em] text-[#1a1206] shadow-[0_0_18px_-4px_rgba(245,158,11,0.75)]">
                 {status.returnWeek.phase}
               </span>
@@ -493,61 +522,72 @@ export default async function Home() {
               </span>
             </div>
 
-            {/* Coach voice — second-person imperative, stencil-flavored */}
-            <p className="mt-3 border-t border-white/10 pt-3 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
-              {status.daysOff} days off. <span className="glow-amber">We rebuild. We don&apos;t test.</span>{' '}
-              Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
-              <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
+            {/* Coach voice — one line of personality on the glance layer */}
+            <p className="mt-3 border-t border-white/10 pt-3 text-[11px] font-semibold uppercase tracking-[0.13em]">
+              <span className="glow-amber">We rebuild. We don&apos;t test.</span>
             </p>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
 
             <div className="mt-3 flex border-t border-white/10 pt-3">
               <div className="flex flex-1 flex-col gap-0.5">
                 <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.loadPct}%</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">of pre-break weights</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">load</span>
               </div>
               <div className="flex flex-1 flex-col gap-0.5 border-l border-white/10 pl-3.5">
                 <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.sessions}</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">sessions target</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">sessions</span>
               </div>
               <div className="flex flex-1 flex-col gap-0.5 border-l border-white/10 pl-3.5">
-                <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.daysOff}</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">days off</span>
+                <b className="font-round text-[15px] font-semibold text-app-tx1">{RPE_LABELS[status.returnWeek.rpeCap]}</b>
+                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">cap</span>
               </div>
             </div>
 
-            {/* Effort-ceiling lockout ladder */}
-            <div className="mt-4" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
-              <div className="flex items-baseline justify-between text-[10px] font-bold uppercase tracking-[0.16em]">
-                <span className="text-app-tx3">Effort ceiling</span>
-                <span className="glow-amber">{RPE_LABELS[status.returnWeek.rpeCap]}</span>
+            {/* Full directive + effort ladder — one tap away */}
+            <details className="group mt-3">
+              <summary className={`${SUMMARY_CHIP} border-acc-ember/30 bg-acc-ember/10 text-acc-ember hover:border-acc-ember/50 hover:text-acc-ember`}>
+                The rules
+                <Chevron />
+              </summary>
+
+              <p className="mt-3 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
+                {status.daysOff} days off. Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
+                <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
+              </p>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
+
+              {/* Effort-ceiling lockout ladder */}
+              <div className="mt-4" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
+                <div className="flex items-baseline justify-between text-[10px] font-bold uppercase tracking-[0.16em]">
+                  <span className="text-app-tx3">Effort ceiling</span>
+                  <span className="glow-amber">{RPE_LABELS[status.returnWeek.rpeCap]}</span>
+                </div>
+                <div className="mt-2 grid grid-cols-4 gap-1.5">
+                  {RPE_LABELS.slice(1).map((label, i) => {
+                    const v = i + 1;
+                    const cap = status.returnWeek.rpeCap;
+                    const seg =
+                      v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-white/[0.02] text-app-tx3 line-through opacity-60';
+                    return (
+                      <span
+                        key={label}
+                        className={`relative rounded-lg border py-2 text-center text-[9.5px] font-extrabold uppercase tracking-[0.13em] ${seg}`}
+                      >
+                        {label}
+                        {v === cap && (
+                          <span className={`absolute -top-2 right-1 rounded border bg-[#140f03] px-1 py-px text-[7px] font-extrabold tracking-[0.1em] no-underline ${RPE_CAP_FLAG[v]}`}>
+                            CAP
+                          </span>
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 flex items-baseline justify-between text-[11px]">
+                  <span className="text-app-tx3">Max effort this week</span>
+                  <b className="font-semibold text-acc-ember">Nothing past {RPE_LABELS[status.returnWeek.rpeCap]}</b>
+                </div>
               </div>
-              <div className="mt-2 grid grid-cols-4 gap-1.5">
-                {RPE_LABELS.slice(1).map((label, i) => {
-                  const v = i + 1;
-                  const cap = status.returnWeek.rpeCap;
-                  const seg =
-                    v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-white/[0.02] text-app-tx3 line-through opacity-60';
-                  return (
-                    <span
-                      key={label}
-                      className={`relative rounded-lg border py-2 text-center text-[9.5px] font-extrabold uppercase tracking-[0.13em] ${seg}`}
-                    >
-                      {label}
-                      {v === cap && (
-                        <span className={`absolute -top-2 right-1 rounded border bg-[#140f03] px-1 py-px text-[7px] font-extrabold tracking-[0.1em] no-underline ${RPE_CAP_FLAG[v]}`}>
-                          CAP
-                        </span>
-                      )}
-                    </span>
-                  );
-                })}
-              </div>
-              <div className="mt-2 flex items-baseline justify-between text-[11px]">
-                <span className="text-app-tx3">Max effort this week</span>
-                <b className="font-semibold text-acc-ember">Nothing past {RPE_LABELS[status.returnWeek.rpeCap]}</b>
-              </div>
-            </div>
+            </details>
           </div>
         </section>
       )}
@@ -559,22 +599,27 @@ export default async function Home() {
           className="card-lg pressable flex items-center gap-3 border-acc-teal/30 bg-acc-teal/[0.06] px-4 py-3 shadow-[0_0_24px_-8px_rgba(45,212,191,0.45)] transition-colors hover:border-acc-teal/50"
         >
           <span className="chip flex-shrink-0 border border-acc-teal/40 bg-acc-teal/10 text-acc-teal">⚖ Weigh-in</span>
-          <span className="text-xs text-acc-teal/80">
-            Last weigh-in {daysSinceWeighIn}d ago — log your weight →
-          </span>
+          <span className="text-xs tabular-nums text-acc-teal/80">{daysSinceWeighIn}d ago · log →</span>
         </Link>
       )}
 
       {/* ── Deload warning ──────────────────────────────── */}
       {deloadWarning && status.mode !== 'return' && (
-        <div className="card-lg flex items-start gap-3 border-rpe-hard/30 bg-rpe-hard/[0.07] px-4 py-3.5">
-          <span className="mt-0.5 flex-shrink-0 text-xl leading-none">⚠️</span>
-          <div>
-            <p className="text-sm font-bold text-rpe-hard">Your body is signalling fatigue</p>
-            <p className="mt-0.5 text-xs leading-relaxed text-app-tx2">
+        <div className="card-lg border-rpe-hard/30 bg-rpe-hard/[0.07] px-4 py-3.5">
+          <div className="flex items-center gap-3">
+            <span className="flex-shrink-0 text-xl leading-none">⚠️</span>
+            <p className="text-sm font-bold text-rpe-hard">Fatigue signal</p>
+            <span className="ml-auto flex-shrink-0 text-[11px] tabular-nums text-app-tx2">&gt;50% Hard+ · 14d</span>
+          </div>
+          <details className="group mt-2">
+            <summary className={`${SUMMARY_CHIP} border-rpe-hard/30 text-rpe-hard hover:border-rpe-hard/50 hover:text-rpe-hard`}>
+              More
+              <Chevron />
+            </summary>
+            <p className="mt-2 text-xs leading-relaxed text-app-tx2">
               Over 50% of your sets in the last 2 weeks were Hard or Grind. Consider a lighter session — reduce weights by 40–50% and focus on form.
             </p>
-          </div>
+          </details>
         </div>
       )}
 
@@ -584,13 +629,6 @@ export default async function Home() {
           <p className="section-label">
             {isGymDay ? (hour >= 17 ? 'Tonight’s session' : 'Today’s session') : 'Next session'}
           </p>
-          {suggestedDay && (
-            <span className="text-[11px] text-app-tx3">
-              Day{' '}
-              <b className={`font-bold ${DAY_ACCENT[suggestedDay].accentText}`}>{suggestedDay}</b>
-              {' '}up next
-            </span>
-          )}
         </div>
 
         <div className="space-y-2.5">
@@ -670,7 +708,6 @@ export default async function Home() {
                 </svg>
                 {Math.abs(weightDelta).toFixed(1)} kg
               </b>
-              <span className="text-[10px] text-app-tx3">from {Number(firstWeight.weight!.toFixed(1))}</span>
             </div>
           )}
         </section>
@@ -698,7 +735,6 @@ export default async function Home() {
         ) : (
           <div className="space-y-2">
             {recentWorkouts.map((workout) => {
-              const exerciseNames = Array.from(new Set(workout.sets.map((s) => s.exercise.name)));
               const dayLetter = workout.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
               const vol = workout.sets.reduce((s, set) => s + set.weight * set.reps, 0);
               return (
@@ -722,10 +758,6 @@ export default async function Home() {
 
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold text-app-tx1">{workout.name}</div>
-                    <div className="mt-0.5 truncate text-[11px] text-app-tx3">
-                      {exerciseNames.slice(0, 3).join(' · ')}
-                      {exerciseNames.length > 3 && ` +${exerciseNames.length - 3}`}
-                    </div>
                   </div>
 
                   <div className="ml-4 flex-shrink-0 text-right">
