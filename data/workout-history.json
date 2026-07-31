@@ -1,121 +1,142 @@
 {
-  "exportedAt": "2026-07-30T07:33:50.464Z",
+  "exportedAt": "2026-07-31T07:51:34.116Z",
   "totalWorkouts": 8,
   "totalBodyStats": 5,
   "totalExercises": 19,
+  "totalHealthSamples": 0,
+  "latestWeightSample": null,
   "exercises": [
     {
       "id": "cmo0gr46p000f11byzmt808od",
       "name": "Ab Crunch",
       "category": "CORE",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.170Z"
     },
     {
       "id": "cmpsvzab1000114d5pfwtnq3i",
       "name": "Back Extension",
       "category": "BACK",
+      "pinIncrement": null,
       "createdAt": "2026-05-30T21:52:15.854Z"
     },
     {
       "id": "cmo0gr469000c11byf8hj8hzj",
       "name": "Bicep Curl",
       "category": "ARMS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.154Z"
     },
     {
       "id": "cmo0gr46k000e11by41cdclm9",
       "name": "Cable Face Pull",
       "category": "SHOULDERS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.165Z"
     },
     {
       "id": "cmo0gr44i000111bygug550i3",
       "name": "Chest Press",
       "category": "CHEST",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.091Z"
     },
     {
       "id": "cmpsvzaa3000014d5squs5art",
       "name": "Hip Thrust Machine",
       "category": "LEGS",
+      "pinIncrement": null,
       "createdAt": "2026-05-30T21:52:15.820Z"
     },
     {
       "id": "cmo0gr45m000811bylyejpvpk",
       "name": "Lat Pulldown",
       "category": "BACK",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.131Z"
     },
     {
       "id": "cmo0gr450000411byjly8eyiy",
       "name": "Lateral Raise",
       "category": "SHOULDERS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.109Z"
     },
     {
       "id": "cmo0gr45x000a11bygxz3rzq0",
       "name": "Leg Curl",
       "category": "LEGS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.142Z"
     },
     {
       "id": "cmo0gr44u000311bypxi03ywu",
       "name": "Leg Extension",
       "category": "LEGS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.103Z"
     },
     {
       "id": "cmo0gr447000011byrx817v5l",
       "name": "Leg Press",
       "category": "LEGS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.080Z"
     },
     {
       "id": "cmo0gr45s000911by7xs3v5nq",
       "name": "Mid Row",
       "category": "BACK",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.137Z"
     },
     {
       "id": "cmo0gr456000511byjzz673fg",
       "name": "Pec Fly",
       "category": "CHEST",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.114Z"
     },
     {
       "id": "cmo0gr45h000711byn7tp5i02",
       "name": "Plank",
       "category": "CORE",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.125Z"
     },
     {
       "id": "cmo0gr464000b11byotiuejog",
       "name": "Rear Delt Fly",
       "category": "SHOULDERS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.148Z"
     },
     {
       "id": "cmorlfjby0000ybpqtevxgvkf",
       "name": "Romanian Deadlift",
       "category": "LEGS",
+      "pinIncrement": null,
       "createdAt": "2026-05-04T19:29:29.759Z"
     },
     {
       "id": "cmo0gr44o000211byjdmy1avq",
       "name": "Shoulder Press",
       "category": "SHOULDERS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.097Z"
     },
     {
       "id": "cmo0gr45b000611by7l61s1ss",
       "name": "Standing Calf Raise",
       "category": "LEGS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.120Z"
     },
     {
       "id": "cmo0gr46f000d11byrg1aizdn",
       "name": "Triceps Extension",
       "category": "ARMS",
+      "pinIncrement": null,
       "createdAt": "2026-04-15T19:48:45.159Z"
     }
   ],
@@ -126,6 +147,10 @@
       "date": "2026-05-10T00:00:00.000Z",
       "notes": null,
       "duration": 156,
+      "avgHr": null,
+      "maxHr": null,
+      "activeKcal": null,
+      "healthSyncedAt": null,
       "createdAt": "2026-05-10T20:33:59.491Z",
       "sets": [
         {
@@ -141,6 +166,7 @@
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
         },
@@ -157,6 +183,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -173,6 +200,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -189,6 +217,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -205,6 +234,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -221,6 +251,7 @@
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
         },
@@ -237,6 +268,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -253,6 +285,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -269,6 +302,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -285,6 +319,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -301,6 +336,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -317,6 +353,7 @@
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
         }
@@ -328,6 +365,10 @@
       "date": "2026-05-13T00:00:00.000Z",
       "notes": null,
       "duration": 2626,
+      "avgHr": null,
+      "maxHr": null,
+      "activeKcal": null,
+      "healthSyncedAt": null,
       "createdAt": "2026-05-13T20:08:35.483Z",
       "sets": [
         {
@@ -343,6 +384,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -359,6 +401,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -375,6 +418,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -391,6 +435,7 @@
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
@@ -407,6 +452,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -423,6 +469,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -439,6 +486,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -455,6 +503,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -471,6 +520,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -487,6 +537,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -503,6 +554,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -519,6 +571,7 @@
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
@@ -535,6 +588,7 @@
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
@@ -551,6 +605,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -567,6 +622,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -583,6 +639,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -599,6 +656,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -615,6 +673,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         }
@@ -626,6 +685,10 @@
       "date": "2026-05-17T00:00:00.000Z",
       "notes": null,
       "duration": 2591,
+      "avgHr": null,
+      "maxHr": null,
+      "activeKcal": null,
+      "healthSyncedAt": null,
       "createdAt": "2026-05-17T22:43:43.233Z",
       "sets": [
         {
@@ -641,6 +704,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -657,6 +721,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -673,6 +738,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -689,6 +755,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -705,6 +772,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -721,6 +789,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -737,6 +806,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -753,6 +823,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -769,6 +840,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -785,6 +857,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -801,6 +874,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -817,6 +891,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -833,6 +908,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -849,6 +925,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -865,6 +942,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -881,6 +959,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -897,6 +976,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -913,6 +993,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         }
@@ -924,6 +1005,10 @@
       "date": "2026-05-19T00:00:00.000Z",
       "notes": null,
       "duration": 1780,
+      "avgHr": null,
+      "maxHr": null,
+      "activeKcal": null,
+      "healthSyncedAt": null,
       "createdAt": "2026-05-19T20:08:04.218Z",
       "sets": [
         {
@@ -939,6 +1024,7 @@
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
         },
@@ -955,6 +1041,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -971,6 +1058,7 @@
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
@@ -987,6 +1075,7 @@
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.142Z"
           }
         },
@@ -1003,6 +1092,7 @@
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.154Z"
           }
         },
@@ -1019,6 +1109,7 @@
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.159Z"
           }
         },
@@ -1035,6 +1126,7 @@
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
         },
@@ -1051,6 +1143,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -1067,6 +1160,7 @@
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
@@ -1083,6 +1177,7 @@
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.142Z"
           }
         },
@@ -1099,6 +1194,7 @@
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.154Z"
           }
         },
@@ -1115,6 +1211,7 @@
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.159Z"
           }
         },
@@ -1131,6 +1228,7 @@
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.159Z"
           }
         },
@@ -1147,6 +1245,7 @@
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.154Z"
           }
         },
@@ -1163,6 +1262,7 @@
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.142Z"
           }
         },
@@ -1179,6 +1279,7 @@
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
@@ -1195,6 +1296,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -1211,6 +1313,7 @@
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
         }
@@ -1222,6 +1325,10 @@
       "date": "2026-05-23T00:00:00.000Z",
       "notes": null,
       "duration": 2632,
+      "avgHr": null,
+      "maxHr": null,
+      "activeKcal": null,
+      "healthSyncedAt": null,
       "createdAt": "2026-05-23T18:10:35.780Z",
       "sets": [
         {
@@ -1237,6 +1344,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -1253,6 +1361,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -1269,6 +1378,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -1285,6 +1395,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -1301,6 +1412,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -1317,6 +1429,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -1333,6 +1446,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -1349,6 +1463,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -1365,6 +1480,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -1381,6 +1497,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -1397,6 +1514,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -1413,6 +1531,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -1429,6 +1548,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -1445,6 +1565,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -1461,6 +1582,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -1477,6 +1599,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -1493,6 +1616,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         }
@@ -1504,6 +1628,10 @@
       "date": "2026-05-30T00:00:00.000Z",
       "notes": null,
       "duration": 4365,
+      "avgHr": null,
+      "maxHr": null,
+      "activeKcal": null,
+      "healthSyncedAt": null,
       "createdAt": "2026-05-30T18:02:10.301Z",
       "sets": [
         {
@@ -1519,6 +1647,7 @@
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.154Z"
           }
         },
@@ -1535,6 +1664,7 @@
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.142Z"
           }
         },
@@ -1551,6 +1681,7 @@
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
@@ -1567,6 +1698,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -1583,6 +1715,7 @@
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
         },
@@ -1599,6 +1732,7 @@
             "id": "cmo0gr46k000e11by41cdclm9",
             "name": "Cable Face Pull",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.165Z"
           }
         },
@@ -1615,6 +1749,7 @@
             "id": "cmo0gr464000b11byotiuejog",
             "name": "Rear Delt Fly",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.148Z"
           }
         },
@@ -1631,6 +1766,7 @@
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.159Z"
           }
         },
@@ -1647,6 +1783,7 @@
             "id": "cmo0gr46k000e11by41cdclm9",
             "name": "Cable Face Pull",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.165Z"
           }
         },
@@ -1663,6 +1800,7 @@
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
         },
@@ -1679,6 +1817,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -1695,6 +1834,7 @@
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
@@ -1711,6 +1851,7 @@
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.142Z"
           }
         },
@@ -1727,6 +1868,7 @@
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.154Z"
           }
         },
@@ -1743,6 +1885,7 @@
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.159Z"
           }
         },
@@ -1759,6 +1902,7 @@
             "id": "cmo0gr464000b11byotiuejog",
             "name": "Rear Delt Fly",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.148Z"
           }
         },
@@ -1775,6 +1919,7 @@
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.142Z"
           }
         },
@@ -1791,6 +1936,7 @@
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.154Z"
           }
         },
@@ -1807,6 +1953,7 @@
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
             "category": "ARMS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.159Z"
           }
         },
@@ -1823,6 +1970,7 @@
             "id": "cmo0gr464000b11byotiuejog",
             "name": "Rear Delt Fly",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.148Z"
           }
         },
@@ -1839,6 +1987,7 @@
             "id": "cmo0gr46k000e11by41cdclm9",
             "name": "Cable Face Pull",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.165Z"
           }
         },
@@ -1855,6 +2004,7 @@
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
           }
         },
@@ -1871,6 +2021,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -1887,6 +2038,7 @@
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
           }
         }
@@ -1898,6 +2050,10 @@
       "date": "2026-06-16T00:00:00.000Z",
       "notes": null,
       "duration": 1367,
+      "avgHr": null,
+      "maxHr": null,
+      "activeKcal": null,
+      "healthSyncedAt": null,
       "createdAt": "2026-06-16T06:24:57.691Z",
       "sets": [
         {
@@ -1913,6 +2069,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -1929,6 +2086,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -1945,6 +2103,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -1961,6 +2120,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -1977,6 +2137,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -1993,6 +2154,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -2009,6 +2171,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -2025,6 +2188,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
@@ -2041,6 +2205,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -2057,6 +2222,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -2073,6 +2239,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -2089,6 +2256,7 @@
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
             "category": "BACK",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
         }
@@ -2100,6 +2268,10 @@
       "date": "2026-07-29T00:00:00.000Z",
       "notes": null,
       "duration": 2923,
+      "avgHr": null,
+      "maxHr": null,
+      "activeKcal": null,
+      "healthSyncedAt": null,
       "createdAt": "2026-07-29T20:33:52.488Z",
       "sets": [
         {
@@ -2115,6 +2287,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -2131,6 +2304,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -2147,6 +2321,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -2163,6 +2338,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -2179,6 +2355,7 @@
             "id": "cmpsvzaa3000014d5squs5art",
             "name": "Hip Thrust Machine",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-05-30T21:52:15.820Z"
           }
         },
@@ -2195,6 +2372,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -2211,6 +2389,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -2227,6 +2406,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -2243,6 +2423,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         },
@@ -2259,6 +2440,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -2275,6 +2457,7 @@
             "id": "cmpsvzaa3000014d5squs5art",
             "name": "Hip Thrust Machine",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-05-30T21:52:15.820Z"
           }
         },
@@ -2291,6 +2474,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -2307,6 +2491,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -2323,6 +2508,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -2339,6 +2525,7 @@
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
             "category": "CORE",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
@@ -2355,6 +2542,7 @@
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
             "category": "SHOULDERS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
@@ -2371,6 +2559,7 @@
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
@@ -2387,6 +2576,7 @@
             "id": "cmpsvzaa3000014d5squs5art",
             "name": "Hip Thrust Machine",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-05-30T21:52:15.820Z"
           }
         },
@@ -2403,6 +2593,7 @@
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
           }
         },
@@ -2419,6 +2610,7 @@
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
             "category": "LEGS",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
@@ -2435,6 +2627,7 @@
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
             "category": "CHEST",
+            "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
           }
         }
@@ -2448,6 +2641,7 @@
       "weight": 135,
       "waist": null,
       "arms": null,
+      "source": "manual",
       "createdAt": "2026-05-20T02:25:46.207Z"
     },
     {
@@ -2456,6 +2650,7 @@
       "weight": 132,
       "waist": null,
       "arms": null,
+      "source": "manual",
       "createdAt": "2026-05-20T02:26:12.044Z"
     },
     {
@@ -2464,6 +2659,7 @@
       "weight": 131.3,
       "waist": null,
       "arms": null,
+      "source": "manual",
       "createdAt": "2026-05-20T02:25:01.422Z"
     },
     {
@@ -2472,6 +2668,7 @@
       "weight": 130,
       "waist": null,
       "arms": null,
+      "source": "manual",
       "createdAt": "2026-05-28T07:55:35.626Z"
     },
     {
@@ -2480,6 +2677,7 @@
       "weight": 133,
       "waist": null,
       "arms": null,
+      "source": "manual",
       "createdAt": "2026-07-29T19:18:50.843Z"
     }
   ]
