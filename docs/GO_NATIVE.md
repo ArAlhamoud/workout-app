@@ -16,7 +16,11 @@ builds.
 
 ## 2. Copy-paste prompt for local Claude Code
 
-Open a terminal, run `claude`, and paste:
+Open Claude Code **on your Mac** — either works:
+- **Claude desktop app** → start a Claude Code session (a coding session with local file access, not a plain chat)
+- **Terminal** → run `claude`
+
+Then paste:
 
 > Clone ArAlhamoud/workout-app, checkout feature/native-ios, run npm install.
 > If the ios/ folder is missing, run npx cap add ios. Then follow
