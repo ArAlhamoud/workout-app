@@ -75,14 +75,15 @@ export default function Navbar() {
       {/* Fade into deep space behind the bar */}
       <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#05060f] via-[#05060f]/70 to-transparent pointer-events-none" />
       <div className="max-w-lg mx-auto relative px-3 pb-[max(env(safe-area-inset-bottom),0.625rem)]">
-        <LogWorkoutSheet />
         {/* Frosted glass pill */}
         <div className="glass-overlay rounded-[28px] border border-app-border shadow-nav">
           <div className="grid grid-cols-5 h-[62px]">
             <Tab href="/"        label="Home"    icon={<IconHome    active={isHome}    />} active={isHome}    />
             <Tab href="/workouts" label="History" icon={<IconHistory active={isHistory} />} active={isHistory} />
-            {/* Center spacer for FAB */}
-            <div />
+            {/* FAB inline in the bar, per the approved mockup */}
+            <div className="flex items-center justify-center">
+              <LogWorkoutSheet />
+            </div>
             <Tab href="/program" label="Program"  icon={<IconProgram active={isProgram} />} active={isProgram} />
             <Tab href="/stats"   label="Stats"    icon={<IconStats   active={isStats}   />} active={isStats}   />
           </div>

@@ -18,7 +18,7 @@ export default function LogWorkoutSheet() {
       <button
         onClick={() => setOpen(true)}
         aria-label="Log workout"
-        className={`absolute left-1/2 -translate-x-1/2 -top-6 w-[52px] h-[52px] rounded-full flex items-center justify-center transition-all active:scale-90 bg-[conic-gradient(from_200deg,#5eead4,#818cf8,#c084fc,#5eead4)] shadow-[0_0_26px_-4px_rgba(129,140,248,0.85),inset_0_1px_0_rgba(255,255,255,0.5)] ${
+        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all active:scale-90 bg-[conic-gradient(from_200deg,#5eead4,#818cf8,#c084fc,#5eead4)] shadow-[0_0_26px_-4px_rgba(129,140,248,0.85),inset_0_1px_0_rgba(255,255,255,0.5)] ${
           isLog ? 'brightness-110' : 'hover:brightness-110'
         }`}
       >
