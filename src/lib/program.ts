@@ -205,6 +205,32 @@ export function scaleReturnWeight(weight: number, loadPct: number): number {
   return Math.max(2.5, Math.floor((weight * loadPct) / 100 / 2.5) * 2.5);
 }
 
+// ── Gyms ─────────────────────────────────────────────────────
+// Weights are not comparable across gyms: the same exercise sits on a
+// different machine with a different stack in each building. Tagging the
+// session is what lets progression stay honest per machine later.
+export interface Gym {
+  id: string;
+  name: string;
+  note: string;
+}
+
+export const GYMS: Gym[] = [
+  { id: 'bfit', name: 'B_Fit', note: 'Main gym · Life Fitness · Hoist · Hammer Strength' },
+  { id: 'work', name: 'Work',  note: 'Workplace gym' },
+];
+
+export const DEFAULT_GYM_ID = 'bfit';
+
+export function getGym(id: string | null | undefined): Gym | null {
+  if (!id) return null;
+  return GYMS.find((g) => g.id === id) ?? null;
+}
+
+export function gymLabel(id: string | null | undefined): string | null {
+  return getGym(id)?.name ?? null;
+}
+
 export const CARDIO = [
   { rank: 1, name: 'Swimming', badge: 'BEST', desc: 'Zero joint impact. Highest calorie burn. 20–30 min any stroke.' },
   { rank: 2, name: 'Upright Bike', badge: 'GREAT', desc: 'No weight on joints. Best for warm-ups and cardio finishers.' },

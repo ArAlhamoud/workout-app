@@ -39,6 +39,7 @@ export async function getWorkout(id: string) {
 export async function createWorkout(data: {
   name: string;
   date: string;
+  gym?: string;
   notes?: string;
   duration?: number;
   sets: Array<{ exerciseId: string; setNumber: number; reps: number; weight: number; notes?: string; rpe?: number }>;
@@ -47,6 +48,7 @@ export async function createWorkout(data: {
     data: {
       name: data.name,
       date: new Date(data.date),
+      gym: data.gym || null,
       notes: data.notes || null,
       duration: data.duration ?? null,
       sets: { create: data.sets },

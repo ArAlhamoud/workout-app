@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getWorkout } from '../../actions';
 import DeleteButton from '@/components/DeleteButton';
 import { CATEGORY_BADGE, formatDateLong, formatDuration, kgCompact, RPE_LABELS } from '@/lib/format';
+import { gymLabel } from '@/lib/program';
 
 /* Effort spectrum — Easy teal-green, Med amber, Hard orange, Grind magenta */
 const rpeBadge: Record<number, { label: string; cls: string }> = {
@@ -60,7 +61,14 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
               <h1 className="text-xl font-bold font-round tracking-tight leading-tight bg-clip-text text-transparent bg-[linear-gradient(100deg,#ffffff_20%,#c7d2fe_60%,#99f6e4_100%)]">
                 {workout.name}
               </h1>
-              <p className="text-app-tx3 text-sm mt-0.5">{formatDateLong(workout.date)}</p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                <p className="text-app-tx3 text-sm">{formatDateLong(workout.date)}</p>
+                {gymLabel(workout.gym) && (
+                  <span className="chip border border-acc-teal/30 bg-acc-teal/10 text-[9px] uppercase tracking-[0.12em] text-acc-teal">
+                    {gymLabel(workout.gym)}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         </div>

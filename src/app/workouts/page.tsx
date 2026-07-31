@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getWorkouts } from '../actions';
 import { formatDuration, getMondayOfWeek, kgCompact } from '@/lib/format';
+import { DEFAULT_GYM_ID, gymLabel } from '@/lib/program';
 
 export const dynamic = 'force-dynamic';
 
@@ -110,6 +111,13 @@ export default async function WorkoutsPage() {
 
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold text-app-tx1 text-sm truncate">{workout.name}</div>
+                          {/* Only surfaced when away from the default gym — the
+                              exception is the information, not the routine. */}
+                          {workout.gym && workout.gym !== DEFAULT_GYM_ID && gymLabel(workout.gym) && (
+                            <div className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-acc-teal/80">
+                              {gymLabel(workout.gym)}
+                            </div>
+                          )}
                         </div>
 
                         <div className="text-right ml-4 flex-shrink-0">

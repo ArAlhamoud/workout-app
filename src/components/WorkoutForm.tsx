@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createWorkout } from '@/app/actions';
 import RestTimer from './RestTimer';
-import { scaleReturnWeight } from '@/lib/program';
+import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
 
 interface Exercise {
   id: string;
@@ -158,6 +158,7 @@ export default function WorkoutForm({
   const today = localTodayStr();
   const [name, setName] = useState(initialName);
   const [date, setDate] = useState(today);
+  const [gym, setGym] = useState(DEFAULT_GYM_ID);
   const [notes, setNotes] = useState('');
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
     buildBlocks(initialExercises, lastSession, returnLoadPct),
@@ -204,6 +205,7 @@ export default function WorkoutForm({
           setName(draft.name ?? initialName);
           setDate(draft.date ?? today);
           setNotes(draft.notes ?? '');
+          if (draft.gym) setGym(draft.gym);
           setBlocks(draft.blocks);
           if (draft.startTime) startRef.current = draft.startTime;
           setDraftRestored(true);
@@ -221,9 +223,9 @@ export default function WorkoutForm({
   // Auto-save draft on every change (skips until draft check is done)
   useEffect(() => {
     if (!initialized) return;
-    const draft = { savedAt: Date.now(), name, date, notes, blocks, startTime: startRef.current };
+    const draft = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current };
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [initialized, name, date, notes, blocks]);
+  }, [initialized, name, date, gym, notes, blocks]);
 
   // Auto-dismiss draft restored banner after 4s
   useEffect(() => {
@@ -251,6 +253,7 @@ export default function WorkoutForm({
     localStorage.removeItem(DRAFT_KEY);
     setName(initialName);
     setDate(today);
+    setGym(DEFAULT_GYM_ID);
     setNotes('');
     setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct));
     startRef.current = Date.now();
@@ -489,6 +492,7 @@ export default function WorkoutForm({
       const { id } = await createWorkout({
         name: name.trim(),
         date: date || localTodayStr(),
+        gym,
         notes: fullNotes || undefined,
         duration: Math.floor((Date.now() - startRef.current) / 1000),
         sets: setsToSave,
@@ -581,6 +585,28 @@ export default function WorkoutForm({
               placeholder="Notes (optional)"
               className={inputCls}
             />
+          </div>
+
+          {/* Which gym — weights are only comparable within one building */}
+          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${GYMS.length}, minmax(0, 1fr))` }}>
+            {GYMS.map((g) => {
+              const active = g.id === gym;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setGym(g.id)}
+                  aria-pressed={active}
+                  className={`pressable min-h-[44px] rounded-card border px-3 py-2 text-sm font-semibold transition-all ${
+                    active
+                      ? 'border-acc-teal/60 bg-gradient-to-br from-acc-teal/20 to-acc-teal-deep/10 text-teal-100 shadow-[0_0_18px_-5px_rgba(45,212,191,0.6)]'
+                      : 'border-app-border bg-white/[0.04] text-app-tx2 hover:border-app-border-hi hover:text-app-tx1'
+                  }`}
+                >
+                  {g.name}
+                </button>
+              );
+            })}
           </div>
           <div>
             <p className="text-app-tx3 text-xs mb-1.5">How do you feel?</p>
