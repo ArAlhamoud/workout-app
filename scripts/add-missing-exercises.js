@@ -2,9 +2,13 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
+// Idempotent: only creates what the database is missing. Hip Thrust Machine
+// stays listed but is no longer in the program — B_Fit has no such machine, so
+// Day A uses Hip Abduction instead.
 const exercises = [
   { name: 'Hip Thrust Machine', category: 'LEGS' },
   { name: 'Back Extension', category: 'BACK' },
+  { name: 'Hip Abduction', category: 'LEGS' },
 ];
 
 async function main() {
