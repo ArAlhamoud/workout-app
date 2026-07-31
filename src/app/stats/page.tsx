@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getBodyStats, getWorkouts } from '../actions';
 import BodyStatForm from '@/components/BodyStatForm';
+import NativeHealthCard from '@/components/NativeHealthCard';
 import DeleteBodyStatButton from '@/components/DeleteBodyStatButton';
 import { effortDistribution, weeklyReport, type EffortDistribution, type Rpe } from '@/lib/coach';
 import { getTrainingStatus } from '@/lib/program';
@@ -381,6 +382,9 @@ export default async function StatsPage() {
           Progress
         </h1>
       </div>
+
+      {/* Apple Health sync — only visible inside the native iOS shell */}
+      <NativeHealthCard />
 
       {/* Coach report */}
       {workouts.length > 0 && (
