@@ -32,42 +32,42 @@ export default function WorkoutComplete({
   if (!visible) return null;
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-green-950/60 to-green-900/30 border border-green-700/50 px-4 py-4 animate-in fade-in slide-in-from-top-2 duration-500">
+    <div className="card-lg border-acc-teal/30 shadow-glow-teal px-4 py-4 animate-fade-in">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-green-400 text-xs font-bold uppercase tracking-widest mb-1">
+          <p className="text-acc-teal text-xs font-bold uppercase tracking-widest mb-1">
             Workout Complete
           </p>
-          <p className="text-white font-black text-xl leading-tight">Great work! 💪</p>
+          <p className="glow-teal font-round font-bold text-xl leading-tight">Great work! 💪</p>
           <div className="flex items-center gap-3 mt-2 flex-wrap">
-            <span className="text-green-300 text-sm">{exerciseCount} exercises</span>
-            <span className="text-green-600 text-sm">·</span>
-            <span className="text-green-300 text-sm">{setCount} sets</span>
+            <span className="text-app-tx2 text-sm tabular-nums">{exerciseCount} exercises</span>
+            <span className="text-app-tx3 text-sm">·</span>
+            <span className="text-app-tx2 text-sm tabular-nums">{setCount} sets</span>
             {volume > 0 && (
               <>
-                <span className="text-green-600 text-sm">·</span>
-                <span className="text-green-300 text-sm">
+                <span className="text-app-tx3 text-sm">·</span>
+                <span className="text-app-tx2 text-sm tabular-nums">
                   {volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : volume.toLocaleString()} kg
                 </span>
               </>
             )}
             {duration && (
               <>
-                <span className="text-green-600 text-sm">·</span>
-                <span className="text-green-300 text-sm">{formatDuration(duration)}</span>
+                <span className="text-app-tx3 text-sm">·</span>
+                <span className="text-app-tx2 text-sm tabular-nums">{formatDuration(duration)}</span>
               </>
             )}
           </div>
           <Link
             href="/stats"
-            className="inline-block mt-2 text-xs text-green-500 hover:text-green-400 transition-colors"
+            className="inline-block mt-2 text-xs text-acc-teal hover:text-[#99f6e4] transition-colors"
           >
             Log your weight →
           </Link>
         </div>
         <button
           onClick={() => setVisible(false)}
-          className="text-green-700 hover:text-green-400 transition-colors text-xl leading-none flex-shrink-0 mt-0.5"
+          className="text-app-tx3 hover:text-app-tx1 transition-colors text-xl leading-none flex-shrink-0 mt-0.5"
         >
           ×
         </button>

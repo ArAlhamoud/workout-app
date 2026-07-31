@@ -32,11 +32,14 @@ export default function WorkoutDraftBanner() {
   return (
     <Link
       href="/workouts/new"
-      className="fixed bottom-[60px] left-0 right-0 z-40 bg-teal-600/95 backdrop-blur-sm text-white text-sm font-semibold py-2.5 px-4 flex items-center justify-center gap-2.5 max-w-lg mx-auto"
+      className="fixed bottom-[calc(88px+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex justify-center px-4"
     >
-      <span className="w-2 h-2 rounded-full bg-white animate-pulse flex-shrink-0" />
-      <span className="truncate">{draftName} in progress</span>
-      <span className="text-teal-100 text-xs flex-shrink-0">· Tap to resume</span>
+      {/* Frosted glass pill · teal glow */}
+      <span className="glass-overlay flex items-center gap-2.5 max-w-full rounded-full border border-acc-teal/30 shadow-glow-teal px-4 py-2.5 text-sm font-semibold text-app-tx1 pressable">
+        <span className="w-2 h-2 rounded-full bg-acc-teal shadow-glow-teal motion-safe:animate-pulse flex-shrink-0" />
+        <span className="truncate glow-teal">{draftName} in progress</span>
+        <span className="text-app-tx2 text-xs flex-shrink-0">· Tap to resume</span>
+      </span>
     </Link>
   );
 }

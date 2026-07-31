@@ -8,7 +8,7 @@ import WorkoutDraftBanner from '@/components/WorkoutDraftBanner';
 const inter = Inter({ subsets: ['latin'] });
 
 export const viewport: Viewport = {
-  themeColor: '#0A0F1E',
+  themeColor: '#05060f',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -34,6 +34,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${inter.className} bg-app-bg text-app-tx1 min-h-screen`}>
+        {/* Aurora backdrop — single fixed layer behind the scrolling app */}
+        <div className="aurora-sky" aria-hidden="true" />
         <main className="mx-auto px-4 pt-5 pb-32 max-w-lg">
           {children}
         </main>

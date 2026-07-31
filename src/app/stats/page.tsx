@@ -10,15 +10,23 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: 'Progress' };
 
+/* Effort spectrum — Easy=teal, Med=amber, Hard=orange, Grind=magenta */
 const RPE_BAR_COLORS: Record<Rpe, string> = {
-  1: 'bg-green-400',
-  2: 'bg-yellow-400',
-  3: 'bg-orange-400',
-  4: 'bg-red-400',
+  1: 'bg-rpe-easy',
+  2: 'bg-rpe-med',
+  3: 'bg-rpe-hard',
+  4: 'bg-rpe-grind',
+};
+/* Lit rungs of the effort-ceiling ladder */
+const RPE_RUNG_LIT: Record<Rpe, string> = {
+  1: 'border-rpe-easy/40 bg-rpe-easy/10 text-rpe-easy',
+  2: 'border-rpe-med/40 bg-rpe-med/10 text-rpe-med',
+  3: 'border-rpe-hard/40 bg-rpe-hard/10 text-rpe-hard',
+  4: 'border-rpe-grind/40 bg-rpe-grind/10 text-rpe-grind',
 };
 const RPE_VALUES: Rpe[] = [1, 2, 3, 4];
 
-function EffortBalanceRow({ effort }: { effort: EffortDistribution }) {
+function EffortBalanceRow({ effort, rpeCap }: { effort: EffortDistribution; rpeCap: number | null }) {
   if (!effort.total) {
     return <p className="text-app-tx3 text-xs">Tag your sets with RPE to see effort balance.</p>;
   }
@@ -35,16 +43,52 @@ function EffortBalanceRow({ effort }: { effort: EffortDistribution }) {
           ) : null,
         )}
       </div>
-      <div className="flex items-center gap-3 mt-2 flex-wrap">
-        {RPE_VALUES.map((r) => (
-          <span key={r} className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${RPE_BAR_COLORS[r]}`} />
-            <span className="text-[10px] text-app-tx3">
-              {RPE_LABELS[r]} {Math.round(effort.share[r] * 100)}%
-            </span>
-          </span>
-        ))}
+      {/* Effort-ceiling lockout ladder — doubles as the legend. While the return
+          protocol is active, rungs above the cap sit unlit like locked switches. */}
+      <div className="grid grid-cols-4 gap-1.5 mt-3">
+        {RPE_VALUES.map((r) => {
+          const locked = rpeCap !== null && r > rpeCap;
+          const isCap = rpeCap === r;
+          return (
+            <div
+              key={r}
+              className={`relative rounded-lg border px-1 py-1.5 text-center ${
+                locked ? 'border-app-border/70' : RPE_RUNG_LIT[r]
+              }`}
+            >
+              {isCap && (
+                <span className="absolute -top-2 right-1 text-[7.5px] font-extrabold tracking-[0.1em] px-1 py-px rounded-sm text-[#1a1206] bg-acc-ember shadow-glow-ember">
+                  CAP
+                </span>
+              )}
+              <div
+                className={`text-[9px] font-bold uppercase tracking-[0.14em] ${
+                  locked ? 'text-app-tx3/60 line-through' : ''
+                }`}
+              >
+                {RPE_LABELS[r]}
+              </div>
+              <div
+                className={`text-[10px] tabular-nums mt-0.5 ${
+                  locked ? 'text-app-tx3/60' : 'text-app-tx2'
+                }`}
+              >
+                {Math.round(effort.share[r] * 100)}%
+              </div>
+            </div>
+          );
+        })}
       </div>
+      {rpeCap !== null && (
+        <div className="flex items-center justify-between mt-2.5">
+          <span className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-acc-ember/90">
+            We rebuild. We don&rsquo;t test.
+          </span>
+          <span className="text-[10px] text-app-tx3">
+            Ceiling · <b className="text-acc-ember font-semibold">{RPE_LABELS[rpeCap as Rpe]}</b>
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -95,7 +139,7 @@ function CalendarHeatmap({ workouts }: { workouts: { date: Date }[] }) {
                   title={key}
                   className={`h-4 rounded-sm ${
                     isFuture ? 'bg-app-surface' :
-                    hasWorkout ? 'bg-teal-500' :
+                    hasWorkout ? 'bg-acc-teal-deep shadow-[0_0_7px_rgba(45,212,191,0.55)]' :
                     'bg-app-surface2'
                   } ${isToday ? 'ring-1 ring-white/30' : ''}`}
                 />
@@ -107,7 +151,7 @@ function CalendarHeatmap({ workouts }: { workouts: { date: Date }[] }) {
       <div className="flex items-center justify-end gap-2 mt-2">
         <span className="text-[10px] text-app-tx3">None</span>
         <div className="w-3 h-3 rounded-sm bg-app-surface2" />
-        <div className="w-3 h-3 rounded-sm bg-teal-500" />
+        <div className="w-3 h-3 rounded-sm bg-acc-teal-deep shadow-[0_0_7px_rgba(45,212,191,0.55)]" />
         <span className="text-[10px] text-app-tx3">Workout</span>
       </div>
     </div>
@@ -156,22 +200,36 @@ function BodyWeightChart({ stats }: { stats: { date: Date; weight: number | null
         </linearGradient>
       </defs>
       {yTicks.map((v, i) => (
-        <line key={i} x1={pad.left} y1={cy(v).toFixed(1)} x2={pad.left + pw} y2={cy(v).toFixed(1)} stroke="#1A2138" strokeWidth="1" />
+        <line key={i} x1={pad.left} y1={cy(v).toFixed(1)} x2={pad.left + pw} y2={cy(v).toFixed(1)} stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
       ))}
       {yTicks.map((v, i) => (
-        <text key={i} x={pad.left - 4} y={cy(v) + 3} textAnchor="end" fill="#3D4E6E" fontSize="8">
+        <text key={i} x={pad.left - 4} y={cy(v) + 3} textAnchor="end" fill="rgba(206,213,248,0.45)" fontSize="8">
           {Math.round(v)}
         </text>
       ))}
       <path d={areaPath} fill="url(#bodyGrad)" />
-      <path d={linePath} fill="none" stroke="#2dd4bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      {weighted.map((d, i) => (
-        <circle key={i} cx={cx(i).toFixed(1)} cy={cy(d.weight).toFixed(1)} r="3" fill="#2dd4bf" />
+      <path d={linePath} fill="none" stroke="#5eead4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {weighted.slice(0, -1).map((d, i) => (
+        <circle key={i} cx={cx(i).toFixed(1)} cy={cy(d.weight).toFixed(1)} r="2.4" fill="#5eead4" opacity="0.85" />
       ))}
-      <text x={pad.left} y={H - 2} textAnchor="start" fill="#3D4E6E" fontSize="8">
+      {/* glow dot endpoint — the latest weigh-in is the brightest object */}
+      <circle
+        cx={cx(weighted.length - 1).toFixed(1)}
+        cy={cy(weighted[weighted.length - 1].weight).toFixed(1)}
+        r="7"
+        fill="#5eead4"
+        opacity="0.25"
+      />
+      <circle
+        cx={cx(weighted.length - 1).toFixed(1)}
+        cy={cy(weighted[weighted.length - 1].weight).toFixed(1)}
+        r="3.4"
+        fill="#99f6e4"
+      />
+      <text x={pad.left} y={H - 2} textAnchor="start" fill="rgba(206,213,248,0.45)" fontSize="8">
         {fmt(weighted[0].date)}
       </text>
-      <text x={pad.left + pw} y={H - 2} textAnchor="end" fill="#3D4E6E" fontSize="8">
+      <text x={pad.left + pw} y={H - 2} textAnchor="end" fill="rgba(206,213,248,0.45)" fontSize="8">
         {fmt(weighted[weighted.length - 1].date)}
       </text>
     </svg>
@@ -191,9 +249,10 @@ function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; r
   if (!entries.length) return null;
   const max = Math.max(...entries.map((e) => e.v));
   const label: Record<string, string> = { CHEST: 'Chest', BACK: 'Back', SHOULDERS: 'Shoulders', LEGS: 'Legs', ARMS: 'Arms', CORE: 'Core' };
+  // Per-muscle hues tuned to the aurora palette (indigo→violet→cyan→teal + warm accents)
   const color: Record<string, string> = {
-    CHEST: 'bg-blue-500', BACK: 'bg-violet-500', SHOULDERS: 'bg-cyan-500',
-    LEGS: 'bg-teal-500', ARMS: 'bg-orange-500', CORE: 'bg-rose-500',
+    CHEST: '#818cf8', BACK: '#a78bfa', SHOULDERS: '#67e8f9',
+    LEGS: '#5eead4', ARMS: '#fb923c', CORE: '#fb7185',
   };
   return (
     <div className="space-y-2.5">
@@ -202,8 +261,12 @@ function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; r
           <span className="text-app-tx2 text-xs w-20 flex-shrink-0">{label[cat]}</span>
           <div className="flex-1 bg-app-surface2 rounded-full h-2 overflow-hidden">
             <div
-              className={`h-full rounded-full ${color[cat]}`}
-              style={{ width: `${(v / max) * 100}%` }}
+              className="h-full rounded-full"
+              style={{
+                width: `${(v / max) * 100}%`,
+                background: `linear-gradient(90deg, ${color[cat]}b3, ${color[cat]})`,
+                boxShadow: `0 0 10px -2px ${color[cat]}`,
+              }}
             />
           </div>
           <span className="text-app-tx3 text-xs tabular-nums w-14 text-right flex-shrink-0">
@@ -280,20 +343,30 @@ export default async function StatsPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="pt-1">
-        <h1 className="text-xl font-bold text-app-tx1">Progress</h1>
-        <p className="text-app-tx3 text-sm mt-0.5">Body stats & personal records</p>
+        <h1 className="text-xl font-bold font-round bg-gradient-to-r from-white via-indigo-200 to-teal-200 bg-clip-text text-transparent">
+          Progress
+        </h1>
+        <p className="text-app-tx3 text-sm mt-0.5">The long exposure — body, effort, records</p>
       </div>
 
       {/* Coach report */}
       {workouts.length > 0 && (
         <div className="card-lg p-4">
-          <p className="section-label mb-2">Coach Report</p>
-          <p className="text-app-tx1 font-bold text-sm leading-snug">{report.headline}</p>
+          <p className={`section-label mb-2 ${status.mode === 'return' ? 'text-acc-ember/85' : ''}`}>
+            {status.mode === 'return' ? 'Coach Directive' : 'From the Observatory'}
+          </p>
+          <p
+            className={`font-bold text-sm leading-snug ${
+              status.mode === 'return' ? 'glow-amber' : 'text-app-tx1'
+            }`}
+          >
+            {report.headline}
+          </p>
           {report.wins.length > 0 && (
             <div className="mt-3 space-y-1.5">
               {report.wins.map((win, i) => (
                 <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
-                  <span className="text-teal-400 font-bold flex-shrink-0">✓</span>
+                  <span className="text-acc-teal font-bold flex-shrink-0">✓</span>
                   <span>{win}</span>
                 </p>
               ))}
@@ -303,7 +376,7 @@ export default async function StatsPage() {
             <div className="mt-3 space-y-1.5">
               {report.focus.map((item, i) => (
                 <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
-                  <span className="text-amber-400 font-bold flex-shrink-0">→</span>
+                  <span className="text-rpe-hard font-bold flex-shrink-0">→</span>
                   <span>{item}</span>
                 </p>
               ))}
@@ -311,12 +384,15 @@ export default async function StatsPage() {
           )}
           <div className="mt-4 pt-3 border-t border-app-border">
             <div className="flex items-center justify-between mb-2">
-              <p className="section-label">Effort Balance (4 wk)</p>
+              <p className="section-label">Effort Spectrum · 4 wk</p>
               {effort.total > 0 && (
                 <span className="text-[10px] text-app-tx3">{effort.total} rated sets</span>
               )}
             </div>
-            <EffortBalanceRow effort={effort} />
+            <EffortBalanceRow
+              effort={effort}
+              rpeCap={status.mode === 'return' ? status.returnWeek.rpeCap : null}
+            />
           </div>
         </div>
       )}
@@ -325,20 +401,20 @@ export default async function StatsPage() {
       {latestWeight !== null && (
         <div className="grid grid-cols-3 gap-2">
           <div className="card p-3.5 text-center">
-            <div className="text-xl font-bold text-app-tx1 tabular-nums">{latestWeight} kg</div>
+            <div className="text-xl font-light font-round tabular-nums glow-teal">{latestWeight} kg</div>
             <div className="metric-label">Current</div>
           </div>
           <div className="card p-3.5 text-center">
-            <div className={`text-xl font-bold tabular-nums ${
-              weightChange !== null && weightChange < 0 ? 'text-teal-400' :
-              weightChange !== null && weightChange > 0 ? 'text-red-400' : 'text-app-tx1'
+            <div className={`text-xl font-light font-round tabular-nums ${
+              weightChange !== null && weightChange < 0 ? 'glow-teal' :
+              weightChange !== null && weightChange > 0 ? 'text-rose-400' : 'text-app-tx1'
             }`}>
               {weightChange !== null ? (weightChange > 0 ? `+${weightChange}` : `${weightChange}`) : '—'} kg
             </div>
             <div className="metric-label">Change</div>
           </div>
           <div className="card p-3.5 text-center">
-            <div className="text-xl font-bold text-app-tx1 tabular-nums">{stats.length}</div>
+            <div className="text-xl font-light font-round tabular-nums text-app-tx1">{stats.length}</div>
             <div className="metric-label">Weigh-ins</div>
           </div>
         </div>
@@ -372,8 +448,8 @@ export default async function StatsPage() {
           <div className="card p-4">
             <div className={`metric-value ${
               volChange === null ? 'text-app-tx3' :
-              volChange > 0 ? 'text-teal-400' :
-              volChange < 0 ? 'text-red-400' : 'text-app-tx1'
+              volChange > 0 ? 'text-acc-teal' :
+              volChange < 0 ? 'text-rose-400' : 'text-app-tx1'
             }`}>
               {kgCompact(lastWeekVol)}
               <span className="text-app-tx3 text-sm font-semibold ml-0.5">kg</span>
@@ -394,17 +470,17 @@ export default async function StatsPage() {
         <MuscleVolumeChart workouts={workouts} />
       </div>
 
-      {/* Workout totals */}
+      {/* Workout totals — constellation stats */}
       <div className="card-lg p-4">
-        <p className="section-label mb-4">Workout Totals</p>
+        <p className="section-label mb-4">All-Time Under This Sky</p>
         <div className="grid grid-cols-3 gap-3 text-center">
           {[
-            { value: workouts.length.toString(), label: 'Sessions' },
-            { value: totalSets.toString(), label: 'Sets' },
-            { value: kgCompact(totalVolume), label: 'kg Vol' },
+            { value: workouts.length.toString(), label: 'Sessions', glow: 'glow-violet' },
+            { value: totalSets.toString(), label: 'Sets', glow: 'glow-cyan' },
+            { value: kgCompact(totalVolume), label: 'kg Vol', glow: 'glow-teal' },
           ].map((s) => (
             <div key={s.label}>
-              <div className="text-xl font-bold text-app-tx1 tabular-nums">{s.value}</div>
+              <div className={`text-xl font-light font-round tabular-nums ${s.glow}`}>{s.value}</div>
               <div className="text-[11px] text-app-tx3 mt-0.5">{s.label}</div>
             </div>
           ))}
@@ -436,7 +512,7 @@ export default async function StatsPage() {
                     )}
                   </div>
                   <div className="text-right">
-                    <div className="text-yellow-400 font-bold text-sm tabular-nums">{pr.weight} kg</div>
+                    <div className="glow-gold font-round font-semibold text-sm tabular-nums">{pr.weight} kg</div>
                     {pr.reps > 1 && epley1RM(pr.weight, pr.reps) > pr.weight && (
                       <div className="text-app-tx3 text-xs tabular-nums">~{epley1RM(pr.weight, pr.reps)} kg 1RM</div>
                     )}

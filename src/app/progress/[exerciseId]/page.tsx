@@ -35,15 +35,15 @@ export default async function ProgressPage({ params }: { params: { exerciseId: s
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2">
         <div className="card p-3.5 text-center">
-          <div className="text-xl font-bold text-yellow-400 tabular-nums">{pr > 0 ? `${pr} kg` : '—'}</div>
+          <div className="text-xl font-light font-round tabular-nums glow-gold">{pr > 0 ? `${pr} kg` : '—'}</div>
           <div className="metric-label">Best Lift</div>
         </div>
         <div className="card p-3.5 text-center">
-          <div className="text-xl font-bold text-app-tx1 tabular-nums">{totalSessions}</div>
+          <div className="text-xl font-light font-round tabular-nums text-app-tx1">{totalSessions}</div>
           <div className="metric-label">Sessions</div>
         </div>
         <div className="card p-3.5 text-center">
-          <div className={`text-xl font-bold tabular-nums ${improvement > 0 ? 'text-teal-400' : 'text-app-tx3'}`}>
+          <div className={`text-xl font-light font-round tabular-nums ${improvement > 0 ? 'glow-teal' : 'text-app-tx3'}`}>
             {improvement > 0 ? `+${improvement}%` : '—'}
           </div>
           <div className="metric-label">Improvement</div>
@@ -70,10 +70,12 @@ export default async function ProgressPage({ params }: { params: { exerciseId: s
                 >
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-app-tx1 text-sm font-medium tabular-nums">{h.maxWeight} kg</span>
+                      <span className={`text-sm font-medium tabular-nums ${isPR ? 'glow-gold' : 'text-app-tx1'}`}>
+                        {h.maxWeight} kg
+                      </span>
                       {isPR && (
-                        <span className="text-xs bg-yellow-900/30 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-800/40">
-                          🏆 PR
+                        <span className="text-[10px] font-bold uppercase tracking-[0.12em] bg-acc-gold/10 text-acc-gold px-2 py-0.5 rounded-full border border-acc-gold/30 shadow-glow-gold">
+                          PR
                         </span>
                       )}
                     </div>

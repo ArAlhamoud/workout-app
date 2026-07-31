@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { createExercise } from '@/app/actions';
 
-const inputCls = 'bg-app-surface2 border border-app-border rounded-card px-3 py-2.5 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-teal-500/60 text-sm transition-colors';
+const inputCls = 'bg-app-surface2 border border-app-border rounded-card px-3 py-2.5 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-acc-teal/60 text-sm transition-colors';
 
 export default function ExerciseForm({ categories }: { categories: string[] }) {
   const [name, setName] = useState('');
@@ -45,7 +45,7 @@ export default function ExerciseForm({ categories }: { categories: string[] }) {
         <button
           type="submit"
           disabled={submitting || !name.trim()}
-          className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:bg-app-surface2 disabled:text-app-tx3 text-white text-sm font-semibold rounded-card transition-colors flex-shrink-0"
+          className="px-4 py-2.5 bg-gradient-to-r from-acc-teal to-acc-cyan text-[#062521] shadow-[0_0_20px_-6px_rgba(45,212,191,0.7)] hover:brightness-110 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none text-sm font-bold rounded-card transition-all flex-shrink-0 pressable"
         >
           {submitting ? '...' : 'Add'}
         </button>

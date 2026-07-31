@@ -51,15 +51,17 @@ export default async function WorkoutsPage() {
       {/* Header */}
       <div className="flex items-center justify-between pt-1">
         <div>
-          <h1 className="text-xl font-bold text-app-tx1">History</h1>
-          <p className="text-app-tx3 text-sm mt-0.5">{workouts.length} sessions logged</p>
+          <h1 className="text-xl font-bold font-round tracking-tight bg-clip-text text-transparent bg-[linear-gradient(100deg,#ffffff_20%,#c7d2fe_60%,#99f6e4_100%)]">
+            History
+          </h1>
+          <p className="text-app-tx3 text-sm mt-0.5 tabular-nums">{workouts.length} sessions logged</p>
         </div>
       </div>
 
       {workouts.length === 0 ? (
         <div className="card-lg p-10 text-center border-dashed">
           <p className="text-app-tx2 font-medium mb-1">No sessions yet</p>
-          <Link href="/" className="text-teal-400 text-sm mt-2 inline-block hover:text-teal-300 transition-colors">
+          <Link href="/" className="text-acc-teal text-sm mt-2 inline-block hover:text-teal-200 transition-colors">
             Start from home →
           </Link>
         </div>
@@ -75,7 +77,7 @@ export default async function WorkoutsPage() {
                 {/* Week header */}
                 <div className="flex items-center justify-between mb-2.5">
                   <p className="section-label">{group.label}</p>
-                  <p className="text-[11px] text-app-tx3">
+                  <p className="text-[11px] text-app-tx3 tabular-nums">
                     {group.items.length} session{group.items.length !== 1 ? 's' : ''}
                     {weekVol > 0 && (
                       <span> · {kgCompact(weekVol)} kg</span>
@@ -92,19 +94,19 @@ export default async function WorkoutsPage() {
                       <Link
                         key={workout.id}
                         href={`/workouts/${workout.id}`}
-                        className="flex items-center card px-4 py-3.5 hover:border-white/15 hover:bg-app-surface2/50 active:scale-[0.99] transition-all pressable"
+                        className="flex items-center card px-4 py-3.5 hover:border-app-border-hi hover:bg-app-surface2/50 active:scale-[0.99] transition-all pressable"
                       >
-                        {/* Day badge */}
+                        {/* Day monogram — Day A glows violet, Day B glows teal */}
                         {dayLetter ? (
-                          <span className={`text-[10px] font-black w-7 h-7 rounded-lg flex items-center justify-center mr-3 flex-shrink-0 ${
+                          <span className={`font-round text-[15px] font-extrabold w-9 h-9 rounded-xl border flex items-center justify-center mr-3 flex-shrink-0 ${
                             dayLetter === 'A'
-                              ? 'bg-blue-600/25 text-blue-400'
-                              : 'bg-violet-700/25 text-violet-400'
+                              ? 'bg-acc-violet-deep/15 border-acc-violet/30 glow-violet shadow-glow-violet'
+                              : 'bg-acc-teal-deep/15 border-acc-teal/30 glow-teal shadow-glow-teal'
                           }`}>
                             {dayLetter}
                           </span>
                         ) : (
-                          <span className="w-7 h-7 rounded-lg bg-app-surface2 mr-3 flex-shrink-0" />
+                          <span className="w-9 h-9 rounded-xl bg-app-surface2 border border-app-border mr-3 flex-shrink-0" />
                         )}
 
                         <div className="min-w-0 flex-1">
@@ -117,7 +119,7 @@ export default async function WorkoutsPage() {
 
                         <div className="text-right ml-4 flex-shrink-0">
                           <div className="text-[11px] text-app-tx2">{formatDate(workout.date)}</div>
-                          <div className="text-[11px] text-app-tx3 mt-0.5">
+                          <div className="text-[11px] text-app-tx3 mt-0.5 tabular-nums">
                             {workout.sets.length} sets
                             {totalVolume > 0 && (
                               <span> · {kgCompact(totalVolume)} kg</span>

@@ -27,8 +27,10 @@ export default async function ExercisesPage() {
     <div className="space-y-5">
       {/* Header */}
       <div className="pt-1">
-        <h1 className="text-xl font-bold text-app-tx1">Exercise Library</h1>
-        <p className="text-app-tx3 text-sm mt-0.5">Manage your exercise database</p>
+        <p className="section-label mb-1">Your movements</p>
+        <h1 className="bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text font-round text-2xl font-bold tracking-tight text-transparent">
+          Exercise Library
+        </h1>
       </div>
 
       <ExerciseForm categories={CATEGORIES} />
@@ -37,7 +39,7 @@ export default async function ExercisesPage() {
         <div className="card-lg p-10 text-center border-dashed">
           <p className="text-app-tx2 font-medium mb-1">No exercises yet</p>
           <p className="text-app-tx3 text-sm">
-            Add your first one above, or run <code className="text-teal-400">npm run db:seed</code> to load defaults.
+            Add your first one above, or run <code className="text-acc-teal">npm run db:seed</code> to load defaults.
           </p>
         </div>
       ) : (
@@ -49,7 +51,7 @@ export default async function ExercisesPage() {
               <div key={category} className="card p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className={`chip border ${badgeCls}`}>{category}</span>
-                  <span className="text-[11px] text-app-tx3">
+                  <span className="text-[11px] tabular-nums text-app-tx3">
                     {exs.length} exercise{exs.length !== 1 ? 's' : ''}
                   </span>
                 </div>

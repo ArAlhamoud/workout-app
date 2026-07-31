@@ -23,10 +23,10 @@ export default function InstallPrompt() {
 
   return (
     <div className="fixed bottom-20 left-4 right-4 z-50 max-w-lg mx-auto animate-fade-in">
-      <div className="bg-app-surface border border-app-border rounded-card-lg p-4 shadow-card-lg">
+      <div className="glass-overlay border border-app-border rounded-card-lg p-4 shadow-card-lg">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 bg-app-bg border border-app-border rounded-xl flex items-center justify-center flex-shrink-0">
-            <span className="text-teal-400 font-black text-lg">W</span>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-[#99f6e4] to-[#a5b4fc] shadow-[0_0_20px_-6px_rgba(94,234,212,0.6)]">
+            <span className="text-[#0b1120] font-round font-extrabold text-lg">W</span>
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-app-tx1 font-semibold text-sm">

@@ -110,10 +110,27 @@ export default async function NewWorkoutPage({
     ex.name === 'Plank' ? { ...ex, defaultReps: plankTarget.min } : ex
   );
 
+  // Aurora day accents — Day A glows violet, Day B glows teal.
+  const eyebrowAccent =
+    validDay === 'A' ? 'text-acc-violet/80' : validDay === 'B' ? 'text-acc-teal/80' : '';
+  const titleGradient =
+    validDay === 'A'
+      ? 'bg-gradient-to-r from-white via-[#ddd6fe] to-[#c4b5fd] bg-clip-text text-transparent'
+      : validDay === 'B'
+        ? 'bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text text-transparent'
+        : 'text-app-tx1';
+  const durActive =
+    validDay === 'A'
+      ? 'bg-gradient-to-br from-acc-violet/25 to-acc-violet-deep/10 border-acc-violet/60 text-[#e9e4ff] shadow-glow-violet'
+      : 'bg-gradient-to-br from-acc-teal/25 to-acc-teal-deep/10 border-acc-teal/60 text-[#ccfbf1] shadow-glow-teal';
+
   return (
     <div className="space-y-5">
       <div className="pt-1">
-        <h1 className="text-xl font-bold text-app-tx1">
+        <p className={`section-label ${eyebrowAccent}`}>
+          {validDay ? `Day ${validDay} · Under the lights` : 'Freestyle session'}
+        </p>
+        <h1 className={`text-2xl font-bold font-round tracking-tight mt-0.5 ${titleGradient}`}>
           {validDay ? `Day ${validDay} Workout` : 'Log Workout'}
         </h1>
         <p className="text-app-tx3 text-sm mt-0.5">
@@ -134,12 +151,10 @@ export default async function NewWorkoutPage({
                 <Link
                   key={d}
                   href={`/workouts/new?day=${validDay}&dur=${d}`}
-                  className={`text-center px-3 py-2.5 rounded-card text-sm font-semibold transition-colors pressable ${
+                  className={`card text-center px-3 py-2.5 rounded-card text-sm font-semibold tabular-nums transition-all pressable ${
                     active
-                      ? validDay === 'A'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-violet-700 text-white'
-                      : 'card text-app-tx2 hover:border-white/15 hover:text-app-tx1'
+                      ? durActive
+                      : 'text-app-tx2 hover:border-app-border-hi hover:text-app-tx1'
                   }`}
                 >
                   {d} min
@@ -160,6 +175,7 @@ export default async function NewWorkoutPage({
         returnLoadPct={isReturning ? status.returnWeek.loadPct : undefined}
         returnRpeCap={isReturning ? status.returnWeek.rpeCap : undefined}
         pinIncrements={pinIncrements}
+        dayAccent={validDay}
       />
     </div>
   );

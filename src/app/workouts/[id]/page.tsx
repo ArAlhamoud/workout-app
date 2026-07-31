@@ -4,11 +4,12 @@ import { getWorkout } from '../../actions';
 import DeleteButton from '@/components/DeleteButton';
 import { CATEGORY_BADGE, formatDateLong, formatDuration, kgCompact, RPE_LABELS } from '@/lib/format';
 
+/* Effort spectrum — Easy teal-green, Med amber, Hard orange, Grind magenta */
 const rpeBadge: Record<number, { label: string; cls: string }> = {
-  1: { label: RPE_LABELS[1], cls: 'text-green-400 bg-green-900/30 border-green-800/40' },
-  2: { label: RPE_LABELS[2], cls: 'text-yellow-400 bg-yellow-900/30 border-yellow-800/40' },
-  3: { label: RPE_LABELS[3], cls: 'text-orange-400 bg-orange-900/30 border-orange-800/40' },
-  4: { label: RPE_LABELS[4], cls: 'text-red-400 bg-red-900/30 border-red-800/40' },
+  1: { label: RPE_LABELS[1], cls: 'text-rpe-easy bg-rpe-easy/10 border-rpe-easy/30' },
+  2: { label: RPE_LABELS[2], cls: 'text-rpe-med bg-rpe-med/10 border-rpe-med/30' },
+  3: { label: RPE_LABELS[3], cls: 'text-rpe-hard bg-rpe-hard/10 border-rpe-hard/30' },
+  4: { label: RPE_LABELS[4], cls: 'text-rpe-grind bg-rpe-grind/10 border-rpe-grind/30' },
 };
 
 export default async function WorkoutDetailPage({ params }: { params: { id: string } }) {
@@ -28,9 +29,10 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
   const totalVolume = workout.sets.reduce((sum, s) => sum + s.reps * s.weight, 0);
 
   const dayMatch = workout.name.match(/Day ([AB])/i);
+  const dayLetter = dayMatch?.[1]?.toUpperCase();
   const durMatch = workout.name.match(/(\d+)m/);
-  const logAgainHref = dayMatch
-    ? `/workouts/new?day=${dayMatch[1].toUpperCase()}${durMatch ? `&dur=${durMatch[1]}` : ''}`
+  const logAgainHref = dayLetter
+    ? `/workouts/new?day=${dayLetter}${durMatch ? `&dur=${durMatch[1]}` : ''}`
     : '/workouts/new';
 
   return (
@@ -44,8 +46,23 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
           >
             ← History
           </Link>
-          <h1 className="text-xl font-bold text-app-tx1 leading-tight">{workout.name}</h1>
-          <p className="text-app-tx3 text-sm mt-0.5">{formatDateLong(workout.date)}</p>
+          <div className="flex items-center gap-3">
+            {dayLetter && (
+              <span className={`font-round text-[17px] font-extrabold w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${
+                dayLetter === 'A'
+                  ? 'bg-acc-violet-deep/15 border-acc-violet/30 glow-violet shadow-glow-violet'
+                  : 'bg-acc-teal-deep/15 border-acc-teal/30 glow-teal shadow-glow-teal'
+              }`}>
+                {dayLetter}
+              </span>
+            )}
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold font-round tracking-tight leading-tight bg-clip-text text-transparent bg-[linear-gradient(100deg,#ffffff_20%,#c7d2fe_60%,#99f6e4_100%)]">
+                {workout.name}
+              </h1>
+              <p className="text-app-tx3 text-sm mt-0.5">{formatDateLong(workout.date)}</p>
+            </div>
+          </div>
         </div>
         <DeleteButton workoutId={workout.id} />
       </div>
@@ -53,17 +70,20 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
       {/* Stats row */}
       <div className={`grid gap-2 ${workout.duration ? 'grid-cols-4' : 'grid-cols-3'}`}>
         {[
-          { value: exerciseOrder.length.toString(), label: 'Exercises' },
-          { value: workout.sets.length.toString(), label: 'Sets' },
+          { value: exerciseOrder.length.toString(), label: 'Exercises', accent: 'glow-violet' },
+          { value: workout.sets.length.toString(), label: 'Sets', accent: 'glow-cyan' },
           {
             value: kgCompact(totalVolume),
             label: 'kg Vol',
+            accent: 'glow-teal',
           },
-          ...(workout.duration ? [{ value: formatDuration(workout.duration), label: 'Duration' }] : []),
+          ...(workout.duration
+            ? [{ value: formatDuration(workout.duration), label: 'Duration', accent: 'text-app-tx1' }]
+            : []),
         ].map((s) => (
           <div key={s.label} className="card p-3 text-center">
-            <div className="text-lg font-bold text-app-tx1 tabular-nums">{s.value}</div>
-            <div className="text-[11px] text-app-tx3 mt-0.5">{s.label}</div>
+            <div className={`text-xl font-light font-round tabular-nums ${s.accent}`}>{s.value}</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.11em] text-app-tx3 mt-0.5">{s.label}</div>
           </div>
         ))}
       </div>
@@ -89,7 +109,7 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
               <div className="flex items-center justify-between px-4 py-3 border-b border-app-border">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="font-semibold text-app-tx1 text-sm truncate">{exercise.name}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full border flex-shrink-0 font-bold ${colorClass}`}>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border flex-shrink-0 font-bold uppercase tracking-[0.08em] ${colorClass}`}>
                     {exercise.category}
                   </span>
                 </div>
@@ -165,8 +185,13 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
                     <p className="text-app-tx3 text-xs mt-0.5">{t.note}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <span className={`text-sm font-bold tabular-nums ${
-                      t.next > t.current ? 'text-teal-400' : t.next < t.current ? 'text-red-400' : 'text-app-tx2'
+                    {/* raise = teal glow · hold = neutral · drop = magenta */}
+                    <span className={`text-sm font-semibold font-round tabular-nums ${
+                      t.next > t.current
+                        ? 'glow-teal'
+                        : t.next < t.current
+                          ? 'text-rpe-grind [text-shadow:0_0_14px_rgba(244,63,94,0.4)]'
+                          : 'text-app-tx2'
                     }`}>
                       {t.next} kg
                     </span>

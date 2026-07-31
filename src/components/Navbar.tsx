@@ -47,20 +47,14 @@ function Tab({ href, label, icon, active }: { href: string; label: string; icon:
   return (
     <Link
       href={href}
-      className="flex flex-col items-center justify-center gap-1 relative transition-all active:scale-95"
+      className={`flex flex-col items-center justify-center gap-1 rounded-[20px] my-1.5 mx-1 transition-all duration-200 active:scale-95 ${
+        active ? 'text-[#99f6e4] bg-acc-teal/10' : 'text-app-tx3 hover:text-app-tx2'
+      }`}
     >
-      {/* Teal top indicator bar */}
-      <span
-        className={`absolute top-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all duration-300 ${
-          active ? 'w-6 bg-teal-400' : 'w-0 bg-transparent'
-        }`}
-      />
-      <div className={`transition-all duration-200 ${active ? 'text-teal-400 scale-110' : 'text-app-tx3 hover:text-app-tx2'}`}>
+      <div className={active ? '[filter:drop-shadow(0_0_6px_rgba(94,234,212,0.8))]' : ''}>
         {icon}
       </div>
-      <span className={`text-[9px] font-bold tracking-widest uppercase transition-colors duration-200 ${
-        active ? 'text-teal-400' : 'text-app-tx3'
-      }`}>
+      <span className="text-[9px] font-bold tracking-widest uppercase">
         {label}
       </span>
     </Link>
@@ -78,11 +72,13 @@ export default function Navbar() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50">
-      <div className="max-w-lg mx-auto relative">
+      {/* Fade into deep space behind the bar */}
+      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#05060f] via-[#05060f]/70 to-transparent pointer-events-none" />
+      <div className="max-w-lg mx-auto relative px-3 pb-[max(env(safe-area-inset-bottom),0.625rem)]">
         <LogWorkoutSheet />
-        {/* Frosted glass bar */}
-        <div className="bg-app-surface/95 backdrop-blur-xl border-t border-app-border">
-          <div className="grid grid-cols-5 h-[60px]">
+        {/* Frosted glass pill */}
+        <div className="glass-overlay rounded-[28px] border border-app-border shadow-nav">
+          <div className="grid grid-cols-5 h-[62px]">
             <Tab href="/"        label="Home"    icon={<IconHome    active={isHome}    />} active={isHome}    />
             <Tab href="/workouts" label="History" icon={<IconHistory active={isHistory} />} active={isHistory} />
             {/* Center spacer for FAB */}

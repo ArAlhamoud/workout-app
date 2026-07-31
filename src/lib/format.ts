@@ -41,17 +41,18 @@ export function epley1RM(weight: number, reps: number): number {
 /** Index by RPE value 1–4 (index 0 unused). */
 export const RPE_LABELS = ['', 'Easy', 'Med', 'Hard', 'Grind'] as const;
 
-/** Text color classes by RPE value 1–4 (index 0 unused). */
-export const RPE_COLORS = ['', 'text-green-400', 'text-yellow-400', 'text-orange-400', 'text-red-400'] as const;
+/** Effort-spectrum text classes by RPE value 1–4 (index 0 unused). */
+export const RPE_COLORS = ['', 'text-rpe-easy', 'text-rpe-med', 'text-rpe-hard', 'text-rpe-grind'] as const;
 
-/** Category badge classes (text + bg + border), as used on the workout detail page. */
+/** Category badge classes (text + bg + border), tuned to the aurora hues.
+ *  Amber is reserved for the Return Protocol and gold for PRs — never used here. */
 export const CATEGORY_BADGE: Record<string, string> = {
-  CHEST:     'text-blue-400 bg-blue-900/30 border-blue-800/40',
-  BACK:      'text-violet-400 bg-violet-900/30 border-violet-800/40',
-  LEGS:      'text-teal-400 bg-teal-900/30 border-teal-800/40',
-  SHOULDERS: 'text-yellow-400 bg-yellow-900/30 border-yellow-800/40',
-  ARMS:      'text-orange-400 bg-orange-900/30 border-orange-800/40',
-  CORE:      'text-pink-400 bg-pink-900/30 border-pink-800/40',
+  CHEST:     'text-acc-violet bg-acc-violet-deep/15 border-acc-violet/30',
+  BACK:      'text-acc-teal bg-acc-teal-deep/15 border-acc-teal/30',
+  LEGS:      'text-acc-cyan bg-acc-cyan/10 border-acc-cyan/30',
+  SHOULDERS: 'text-indigo-300 bg-acc-indigo/15 border-indigo-400/30',
+  ARMS:      'text-emerald-300 bg-emerald-500/10 border-emerald-400/30',
+  CORE:      'text-fuchsia-300 bg-fuchsia-500/10 border-fuchsia-400/30',
 };
 
 /** Compact kg volume: "1.2k" at ≥1000, otherwise "850". */

@@ -115,15 +115,18 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
   return (
     <div className="fixed bottom-16 left-0 right-0 z-50 px-4 pointer-events-none">
       <div className="max-w-lg mx-auto pointer-events-auto">
+        {/* Glass capsule — floats above the nav, glows teal when the rest is up */}
         <div
-          className={`rounded-card-lg border shadow-card overflow-hidden transition-colors duration-500 ${
-            finished ? 'bg-green-950 border-green-700' : 'bg-app-surface border-app-border'
+          className={`glass-overlay rounded-card-lg border overflow-hidden transition-colors duration-500 ${
+            finished ? 'border-acc-teal/50 shadow-glow-teal' : 'border-app-border-hi shadow-nav'
           }`}
         >
-          <div className="h-1.5 bg-app-surface2">
+          <div className="h-1.5 bg-white/10">
             <div
               className={`h-full transition-all duration-1000 ease-linear ${
-                finished ? 'bg-green-500' : 'bg-blue-500'
+                finished
+                  ? 'bg-acc-teal shadow-[0_0_12px_rgba(45,212,191,0.9)]'
+                  : 'bg-gradient-to-r from-acc-teal via-acc-cyan to-[#818cf8] shadow-[0_0_12px_rgba(45,212,191,0.8)]'
               }`}
               style={{ width: `${pct}%` }}
             />
@@ -132,14 +135,14 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
           <div className="flex items-center justify-between px-4 py-3 gap-4">
             {finished ? (
               <div>
-                <p className="text-green-400 font-bold text-base">Rest complete! 💪</p>
-                <p className="text-green-600 text-xs mt-0.5">Next set of {exerciseName}</p>
+                <p className="glow-teal font-bold text-base">Rest complete! 💪</p>
+                <p className="text-app-tx2 text-xs mt-0.5">Next set of {exerciseName}</p>
               </div>
             ) : (
               <div>
                 <p className="text-app-tx2 text-xs mb-0.5">Resting · {exerciseName}</p>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-app-tx1 font-mono font-bold text-3xl tabular-nums leading-none">
+                  <span className="glow-teal font-round font-light text-4xl tabular-nums leading-none">
                     {timeStr}
                   </span>
                   <span className="text-app-tx3 text-sm">/ {totalSeconds}s</span>
@@ -148,7 +151,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
             )}
             <button
               onClick={onDismiss}
-              className="text-app-tx2 hover:text-app-tx1 text-sm transition-colors px-3 py-2 rounded-card hover:bg-app-surface2 flex-shrink-0"
+              className="text-app-tx2 hover:text-app-tx1 text-sm transition-colors px-3 py-2 rounded-card hover:bg-white/5 flex-shrink-0"
             >
               {finished ? 'Done' : 'Skip'}
             </button>
@@ -157,19 +160,19 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
             <div className="px-4 pb-3 flex items-center gap-2">
               <button
                 onClick={() => adjust(-15)}
-                className="text-xs bg-app-surface2 text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-white/15 transition-colors"
+                className="text-xs bg-white/[0.06] text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-app-border-hi transition-colors"
               >
                 −15s
               </button>
               <button
                 onClick={() => adjust(15)}
-                className="text-xs bg-app-surface2 text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-white/15 transition-colors"
+                className="text-xs bg-white/[0.06] text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-app-border-hi transition-colors"
               >
                 +15s
               </button>
               <button
                 onClick={() => adjust(30)}
-                className="text-xs bg-app-surface2 text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-white/15 transition-colors"
+                className="text-xs bg-white/[0.06] text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-app-border-hi transition-colors"
               >
                 +30s
               </button>

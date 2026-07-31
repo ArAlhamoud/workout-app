@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { addBodyStat } from '@/app/actions';
 import { localTodayISO } from '@/lib/format';
 
-const inputCls = 'w-full bg-app-surface2 border border-app-border rounded-card px-3 py-2.5 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-teal-500/60 text-sm transition-colors';
+const inputCls = 'w-full bg-app-surface2 border border-app-border rounded-card px-3 py-2.5 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-acc-teal/60 text-sm transition-colors';
 
 export default function BodyStatForm() {
   const today = localTodayISO();
@@ -63,7 +63,7 @@ export default function BodyStatForm() {
           <button
             type="submit"
             disabled={saving || (!weight && !waist && !arms)}
-            className="px-4 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:bg-app-surface2 disabled:text-app-tx3 text-white text-sm font-semibold rounded-card transition-colors flex-shrink-0"
+            className="px-4 py-2.5 bg-gradient-to-r from-acc-teal to-acc-teal-deep text-[#062521] shadow-glow-teal hover:brightness-105 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none text-sm font-bold rounded-card transition-all flex-shrink-0"
           >
             {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save'}
           </button>
