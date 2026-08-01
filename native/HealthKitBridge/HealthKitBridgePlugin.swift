@@ -88,8 +88,11 @@ public class HealthKitBridgePlugin: CAPPlugin, CAPBridgedPlugin {
         let readTypes: Set<HKObjectType> = [bodyMass, heartRate, activeEnergy, HKObjectType.workoutType()]
         let shareTypes: Set<HKSampleType> = [HKObjectType.workoutType(), activeEnergy]
 
-        healthStore.requestAuthorization(toShare: shareTypes, read: readTypes) { [weak self] success, error in
-            guard let self = self else { return }
+        // NOTE: capture self strongly. With [weak self] a deallocated plugin
+        // makes this closure return without resolving OR rejecting, which hangs
+        // the JS promise forever and leaves the UI stuck on "Connecting…".
+        // The call must always be settled exactly once.
+        healthStore.requestAuthorization(toShare: shareTypes, read: readTypes) { success, error in
             if let error = error {
                 self.rejectOnMain(call, "Health authorization failed: \(error.localizedDescription)", error)
                 return
@@ -129,8 +132,7 @@ public class HealthKitBridgePlugin: CAPPlugin, CAPBridgedPlugin {
             predicate: predicate,
             limit: HKObjectQueryNoLimit,
             sortDescriptors: [sort]
-        ) { [weak self] _, samples, error in
-            guard let self = self else { return }
+        ) { _, samples, error in
             if let error = error {
                 self.rejectOnMain(call, "Weight query failed: \(error.localizedDescription)", error)
                 return
@@ -256,9 +258,8 @@ public class HealthKitBridgePlugin: CAPPlugin, CAPBridgedPlugin {
                         fail("Could not end workout collection: \(error?.localizedDescription ?? "unknown error")", error)
                         return
                     }
-                    builder.finishWorkout { [weak self] workout, error in
-                        guard let self = self else { return }
-                        guard workout != nil else {
+                    builder.finishWorkout { workout, error in
+                                    guard workout != nil else {
                             self.rejectOnMain(call, "Could not save workout: \(error?.localizedDescription ?? "unknown error")", error)
                             return
                         }

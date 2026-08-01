@@ -57,10 +57,29 @@ function getPlugin(): Promise<HealthKitBridgePlugin> {
   return pluginPromise;
 }
 
+/**
+ * A native call that never settles leaves the UI stuck forever with nothing to
+ * debug — a HealthKit completion handler that silently returns produces exactly
+ * that. Every bridge call is bounded so a lost reply surfaces as a real error.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${Math.round(ms / 1000)}s — no reply from HealthKit`)),
+      ms,
+    );
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 /** Pops the iOS Health permission sheet (first call only). */
 export async function requestHealthAuthorization(): Promise<{ granted: boolean }> {
   const plugin = await getPlugin();
-  return plugin.requestAuthorization();
+  // Generous: the sheet stays up while the user reads and toggles categories.
+  return withTimeout(plugin.requestAuthorization(), 90_000, 'Connect Health');
 }
 
 /** Body-mass samples (kg) since the given ISO date; defaults to last 90 days. Ascending. */

@@ -88,8 +88,11 @@ export default function NativeHealthCard() {
       setConnected(granted);
       localStorage.setItem(CONNECTED_KEY, granted ? '1' : '');
       setStatus(granted ? 'Health connected' : 'Permission not granted');
-    } catch {
-      setErrors(['connect failed']);
+    } catch (e) {
+      // Surface the real reason — a generic "failed" chip hides whether the
+      // bridge rejected, timed out, or was never reached at all.
+      setErrors([e instanceof Error ? e.message : 'connect failed']);
+      setStatus('');
     } finally {
       setBusy(null);
     }
