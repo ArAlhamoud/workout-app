@@ -126,6 +126,14 @@ body {
     -webkit-backdrop-filter: blur(24px) saturate(1.6);
     backdrop-filter: blur(24px) saturate(1.6);
   }
+  /* Modal sheets can't rely on .glass-overlay: backdrop-filter silently
+     no-ops inside the Capacitor web view when the element sits in a
+     transformed ancestor, so a 72%-opaque panel let the page behind show
+     straight through — sheet labels collided with page headings and the
+     whole thing was unreadable. Opaque by design, not by blur. */
+  .sheet-surface {
+    background: #0b0e26;
+  }
   .section-label {
     @apply text-[11px] font-bold uppercase tracking-[0.16em] text-app-tx3;
   }

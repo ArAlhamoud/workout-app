@@ -4,6 +4,7 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 import InstallPrompt from '@/components/InstallPrompt';
 import WorkoutDraftBanner from '@/components/WorkoutDraftBanner';
+import DeepLinkHandler from '@/components/DeepLinkHandler';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main className="mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-32 max-w-lg">
           {children}
         </main>
+        <DeepLinkHandler />
         <WorkoutDraftBanner />
         <Navbar />
         <InstallPrompt />

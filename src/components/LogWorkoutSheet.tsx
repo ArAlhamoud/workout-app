@@ -31,7 +31,7 @@ export default function LogWorkoutSheet() {
       {/* Backdrop */}
       {open && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-40 bg-black/70"
           onClick={() => setOpen(false)}
         />
       )}
@@ -42,7 +42,7 @@ export default function LogWorkoutSheet() {
           open ? 'translate-y-0' : 'translate-y-full'
         }`}
       >
-        <div className="glass-overlay rounded-t-card-lg border-t border-app-border shadow-card-lg px-4 pt-5 pb-8">
+        <div className="sheet-surface rounded-t-card-lg border-t border-app-border shadow-card-lg px-4 pt-5 pb-[max(2rem,env(safe-area-inset-bottom))]">
           {/* Handle */}
           <div className="w-10 h-1 bg-white/15 rounded-full mx-auto mb-5" />
 
