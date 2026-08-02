@@ -14,5 +14,12 @@
 	"ios": {
 		"contentInset": "never"
 	},
-	"packageClassList": []
+	"packageClassList": [
+		"KeepAwakePlugin",
+		"AppPlugin",
+		"HapticsPlugin",
+		"LocalNotificationsPlugin",
+		"CAPNetworkPlugin",
+		"PreferencesPlugin"
+	]
 }

@@ -1,5 +1,6 @@
 import UIKit
 import Capacitor
+import UserNotifications
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -7,8 +8,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        requestNotificationAuthorization()
         return true
+    }
+
+    /// Local notifications (rest timers, session reminders) need an OS-level
+    /// grant, and the web Notification API doesn't exist inside WKWebView — so
+    /// the ask has to originate here. Local only: no APNs, no remote push.
+    ///
+    /// iOS shows this sheet once, ever. Declining is not fatal; scheduling
+    /// simply no-ops until the user re-enables it in Settings.
+    private func requestNotificationAuthorization() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if let error = error {
+                print("[Workout] Notification authorization failed: \(error.localizedDescription)")
+            } else {
+                print("[Workout] Notification authorization granted: \(granted)")
+            }
+        }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {
