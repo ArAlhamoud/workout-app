@@ -9,6 +9,7 @@
 // Supported:
 //   workout://start?day=B&dur=30   → /workouts/new?day=B&dur=30
 //   workout://start                → /workouts/new
+//   workout://resume               → /workouts/new (picks the saved draft back up)
 //   workout://stats | history | program | home
 //
 // Anything else is ignored on purpose. A URL scheme is untrusted input — any
@@ -36,6 +37,9 @@ export function routeForDeepLink(raw: string): string | null {
   if (url.protocol !== 'workout:') return null;
 
   const host = url.hostname.toLowerCase();
+
+  // /workouts/new restores the saved draft on mount, so resume needs no params.
+  if (host === 'resume') return '/workouts/new';
 
   if (host === 'start') {
     const day = url.searchParams.get('day')?.toUpperCase();

@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { isNativeApp } from '@/lib/native-health';
+import {
+  cancelRestNotification,
+  hapticSuccess,
+  scheduleRestNotification,
+} from '@/lib/native-feedback';
 
 interface RestTimerProps {
   totalSeconds: number;
@@ -74,32 +79,32 @@ function playRestBeep(): void {
 }
 
 // ── NATIVE SEAM ──────────────────────────────────────────────────────────────
-// scheduleRestAlert / cancelRestAlert are THE only place rest alerts are
-// raised. Today they can do exactly one thing — an in-app WebAudio beep — which
-// requires the app to be foregrounded, because a remote-URL WKWebView has no
-// Notification API, no service-worker notifications and no navigator.vibrate.
+// scheduleRestAlert / cancelRestAlert are THE only place rest alerts are raised.
 //
-// TODO(native): once the Capacitor plugin batch is installed, this is the drop-in:
-//   - @capacitor/local-notifications → schedule({ notifications: [{ id, title,
-//     body, schedule: { at: new Date(Date.now() + seconds * 1000) } }] }) in
-//     scheduleRestAlert, and cancel({ notifications: [{ id }] }) in
-//     cancelRestAlert. That is what makes the alert survive backgrounding.
-//   - @capacitor/haptics → Haptics.notification({ type: NotificationType.Success })
-//     alongside the beep when the app is in the foreground.
-// Both are native-only, so keep the WebAudio beep as the web/PWA fallback and
-// branch on isNativeApp(). Nothing else in this file should need to change.
+// Two layers, because they cover different situations:
+//   - WebAudio beep + haptic: immediate, but only while the app is foregrounded.
+//   - A scheduled local notification: survives backgrounding and a locked
+//     screen, which is where a phone actually is between sets.
+// Both are armed together; the notification is cancelled whenever the deadline
+// moves. Outside the native shell the notification calls no-op and the beep is
+// the whole story, exactly as before.
 
 let alertTimeout: ReturnType<typeof setTimeout> | null = null;
 
 /** Arrange for the rest-over alert to fire `seconds` from now. */
-function scheduleRestAlert(seconds: number): void {
+function scheduleRestAlert(seconds: number, exerciseName?: string): void {
   cancelRestAlert();
   const delayMs = Math.max(0, seconds * 1000);
   const fireAt = Date.now() + delayMs;
+
+  scheduleRestNotification(seconds, exerciseName);
+
   alertTimeout = setTimeout(() => {
     alertTimeout = null;
+    // Woken late (suspended device): the notification already covered it.
     if (Date.now() - fireAt > STALE_ALERT_MS) return;
     playRestBeep();
+    hapticSuccess();
   }, delayMs);
 }
 
@@ -109,6 +114,7 @@ function cancelRestAlert(): void {
     clearTimeout(alertTimeout);
     alertTimeout = null;
   }
+  cancelRestNotification();
 }
 
 function remainingSeconds(endsAt: number): number {
@@ -151,9 +157,9 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
   // Re-armed whenever the deadline moves; cancelled on unmount so a dismissed
   // timer can never beep.
   useEffect(() => {
-    scheduleRestAlert((endsAt - Date.now()) / 1000);
+    scheduleRestAlert((endsAt - Date.now()) / 1000, exerciseName);
     return cancelRestAlert;
-  }, [endsAt]);
+  }, [endsAt, exerciseName]);
 
   const finished = remaining <= 0;
   const imminent = !finished && remaining <= IMMINENT_SECONDS;

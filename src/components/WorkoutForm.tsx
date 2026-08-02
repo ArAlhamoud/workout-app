@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createWorkout } from '@/app/actions';
 import RestTimer from './RestTimer';
 import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
+import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 
 interface Exercise {
   id: string;
@@ -197,6 +198,14 @@ export default function WorkoutForm({
     try { setExerciseNotes(JSON.parse(localStorage.getItem(NOTES_KEY) ?? '{}')); } catch { /* ignore */ }
   }, []);
 
+  // Hold the screen on for the whole session: the phone sits on a bench
+  // between sets, and auto-lock mid-workout means unlocking with chalky hands
+  // to log every set. Released on unmount so it can never leak past the form.
+  useEffect(() => {
+    keepScreenAwake(true);
+    return () => keepScreenAwake(false);
+  }, []);
+
   // Restore draft on mount
   useEffect(() => {
     try {
@@ -344,6 +353,8 @@ export default function WorkoutForm({
       const block = updated.find((b) => b.uid === uid)!;
       const set = block.sets[idx];
       if (set.done) {
+        // Confirm the tap in the hand — you are usually not looking at the phone.
+        hapticTap();
         const exName = exerciseById.get(block.exerciseId)?.name ?? 'exercise';
         if (autoTimer) {
           const restSecs = block.rest ? parseRestSeconds(block.rest) : 90;
@@ -513,6 +524,7 @@ export default function WorkoutForm({
       });
       // Only clear the draft once the save has actually succeeded.
       localStorage.removeItem(DRAFT_KEY);
+      hapticSuccess();
       router.push(`/workouts/${id}?new=1`);
     } catch {
       setError('Failed to save. Please try again.');
