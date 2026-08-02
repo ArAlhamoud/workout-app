@@ -34,16 +34,20 @@ model Workout {
 }
 
 model WorkoutSet {
-  id         String   @id @default(cuid())
-  workoutId  String
-  exerciseId String
-  setNumber  Int
-  reps       Int
-  weight     Float
-  notes      String?
-  rpe        Int?
-  workout    Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
-  exercise   Exercise @relation(fields: [exerciseId], references: [id])
+  id          String    @id @default(cuid())
+  workoutId   String
+  exerciseId  String
+  setNumber   Int
+  reps        Int
+  weight      Float
+  notes       String?
+  rpe         Int?
+  // Wall-clock moment the set was ticked done in the logger. Nullable and
+  // never backfilled: sets saved without ticking (and every historical row)
+  // simply have no stamp. Additive — `prisma db push` adds it with no data loss.
+  completedAt DateTime?
+  workout     Workout   @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise    Exercise  @relation(fields: [exerciseId], references: [id])
 
   @@index([workoutId])
   @@index([exerciseId])

@@ -11,8 +11,10 @@ import {
   combineIncrement,
   detectPlateau,
   effortDistribution,
+  homeVerdict,
   learnPinIncrements,
   nextTarget,
+  phaseForWeek,
   weeklyReport,
   weightTrend,
   type CoachBodyStat,
@@ -165,6 +167,48 @@ assert(report.headline.includes('Return ramp week 1'), `headline reflects return
 assert(report.wins.some((w) => w.includes('on track')), 'weight trend win surfaces');
 assert(report.focus.length > 0, 'focus items present (sessions behind target)');
 assert(report.nextSession.some((n) => n.includes('60%')), 'return guidance carries the 60% load');
+// Report discipline: the default surface is ONE instruction + ≤3 numbers.
+assert(report.instruction.length > 0, 'instruction present on the glance layer');
+assert(report.instruction === report.nextSession[0], 'instruction is the top next-session directive');
+assert(report.numbers.length > 0 && report.numbers.length <= 3, `glance numbers capped at 3 (got ${report.numbers.length})`);
+assert(
+  report.numbers.every((n) => n.label.length > 0 && n.value.length > 0),
+  'every glance number carries a label and a value',
+);
+
+// ── phaseForWeek ─────────────────────────────────────────────
+console.log('phaseForWeek');
+assert(phaseForWeek(1).phase === 'LEARN', 'week 1 → LEARN');
+assert(phaseForWeek(3).phase === 'BUILD', 'week 3 → BUILD (ramp rejoin point)');
+assert(phaseForWeek(7).phase === 'DELOAD', 'week 7 → DELOAD');
+assert(phaseForWeek(12).phase === 'EVALUATE', 'week 12 → EVALUATE');
+
+// ── homeVerdict ──────────────────────────────────────────────
+console.log('homeVerdict');
+const sun = new Date(2026, 7, 2, 12, 0); // Sunday — Day A on the schedule
+const mon = new Date(2026, 7, 3, 12, 0); // Monday — rest
+
+const returnStatus = getTrainingStatus(realDates, day('2026-07-29T12:00:00Z'));
+const vReturn = homeVerdict(returnStatus, 'B', sun);
+assert(vReturn.tone === 'return', 'gym day inside the ramp → ember tone');
+assert(vReturn.lead === 'TRAIN TODAY', 'gym day leads with TRAIN TODAY');
+assert(
+  ['Day B', '60%', 'cap Med'].every((p) => vReturn.parts.includes(p)),
+  `ramp verdict reads "TRAIN TODAY · ${vReturn.parts.join(' · ')}"`,
+);
+assert(vReturn.parts.length <= 3 && vReturn.sub !== null, 'one line plus one sub-line, nothing more');
+
+const vRest = homeVerdict(returnStatus, 'B', mon);
+assert(vRest.tone === 'rest' && vRest.lead === 'REST', 'Monday → REST');
+assert(vRest.parts.join('') === '20 min walk', `rest verdict names the activity (got "${vRest.parts.join('')}")`);
+assert(vRest.day === null, 'rest days carry no day accent');
+
+const vNormal = homeVerdict({ mode: 'normal', week: 3 }, 'A', sun);
+assert(vNormal.tone === 'train' && vNormal.day === 'A', 'past the ramp → day-accent tone, no ember');
+assert(vNormal.parts.includes('Wk 3 BUILD'), `normal verdict carries the phase (got "${vNormal.parts.join(' · ')}")`);
+
+const vNoDay = homeVerdict({ mode: 'normal', week: 3 }, null, sun);
+assert(vNoDay.parts.includes('Day A or B'), 'no history yet → verdict still gives an order');
 
 // ── summary ──────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);

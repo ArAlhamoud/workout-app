@@ -42,7 +42,16 @@ export async function createWorkout(data: {
   gym?: string;
   notes?: string;
   duration?: number;
-  sets: Array<{ exerciseId: string; setNumber: number; reps: number; weight: number; notes?: string; rpe?: number }>;
+  sets: Array<{
+    exerciseId: string;
+    setNumber: number;
+    reps: number;
+    weight: number;
+    notes?: string;
+    rpe?: number;
+    /** ISO instant the set was ticked done in the logger, when it was. */
+    completedAt?: string;
+  }>;
 }) {
   const workout = await prisma.workout.create({
     data: {
@@ -51,7 +60,12 @@ export async function createWorkout(data: {
       gym: data.gym || null,
       notes: data.notes || null,
       duration: data.duration ?? null,
-      sets: { create: data.sets },
+      sets: {
+        create: data.sets.map((s) => ({
+          ...s,
+          completedAt: s.completedAt ? new Date(s.completedAt) : null,
+        })),
+      },
     },
   });
   revalidatePath('/workouts');

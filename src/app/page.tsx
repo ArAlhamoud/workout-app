@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getBodyStats, getWorkouts } from './actions';
-import { SCHEDULE, REST_ACTIVITIES, PROGRESSION, BREAK_THRESHOLD_DAYS, getTrainingStatus, getExerciseCountForDuration, getExercisesForDuration } from '@/lib/program';
+import { SCHEDULE, REST_ACTIVITIES, BREAK_THRESHOLD_DAYS, getTrainingStatus, getExerciseCountForDuration, getExercisesForDuration } from '@/lib/program';
+import { homeVerdict, phaseForWeek, type HomeVerdict } from '@/lib/coach';
 import { formatDuration, formatRelative, getMondayOfWeek, kgCompact, RPE_LABELS, weekKey } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -84,6 +85,67 @@ function Chevron() {
     >
       <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
+  );
+}
+
+/* ── The verdict ─────────────────────────────────────────────
+   First object on the screen: one order, one muted sub-line, nothing else.
+   He wants to be TOLD what to do — this is the line that does it. The skin
+   follows the day accent (A violet · B teal) and only ever burns ember when
+   the return protocol is actually running. */
+function verdictSkin(verdict: HomeVerdict): { shell: string; nebula: string; lead: string; part: string } {
+  if (verdict.tone === 'return') {
+    return {
+      shell: 'border-acc-ember/35 shadow-glow-ember',
+      nebula: 'radial-gradient(300px 150px at 0% 0%, rgba(245,158,11,0.16), transparent 70%)',
+      lead: 'glow-amber',
+      part: 'text-app-tx1',
+    };
+  }
+  if (verdict.tone === 'train') {
+    if (verdict.day) {
+      return {
+        shell: verdict.day === 'A' ? 'border-acc-violet/30 shadow-glow-violet' : 'border-acc-teal/30 shadow-glow-teal',
+        nebula: DAY_ACCENT[verdict.day].nebula,
+        lead: verdict.day === 'A' ? 'glow-violet' : 'glow-teal',
+        part: 'text-app-tx1',
+      };
+    }
+    return {
+      shell: 'border-acc-cyan/30',
+      nebula: 'radial-gradient(300px 150px at 0% 0%, rgba(103,232,249,0.12), transparent 70%)',
+      lead: 'glow-cyan',
+      part: 'text-app-tx1',
+    };
+  }
+  return { shell: '', nebula: '', lead: 'text-app-tx2', part: 'text-app-tx3' };
+}
+
+function VerdictLine({ verdict }: { verdict: HomeVerdict }) {
+  const skin = verdictSkin(verdict);
+  return (
+    <section
+      aria-label="Today’s instruction"
+      className={`card-lg relative overflow-hidden px-4 py-3.5 ${skin.shell}`}
+    >
+      {skin.nebula && (
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-card-lg" style={{ background: skin.nebula }} />
+      )}
+      <p className="relative flex flex-wrap items-baseline gap-x-2 gap-y-1.5 font-round">
+        <span className={`text-[19px] font-extrabold uppercase leading-none tracking-[0.01em] ${skin.lead}`}>
+          {verdict.lead}
+        </span>
+        {verdict.parts.map((part) => (
+          <span key={part} className="flex items-baseline gap-2">
+            <span aria-hidden="true" className="text-[12px] leading-none text-app-tx3">·</span>
+            <span className={`text-[14px] font-semibold leading-none tabular-nums ${skin.part}`}>{part}</span>
+          </span>
+        ))}
+      </p>
+      {verdict.sub && (
+        <p className="relative mt-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3">{verdict.sub}</p>
+      )}
+    </section>
   );
 }
 
@@ -293,11 +355,10 @@ export default async function Home() {
   // Where the lifter actually is: fresh, ramping back after a layoff, or mid-program
   const status = getTrainingStatus(workouts.map((w) => w.date));
   const programWeek = status.week;
-  const currentPhase = PROGRESSION.find((p) => {
-    const parts = p.weeks.split('–').map((s) => parseInt(s.trim()));
-    const [start, end] = parts.length === 2 ? parts : [parts[0], parts[0]];
-    return programWeek >= start && programWeek <= end;
-  }) ?? PROGRESSION[0];
+  const currentPhase = phaseForWeek(programWeek);
+
+  // The one line that tells him what to do today — program + status only.
+  const verdict = homeVerdict(status, suggestedDay);
 
   const phaseColor: Record<string, string> = {
     LEARN:    'bg-white/10 text-app-tx2',
@@ -316,6 +377,9 @@ export default async function Home() {
 
   return (
     <div className="space-y-4">
+
+      {/* ── The verdict — first thing on the screen ─────── */}
+      <VerdictLine verdict={verdict} />
 
       {/* ── Greeting header ─────────────────────────────── */}
       <header className="flex items-end justify-between pt-1">
