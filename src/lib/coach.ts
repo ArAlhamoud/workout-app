@@ -4,7 +4,14 @@
 // history (see scripts/coach-tests.ts).
 
 import { getMondayOfWeek, RPE_LABELS } from './format';
-import { RETURN_PROGRAM, type TrainingStatus } from './program';
+import {
+  getDayTemplate,
+  PROGRESSION,
+  REST_ACTIVITIES,
+  RETURN_PROGRAM,
+  SCHEDULE,
+  type TrainingStatus,
+} from './program';
 
 export interface CoachExercise {
   id: string;
@@ -223,8 +230,104 @@ export function weightTrend(bodyStats: CoachBodyStat[]): WeightTrend {
   return { ema, kgPerWeek, classification, message };
 }
 
+// ── Home verdict ─────────────────────────────────────────────
+// The single instruction line at the top of the home screen. Derived from
+// the program calendar and the training status ALONE — no health or
+// readiness data yet. Readiness signals will refine this later; nothing
+// else should have to change when they do.
+
+/** The PROGRESSION row covering a program week ("3–4" ranges included). */
+export function phaseForWeek(week: number): (typeof PROGRESSION)[number] {
+  return (
+    PROGRESSION.find((p) => {
+      const parts = p.weeks.split('–').map((s) => parseInt(s.trim(), 10));
+      const [start, end] = parts.length === 2 ? parts : [parts[0], parts[0]];
+      return week >= start && week <= end;
+    }) ?? PROGRESSION[0]
+  );
+}
+
+export type VerdictTone = 'return' | 'train' | 'rest';
+
+export interface HomeVerdict {
+  tone: VerdictTone;
+  /** The order itself — "TRAIN TODAY" / "REST". */
+  lead: string;
+  /** Short qualifiers rendered after the lead, separated by "·". */
+  parts: string[];
+  /** At most one muted sub-line; null when the lead says enough. */
+  sub: string | null;
+  /** Queued day, when there is one — drives the Aurora day accent. */
+  day: 'A' | 'B' | null;
+}
+
+/**
+ * Tells him what to do today in one line:
+ *   "TRAIN TODAY · Day B · 60% · cap Med"   (gym day, return ramp)
+ *   "TRAIN TODAY · Day A · Wk 3 BUILD"      (gym day, main program)
+ *   "REST · 20 min walk"                    (rest day)
+ */
+export function homeVerdict(
+  status: TrainingStatus,
+  suggestedDay: 'A' | 'B' | null,
+  now: Date = new Date(),
+): HomeVerdict {
+  const idx = now.getDay();
+
+  if (SCHEDULE[idx]?.type !== 'gym') {
+    let nextGym: string | null = null;
+    for (let i = 1; i <= 7; i++) {
+      const slot = SCHEDULE[(idx + i) % 7];
+      if (slot?.type === 'gym') {
+        nextGym = slot.day;
+        break;
+      }
+    }
+    return {
+      tone: 'rest',
+      lead: 'REST',
+      parts: [REST_ACTIVITIES[idx] ?? 'Full rest & stretch'],
+      sub: nextGym ? `Next gym ${nextGym}${suggestedDay ? ` · Day ${suggestedDay}` : ''}` : null,
+      day: null,
+    };
+  }
+
+  const parts = [suggestedDay ? `Day ${suggestedDay}` : 'Day A or B'];
+
+  if (status.mode === 'return') {
+    parts.push(`${status.returnWeek.loadPct}%`, `cap ${RPE_LABELS[status.returnWeek.rpeCap]}`);
+    return {
+      tone: 'return',
+      lead: 'TRAIN TODAY',
+      parts,
+      sub: `Return week ${status.week} of ${RETURN_PROGRAM.length} · ${status.returnWeek.phase} · ${status.returnWeek.sessions} sessions`,
+      day: suggestedDay,
+    };
+  }
+
+  parts.push(`Wk ${status.week} ${phaseForWeek(status.week).phase}`);
+  return {
+    tone: 'train',
+    lead: 'TRAIN TODAY',
+    parts,
+    sub: suggestedDay ? getDayTemplate(suggestedDay).focus : null,
+    day: suggestedDay,
+  };
+}
+
+/** A glanceable number for the report's default surface. */
+export interface ReportNumber {
+  label: string;
+  value: string;
+}
+
 export interface WeeklyReport {
   headline: string;
+  /** The ONE thing to do next — the only prose the report shows by default. */
+  instruction: string;
+  /** At most three numbers shown beside the instruction. */
+  numbers: ReportNumber[];
+  /** Full prose, for the "Full report" disclosure only. */
   wins: string[];
   focus: string[];
   nextSession: string[];
@@ -265,8 +368,10 @@ export function weeklyReport(
   // Volume week over week
   const thisVol = volume(thisWeek);
   const lastVol = volume(lastWeek);
+  let volPct: number | null = null;
   if (lastVol > 0 && thisVol > 0) {
     const pct = Math.round(((thisVol - lastVol) / lastVol) * 100);
+    volPct = pct;
     if (pct >= 0) wins.push(`Volume up ${pct}% week over week.`);
     else focus.push(`Volume down ${Math.abs(pct)}% week over week.`);
   }
@@ -283,8 +388,9 @@ export function weeklyReport(
 
   // Effort balance (trailing 4 weeks, anchored to the last workout)
   const effort = effortDistribution(workouts);
+  let hardPct: number | null = null;
   if (effort.total >= 6) {
-    const hardPct = Math.round(effort.hardShare * 100);
+    hardPct = Math.round(effort.hardShare * 100);
     if (effort.hardShare > 0.5) {
       focus.push(`${hardPct}% of rated sets in the last 4 weeks were Hard/Grind — dial one pin back where form slips.`);
     } else {
@@ -317,7 +423,23 @@ export function weeklyReport(
     wins.push(`${workouts.length} sessions in the book — consistency is the engine.`);
   }
 
-  return { headline, wins, focus, nextSession };
+  // ── Default surface: one instruction, at most three numbers ──
+  // Everything above stays available for the "Full report" disclosure; this
+  // is only about what the glance layer is allowed to show. No new maths —
+  // every value here was already computed for the prose.
+  const instruction = nextSession[0];
+  const numbers: ReportNumber[] = [{ label: 'Sessions', value: `${sessionsThisWeek}/${targetLabel}` }];
+  if (volPct !== null) {
+    numbers.push({ label: 'Volume', value: `${volPct >= 0 ? '+' : ''}${volPct}%` });
+  }
+  if (hardPct !== null) {
+    numbers.push({ label: 'Hard+', value: `${hardPct}%` });
+  }
+  if (numbers.length < 3 && trend.kgPerWeek !== null) {
+    numbers.push({ label: 'Weight', value: `${trend.kgPerWeek > 0 ? '+' : ''}${trend.kgPerWeek} kg/wk` });
+  }
+
+  return { headline, instruction, numbers: numbers.slice(0, 3), wins, focus, nextSession };
 }
 
 export interface NextTarget {

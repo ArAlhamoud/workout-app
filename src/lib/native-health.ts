@@ -21,6 +21,13 @@ export interface WorkoutStats {
 export interface SaveWorkoutInput {
   startISO: string;
   endISO: string;
+  /**
+   * Active energy for the HKWorkout, kcal. Leave undefined unless the value was
+   * produced by this app and exists nowhere else in Health. Never pass energy
+   * that was READ back out of HealthKit (see queryWorkoutStats.activeKcal):
+   * writing it into a new HKWorkout double-counts a session the Watch already
+   * logged. No energy value is strictly better than a wrong one.
+   */
   kcal?: number;
   name?: string;
 }
@@ -85,7 +92,13 @@ export async function requestHealthAuthorization(): Promise<{ granted: boolean }
   return withTimeout(getPlugin().requestAuthorization(), 90_000, 'Connect Health');
 }
 
-/** Body-mass samples (kg) since the given ISO date; defaults to last 90 days. Ascending. */
+/**
+ * Body-mass samples (kg) since the given ISO date; defaults to last 90 days. Ascending.
+ *
+ * Callers should pass a fixed rolling window, NOT a "last sync" timestamp: a
+ * weigh-in can be entered today but dated last Monday, and a since-last-sync
+ * cursor skips those back-dated samples forever.
+ */
 export async function queryWeight(sinceISO?: string): Promise<WeightSample[]> {
   const { samples } = await withTimeout(
     getPlugin().queryWeight(sinceISO ? { sinceISO } : {}),
@@ -107,4 +120,29 @@ export async function queryWorkoutStats(startISO: string, endISO: string): Promi
 /** Writes a traditional-strength-training HKWorkout to Apple Health. */
 export async function saveWorkout(input: SaveWorkoutInput): Promise<{ saved: boolean }> {
   return withTimeout(getPlugin().saveWorkout(input), 20_000, 'Workout save');
+}
+
+/**
+ * Deep link to the Health app. HealthKit deliberately hides read permissions
+ * from apps — we cannot tell "denied" from "no data", so the only honest move
+ * is to hand the user a door to the Sharing screen and let them look.
+ */
+export const HEALTH_APP_URL = 'x-apple-health://';
+
+/** ISO timestamp N days before now — the lower bound of a rolling sync window. */
+export function windowStartISO(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString();
+}
+
+/** "just now" / "14m ago" / "2h ago" / "3d ago" for a stored sync marker. */
+export function formatSyncAge(iso: string | null): string | null {
+  if (!iso) return null;
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return null;
+  const mins = Math.floor((Date.now() - then) / 60_000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }

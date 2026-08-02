@@ -399,24 +399,23 @@ export default async function StatsPage() {
           >
             {report.headline}
           </p>
-          {/* Glance: the strongest win and the strongest focus — everything else one tap away */}
-          {(report.wins.length > 0 || report.focus.length > 0) && (
-            <div className="mt-3 space-y-1.5">
-              {report.wins.slice(0, 1).map((win, i) => (
-                <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
-                  <span className="text-acc-teal font-bold flex-shrink-0">✓</span>
-                  <span>{win}</span>
-                </p>
-              ))}
-              {report.focus.slice(0, 1).map((item, i) => (
-                <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
-                  <span className="text-rpe-hard font-bold flex-shrink-0">→</span>
-                  <span>{item}</span>
-                </p>
+          {/* Glance: ONE instruction + up to three numbers. Every list the
+              report builds lives behind "Full report" — never on the glance. */}
+          <p className="text-app-tx2 text-xs leading-relaxed flex gap-2 mt-3">
+            <span className="text-acc-teal font-bold flex-shrink-0">→</span>
+            <span>{report.instruction}</span>
+          </p>
+          {report.numbers.length > 0 && (
+            <div className="mt-3 flex">
+              {report.numbers.map((n, i) => (
+                <div key={n.label} className={`flex flex-1 flex-col gap-0.5 ${i > 0 ? 'border-l border-app-border pl-3.5' : ''}`}>
+                  <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{n.value}</b>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">{n.label}</span>
+                </div>
               ))}
             </div>
           )}
-          {(report.wins.length > 1 || report.focus.length > 1 || report.nextSession.length > 0) && (
+          {(report.wins.length > 0 || report.focus.length > 0 || report.nextSession.length > 0) && (
             <Details label="Full report" className="mt-2">
               {report.wins.length > 0 && (
                 <div className="space-y-1.5">

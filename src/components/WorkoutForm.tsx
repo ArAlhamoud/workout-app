@@ -33,6 +33,8 @@ interface SetEntry {
   done: boolean;
   notes: string;
   rpe: number;
+  /** ISO instant the set was ticked done; cleared when it is un-ticked. */
+  completedAt: string | null;
 }
 
 interface ExerciseBlock {
@@ -125,6 +127,7 @@ function buildBlocks(
         done: false,
         notes: '',
         rpe: 0,
+        completedAt: null,
       })),
     };
   });
@@ -276,7 +279,7 @@ export default function WorkoutForm({
         exerciseId: exercises[0].id,
         showCues: false,
         expandedNoteIdx: null,
-        sets: [{ exerciseId: exercises[0].id, setNumber: 1, reps: 10, weight: 0, done: false, notes: '', rpe: 0 }],
+        sets: [{ exerciseId: exercises[0].id, setNumber: 1, reps: 10, weight: 0, done: false, notes: '', rpe: 0, completedAt: null }],
       },
     ]);
   }
@@ -324,10 +327,18 @@ export default function WorkoutForm({
   }
 
   function toggleSetDone(uid: string, idx: number) {
+    const now = new Date().toISOString();
     setBlocks((prev) => {
       const updated = prev.map((b) =>
         b.uid === uid
-          ? { ...b, sets: b.sets.map((s, i) => (i === idx ? { ...s, done: !s.done } : s)) }
+          ? {
+              ...b,
+              sets: b.sets.map((s, i) =>
+                // Stamp the moment the set was ticked; un-ticking clears it so
+                // a mis-tap never leaves a bogus time on the record.
+                i === idx ? { ...s, done: !s.done, completedAt: s.done ? null : now } : s,
+              ),
+            }
           : b,
       );
       const block = updated.find((b) => b.uid === uid)!;
@@ -363,6 +374,7 @@ export default function WorkoutForm({
                   done: false,
                   notes: '',
                   rpe: 0,
+                  completedAt: null,
                 },
               ],
             }
@@ -467,11 +479,13 @@ export default function WorkoutForm({
       sets: b.sets.filter((s) => (anyDone ? s.done : !isEmpty(b, s))),
     }));
     const setsToSave = submitBlocks.flatMap(({ sets }) =>
-      sets.map(({ done: _d, notes: sn, rpe: r, ...rest }, i) => ({
+      sets.map(({ done: _d, notes: sn, rpe: r, completedAt: at, ...rest }, i) => ({
         ...rest,
         setNumber: i + 1,
         notes: sn || undefined,
         rpe: r || undefined,
+        // Untouched sets (and drafts saved before this existed) carry no stamp.
+        completedAt: at ?? undefined,
       })),
     );
     if (!setsToSave.length) { setError('Log at least one set'); return; }
