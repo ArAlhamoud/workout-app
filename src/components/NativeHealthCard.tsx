@@ -287,11 +287,21 @@ export default function NativeHealthCard() {
         </form>
       ) : (
         <div className="flex gap-2">
-          {!connected && (
-            <button onClick={connect} disabled={busy !== null} className={btnCls}>
-              {busy === 'connect' ? 'Connecting…' : 'Connect Health'}
-            </button>
-          )}
+          {/*
+            Always available, even once connected. A native build that widens
+            the requested type set only takes effect when requestAuthorization
+            runs again — and hiding this button made that impossible without
+            deleting the app or reaching for Safari's Web Inspector. iOS shows
+            the sheet only for types you haven't answered, so re-tapping is
+            harmless when there's nothing new.
+          */}
+          <button
+            onClick={connect}
+            disabled={busy !== null}
+            className={connected ? btnGhostCls : btnCls}
+          >
+            {busy === 'connect' ? 'Connecting…' : connected ? 'Recheck access' : 'Connect Health'}
+          </button>
           <button
             onClick={sync}
             disabled={busy !== null}

@@ -16,9 +16,19 @@
 #      different builds — so this verifies the installed binary afterwards.
 #
 # Usage: npm run ios:deploy
+#        npm run ios:deploy -- --fresh   (uninstall first: clears localStorage,
+#                                         so the app comes up in first-run state)
 # Override the target with: WORKOUT_DEVICE_ID=<udid> npm run ios:deploy
+#
+# --fresh wipes the sync token too, and does NOT reset Health permissions —
+# iOS keys those to the bundle ID, not the install.
 
 set -euo pipefail
+
+FRESH=0
+for arg in "$@"; do
+  [ "$arg" = "--fresh" ] && FRESH=1
+done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEVICE="${WORKOUT_DEVICE_ID:-00008140-00184564227B001C}"
@@ -44,6 +54,11 @@ xcodebuild \
 if [ ! -d "$APP" ]; then
   echo "!! Build produced no app bundle at $APP" >&2
   exit 1
+fi
+
+if [ "$FRESH" = "1" ]; then
+  echo "==> Uninstalling first (--fresh)"
+  xcrun devicectl device uninstall app --device "$DEVICE" "$BUNDLE_ID" 2>&1 | tail -1 || true
 fi
 
 echo "==> Installing to $DEVICE"
