@@ -4,14 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "rm -f next.config.ts && prisma generate && next build",
+    "build": "rm -f next.config.ts && prisma generate && prisma db push && next build",
     "db:apply": "prisma db push",
     "start": "next start",
     "lint": "next lint",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "ios:deploy": "bash scripts/ios-deploy.sh"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
