@@ -1,7 +1,7 @@
 // Typed client-side wrapper around the native HealthKitBridge Capacitor
 // plugin (native/HealthKitBridge/). Safe to import anywhere on the web:
 // outside the native iOS shell every call short-circuits via isNativeApp(),
-// and @capacitor/core is only loaded lazily when actually running natively.
+// and the bridge is read off the injected global rather than imported.
 
 export interface WeightSample {
   /** Body mass in kilograms. */
@@ -34,6 +34,7 @@ interface HealthKitBridgePlugin {
 
 interface CapacitorGlobal {
   isNativePlatform?: () => boolean;
+  Plugins?: Record<string, unknown>;
 }
 
 /** True only inside the Capacitor native shell (never in Safari / the PWA). */
@@ -43,18 +44,21 @@ export function isNativeApp(): boolean {
   return !!cap?.isNativePlatform?.();
 }
 
-let pluginPromise: Promise<HealthKitBridgePlugin> | null = null;
-
-function getPlugin(): Promise<HealthKitBridgePlugin> {
-  if (!isNativeApp()) {
-    return Promise.reject(new Error('HealthKit is only available in the native iOS app'));
+/**
+ * Reads the bridge straight off the natively-injected `window.Capacitor.Plugins`
+ * rather than `registerPlugin()` behind a dynamic `import('@capacitor/core')`.
+ * That import was memoised in a module-level promise, so one stalled chunk fetch
+ * left it pending forever and wedged every later call — and because the lookup
+ * was awaited *before* withTimeout() wrapped anything, the timeout never armed.
+ * Synchronous and unmemoised: it either resolves now or throws now.
+ */
+function getPlugin(): HealthKitBridgePlugin {
+  const cap = (window as Window & { Capacitor?: CapacitorGlobal }).Capacitor;
+  const plugin = cap?.Plugins?.HealthKitBridge as HealthKitBridgePlugin | undefined;
+  if (!plugin) {
+    throw new Error('HealthKit is only available in the native iOS app');
   }
-  if (!pluginPromise) {
-    pluginPromise = import('@capacitor/core').then(({ registerPlugin }) =>
-      registerPlugin<HealthKitBridgePlugin>('HealthKitBridge'),
-    );
-  }
-  return pluginPromise;
+  return plugin;
 }
 
 /**
@@ -77,26 +81,30 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
 /** Pops the iOS Health permission sheet (first call only). */
 export async function requestHealthAuthorization(): Promise<{ granted: boolean }> {
-  const plugin = await getPlugin();
   // Generous: the sheet stays up while the user reads and toggles categories.
-  return withTimeout(plugin.requestAuthorization(), 90_000, 'Connect Health');
+  return withTimeout(getPlugin().requestAuthorization(), 90_000, 'Connect Health');
 }
 
 /** Body-mass samples (kg) since the given ISO date; defaults to last 90 days. Ascending. */
 export async function queryWeight(sinceISO?: string): Promise<WeightSample[]> {
-  const plugin = await getPlugin();
-  const { samples } = await plugin.queryWeight(sinceISO ? { sinceISO } : {});
+  const { samples } = await withTimeout(
+    getPlugin().queryWeight(sinceISO ? { sinceISO } : {}),
+    20_000,
+    'Weight query',
+  );
   return samples;
 }
 
 /** Avg/max heart rate + active kcal inside a workout's time window. */
 export async function queryWorkoutStats(startISO: string, endISO: string): Promise<WorkoutStats> {
-  const plugin = await getPlugin();
-  return plugin.queryWorkoutStats({ startISO, endISO });
+  return withTimeout(
+    getPlugin().queryWorkoutStats({ startISO, endISO }),
+    20_000,
+    'Workout stats',
+  );
 }
 
 /** Writes a traditional-strength-training HKWorkout to Apple Health. */
 export async function saveWorkout(input: SaveWorkoutInput): Promise<{ saved: boolean }> {
-  const plugin = await getPlugin();
-  return plugin.saveWorkout(input);
+  return withTimeout(getPlugin().saveWorkout(input), 20_000, 'Workout save');
 }
