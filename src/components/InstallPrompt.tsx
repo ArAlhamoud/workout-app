@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { isNativeApp } from '@/lib/native-health';
 
 export default function InstallPrompt() {
   const [visible, setVisible] = useState(false);
@@ -9,6 +10,11 @@ export default function InstallPrompt() {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js');
     }
+
+    // The Capacitor shell does NOT report display-mode: standalone, so without
+    // this the banner appears inside the installed native app and tells you to
+    // install it — while covering the bottom of every screen.
+    if (isNativeApp()) return;
 
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
