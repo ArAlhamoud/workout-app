@@ -95,40 +95,78 @@ const shareSum = effort.share[1] + effort.share[2] + effort.share[3] + effort.sh
 assert(Math.abs(shareSum - 1) < 1e-9, 'shares sum to 1');
 assert(effort.hardShare >= 0 && effort.hardShare <= 1, 'hardShare within [0,1]');
 
-// ── weightTrend on the real 4 weigh-ins ──────────────────────
+// ── weightTrend ──────────────────────────────────────────────
+// Lane classification is asserted on FIXED series. data/workout-history.json
+// is re-exported by the morning sync bot, so a new weigh-in can legitimately
+// flip the real trend (it did: the 2026-07-29 weigh-in at 133 kg turned the
+// real series from losing to gaining). Pinning a lane to live data tests the
+// bot, not the coach.
 console.log('weightTrend');
-const trend = weightTrend(data.bodyStats);
-// 132 → 130 kg across the 27 days trailing the last weigh-in ≈ -0.52 kg/week.
-assert(trend.classification === 'on_track', `real weigh-ins classify on_track (got ${trend.classification})`);
+const losingStats: CoachBodyStat[] = [
+  { date: '2026-05-01T00:00:00.000Z', weight: 132 },
+  { date: '2026-05-14T00:00:00.000Z', weight: 131 },
+  { date: '2026-05-28T00:00:00.000Z', weight: 130 },
+];
+// 132 → 130 kg across 27 days ≈ -0.52 kg/week.
+const losingTrend = weightTrend(losingStats);
+assert(losingTrend.classification === 'on_track', `132 → 130 over 27 days classifies on_track (got ${losingTrend.classification})`);
 assert(
-  trend.kgPerWeek !== null && trend.kgPerWeek <= -0.5 && trend.kgPerWeek >= -1.3,
-  `kgPerWeek in the fat-loss lane (got ${trend.kgPerWeek})`,
+  losingTrend.kgPerWeek !== null && losingTrend.kgPerWeek <= -0.5 && losingTrend.kgPerWeek >= -1.3,
+  `kgPerWeek in the fat-loss lane (got ${losingTrend.kgPerWeek})`,
 );
-assert(trend.ema !== null && trend.ema > 128 && trend.ema < 135, `EMA is sane (got ${trend.ema})`);
+
+const gainingTrend = weightTrend([
+  { date: '2026-05-01T00:00:00.000Z', weight: 132 },
+  { date: '2026-05-15T00:00:00.000Z', weight: 134 },
+]);
+assert(gainingTrend.classification === 'gaining', `weight going up classifies gaining (got ${gainingTrend.classification})`);
+
+// Live export: only drift-proof invariants.
+const trend = weightTrend(data.bodyStats);
+assert(trend.ema !== null && trend.ema > 100 && trend.ema < 160, `EMA is a plausible bodyweight (got ${trend.ema})`);
+assert(
+  trend.classification !== 'no_data' && trend.kgPerWeek !== null && Number.isFinite(trend.kgPerWeek),
+  `real weigh-ins produce a trend (got ${trend.classification} @ ${trend.kgPerWeek} kg/wk)`,
+);
 assert(weightTrend([]).classification === 'no_data', 'empty stats → no_data');
+assert(weightTrend([data.bodyStats[0]]).classification === 'no_data', 'a single weigh-in → no_data');
 
 // ── session-based return ramp ────────────────────────────────
 console.log('getTrainingStatus (session-based ramp)');
 const realDates = data.workouts.map((w) => new Date(w.date));
 const day = (iso: string) => new Date(iso);
 
-// 43 days since the last real workout → return week 1.
-const s1 = getTrainingStatus(realDates, day('2026-07-29T12:00:00Z'));
-assert(s1.mode === 'return' && s1.week === 1, `real history at 2026-07-29 → return week 1 (got ${s1.mode} w${s1.week})`);
+// Ramp arithmetic runs against a FIXED pre-break block, never the live export.
+// The morning sync bot appends sessions to data/workout-history.json, so a
+// case built as "real history + one more session" silently becomes "+ two"
+// the day that session lands upstream — which is exactly how the 2026-07-29
+// session broke these. Real data still gets a drift-proof smoke check below.
+const preBreak = ['2026-05-10', '2026-05-13', '2026-05-17', '2026-05-19', '2026-05-23', '2026-05-30', '2026-06-16'].map(
+  (d) => day(`${d}T00:00:00Z`),
+);
+
+// Whatever the export holds, a layoff past the threshold resets to week 1.
+const lastReal = new Date(Math.max(...realDates.map((d) => d.getTime())));
+const s0 = getTrainingStatus(realDates, new Date(lastReal.getTime() + 43 * 86400000));
+assert(s0.mode === 'return' && s0.week === 1, `real history + 43 days off → return week 1 (got ${s0.mode} w${s0.week})`);
+
+// 43 days since the last pre-break workout → return week 1.
+const s1 = getTrainingStatus(preBreak, day('2026-07-29T12:00:00Z'));
+assert(s1.mode === 'return' && s1.week === 1, `43 days off at 2026-07-29 → return week 1 (got ${s1.mode} w${s1.week})`);
 
 // Two sessions logged this week, checked a week later → week 2.
-const twoBack = [...realDates, day('2026-07-27T00:00:00Z'), day('2026-07-29T00:00:00Z')];
+const twoBack = [...preBreak, day('2026-07-27T00:00:00Z'), day('2026-07-29T00:00:00Z')];
 const s2 = getTrainingStatus(twoBack, day('2026-08-05T12:00:00Z'));
 assert(s2.mode === 'return' && s2.week === 2, `2 sessions + 7 days → return week 2 (got ${s2.mode} w${s2.week})`);
 
 // Only one session logged → calendar alone must NOT advance the ramp.
-const oneBack = [...realDates, day('2026-07-29T00:00:00Z')];
+const oneBack = [...preBreak, day('2026-07-29T00:00:00Z')];
 const s3 = getTrainingStatus(oneBack, day('2026-08-05T12:00:00Z'));
 assert(s3.mode === 'return' && s3.week === 1, `1 session + 7 days → still week 1 (got ${s3.mode} w${s3.week})`);
 
 // Sessions can't outrun the calendar: 4 sessions in the first week is still week 1.
 const fourFast = [
-  ...realDates,
+  ...preBreak,
   day('2026-07-27T00:00:00Z'),
   day('2026-07-28T00:00:00Z'),
   day('2026-07-29T00:00:00Z'),
@@ -139,7 +177,7 @@ assert(s4.mode === 'return' && s4.week === 1, `4 sessions in 5 days → still we
 
 // 8 sessions across 4+ calendar weeks → ramp complete, normal mode at REJOIN_AT_WEEK.
 const rampDone = [
-  ...realDates,
+  ...preBreak,
   ...['2026-08-02', '2026-08-05', '2026-08-09', '2026-08-12', '2026-08-16', '2026-08-19', '2026-08-23', '2026-08-26'].map(
     (d) => day(`${d}T00:00:00Z`),
   ),
@@ -160,11 +198,18 @@ assert(nextTarget(29, 4, 1.5).weight === 27.5 && nextTarget(29, 4, 1.5).action =
 
 // ── weeklyReport smoke test on real data ─────────────────────
 console.log('weeklyReport');
-const status = getTrainingStatus(realDates, day('2026-07-29T12:00:00Z'));
+const status = getTrainingStatus(preBreak, day('2026-07-29T12:00:00Z'));
 const report = weeklyReport(data.workouts, data.bodyStats, status, day('2026-07-29T12:00:00Z'));
 assert(report.headline.length > 0, 'headline present');
 assert(report.headline.includes('Return ramp week 1'), `headline reflects return week 1 (got "${report.headline}")`);
-assert(report.wins.some((w) => w.includes('on track')), 'weight trend win surfaces');
+// Whatever lane the live weigh-ins are in, the trend has to reach the report.
+assert(
+  [...report.wins, ...report.focus].includes(trend.message),
+  `the live weight trend surfaces (${trend.classification})`,
+);
+// …and the fat-loss lane specifically lands in wins, on a fixed series.
+const losingReport = weeklyReport(data.workouts, losingStats, status, day('2026-07-29T12:00:00Z'));
+assert(losingReport.wins.some((w) => w.includes('on track')), 'weight trend win surfaces');
 assert(report.focus.length > 0, 'focus items present (sessions behind target)');
 assert(report.nextSession.some((n) => n.includes('60%')), 'return guidance carries the 60% load');
 // Report discipline: the default surface is ONE instruction + ≤3 numbers.
@@ -188,7 +233,7 @@ console.log('homeVerdict');
 const sun = new Date(2026, 7, 2, 12, 0); // Sunday — Day A on the schedule
 const mon = new Date(2026, 7, 3, 12, 0); // Monday — rest
 
-const returnStatus = getTrainingStatus(realDates, day('2026-07-29T12:00:00Z'));
+const returnStatus = getTrainingStatus(preBreak, day('2026-07-29T12:00:00Z'));
 const vReturn = homeVerdict(returnStatus, 'B', sun);
 assert(vReturn.tone === 'return', 'gym day inside the ramp → ember tone');
 assert(vReturn.lead === 'TRAIN TODAY', 'gym day leads with TRAIN TODAY');

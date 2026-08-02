@@ -24,7 +24,11 @@ export default function WorkoutComplete({
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
-    if ('vibrate' in navigator) navigator.vibrate([100, 50, 100, 50, 200]);
+    // No navigator.vibrate here: iOS has never implemented it, so inside the
+    // Capacitor WKWebView shell that call was a silent no-op pretending to be
+    // feedback. The card itself is the confirmation. When the native plugin
+    // batch lands, raise the cue through the RestTimer seam
+    // (scheduleRestAlert / @capacitor/haptics) rather than re-adding it here.
     const t = setTimeout(() => setVisible(false), 8000);
     return () => clearTimeout(t);
   }, []);
