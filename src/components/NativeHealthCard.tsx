@@ -15,6 +15,7 @@ import {
 const TOKEN_KEY = 'health-sync-token';
 const LAST_SYNC_KEY = 'health-native-last-sync';
 const CONNECTED_KEY = 'health-native-connected';
+const API_TIMEOUT_MS = 20_000;
 
 interface ApiWorkout {
   id: string;
@@ -57,18 +58,36 @@ export default function NativeHealthCard() {
 
   if (!native) return null;
 
+  // Bounded like the bridge calls: a request that never comes back would
+  // otherwise strand the card on "Syncing…" with nothing to report.
   const api = async (path: string, init?: RequestInit): Promise<unknown> => {
-    const res = await fetch(path, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...(init?.headers ?? {}),
-      },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+    try {
+      const res = await fetch(path, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          ...(init?.headers ?? {}),
+        },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') {
+        throw new Error(`${path} timed out after ${API_TIMEOUT_MS / 1000}s`);
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
   };
+
+  /** Keep the stage name, but carry the real cause so a failure is debuggable. */
+  const reason = (e: unknown, stage: string) =>
+    e instanceof Error && e.message ? `${stage}: ${e.message}` : stage;
 
   const saveToken = (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,8 +140,8 @@ export default function NativeHealthCard() {
         weightsUp = samples.length;
       }
       localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
-    } catch {
-      errs.push('weight sync failed');
+    } catch (e) {
+      errs.push(reason(e, 'weight sync'));
     }
 
     // 2 — un-synced app workouts → HealthKit (+ HR/energy enrichment back to app)
@@ -143,36 +162,37 @@ export default function NativeHealthCard() {
             enrichment.push({ type: 'active_energy', value: stats.activeKcal, unit: 'kcal', date: w.start });
             kcal = stats.activeKcal;
           }
-        } catch {
-          errs.push('stats failed');
+        } catch (e) {
+          errs.push(reason(e, 'stats'));
         }
         try {
           await saveWorkout({ startISO: w.start, endISO, kcal, name: w.name });
           savedIds.push(w.id);
-        } catch {
-          errs.push('save failed');
+        } catch (e) {
+          errs.push(reason(e, 'save'));
         }
       }
 
       if (enrichment.length > 0) {
         try {
           await api('/api/health/import', { method: 'POST', body: JSON.stringify(enrichment) });
-        } catch {
-          errs.push('enrich failed');
+        } catch (e) {
+          errs.push(reason(e, 'enrich'));
         }
       }
       if (savedIds.length > 0) {
         await api('/api/health/workouts', { method: 'POST', body: JSON.stringify({ ids: savedIds }) });
         workoutsUp = savedIds.length;
       }
-    } catch {
-      errs.push('workout sync failed');
+    } catch (e) {
+      errs.push(reason(e, 'workout sync'));
     }
 
     setStatus(
       `${weightsUp} weight${weightsUp === 1 ? '' : 's'} · ${workoutsUp} workout${workoutsUp === 1 ? '' : 's'} ↑`,
     );
-    setErrors(errs);
+    // Per-workout stages run in a loop; one cause shouldn't fill the card.
+    setErrors([...new Set(errs)]);
     setBusy(null);
   };
 
