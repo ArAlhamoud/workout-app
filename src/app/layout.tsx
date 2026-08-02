@@ -13,6 +13,10 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  // Required for env(safe-area-inset-*) to report real values — without it the
+  // native shell draws the header under the status bar and the nav under the
+  // home indicator.
+  viewportFit: 'cover',
 };
 
 export const metadata: Metadata = {
@@ -36,7 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} bg-app-bg text-app-tx1 min-h-screen`}>
         {/* Aurora backdrop — single fixed layer behind the scrolling app */}
         <div className="aurora-sky" aria-hidden="true" />
-        <main className="mx-auto px-4 pt-5 pb-32 max-w-lg">
+        <main className="mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-32 max-w-lg">
           {children}
         </main>
         <WorkoutDraftBanner />
