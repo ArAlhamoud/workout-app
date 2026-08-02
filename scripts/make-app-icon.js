@@ -5,7 +5,11 @@
 const fs = require('fs');
 const zlib = require('zlib');
 
-const S = 1024;
+// Usage: node scripts/make-app-icon.js <out.png> [size]
+// Everything below is in normalised coords, so any size renders identically.
+// The mark sits within radius 0.26 of centre, inside the 0.4 maskable safe
+// zone the web manifest requires for icon-512.png.
+const S = Number(process.argv[3]) || 1024;
 
 // ── palette (from globals.css tokens) ─────────────────────────────
 const BG_LO = [0x05, 0x06, 0x0f]; // --app-bg
