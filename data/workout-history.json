@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-02T07:33:02.536Z",
+  "exportedAt": "2026-08-03T08:30:58.270Z",
   "totalWorkouts": 8,
   "totalBodyStats": 5,
   "totalExercises": 20,
@@ -158,7 +158,8 @@
       "avgHr": null,
       "maxHr": null,
       "activeKcal": null,
-      "healthSyncedAt": null,
+      "healthSyncedAt": "2026-08-02T17:08:47.758Z",
+      "healthWorkoutUuid": null,
       "createdAt": "2026-05-10T20:33:59.491Z",
       "sets": [
         {
@@ -170,6 +171,7 @@
           "weight": 26,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -187,6 +189,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -204,6 +207,7 @@
           "weight": 17.5,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -221,6 +225,7 @@
           "weight": 12.5,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -238,6 +243,7 @@
           "weight": 17.5,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -255,6 +261,7 @@
           "weight": 26,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -272,6 +279,7 @@
           "weight": 12.5,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -289,6 +297,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -306,6 +315,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -323,6 +333,7 @@
           "weight": 12.5,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -340,6 +351,7 @@
           "weight": 17.5,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -357,6 +369,7 @@
           "weight": 26,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -377,7 +390,8 @@
       "avgHr": null,
       "maxHr": null,
       "activeKcal": null,
-      "healthSyncedAt": null,
+      "healthSyncedAt": "2026-08-02T17:08:47.758Z",
+      "healthWorkoutUuid": null,
       "createdAt": "2026-05-13T20:08:35.483Z",
       "sets": [
         {
@@ -389,6 +403,7 @@
           "weight": 26,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -406,6 +421,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -423,6 +439,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -440,6 +457,7 @@
           "weight": 10,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -457,6 +475,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -474,6 +493,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -491,6 +511,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -508,6 +529,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -525,6 +547,7 @@
           "weight": 26,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -542,6 +565,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -559,6 +583,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -576,6 +601,7 @@
           "weight": 10,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -593,6 +619,7 @@
           "weight": 10,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -610,6 +637,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -627,6 +655,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -644,6 +673,7 @@
           "weight": 26,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -661,6 +691,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -678,6 +709,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -698,7 +730,8 @@
       "avgHr": null,
       "maxHr": null,
       "activeKcal": null,
-      "healthSyncedAt": null,
+      "healthSyncedAt": "2026-08-02T17:08:47.758Z",
+      "healthWorkoutUuid": null,
       "createdAt": "2026-05-17T22:43:43.233Z",
       "sets": [
         {
@@ -710,6 +743,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -727,6 +761,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -744,6 +779,7 @@
           "weight": 26,
           "notes": null,
           "rpe": 3,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -761,6 +797,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -778,6 +815,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -795,6 +833,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -812,6 +851,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -829,6 +869,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 3,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -846,6 +887,7 @@
           "weight": 26,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -863,6 +905,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -880,6 +923,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -897,6 +941,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -914,6 +959,7 @@
           "weight": 29,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -931,6 +977,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -948,6 +995,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -965,6 +1013,7 @@
           "weight": 26,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -982,6 +1031,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 3,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -999,6 +1049,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -1019,7 +1070,8 @@
       "avgHr": null,
       "maxHr": null,
       "activeKcal": null,
-      "healthSyncedAt": null,
+      "healthSyncedAt": "2026-08-02T17:08:47.758Z",
+      "healthWorkoutUuid": null,
       "createdAt": "2026-05-19T20:08:04.218Z",
       "sets": [
         {
@@ -1031,6 +1083,7 @@
           "weight": 33,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1048,6 +1101,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1065,6 +1119,7 @@
           "weight": 0,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1082,6 +1137,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1099,6 +1155,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1116,6 +1173,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1133,6 +1191,7 @@
           "weight": 33,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1150,6 +1209,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1167,6 +1227,7 @@
           "weight": 0,
           "notes": null,
           "rpe": 3,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1184,6 +1245,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1201,6 +1263,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1218,6 +1281,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1235,6 +1299,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1252,6 +1317,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1269,6 +1335,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 3,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1286,6 +1353,7 @@
           "weight": 0,
           "notes": null,
           "rpe": 4,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1303,6 +1371,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1320,6 +1389,7 @@
           "weight": 33,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1340,7 +1410,8 @@
       "avgHr": null,
       "maxHr": null,
       "activeKcal": null,
-      "healthSyncedAt": null,
+      "healthSyncedAt": "2026-08-02T17:08:47.758Z",
+      "healthWorkoutUuid": null,
       "createdAt": "2026-05-23T18:10:35.780Z",
       "sets": [
         {
@@ -1352,6 +1423,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -1369,6 +1441,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -1386,6 +1459,7 @@
           "weight": 27.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -1403,6 +1477,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -1420,6 +1495,7 @@
           "weight": 27.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -1437,6 +1513,7 @@
           "weight": 26,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -1454,6 +1531,7 @@
           "weight": 27.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -1471,6 +1549,7 @@
           "weight": 27.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -1488,6 +1567,7 @@
           "weight": 26,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -1505,6 +1585,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -1522,6 +1603,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -1539,6 +1621,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -1556,6 +1639,7 @@
           "weight": 27.5,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -1573,6 +1657,7 @@
           "weight": 26,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -1590,6 +1675,7 @@
           "weight": 27.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -1607,6 +1693,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -1624,6 +1711,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -1644,7 +1732,8 @@
       "avgHr": null,
       "maxHr": null,
       "activeKcal": null,
-      "healthSyncedAt": null,
+      "healthSyncedAt": "2026-08-02T17:08:47.758Z",
+      "healthWorkoutUuid": null,
       "createdAt": "2026-05-30T18:02:10.301Z",
       "sets": [
         {
@@ -1656,6 +1745,7 @@
           "weight": 22.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1673,6 +1763,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1690,6 +1781,7 @@
           "weight": 0,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1707,6 +1799,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1724,6 +1817,7 @@
           "weight": 40,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1741,6 +1835,7 @@
           "weight": 7.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46k000e11by41cdclm9",
             "name": "Cable Face Pull",
@@ -1758,6 +1853,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr464000b11byotiuejog",
             "name": "Rear Delt Fly",
@@ -1775,6 +1871,7 @@
           "weight": 27.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1792,6 +1889,7 @@
           "weight": 7.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46k000e11by41cdclm9",
             "name": "Cable Face Pull",
@@ -1809,6 +1907,7 @@
           "weight": 40,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1826,6 +1925,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1843,6 +1943,7 @@
           "weight": 0,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1860,6 +1961,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1877,6 +1979,7 @@
           "weight": 22.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1894,6 +1997,7 @@
           "weight": 27.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1911,6 +2015,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr464000b11byotiuejog",
             "name": "Rear Delt Fly",
@@ -1928,6 +2033,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1945,6 +2051,7 @@
           "weight": 22.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1962,6 +2069,7 @@
           "weight": 27.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1979,6 +2087,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr464000b11byotiuejog",
             "name": "Rear Delt Fly",
@@ -1996,6 +2105,7 @@
           "weight": 7.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46k000e11by41cdclm9",
             "name": "Cable Face Pull",
@@ -2013,6 +2123,7 @@
           "weight": 40,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -2030,6 +2141,7 @@
           "weight": 29,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -2047,6 +2159,7 @@
           "weight": 0,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -2067,7 +2180,8 @@
       "avgHr": null,
       "maxHr": null,
       "activeKcal": null,
-      "healthSyncedAt": null,
+      "healthSyncedAt": "2026-08-02T17:08:47.758Z",
+      "healthWorkoutUuid": null,
       "createdAt": "2026-06-16T06:24:57.691Z",
       "sets": [
         {
@@ -2079,6 +2193,7 @@
           "weight": 27,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -2096,6 +2211,7 @@
           "weight": 27,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2113,6 +2229,7 @@
           "weight": 23,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2130,6 +2247,7 @@
           "weight": 36,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2147,6 +2265,7 @@
           "weight": 36,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2164,6 +2283,7 @@
           "weight": 23,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2181,6 +2301,7 @@
           "weight": 27,
           "notes": null,
           "rpe": 2,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2198,6 +2319,7 @@
           "weight": 27,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -2215,6 +2337,7 @@
           "weight": 36,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2232,6 +2355,7 @@
           "weight": 23,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2249,6 +2373,7 @@
           "weight": 27,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2266,6 +2391,7 @@
           "weight": 27,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -2286,7 +2412,8 @@
       "avgHr": null,
       "maxHr": null,
       "activeKcal": null,
-      "healthSyncedAt": null,
+      "healthSyncedAt": "2026-08-02T17:08:47.758Z",
+      "healthWorkoutUuid": null,
       "createdAt": "2026-07-29T20:33:52.488Z",
       "sets": [
         {
@@ -2298,6 +2425,7 @@
           "weight": 12.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2315,6 +2443,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2332,6 +2461,7 @@
           "weight": 15,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -2349,6 +2479,7 @@
           "weight": 15,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -2366,6 +2497,7 @@
           "weight": 0,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmpsvzaa3000014d5squs5art",
             "name": "Hip Thrust Machine",
@@ -2383,6 +2515,7 @@
           "weight": 15,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -2400,6 +2533,7 @@
           "weight": 15,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2417,6 +2551,7 @@
           "weight": 20,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2434,6 +2569,7 @@
           "weight": 12.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2451,6 +2587,7 @@
           "weight": 15,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2468,6 +2605,7 @@
           "weight": 0,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmpsvzaa3000014d5squs5art",
             "name": "Hip Thrust Machine",
@@ -2485,6 +2623,7 @@
           "weight": 15,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -2502,6 +2641,7 @@
           "weight": 15,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -2519,6 +2659,7 @@
           "weight": 15,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -2536,6 +2677,7 @@
           "weight": 15,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -2553,6 +2695,7 @@
           "weight": 15,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2570,6 +2713,7 @@
           "weight": 15,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -2587,6 +2731,7 @@
           "weight": 0,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmpsvzaa3000014d5squs5art",
             "name": "Hip Thrust Machine",
@@ -2604,6 +2749,7 @@
           "weight": 15,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -2621,6 +2767,7 @@
           "weight": 20,
           "notes": null,
           "rpe": null,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2638,6 +2785,7 @@
           "weight": 12.5,
           "notes": null,
           "rpe": 1,
+          "completedAt": null,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
