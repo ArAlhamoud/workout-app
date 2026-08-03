@@ -25,6 +25,9 @@ import {
 import {
   alternateDay,
   getDynamicPlan,
+  CARDIO,
+  cardioForGym,
+  getDayTemplate,
   getTrainingStatus,
   parseDayLetter,
   projectPlan,
@@ -33,6 +36,7 @@ import {
   type DynamicPlan,
   type LoggedSession,
 } from '../src/lib/program';
+import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 
 interface HistoryFile {
   exercises: { id: string; name: string; category: string }[];
@@ -459,6 +463,71 @@ assert(
   JSON.stringify(homeVerdict(returnStatus, planDone, now, { verdict: 'proceed', note: '' })) ===
     JSON.stringify(vDone),
   'a note-less proceed changes nothing at all',
+);
+
+
+// ── per-gym equipment ────────────────────────────────────────
+// Every program movement must resolve to something real at Alrajhi Tower.
+// A silent gap here means standing in front of a machine that isn't there.
+const allProgramExercises = [
+  ...getDayTemplate('A').exercises,
+  ...getDayTemplate('B').exercises,
+];
+
+assert(allProgramExercises.length === 17, `the program still has 17 movements (got ${allProgramExercises.length})`);
+
+for (const ex of allProgramExercises) {
+  // Plank is floor work — it needs no machine at either gym.
+  if (ex.name === 'Plank') continue;
+  const swap = gymSwap(ex.name, 'work');
+  assert(swap !== null, `${ex.name} resolves to equipment at Alrajhi Tower`);
+  assert(!!swap && swap.machine.length > 0, `${ex.name} names its Alrajhi machine`);
+}
+
+// The five with no machine at all are rebuilt, so they must carry replacement
+// cues — the B_Fit cues describe hardware that does not exist there.
+for (const name of ['Pec Fly', 'Lateral Raise', 'Rear Delt Fly', 'Back Extension', 'Hip Abduction']) {
+  const swap = gymSwap(name, 'work');
+  assert(!!swap?.cues, `${name} is rebuilt at Alrajhi and carries its own cues`);
+  assert(!!swap?.youtubeUrl, `${name} carries its own video for the rebuilt version`);
+  assert(
+    swap!.machine.includes('crossover'),
+    `${name} is rebuilt on the crossover (got "${swap!.machine}")`,
+  );
+}
+
+// The home gym must never be rewritten — the program IS B_Fit.
+for (const ex of allProgramExercises) {
+  assert(gymSwap(ex.name, 'bfit') === null, `${ex.name} is untouched at B_Fit`);
+}
+assert(gymSwap('Chest Press', null) === null, 'an untagged session gets no swap');
+assert(gymSwap('Nordic Curl', 'work') === null, 'an off-program exercise has no swap to offer');
+
+assert(gymWeightNote('bfit') === null, 'the home gym needs no weight caveat');
+assert((gymWeightNote('work') ?? '').includes('kg column'), 'Alrajhi says which column to read');
+
+// ── cardio availability ──────────────────────────────────────
+// Swimming is ranked BEST and there is no pool at Alrajhi. If the ranking
+// ever shows it there, he walks to a pool that does not exist.
+assert(CARDIO.length === 5, `five ranked cardio options (got ${CARDIO.length})`);
+assert(
+  CARDIO.map((c) => c.rank).join() === '1,2,3,4,5',
+  'cardio ranks are contiguous and in order',
+);
+const bfitCardio = cardioForGym('bfit').map((c) => c.name);
+const workCardio = cardioForGym('work').map((c) => c.name);
+assert(bfitCardio.includes('Swimming'), 'B_Fit keeps swimming');
+assert(!workCardio.includes('Swimming'), 'Alrajhi has no pool, so no swimming');
+assert(workCardio.includes('Rowing'), 'Alrajhi offers rowing');
+assert(workCardio.length === 4, `Alrajhi shows its four real options (got ${workCardio.length})`);
+assert(
+  cardioForGym(null).length === CARDIO.length,
+  'an untagged context shows every option rather than hiding any',
+);
+// Everything above the treadmill must be non-impact — that is the ordering rule.
+assert(
+  CARDIO[CARDIO.length - 1].name === 'Treadmill',
+  'the treadmill stays ranked last',
 );
 
 // ── summary ──────────────────────────────────────────────────

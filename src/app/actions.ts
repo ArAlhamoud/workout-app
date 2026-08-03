@@ -3,6 +3,21 @@
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { DEFAULT_GYM_ID } from '@/lib/program';
+
+/**
+ * Workout filter restricting a query to one building.
+ *
+ * Weights are not comparable across gyms — a different machine with a
+ * different stack, and at Alrajhi Tower a stack labelled in pounds. Every
+ * weight-derived aggregate has to be scoped or it silently mixes units.
+ *
+ * Sessions logged before gym tagging existed are untagged and are all B_Fit,
+ * so the home gym claims them.
+ */
+function gymScope(gym: string) {
+  return gym === DEFAULT_GYM_ID ? { OR: [{ gym: DEFAULT_GYM_ID }, { gym: null }] } : { gym };
+}
 
 export async function getExercises() {
   return prisma.exercise.findMany({ orderBy: { name: 'asc' } });
@@ -90,10 +105,17 @@ export async function deleteWorkout(id: string) {
 
 export async function getLastSessionForExercises(
   exerciseIds: string[],
+  gym?: string | null,
 ): Promise<Record<string, { weight: number; reps: number; rpe: number | null }>> {
   if (!exerciseIds.length) return {};
+  // Weight memory is per building. The same exercise sits on a different
+  // machine with a different stack — and at Alrajhi Tower a stack labelled in
+  // pounds — so a number carried across gyms would silently corrupt both the
+  // "Try N kg" suggestion and every plateau/1RM read that follows it.
+  // Sessions logged before gym tagging existed are untagged; they are all
+  // B_Fit, so the home gym claims them.
   const lastSets = await prisma.workoutSet.findMany({
-    where: { exerciseId: { in: exerciseIds } },
+    where: { exerciseId: { in: exerciseIds }, workout: gym ? gymScope(gym) : {} },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
     distinct: ['exerciseId'],
     select: { exerciseId: true, weight: true, reps: true, rpe: true },
@@ -104,9 +126,14 @@ export async function getLastSessionForExercises(
   }, {});
 }
 
-export async function getPersonalRecords(): Promise<Record<string, number>> {
+export async function getPersonalRecords(gym?: string | null): Promise<Record<string, number>> {
+  // Scoped to one building for the same reason weight memory is: a stack
+  // labelled in pounds at Alrajhi reads NUMERICALLY HIGHER than the kilogram
+  // equivalent, so pooling gyms would mint a false PR on the first cable
+  // session and never let it be beaten again.
   const records = await prisma.workoutSet.groupBy({
     by: ['exerciseId'],
+    where: gym ? { workout: gymScope(gym) } : undefined,
     _max: { weight: true },
   });
   return records.reduce<Record<string, number>>((acc, r) => {

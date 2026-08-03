@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createWorkout } from '@/app/actions';
+import { createWorkout, getLastSessionForExercises, getPersonalRecords } from '@/app/actions';
 import RestTimer from './RestTimer';
 import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
+import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 
 interface Exercise {
@@ -19,6 +20,7 @@ interface InitialExercise {
   sets: number;
   defaultReps: number;
   name: string;
+  machine?: string;
   cues?: string;
   youtubeUrl?: string;
   rest?: string;
@@ -42,6 +44,9 @@ interface ExerciseBlock {
   uid: string;
   exerciseId: string;
   sets: SetEntry[];
+  /** Program name — the key a per-gym equipment swap is looked up by. */
+  programName?: string;
+  machine?: string;
   cues?: string;
   youtubeUrl?: string;
   rest?: string;
@@ -108,6 +113,8 @@ function buildBlocks(
     return {
       uid: Math.random().toString(36).slice(2),
       exerciseId: ie.exerciseId,
+      programName: ie.name,
+      machine: ie.machine,
       cues: ie.cues,
       youtubeUrl: ie.youtubeUrl,
       rest: ie.rest,
@@ -167,6 +174,10 @@ export default function WorkoutForm({
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
     buildBlocks(initialExercises, lastSession, returnLoadPct),
   );
+  // Weight memory for the gym currently tagged. Seeded for the home gym by
+  // the server; replaced wholesale when the tag changes.
+  const [sessionMemory, setSessionMemory] = useState(lastSession);
+  const [gymRecords, setGymRecords] = useState(personalRecords);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [restTimer, setRestTimer] = useState<{ seconds: number; exerciseName: string } | null>(null);
@@ -239,6 +250,53 @@ export default function WorkoutForm({
     localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   }, [initialized, name, date, gym, notes, blocks]);
 
+  // Switching gyms mid-setup invalidates every prefilled number: the machine
+  // is different, and at Alrajhi Tower the stack is labelled in pounds. Pull
+  // that gym's own memory instead of carrying B_Fit's weights across.
+  // Blocks with a completed set are left alone — those are logged facts.
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
+  const lastGymRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialized) return;
+    if (lastGymRef.current === null) { lastGymRef.current = gym; return; }
+    if (lastGymRef.current === gym) return;
+    lastGymRef.current = gym;
+
+    const ids = Array.from(new Set(blocksRef.current.map((b) => b.exerciseId)));
+    if (!ids.length) return;
+    let cancelled = false;
+    getPersonalRecords(gym)
+      .then((recs) => { if (!cancelled) setGymRecords(recs); })
+      .catch(() => { /* PR badge is decoration; a stale one is not worth a crash */ });
+    getLastSessionForExercises(ids, gym)
+      .then((next) => {
+        if (cancelled) return;
+        setSessionMemory(next);
+        setBlocks((prev) =>
+          prev.map((b) => {
+            const prevSession = next[b.exerciseId];
+            if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession };
+            const isTimed = b.unit === 'seconds';
+            return {
+              ...b,
+              lastSession: prevSession,
+              sets: b.sets.map((s) => ({
+                ...s,
+                weight: isTimed
+                  ? 0
+                  : prevSession?.weight
+                    ? (returnLoadPct ? scaleReturnWeight(prevSession.weight, returnLoadPct) : prevSession.weight)
+                    : 0,
+              })),
+            };
+          }),
+        );
+      })
+      .catch(() => { /* keep the current numbers rather than blanking the form */ });
+    return () => { cancelled = true; };
+  }, [gym, initialized, returnLoadPct]);
+
   // Auto-dismiss draft restored banner after 4s
   useEffect(() => {
     if (!draftRestored) return;
@@ -298,13 +356,22 @@ export default function WorkoutForm({
   }
 
   function updateBlockExercise(uid: string, exerciseId: string) {
-    const prev = lastSession[exerciseId];
+    // sessionMemory, not the prop: the prop is seeded for the home gym, so
+    // swapping an exercise while tagged to Alrajhi would prefill a B_Fit
+    // weight off a different machine.
+    const prev = sessionMemory[exerciseId];
     setBlocks((cur) =>
       cur.map((b) =>
         b.uid === uid
           ? {
               ...b,
               exerciseId,
+              // Equipment metadata belongs to the exercise that was here, not
+              // the one replacing it. Left behind, a Chest Press → Pec Fly swap
+              // would keep showing the chest press machine and, at Alrajhi,
+              // apply the chest press swap instead of the cable-fly cues.
+              programName: undefined,
+              machine: undefined,
               cues: undefined,
               rest: undefined,
               targetReps: undefined,
@@ -637,6 +704,11 @@ export default function WorkoutForm({
               );
             })}
           </div>
+          {gymWeightNote(gym) && (
+            <p className="text-acc-ember/80 text-[11px] leading-relaxed -mt-1">
+              {gymWeightNote(gym)}
+            </p>
+          )}
           <div>
             <p className="text-app-tx3 text-xs mb-1.5">How do you feel?</p>
             <div className="flex gap-2">
@@ -758,7 +830,7 @@ export default function WorkoutForm({
         {blocks.map((block, blockIdx) => {
           const ex = exerciseById.get(block.exerciseId);
           const isTimed = block.unit === 'seconds';
-          const pr = ex ? (personalRecords[block.exerciseId] ?? 0) : 0;
+          const pr = ex ? (gymRecords[block.exerciseId] ?? 0) : 0;
           const hasNewPR = !isTimed && block.sets.some((s) => s.weight > 0 && s.weight > pr);
           const allDone = block.sets.length > 0 && block.sets.every((s) => s.done);
 
@@ -776,6 +848,14 @@ export default function WorkoutForm({
           const est1RM = !isTimed
             ? block.sets.reduce((best, s) => Math.max(best, epley1RM(s.weight, s.reps)), 0)
             : 0;
+
+          // Away from the home gym the movement is the same but the hardware
+          // is not — five of these have no machine at Alrajhi at all and get
+          // rebuilt on the crossover, so the cues and video must follow.
+          const swap = gymSwap(block.programName ?? '', gym);
+          const cues = swap?.cues ?? block.cues;
+          const videoUrl = swap?.youtubeUrl ?? block.youtubeUrl;
+          const machine = swap?.machine ?? block.machine;
 
           return (
             <div
@@ -871,7 +951,7 @@ export default function WorkoutForm({
                     &#127942; PR
                   </span>
                 )}
-                {block.cues && (
+                {cues && (
                   <button
                     type="button"
                     onClick={() => toggleCues(block.uid)}
@@ -930,9 +1010,14 @@ export default function WorkoutForm({
                       ~{est1RM} kg 1RM
                     </span>
                   )}
-                  {block.youtubeUrl && (
+                  {machine && (
+                    <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
+                      {machine}
+                    </span>
+                  )}
+                  {videoUrl && (
                     <a
-                      href={block.youtubeUrl}
+                      href={videoUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs px-3 py-1.5 rounded-full border bg-red-950/40 text-red-400 border-red-800/40 hover:bg-red-900/50 transition-colors flex-shrink-0"
@@ -968,9 +1053,9 @@ export default function WorkoutForm({
               )}
 
               {/* Cues */}
-              {block.showCues && block.cues && (
+              {block.showCues && cues && (
                 <div className="mx-4 mb-3 bg-acc-teal/[0.07] border border-acc-teal/20 rounded-xl px-3.5 py-2.5">
-                  <p className="text-[#ccfbf1] text-xs leading-relaxed">{block.cues}</p>
+                  <p className="text-[#ccfbf1] text-xs leading-relaxed">{cues}</p>
                 </div>
               )}
 

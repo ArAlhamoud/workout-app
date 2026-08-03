@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      # Nothing here talks to a database. `prisma generate` only reads the
+      # schema, and the coach assertions run against data/workout-history.json.
+      # The var exists because the datasource block demands one to parse.
+      DATABASE_URL: postgresql://unused:unused@127.0.0.1:1/none
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --no-audit --progress=false
+
+      # First, and on its own line: without a fresh client, tsc reports
+      # phantom errors for every field added to the schema since the last
+      # local generate.
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Coach assertions
+        run: npx ts-node --compiler-options '{"module":"commonjs"}' scripts/coach-tests.ts
+
+      # The build has broken production twice by way of the build script
+      # itself (a `prisma db push` that ran against the live database on every
+      # deploy). Building here against an unreachable URL catches a
+      # reintroduction before it reaches Vercel.
+      - name: Build
+        run: npm run build
