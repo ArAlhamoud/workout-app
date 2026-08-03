@@ -202,10 +202,38 @@ body {
 }
 
 /* ── Form input theming ────────────────────────────────────── */
+/* Desktop only — see the iOS block below. */
 input[type='date']::-webkit-calendar-picker-indicator,
 input[type='time']::-webkit-calendar-picker-indicator {
   filter: invert(0.55) brightness(1.1);
   cursor: pointer;
+}
+
+/* iOS / WKWebView renders date and time fields with its own internals: the
+   value is laid out by ::-webkit-date-and-time-value and the picker indicator
+   is not the desktop icon. Filtering that indicator there produced a pale
+   vertical blob that spilled past the field and sat over the neighbouring
+   Notes input — visible in the native app, never in a desktop browser, which
+   is why it survived every check until it was looked at on-device.
+   Suppress the indicator on iOS and lay the value out like every other input. */
+@supports (-webkit-touch-callout: none) {
+  input[type='date']::-webkit-calendar-picker-indicator,
+  input[type='time']::-webkit-calendar-picker-indicator {
+    display: none;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type='date'],
+  input[type='time'] {
+    -webkit-appearance: none;
+    appearance: none;
+    overflow: hidden;
+  }
+  input[type='date']::-webkit-date-and-time-value,
+  input[type='time']::-webkit-date-and-time-value {
+    text-align: left;
+    margin: 0;
+  }
 }
 
 /* The draft-resume pill is fixed above the nav bar; without this the last card
