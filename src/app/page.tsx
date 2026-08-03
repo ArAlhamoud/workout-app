@@ -288,7 +288,7 @@ export default async function Home() {
         />
         <div className="relative flex items-center gap-4">
           {/* Weekly activity ring */}
-          <div className="relative h-[104px] w-[104px] flex-none" role="img" aria-label={`${sessionsThisWeek} of 3 sessions this week`}>
+          <div className="relative h-[72px] w-[72px] flex-none" role="img" aria-label={`${sessionsThisWeek} of 3 sessions this week`}>
             <svg viewBox="0 0 112 112" fill="none" className="ring-svg h-full w-full" aria-hidden="true">
               <defs>
                 <linearGradient id="weekRingGrad" x1="0" y1="0" x2="112" y2="112" gradientUnits="userSpaceOnUse">
@@ -315,9 +315,9 @@ export default async function Home() {
               )}
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="font-round text-2xl font-light leading-none tabular-nums text-app-tx1">
+              <div className="font-round text-lg font-light leading-none tabular-nums text-app-tx1">
                 <b className="font-bold text-[#99f6e4]">{sessionsThisWeek}</b>
-                <span className="text-base text-app-tx3">/3</span>
+                <span className="text-sm text-app-tx3">/3</span>
               </div>
             </div>
           </div>
@@ -330,21 +330,21 @@ export default async function Home() {
               </p>
             </div>
           )}
+          <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
+            <span className="min-w-0 text-[11px] text-app-tx2"><StepsChipLabel /></span>
+            {status.mode === 'return' ? (
+              <span className="chip flex-none border border-acc-ember/40 bg-acc-ember/10 text-acc-ember">
+                Return W{status.week} · {status.returnWeek.phase}
+              </span>
+            ) : (
+              <span className={`chip flex-none ${phaseColor[currentPhase.phase] ?? 'bg-white/10 text-app-tx2'}`}>
+                Wk {programWeek} · {currentPhase.phase}
+              </span>
+            )}
+        
+          </div>
         </div>
 
-        {/* Footer strip: NEAT + rest-activity detail one tap away, phase chip on glance */}
-        <div className="relative mt-3.5 flex items-center justify-between gap-2 border-t border-white/10 pt-3">
-          <span className="min-w-0 text-[11px] text-app-tx2"><StepsChipLabel /></span>
-          {status.mode === 'return' ? (
-            <span className="chip flex-none border border-acc-ember/40 bg-acc-ember/10 text-acc-ember">
-              Return W{status.week} · {status.returnWeek.phase}
-            </span>
-          ) : (
-            <span className={`chip flex-none ${phaseColor[currentPhase.phase] ?? 'bg-white/10 text-app-tx2'}`}>
-              Wk {programWeek} · {currentPhase.phase}
-            </span>
-          )}
-        </div>
       </section>
 
       {/* ── Return Protocol — exclusive ember, coach directive ── */}
