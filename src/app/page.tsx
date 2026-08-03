@@ -21,17 +21,6 @@ const DURATIONS = [30, 45, 60] as const;
 const RING_R = 46;
 const RING_C = 2 * Math.PI * RING_R;
 
-function getGreeting(): string {
-  const h = new Date().getHours();
-  if (h < 12) return 'Morning';
-  if (h < 17) return 'Afternoon';
-  return 'Evening';
-}
-
-function getToday(): string {
-  return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
-}
-
 /* ── Aurora day accents — light IS the information system ────
    Day A glows violet · Day B glows teal. */
 type DayId = 'A' | 'B';
@@ -123,9 +112,6 @@ const RPE_CAP_FLAG = [
 
 function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; doneWhen: string | null }) {
   const accent = DAY_ACCENT[day];
-  const previewNames = getExercisesForDuration(day, 45).slice(0, 4).map((e) => e.name).join(' · ');
-  const extra = getExerciseCountForDuration(day, 45) - 4;
-  const preview = extra > 0 ? `${previewNames} +${extra}` : previewNames;
 
   /* Quiet done-row — this day was trained this block; links stay intact */
   if (variant === 'done') {
@@ -204,17 +190,6 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
             Start Day {day} · 45 min
           </Link>
         )}
-        {/* Exercise preview — one tap away */}
-        <details className="group mt-2.5">
-          <summary className={SUMMARY_CHIP}>
-            Exercises
-            <Chevron />
-          </summary>
-          <p className="mt-2 text-[11px] leading-relaxed text-app-tx3">{preview}</p>
-          <p className="mt-1 text-[10px] tabular-nums text-app-tx3">
-            {DURATIONS.map((d) => `${d}m ${getExerciseCountForDuration(day, d)} ex`).join(' · ')}
-          </p>
-        </details>
       </div>
     </section>
   );
@@ -230,17 +205,6 @@ export default async function Home() {
     ? Math.floor((Date.now() - new Date(lastBodyStat.date).getTime()) / 86400000)
     : null;
 
-  // Body-weight card: latest recorded weight, trend vs the first recorded
-  const weightStats = bodyStats.filter((s) => s.weight != null);
-  const latestWeight = weightStats.length > 0 ? weightStats[weightStats.length - 1] : null;
-  const firstWeight = weightStats.length > 0 ? weightStats[0] : null;
-  const weightDelta = latestWeight && firstWeight ? latestWeight.weight! - firstWeight.weight! : 0;
-
-  const totalVolume = workouts.reduce(
-    (sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0),
-    0,
-  );
-
   // Week stats (Monday-start weeks)
   const weekStart = getMondayOfWeek(new Date());
   const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
@@ -249,21 +213,6 @@ export default async function Home() {
   const weekVolume = workouts
     .filter((w) => new Date(w.date) >= weekStart)
     .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0);
-
-  // Streak: consecutive ISO weeks (Monday-start) with at least one workout,
-  // walking backwards from this week. No workout yet in the current week
-  // doesn't break the streak — it just doesn't count.
-  const workoutWeeks = new Set(workouts.map((w) => weekKey(new Date(w.date))));
-  let streak = 0;
-  {
-    const cursor = getMondayOfWeek(new Date());
-    if (workoutWeeks.has(weekKey(cursor))) streak++;
-    cursor.setDate(cursor.getDate() - 7);
-    while (workoutWeeks.has(weekKey(cursor))) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 7);
-    }
-  }
 
   const isSunday = new Date().getDay() === 0;
 
@@ -327,32 +276,6 @@ export default async function Home() {
         lastSessionISO={lastWorkout?.date.toISOString() ?? null}
       />
 
-      {/* ── Greeting header ─────────────────────────────── */}
-      <header className="flex items-end justify-between pt-1">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[rgba(147,197,253,0.62)]">{getToday()}</p>
-          <h1 className="mt-1 bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text font-round text-[26px] font-bold tracking-tight text-transparent">
-            {getGreeting()}, Ar.
-          </h1>
-        </div>
-        <div className="flex items-center gap-2.5">
-          {isSunday && (
-            <Link
-              href="/stats"
-              className="pressable flex items-center gap-1.5 rounded-full border border-acc-teal/40 bg-acc-teal/10 px-3 py-1.5 shadow-[0_0_18px_-6px_rgba(45,212,191,0.5)] transition-colors hover:bg-acc-teal/20"
-            >
-              <span className="text-xs font-bold text-acc-teal">☀ Weigh-in</span>
-            </Link>
-          )}
-          <div
-            aria-hidden="true"
-            className="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-[#99f6e4] to-[#a5b4fc] font-round text-[15px] font-bold text-[#0b1120] shadow-[0_0_24px_-6px_rgba(94,234,212,0.55)]"
-          >
-            AR
-          </div>
-        </div>
-      </header>
-
       {/* ── Hero: answer first — ring + tonight's plan ──── */}
       <section className="card-lg relative overflow-hidden p-4">
         <div
@@ -396,88 +319,22 @@ export default async function Home() {
                 <b className="font-bold text-[#99f6e4]">{sessionsThisWeek}</b>
                 <span className="text-base text-app-tx3">/3</span>
               </div>
-              <small className="mt-1 text-[9px] font-bold uppercase tracking-[0.14em] text-app-tx3">this week</small>
             </div>
           </div>
 
-          {/* Answer copy */}
-          <div className="flex min-w-0 flex-col gap-1.5">
-            {isTrainDay ? (
-              <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-to-r from-acc-teal to-acc-cyan px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-[#0b1120] shadow-[0_0_20px_-4px_rgba(94,234,212,0.7)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#0b1120] opacity-75" />
-                Gym day
-              </span>
-            ) : isDoneToday ? (
-              <span className="inline-flex items-center gap-1.5 self-start rounded-full border border-rpe-easy/40 bg-rpe-easy/10 px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-rpe-easy">
-                <span className="h-1.5 w-1.5 rounded-full bg-rpe-easy opacity-80" />
-                Logged
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 self-start rounded-full border border-app-border bg-white/5 px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-app-tx3">
-                <span className="h-1.5 w-1.5 rounded-full bg-app-tx3 opacity-60" />
-                Recovery day
-              </span>
-            )}
-            <h2 className="font-round text-lg font-bold tracking-tight text-app-tx1">
-              {isTrainDay ? `${heroVerb} you lift.` : isDoneToday ? 'Today is done.' : 'Today you recover.'}
-            </h2>
-            <p className="text-xs text-app-tx2">
-              {isTrainDay ? null : <>{isDoneToday ? 'Recover tomorrow' : restActivity} · </>}
-              Day <b className={`font-semibold ${DAY_ACCENT[nextDay].accentText}`}>{nextDay}</b>
-              {isTrainDay ? ' queued' : ' next'}
-            </p>
-            {sessionsThisWeek > 0 && (
+          {/* Only fact here HomeVerdict does not already carry. */}
+          {sessionsThisWeek > 0 && (
+            <div className="flex min-w-0 flex-col gap-1.5">
               <p className="text-xs tabular-nums text-app-tx2">
                 <b className="font-semibold text-[#99f6e4]">{kgCompact(weekVolume)} kg</b> this week
               </p>
-            )}
-            {sessionsThisWeek >= 3 && (
-              <p className="text-[11px] font-bold text-acc-teal">✓ Ring closed</p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* One glowing Start row — suggested day, existing duration links */}
-        {suggestedDay && suggestedAccent && (
-          <div className="relative mt-3.5">
-            <div className="flex items-baseline justify-between">
-              <span className={`text-[10px] font-extrabold uppercase tracking-[0.16em] ${suggestedAccent.accentText}`}>
-                {isTrainDay ? `Start Day ${suggestedDay}` : `Train anyway · Day ${suggestedDay}`}
-              </span>
-              <span className="text-[10px] text-app-tx3">pick a length</span>
-            </div>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {DURATIONS.map((d) => (
-                <Link
-                  key={d}
-                  href={`/workouts/new?day=${suggestedDay}&dur=${d}`}
-                  className={`pressable flex items-center justify-center rounded-xl border py-3 transition-colors ${d === 45 ? suggestedAccent.chip : CHIP_QUIET}`}
-                >
-                  <span className="font-round text-[17px] font-semibold leading-none tabular-nums">
-                    {d}
-                    <span className="ml-0.5 text-[9px] font-bold uppercase tracking-[0.12em] opacity-70">min</span>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Footer strip: NEAT + rest-activity detail one tap away, phase chip on glance */}
-        <div className="relative mt-3.5 flex items-start gap-2 border-t border-white/10 pt-3">
-          <details className="group min-w-0 flex-1">
-            <summary className={SUMMARY_CHIP}>
-              <StepsChipLabel />
-              <Chevron />
-            </summary>
-            <div className="mt-2 space-y-1 text-[11px] leading-relaxed text-app-tx3">
-              <p>
-                Daily NEAT goal: <span className="font-semibold text-app-tx2">8,000 steps</span>
-                {' '}· ~40–50 kcal per 1k steps
-              </p>
-              {!isTrainDay && <p>{restActivity}.</p>}
-            </div>
-          </details>
+        <div className="relative mt-3.5 flex items-center justify-between gap-2 border-t border-white/10 pt-3">
+          <span className="min-w-0 text-[11px] text-app-tx2"><StepsChipLabel /></span>
           {status.mode === 'return' ? (
             <span className="chip flex-none border border-acc-ember/40 bg-acc-ember/10 text-acc-ember">
               Return W{status.week} · {status.returnWeek.phase}
@@ -597,7 +454,10 @@ export default async function Home() {
       )}
 
       {/* ── Weigh-in nudge ──────────────────────────────── */}
-      {daysSinceWeighIn !== null && daysSinceWeighIn > 7 && (
+      {/* Widened from >7 days to also cover Sunday: this absorbed the weigh-in
+          chip that used to sit in the greeting header, so there is one weigh-in
+          affordance instead of two. */}
+      {daysSinceWeighIn !== null && (daysSinceWeighIn > 7 || isSunday) && (
         <Link
           href="/stats"
           className="card-lg pressable flex items-center gap-3 border-acc-teal/30 bg-acc-teal/[0.06] px-4 py-3 shadow-[0_0_24px_-8px_rgba(45,212,191,0.45)] transition-colors hover:border-acc-teal/50"
@@ -657,68 +517,6 @@ export default async function Home() {
           })}
         </div>
       </div>
-
-      {/* ── Constellation stats ─────────────────────────── */}
-      {workouts.length > 0 && (
-        <div>
-          <p className="section-label mb-3 px-1">All-time under this sky</p>
-          <div className="grid grid-cols-3 gap-2.5">
-            <div className="card flex flex-col items-center gap-1 px-2 py-3.5 text-center">
-              <b className="glow-violet font-round text-xl font-light leading-none tabular-nums">{workouts.length}</b>
-              <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">Sessions</span>
-            </div>
-            <div className="card flex flex-col items-center gap-1 px-2 py-3.5 text-center">
-              {streak > 0 ? (
-                <b className="glow-cyan font-round text-xl font-light leading-none tabular-nums">
-                  {streak}
-                  <sup className="text-[10px] font-semibold text-app-tx3">wk</sup>
-                </b>
-              ) : (
-                <b className="font-round text-xl font-light leading-none tabular-nums text-app-tx3">—</b>
-              )}
-              <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">Streak</span>
-            </div>
-            <div className="card flex flex-col items-center gap-1 px-2 py-3.5 text-center">
-              <b className="glow-teal font-round text-xl font-light leading-none tabular-nums">
-                {kgCompact(totalVolume)}
-                <sup className="text-[10px] font-semibold text-app-tx3">kg</sup>
-              </b>
-              <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">Lifted</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Body weight — teal-green is the body's color ── */}
-      {latestWeight && (
-        <section className="card-lg flex items-center justify-between px-4 py-3.5">
-          <div className="flex flex-col gap-0.5">
-            <b className="glow-teal font-round text-[27px] font-light leading-none tabular-nums tracking-tight">
-              {latestWeight.weight!.toFixed(1)}
-              <span className="ml-1 text-[13px] font-semibold text-app-tx3">kg</span>
-            </b>
-            <span className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-app-tx3">Body weight</span>
-          </div>
-          {firstWeight && firstWeight !== latestWeight && (
-            <div className="flex flex-col items-end gap-0.5">
-              <b
-                className={`flex items-center gap-1 font-round text-[13px] font-semibold tabular-nums ${
-                  weightDelta > 0 ? 'text-rpe-grind' : 'text-acc-teal'
-                }`}
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true" className="flex-none">
-                  {weightDelta > 0 ? (
-                    <path d="M1.5 7l3.5-4 3.5 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  ) : (
-                    <path d="M1.5 3l3.5 4 3.5-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                  )}
-                </svg>
-                {Math.abs(weightDelta).toFixed(1)} kg
-              </b>
-            </div>
-          )}
-        </section>
-      )}
 
       {/* ── Recent workouts ─────────────────────────────── */}
       <div>
