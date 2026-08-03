@@ -20,8 +20,19 @@ import {
   type CoachBodyStat,
   type CoachExercise,
   type CoachWorkout,
+  type ReadinessSignal,
 } from '../src/lib/coach';
-import { getTrainingStatus } from '../src/lib/program';
+import {
+  alternateDay,
+  getDynamicPlan,
+  getTrainingStatus,
+  parseDayLetter,
+  projectPlan,
+  queuedDay,
+  recoveryActivity,
+  type DynamicPlan,
+  type LoggedSession,
+} from '../src/lib/program';
 
 interface HistoryFile {
   exercises: { id: string; name: string; category: string }[];
@@ -228,32 +239,227 @@ assert(phaseForWeek(3).phase === 'BUILD', 'week 3 → BUILD (ramp rejoin point)'
 assert(phaseForWeek(7).phase === 'DELOAD', 'week 7 → DELOAD');
 assert(phaseForWeek(12).phase === 'EVALUATE', 'week 12 → EVALUATE');
 
+// ── parseDayLetter / alternateDay ────────────────────────────
+console.log('parseDayLetter');
+assert(parseDayLetter('Day B 45m — Aug 2') === 'B', 'letter parsed out of a logged name');
+assert(parseDayLetter('day a 60m — jul 9') === 'A', 'parsing is case-insensitive');
+assert(parseDayLetter('Swim + walk') === null, 'a name with no Day letter → null');
+assert(parseDayLetter(null) === null, 'null name → null');
+assert(alternateDay('A') === 'B' && alternateDay('B') === 'A', 'A/B alternate');
+assert(alternateDay(null) === 'A', 'nothing lettered yet → Day A');
+
+// ── getDynamicPlan ───────────────────────────────────────────
+// The schedule follows his LOG, not the calendar: train, recover the next
+// day, alternate A/B. Every rule below is a rule he asked for by name.
+console.log('getDynamicPlan');
+
+// Local-time constructors on purpose: "yesterday" is a calendar question,
+// and a UTC-midnight fixture would answer it differently west of Greenwich.
+const local = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h, 0, 0);
+const now = local(2026, 8, 3, 9); // Monday 09:00
+const log = (date: Date, name: string): LoggedSession => ({ date, name });
+
+const pEmpty = getDynamicPlan([], now);
+assert(pEmpty.mode === 'train' && pEmpty.day === 'A', 'no history at all → TRAIN Day A');
+assert(pEmpty.daysSinceLast === null && pEmpty.lastDay === null, 'no history carries no day counts');
+
+const pToday = getDynamicPlan([log(local(2026, 8, 3, 7), 'Day A 45m — Aug 3')], now);
+assert(pToday.mode === 'done-today', 'trained today → done-today (celebrate, do not nag)');
+assert(pToday.day === 'A' && pToday.daysSinceLast === 0, 'done-today names the day he logged');
+
+// 21:00 yesterday vs 09:00 today is 12 hours — but it is still YESTERDAY.
+const pYesterday = getDynamicPlan([log(local(2026, 8, 2, 21), 'Day B 45m — Aug 2')], now);
+assert(pYesterday.mode === 'recover', 'trained yesterday → recover, never back-to-back');
+assert(pYesterday.daysSinceLast === 1, 'an evening session yesterday counts as 1 calendar day');
+assert(pYesterday.day === 'A' && pYesterday.lastDay === 'B', 'recovery still queues the alternate day');
+
+const pTwoDays = getDynamicPlan([log(local(2026, 8, 1), 'Day A 45m — Aug 1')], now);
+assert(pTwoDays.mode === 'train' && pTwoDays.day === 'B', '2 days since Day A → TRAIN Day B');
+assert(pTwoDays.daysSinceLast === 2, 'daysSinceLast counts calendar days (2)');
+
+const pFiveDays = getDynamicPlan([log(local(2026, 7, 29), 'Day B 60m — Jul 29')], now);
+assert(pFiveDays.mode === 'train' && pFiveDays.day === 'A', '5 days since Day B → TRAIN Day A');
+assert(pFiveDays.daysSinceLast === 5, 'daysSinceLast counts calendar days (5)');
+
+// Alternation survives a session logged without a Day letter.
+const pUnlettered = getDynamicPlan(
+  [log(local(2026, 7, 30), 'Day A 45m — Jul 30'), log(local(2026, 8, 1), 'Swim + walk')],
+  now,
+);
+assert(pUnlettered.mode === 'train', 'unlettered last session, 2 days ago → still a train day');
+assert(pUnlettered.lastDay === 'A', 'unlettered session falls back to the last lettered one');
+assert(pUnlettered.day === 'B', 'alternation continues from the last LETTERED session');
+
+const pNoLetters = getDynamicPlan([log(local(2026, 7, 30), 'Freestyle'), log(local(2026, 8, 1), 'Swim')], now);
+assert(pNoLetters.lastDay === null && pNoLetters.day === 'A', 'no lettered session ever → Day A');
+
+const pUnletteredToday = getDynamicPlan([log(local(2026, 8, 3, 8), 'Swim')], now);
+assert(
+  pUnletteredToday.mode === 'done-today' && pUnletteredToday.day === null,
+  'an unlettered session today is still done-today, with no letter to show',
+);
+
+// The rule that matters most: two sessions in a row is never the suggestion.
+for (const letter of ['A', 'B'] as const) {
+  const p = getDynamicPlan([log(local(2026, 8, 2, 18), `Day ${letter} 45m`)], now);
+  assert(p.mode === 'recover', `trained Day ${letter} yesterday → recover, whatever the weekday`);
+}
+
+// queuedDay: after a session logged today the queued day is the ALTERNATE.
+assert(queuedDay(pToday) === 'B', 'Day A logged today → Day B is queued next');
+assert(queuedDay(pYesterday) === 'A', 'recovering after Day B → Day A queued');
+assert(queuedDay(pTwoDays) === 'B', 'train days queue the day they suggest');
+assert(queuedDay(pEmpty) === 'A', 'empty history queues Day A');
+
+// Recovery prescription is keyed off the day TRAINED, never the weekday.
+assert(recoveryActivity('A') === '20 min walk', 'after Day A (quads) → walk');
+assert(recoveryActivity('B') === '30 min swim or walk', 'after Day B → swim or walk');
+assert(recoveryActivity(null) === '20 min walk', 'nothing logged → the gentlest default');
+
+// TRAINING ON A RECOVER DAY IS STILL POSSIBLE. 'recover' is advice, never a
+// lock — the plan suggests, the UI never blocks. Three things have to hold for
+// that to be true: the recover plan still names a startable day, the Start row
+// targets that same day, and a session logged on a recover day is accepted and
+// picked up as the new anchor rather than ignored.
+const pRecoverDay = getDynamicPlan([log(local(2026, 8, 2, 19), 'Day A 45m — Aug 2')], now);
+assert(pRecoverDay.mode === 'recover', 'baseline: an evening session yesterday → recover');
+assert(pRecoverDay.day === 'B', 'a recover day still names a day he can start right now');
+assert(queuedDay(pRecoverDay) === 'B', 'the Start row on a recover day targets that same day');
+
+const pTrainedAnyway = getDynamicPlan(
+  [log(local(2026, 8, 2, 19), 'Day A 45m — Aug 2'), log(local(2026, 8, 3, 8), 'Day B 45m — Aug 3')],
+  now,
+);
+assert(
+  pTrainedAnyway.mode === 'done-today' && pTrainedAnyway.day === 'B',
+  'training through a recover day is logged, not refused',
+);
+assert(queuedDay(pTrainedAnyway) === 'A', 'after training through a recover day the alternate is queued');
+assert(
+  projectPlan(
+    [log(local(2026, 8, 2, 19), 'Day A 45m — Aug 2'), log(local(2026, 8, 3, 8), 'Day B 45m — Aug 3')],
+    now,
+    3,
+  )[1].mode === 'recover',
+  'the never-back-to-back rule re-anchors on the session he actually did',
+);
+
+// A 43-day layoff still hits the return protocol AND still says train.
+const layoff = [log(local(2026, 6, 21), 'Day A 45m — Jun 21')];
+const pLayoff = getDynamicPlan(layoff, now);
+assert(pLayoff.mode === 'train' && pLayoff.day === 'B', '43 days off → TRAIN, alternating from Day A');
+assert(pLayoff.daysSinceLast === 43, `43-day gap counted exactly (got ${pLayoff.daysSinceLast})`);
+const sLayoff = getTrainingStatus([local(2026, 6, 21)], now);
+assert(
+  sLayoff.mode === 'return' && sLayoff.week === 1,
+  `43 days off still triggers the return protocol (got ${sLayoff.mode} w${sLayoff.week})`,
+);
+
+// ── projectPlan ──────────────────────────────────────────────
+console.log('projectPlan');
+const proj = projectPlan([log(local(2026, 8, 1), 'Day A 45m — Aug 1')], now, 5);
+assert(proj.length === 5, 'projection covers today plus the next 4 days');
+assert(proj[0].isToday && proj[0].mode === 'train' && proj[0].day === 'B', 'today: train Day B');
+assert(proj[1].mode === 'recover' && proj[1].day === null, 'the day after a session is recovery');
+assert(proj[2].mode === 'train' && proj[2].day === 'A', 'then train, alternating back to Day A');
+assert(proj[3].mode === 'recover' && proj[4].mode === 'train' && proj[4].day === 'B', 'the rhythm keeps alternating');
+assert(
+  proj.every((p, i) => i === 0 || p.mode !== 'train' || proj[i - 1].mode !== 'train'),
+  'the projection never puts two training days back to back',
+);
+
+const projDone = projectPlan([log(local(2026, 8, 3, 7), 'Day A 45m — Aug 3')], now, 5);
+assert(projDone[0].mode === 'done-today' && projDone[0].day === 'A', 'a session logged today opens the projection');
+assert(projDone[1].mode === 'recover', 'tomorrow recovers after a session logged today');
+assert(projDone[2].mode === 'train' && projDone[2].day === 'B', 'the day after that trains Day B');
+
 // ── homeVerdict ──────────────────────────────────────────────
 console.log('homeVerdict');
-const sun = new Date(2026, 7, 2, 12, 0); // Sunday — Day A on the schedule
-const mon = new Date(2026, 7, 3, 12, 0); // Monday — rest
+const planTrainB: DynamicPlan = getDynamicPlan([log(local(2026, 8, 1), 'Day A 45m — Aug 1')], now);
+const planRecover: DynamicPlan = getDynamicPlan([log(local(2026, 8, 2, 19), 'Day A 45m — Aug 2')], now);
+const planDone: DynamicPlan = getDynamicPlan([log(local(2026, 8, 3, 7), 'Day A 45m — Aug 3')], now);
 
 const returnStatus = getTrainingStatus(preBreak, day('2026-07-29T12:00:00Z'));
-const vReturn = homeVerdict(returnStatus, 'B', sun);
-assert(vReturn.tone === 'return', 'gym day inside the ramp → ember tone');
-assert(vReturn.lead === 'TRAIN TODAY', 'gym day leads with TRAIN TODAY');
+const vReturn = homeVerdict(returnStatus, planTrainB, now);
+assert(vReturn.tone === 'return', 'train day inside the ramp → ember tone');
+assert(vReturn.lead === 'TRAIN TODAY', 'train day leads with TRAIN TODAY');
 assert(
   ['Day B', '60%', 'cap Med'].every((p) => vReturn.parts.includes(p)),
   `ramp verdict reads "TRAIN TODAY · ${vReturn.parts.join(' · ')}"`,
 );
 assert(vReturn.parts.length <= 3 && vReturn.sub !== null, 'one line plus one sub-line, nothing more');
 
-const vRest = homeVerdict(returnStatus, 'B', mon);
-assert(vRest.tone === 'rest' && vRest.lead === 'REST', 'Monday → REST');
-assert(vRest.parts.join('') === '20 min walk', `rest verdict names the activity (got "${vRest.parts.join('')}")`);
-assert(vRest.day === null, 'rest days carry no day accent');
+const vRecover = homeVerdict(returnStatus, planRecover, now);
+assert(vRecover.tone === 'rest' && vRecover.lead === 'RECOVER', 'trained yesterday → RECOVER');
+assert(
+  vRecover.parts.join('') === '20 min walk',
+  `recover verdict names the activity (got "${vRecover.parts.join('')}")`,
+);
+assert(vRecover.day === null, 'recovery days carry no day accent');
+assert(vRecover.sub === 'Day B next', `recovery still says what is queued (got "${vRecover.sub}")`);
 
-const vNormal = homeVerdict({ mode: 'normal', week: 3 }, 'A', sun);
+const vDone = homeVerdict(returnStatus, planDone, now);
+assert(vDone.tone === 'done' && vDone.lead === 'DONE TODAY', 'already trained today → DONE TODAY');
+assert(vDone.parts.join('') === 'Day A logged', `done verdict names the day (got "${vDone.parts.join('')}")`);
+
+const vNormal = homeVerdict({ mode: 'normal', week: 3 }, getDynamicPlan([log(local(2026, 8, 1), 'Day B 45m')], now), now);
 assert(vNormal.tone === 'train' && vNormal.day === 'A', 'past the ramp → day-accent tone, no ember');
 assert(vNormal.parts.includes('Wk 3 BUILD'), `normal verdict carries the phase (got "${vNormal.parts.join(' · ')}")`);
 
-const vNoDay = homeVerdict({ mode: 'normal', week: 3 }, null, sun);
-assert(vNoDay.parts.includes('Day A or B'), 'no history yet → verdict still gives an order');
+const vNoDay = homeVerdict(
+  { mode: 'normal', week: 3 },
+  { mode: 'train', day: null, daysSinceLast: null, lastDay: null, reason: '' },
+  now,
+);
+assert(vNoDay.parts.includes('Day A or B'), 'a plan with no day still gives an order');
+
+// ── readiness wiring (the signal itself is computed elsewhere) ─
+console.log('homeVerdict + readiness');
+const hold: ReadinessSignal = { verdict: 'hold', note: '5.2 h sleep · resting HR +6 bpm' };
+const proceed: ReadinessSignal = { verdict: 'proceed', note: '7.4 h sleep' };
+
+assert(
+  JSON.stringify(homeVerdict(returnStatus, planTrainB, now, undefined)) === JSON.stringify(vReturn),
+  'no readiness → the verdict is exactly what it was',
+);
+
+const vHold = homeVerdict(returnStatus, planTrainB, now, hold);
+assert(vHold.lead === 'RECOVER' && vHold.tone === 'rest', "a 'hold' downgrades TRAIN to recovery wording");
+assert(vHold.sub === hold.note, 'the hold note becomes the sub-line');
+assert(vHold.day === null, 'a held day carries no day accent');
+
+const vProceed = homeVerdict(returnStatus, planTrainB, now, proceed);
+assert(vProceed.lead === 'TRAIN TODAY' && vProceed.tone === 'return', "'proceed' leaves the order alone");
+assert(vProceed.sub === proceed.note, 'the readiness note takes the sub-line');
+assert(
+  vProceed.parts.join(' · ') === vReturn.parts.join(' · '),
+  'readiness never rewrites the numbers on the order line',
+);
+
+const vHoldOnDone = homeVerdict(returnStatus, planDone, now, hold);
+assert(vHoldOnDone.lead === 'DONE TODAY', 'a hold cannot un-log a session he already did');
+
+// A hold softens the WORDING; it never removes the day from the plan, and the
+// day cards read the plan, not the verdict. Health advice must not be able to
+// lock him out of the gym.
+assert(
+  planTrainB.mode === 'train' && planTrainB.day === 'B' && queuedDay(planTrainB) === 'B',
+  'a held day is still startable — the plan keeps its day',
+);
+
+// The contract <HomeVerdict> relies on: it hands homeVerdict the readiness
+// VERDICT with an empty note, because the ReadinessBanner directly above is
+// already showing that note. An empty note must therefore leave the verdict's
+// own sub-line intact instead of blanking it.
+const holdQuiet: ReadinessSignal = { verdict: 'hold', note: '' };
+const vHoldQuiet = homeVerdict(returnStatus, planTrainB, now, holdQuiet);
+assert(vHoldQuiet.lead === 'RECOVER' && vHoldQuiet.tone === 'rest', 'a note-less hold still downgrades the order');
+assert(vHoldQuiet.sub === 'Day B next', `a blank note falls back to the verdict's own sub-line (got "${vHoldQuiet.sub}")`);
+assert(
+  JSON.stringify(homeVerdict(returnStatus, planDone, now, { verdict: 'proceed', note: '' })) ===
+    JSON.stringify(vDone),
+  'a note-less proceed changes nothing at all',
+);
 
 // ── summary ──────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);

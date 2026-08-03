@@ -17,18 +17,24 @@ model Exercise {
 }
 
 model Workout {
-  id             String       @id @default(cuid())
-  name           String
-  date           DateTime     @default(now())
-  gym            String?
-  notes          String?
-  duration       Int?
-  avgHr          Int?
-  maxHr          Int?
-  activeKcal     Int?
-  healthSyncedAt DateTime?
-  sets           WorkoutSet[]
-  createdAt      DateTime     @default(now())
+  id                String       @id @default(cuid())
+  name              String
+  date              DateTime     @default(now())
+  gym               String?
+  notes             String?
+  duration          Int?
+  avgHr             Int?
+  maxHr             Int?
+  activeKcal        Int?
+  healthSyncedAt    DateTime?
+  // UUID of the HKWorkout this session came from (or was matched to). Set only
+  // by the auto-detect import; every hand-logged workout leaves it null, and
+  // Postgres allows unlimited NULLs under a unique index. It is what stops an
+  // already-imported Apple Health session from being offered a second time.
+  // Additive — `prisma db push` adds the column and index with no data loss.
+  healthWorkoutUuid String?      @unique
+  sets              WorkoutSet[]
+  createdAt         DateTime     @default(now())
 
   @@index([date])
 }

@@ -5,11 +5,13 @@
 
 import { getMondayOfWeek, RPE_LABELS } from './format';
 import {
+  alternateDay,
   getDayTemplate,
   PROGRESSION,
-  REST_ACTIVITIES,
+  recoveryActivity,
   RETURN_PROGRAM,
-  SCHEDULE,
+  WEEKLY_SESSION_TARGET,
+  type DynamicPlan,
   type TrainingStatus,
 } from './program';
 
@@ -231,10 +233,10 @@ export function weightTrend(bodyStats: CoachBodyStat[]): WeightTrend {
 }
 
 // ── Home verdict ─────────────────────────────────────────────
-// The single instruction line at the top of the home screen. Derived from
-// the program calendar and the training status ALONE — no health or
-// readiness data yet. Readiness signals will refine this later; nothing
-// else should have to change when they do.
+// The single instruction line at the top of the home screen. Composed from
+// the DYNAMIC PLAN (what his log says to do today) and the training status
+// (which ramp/phase the loads come from) — plus, optionally, a readiness
+// signal computed elsewhere from health data.
 
 /** The PROGRESSION row covering a program week ("3–4" ranges included). */
 export function phaseForWeek(week: number): (typeof PROGRESSION)[number] {
@@ -247,7 +249,18 @@ export function phaseForWeek(week: number): (typeof PROGRESSION)[number] {
   );
 }
 
-export type VerdictTone = 'return' | 'train' | 'rest';
+export type VerdictTone = 'return' | 'train' | 'rest' | 'done';
+
+/**
+ * A health-derived read on today, computed elsewhere (see health-metrics).
+ * The coach only consumes it: a 'hold' softens a TRAIN order into recovery
+ * wording, and the note becomes the verdict's sub-line. Absent → the verdict
+ * is exactly what the program and the log alone would say.
+ */
+export interface ReadinessSignal {
+  verdict: 'push' | 'proceed' | 'hold';
+  note: string;
+}
 
 export interface HomeVerdict {
   tone: VerdictTone;
@@ -262,37 +275,51 @@ export interface HomeVerdict {
 }
 
 /**
- * Tells him what to do today in one line:
- *   "TRAIN TODAY · Day B · 60% · cap Med"   (gym day, return ramp)
- *   "TRAIN TODAY · Day A · Wk 3 BUILD"      (gym day, main program)
- *   "REST · 20 min walk"                    (rest day)
+ * Tells him what to do today in one line, off his own log:
+ *   "TRAIN TODAY · Day B · 60% · cap Med"   (plan says train, return ramp)
+ *   "TRAIN TODAY · Day A · Wk 3 BUILD"      (plan says train, main program)
+ *   "RECOVER · 20 min walk"                 (trained yesterday, or held)
+ *   "DONE TODAY · Day A logged"             (already trained today)
+ *
+ * `readiness` is optional and computed elsewhere. When it is absent this
+ * behaves exactly as it does without it; when present its note becomes the
+ * sub-line, and a 'hold' downgrades a TRAIN order into recovery wording.
  */
 export function homeVerdict(
   status: TrainingStatus,
-  suggestedDay: 'A' | 'B' | null,
+  plan: DynamicPlan,
   now: Date = new Date(),
+  readiness?: ReadinessSignal,
 ): HomeVerdict {
-  const idx = now.getDay();
+  void now; // the plan already carries the date maths; kept for call-site symmetry
+  // The freshest signal owns the sub-line — it is the one thing the program
+  // alone could not have known.
+  const sub = (base: string | null) => (readiness?.note ? readiness.note : base);
 
-  if (SCHEDULE[idx]?.type !== 'gym') {
-    let nextGym: string | null = null;
-    for (let i = 1; i <= 7; i++) {
-      const slot = SCHEDULE[(idx + i) % 7];
-      if (slot?.type === 'gym') {
-        nextGym = slot.day;
-        break;
-      }
-    }
+  if (plan.mode === 'done-today') {
+    return {
+      tone: 'done',
+      lead: 'DONE TODAY',
+      parts: [plan.day ? `Day ${plan.day} logged` : 'Session logged'],
+      sub: sub(`Recover tomorrow · Day ${alternateDay(plan.day ?? plan.lastDay)} next`),
+      day: plan.day,
+    };
+  }
+
+  // Either his log says recover, or the health read says hold. Both are
+  // advice: the day cards stay startable, this line just isn't the order.
+  if (plan.mode === 'recover' || readiness?.verdict === 'hold') {
+    const next = plan.day ?? alternateDay(plan.lastDay);
     return {
       tone: 'rest',
-      lead: 'REST',
-      parts: [REST_ACTIVITIES[idx] ?? 'Full rest & stretch'],
-      sub: nextGym ? `Next gym ${nextGym}${suggestedDay ? ` · Day ${suggestedDay}` : ''}` : null,
+      lead: 'RECOVER',
+      parts: [recoveryActivity(plan.lastDay)],
+      sub: sub(`Day ${next} next`),
       day: null,
     };
   }
 
-  const parts = [suggestedDay ? `Day ${suggestedDay}` : 'Day A or B'];
+  const parts = [plan.day ? `Day ${plan.day}` : 'Day A or B'];
 
   if (status.mode === 'return') {
     parts.push(`${status.returnWeek.loadPct}%`, `cap ${RPE_LABELS[status.returnWeek.rpeCap]}`);
@@ -300,8 +327,10 @@ export function homeVerdict(
       tone: 'return',
       lead: 'TRAIN TODAY',
       parts,
-      sub: `Return week ${status.week} of ${RETURN_PROGRAM.length} · ${status.returnWeek.phase} · ${status.returnWeek.sessions} sessions`,
-      day: suggestedDay,
+      sub: sub(
+        `Return week ${status.week} of ${RETURN_PROGRAM.length} · ${status.returnWeek.phase} · ${status.returnWeek.sessions} sessions`,
+      ),
+      day: plan.day,
     };
   }
 
@@ -310,8 +339,8 @@ export function homeVerdict(
     tone: 'train',
     lead: 'TRAIN TODAY',
     parts,
-    sub: suggestedDay ? getDayTemplate(suggestedDay).focus : null,
-    day: suggestedDay,
+    sub: sub(plan.day ? getDayTemplate(plan.day).focus : null),
+    day: plan.day,
   };
 }
 
@@ -332,8 +361,6 @@ export interface WeeklyReport {
   focus: string[];
   nextSession: string[];
 }
-
-const WEEKLY_SESSION_TARGET = 3;
 
 /** The coach's weekly read: sessions, volume, plateaus, effort, weight. */
 export function weeklyReport(

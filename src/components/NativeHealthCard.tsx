@@ -4,10 +4,13 @@
 // On the plain web / PWA this component returns null and costs nothing.
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { importHealthWorkout } from '@/app/actions';
 import {
   isNativeApp,
   requestHealthAuthorization,
   queryWeight,
+  queryWorkouts,
   queryWorkoutStats,
   saveWorkout,
   formatSyncAge,
@@ -18,7 +21,16 @@ import {
 const TOKEN_KEY = 'health-sync-token';
 const LAST_SYNC_KEY = 'health-native-last-sync';
 const CONNECTED_KEY = 'health-native-connected';
+/** UUIDs the user has already acted on — never offered again on this device. */
+const DISMISSED_KEY = 'health-detect-dismissed';
 const API_TIMEOUT_MS = 20_000;
+
+/** This app's own bundle id — sessions it wrote to Health are already logged. */
+const OWN_BUNDLE_ID = 'com.aralhamoud.workout';
+/** How far back to look for sessions that were trained but never logged. */
+const DETECT_WINDOW_DAYS = 14;
+/** Cap on the local dismissed list so it can't grow forever in localStorage. */
+const DISMISSED_MAX = 60;
 
 /**
  * Weight is always re-pulled over a fixed rolling window, never "since the last
@@ -43,6 +55,100 @@ interface ImportSample {
   value: number;
   unit: string;
   date: string;
+}
+
+/** A HealthKit session the server confirmed is not in the log yet. */
+interface Detected {
+  uuid: string;
+  startISO: string;
+  durationMin: number;
+  durationSec: number;
+  kind: 'strength' | 'cardio';
+  label: string;
+  /** Ready-made workout name for the one-tap cardio import ("Swim 28m"). */
+  name: string;
+}
+
+/**
+ * Bounded fetch against /api/health/*. Module scope so the detect pass can use
+ * it from an effect without depending on anything rebuilt each render — a
+ * request that never comes back would otherwise strand the card with nothing
+ * to report.
+ */
+async function healthApi(token: string, path: string, init?: RequestInit): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    const res = await fetch(path, {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(init?.headers ?? {}),
+      },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      throw new Error(`${path} timed out after ${API_TIMEOUT_MS / 1000}s`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Device-local calendar day (YYYY-MM-DD) — the server can't derive this. */
+function localDayOf(iso: string): string | null {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** "Sun 18:12" — the glance format for an unlogged session. */
+function whenLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = d.toLocaleDateString(undefined, { weekday: 'short' });
+  const time = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+  return `${day} ${time}`;
+}
+
+/**
+ * Sessions Apple Health knows about that this app doesn't.
+ *
+ * Workouts this app wrote are filtered out here by bundle id — they are, by
+ * definition, already in the log. Everything else goes to the server, which is
+ * the only side that can check the Workout table. Failure is silent on purpose:
+ * this is an offer, not a sync, and an error chip for "we couldn't check"
+ * would be pure noise on a card that already reports real sync failures.
+ */
+async function detectUnlogged(token: string): Promise<Detected[]> {
+  try {
+    const workouts = await queryWorkouts(windowStartISO(DETECT_WINDOW_DAYS));
+    const candidates = workouts
+      .filter((w) => w.sourceBundleId !== OWN_BUNDLE_ID)
+      .map((w) => ({
+        uuid: w.uuid,
+        startISO: w.startISO,
+        endISO: w.endISO,
+        durationSec: w.durationSec,
+        activityType: w.activityType,
+        localDay: localDayOf(w.startISO),
+      }));
+    if (!candidates.length) return [];
+
+    const res = await healthApi(token, '/api/health/detect', {
+      method: 'POST',
+      body: JSON.stringify({ candidates }),
+    });
+    const list = (res as { candidates?: unknown })?.candidates;
+    return Array.isArray(list) ? (list as Detected[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 const inputCls =
@@ -73,6 +179,7 @@ function Chevron() {
 }
 
 export default function NativeHealthCard() {
+  const router = useRouter();
   const [native, setNative] = useState(false);
   const [token, setToken] = useState('');
   const [draft, setDraft] = useState('');
@@ -82,6 +189,11 @@ export default function NativeHealthCard() {
   const [status, setStatus] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
   const [lastSync, setLastSync] = useState<string | null>(null);
+  const [detected, setDetected] = useState<Detected[]>([]);
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [importing, setImporting] = useState<string | null>(null);
+  // Bumped after a sync so the offer list re-checks without a page reload.
+  const [detectNonce, setDetectNonce] = useState(0);
 
   useEffect(() => {
     if (!isNativeApp()) return;
@@ -89,36 +201,31 @@ export default function NativeHealthCard() {
     setToken(localStorage.getItem(TOKEN_KEY) ?? '');
     setConnected(localStorage.getItem(CONNECTED_KEY) === '1');
     setLastSync(localStorage.getItem(LAST_SYNC_KEY));
+    try {
+      const raw = JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]');
+      if (Array.isArray(raw)) setDismissed(raw.filter((v): v is string => typeof v === 'string'));
+    } catch {
+      /* a corrupt list just means nothing is dismissed */
+    }
   }, []);
+
+  // Auto-detect runs on its own, unprompted: the whole point is that he does
+  // NOT have to remember a session went unlogged. It needs the token (the
+  // overlap check lives behind the same guard as every other health route).
+  useEffect(() => {
+    if (!native || !token) return;
+    let cancelled = false;
+    detectUnlogged(token).then((found) => {
+      if (!cancelled) setDetected(found);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [native, token, detectNonce]);
 
   if (!native) return null;
 
-  // Bounded like the bridge calls: a request that never comes back would
-  // otherwise strand the card on "Syncing…" with nothing to report.
-  const api = async (path: string, init?: RequestInit): Promise<unknown> => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-    try {
-      const res = await fetch(path, {
-        ...init,
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-          ...(init?.headers ?? {}),
-        },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    } catch (e) {
-      if (e instanceof DOMException && e.name === 'AbortError') {
-        throw new Error(`${path} timed out after ${API_TIMEOUT_MS / 1000}s`);
-      }
-      throw e;
-    } finally {
-      clearTimeout(timer);
-    }
-  };
+  const api = (path: string, init?: RequestInit) => healthApi(token, path, init);
 
   /** Keep the stage name, but carry the real cause so a failure is debuggable. */
   const reason = (e: unknown, stage: string) =>
@@ -238,10 +345,61 @@ export default function NativeHealthCard() {
     // Per-workout stages run in a loop; one cause shouldn't fill the card.
     setErrors([...new Set(errs)]);
     setBusy(null);
+    // A sync may have just pushed app workouts into Health; re-ask what's left.
+    setDetectNonce((n) => n + 1);
+  };
+
+  /** Never offer this HealthKit session again on this device. */
+  const dismiss = (uuid: string) => {
+    setDismissed((prev) => {
+      const next = [uuid, ...prev.filter((u) => u !== uuid)].slice(0, DISMISSED_MAX);
+      try {
+        localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
+      } catch {
+        /* a full quota only costs us the "don't re-offer" memory */
+      }
+      return next;
+    });
+  };
+
+  /**
+   * Strength sessions open the EXISTING logger, pre-filled — there is no second
+   * logging flow, and there shouldn't be: sets, weights and effort still have
+   * to be typed in by hand. Only the facts HealthKit actually knows are carried
+   * over: which day it was, how long it ran, and which HKWorkout it came from.
+   */
+  const logIt = (c: Detected) => {
+    dismiss(c.uuid);
+    const day = localDayOf(c.startISO);
+    const params = new URLSearchParams({ mins: String(c.durationMin), hk: c.uuid });
+    if (day) params.set('date', day);
+    router.push(`/workouts/new?${params.toString()}`);
+  };
+
+  /** Swims import in one tap — a duration and a name, no sets to type. */
+  const importCardio = async (c: Detected) => {
+    setImporting(c.uuid);
+    try {
+      await importHealthWorkout({
+        healthWorkoutUuid: c.uuid,
+        name: c.name,
+        dateISO: c.startISO,
+        durationSec: c.durationSec,
+      });
+      dismiss(c.uuid);
+      setDetected((prev) => prev.filter((d) => d.uuid !== c.uuid));
+      router.refresh();
+    } catch (e) {
+      setErrors((prev) => [...new Set([...prev, reason(e, 'import')])]);
+    } finally {
+      setImporting(null);
+    }
   };
 
   const needsToken = !token || editingToken;
   const syncAge = formatSyncAge(lastSync);
+  // Silent when there is nothing to offer — no empty state, no placeholder.
+  const offers = detected.filter((d) => !dismissed.includes(d.uuid));
 
   return (
     <div className="card-lg p-4">
@@ -321,6 +479,56 @@ export default function NativeHealthCard() {
               {err}
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Trained but never logged — one row per session, one number each.
+          Renders nothing at all when Health has nothing to offer. */}
+      {offers.length > 0 && (
+        <div className="mt-3 border-t border-app-border pt-3">
+          <div className="mb-2 flex items-baseline justify-between">
+            <p className="section-label">Not logged</p>
+            <span className="text-[11px] tabular-nums text-app-tx3">{offers.length}</span>
+          </div>
+          <div className="space-y-1.5">
+            {offers.map((c) => {
+              const cardio = c.kind === 'cardio';
+              return (
+                <div
+                  key={c.uuid}
+                  className={`flex items-center gap-2 rounded-card border px-3 py-2 ${
+                    cardio ? 'border-acc-cyan/25 bg-acc-cyan/[0.05]' : 'border-app-border bg-white/[0.03]'
+                  }`}
+                >
+                  <span className="min-w-0 flex-1 truncate text-xs tabular-nums text-app-tx2">
+                    {whenLabel(c.startISO)}
+                    <span className="mx-1 text-app-tx3">·</span>
+                    <b className="font-semibold text-app-tx1">{c.durationMin} min</b>
+                    <span className="mx-1 text-app-tx3">·</span>
+                    <span className={cardio ? 'text-acc-cyan' : 'text-app-tx2'}>{c.label}</span>
+                  </span>
+                  <button
+                    onClick={() => (cardio ? importCardio(c) : logIt(c))}
+                    disabled={importing !== null}
+                    className={`flex-shrink-0 rounded-full border px-3 py-1.5 text-[11px] font-bold transition-colors disabled:text-app-tx3 ${
+                      cardio
+                        ? 'border-acc-cyan/40 bg-acc-cyan/10 text-acc-cyan hover:bg-acc-cyan/20'
+                        : 'border-acc-teal/40 bg-acc-teal/10 text-acc-teal hover:bg-acc-teal/20'
+                    }`}
+                  >
+                    {importing === c.uuid ? 'Adding…' : cardio ? 'Add it' : 'Log it'}
+                  </button>
+                  <button
+                    onClick={() => dismiss(c.uuid)}
+                    aria-label="Not a session"
+                    className="flex-shrink-0 text-lg leading-none text-app-tx3 transition-colors hover:text-app-tx1"
+                  >
+                    &#215;
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

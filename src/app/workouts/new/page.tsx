@@ -5,9 +5,11 @@ import WorkoutForm from '@/components/WorkoutForm';
 import { combineIncrement, learnPinIncrements } from '@/lib/coach';
 import {
   getDayTemplate,
+  getDynamicPlan,
   getExercisesForDuration,
   getPlankTarget,
   getTrainingStatus,
+  queuedDay,
   type Duration,
 } from '@/lib/program';
 
@@ -20,23 +22,25 @@ export default async function NewWorkoutPage({
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
-  const rawDay = searchParams.day;
-  const day = Array.isArray(rawDay) ? rawDay[0] : rawDay;
-  const validDay = day === 'A' || day === 'B' ? day : undefined;
-
   const rawDur = searchParams.dur;
   const durStr = Array.isArray(rawDur) ? rawDur[0] : rawDur;
   const validDur: Duration =
     durStr === '30' ? 30 : durStr === '45' ? 45 : durStr === '60' ? 60 : 60;
 
-  const exercises = await getExercises();
+  const [exercises, allWorkouts] = await Promise.all([getExercises(), getWorkouts()]);
 
-  const initialName = validDay
-    ? `Day ${validDay} ${validDur}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-    : '';
+  // No ?day= — e.g. the tab bar or a deep link — so fall back to the day the
+  // dynamic plan has queued rather than dropping him into a blank freestyle log.
+  const rawDay = searchParams.day;
+  const day = Array.isArray(rawDay) ? rawDay[0] : rawDay;
+  const validDay =
+    day === 'A' || day === 'B'
+      ? day
+      : queuedDay(getDynamicPlan(allWorkouts.map((w) => ({ date: w.date, name: w.name }))));
+
+  const initialName = `Day ${validDay} ${validDur}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
   const initialExercises = (() => {
-    if (!validDay) return [];
     const templateExercises = getExercisesForDuration(validDay, validDur);
     const exerciseMap = new Map(exercises.map((e) => [e.name, e]));
     return templateExercises
@@ -59,10 +63,9 @@ export default async function NewWorkoutPage({
   })();
 
   const exerciseIds = initialExercises.map((e) => e.exerciseId);
-  const [lastSession, personalRecords, allWorkouts] = await Promise.all([
+  const [lastSession, personalRecords] = await Promise.all([
     getLastSessionForExercises(exerciseIds),
     getPersonalRecords(),
-    getWorkouts(),
   ]);
 
   // Compute progression hints: exerciseId → true if same weight 2+ sessions with Easy/Med RPE
@@ -111,14 +114,11 @@ export default async function NewWorkoutPage({
   );
 
   // Aurora day accents — Day A glows violet, Day B glows teal.
-  const eyebrowAccent =
-    validDay === 'A' ? 'text-acc-violet/80' : validDay === 'B' ? 'text-acc-teal/80' : '';
+  const eyebrowAccent = validDay === 'A' ? 'text-acc-violet/80' : 'text-acc-teal/80';
   const titleGradient =
     validDay === 'A'
       ? 'bg-gradient-to-r from-white via-[#ddd6fe] to-[#c4b5fd] bg-clip-text text-transparent'
-      : validDay === 'B'
-        ? 'bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text text-transparent'
-        : 'text-app-tx1';
+      : 'bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text text-transparent';
   const durActive =
     validDay === 'A'
       ? 'bg-gradient-to-br from-acc-violet/25 to-acc-violet-deep/10 border-acc-violet/60 text-[#e9e4ff] shadow-glow-violet'
@@ -127,40 +127,36 @@ export default async function NewWorkoutPage({
   return (
     <div className="space-y-5">
       <div className="pt-1">
-        <p className={`section-label ${eyebrowAccent}`}>
-          {validDay ? getDayTemplate(validDay).focus : 'Freestyle'}
-        </p>
+        <p className={`section-label ${eyebrowAccent}`}>{getDayTemplate(validDay).focus}</p>
         <h1 className={`text-2xl font-bold font-round tracking-tight mt-0.5 ${titleGradient}`}>
-          {validDay ? `Day ${validDay} Workout` : 'Log Workout'}
+          Day {validDay} Workout
         </h1>
       </div>
 
       {/* Duration switcher pills */}
-      {validDay && (
-        <div>
-          <p className="section-label mb-2">
-            Minutes · {initialExercises.length} exercises
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            {DURATIONS.map((d) => {
-              const active = d === validDur;
-              return (
-                <Link
-                  key={d}
-                  href={`/workouts/new?day=${validDay}&dur=${d}`}
-                  className={`card text-center px-3 py-2.5 rounded-card text-sm font-semibold tabular-nums transition-all pressable ${
-                    active
-                      ? durActive
-                      : 'text-app-tx2 hover:border-app-border-hi hover:text-app-tx1'
-                  }`}
-                >
-                  {d}
-                </Link>
-              );
-            })}
-          </div>
+      <div>
+        <p className="section-label mb-2">
+          Minutes · {initialExercises.length} exercises
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {DURATIONS.map((d) => {
+            const active = d === validDur;
+            return (
+              <Link
+                key={d}
+                href={`/workouts/new?day=${validDay}&dur=${d}`}
+                className={`card text-center px-3 py-2.5 rounded-card text-sm font-semibold tabular-nums transition-all pressable ${
+                  active
+                    ? durActive
+                    : 'text-app-tx2 hover:border-app-border-hi hover:text-app-tx1'
+                }`}
+              >
+                {d}
+              </Link>
+            );
+          })}
         </div>
-      )}
+      </div>
 
       <WorkoutForm
         exercises={exercises}

@@ -1,6 +1,18 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { DAY_A, DAY_B, SCHEDULE, PROGRESSION, RETURN_PROGRAM, BREAK_THRESHOLD_DAYS, CARDIO, getTrainingStatus, type Priority } from '@/lib/program';
+import {
+  DAY_A,
+  DAY_B,
+  PROGRESSION,
+  RETURN_PROGRAM,
+  BREAK_THRESHOLD_DAYS,
+  CARDIO,
+  WEEKLY_SESSION_TARGET,
+  getDynamicPlan,
+  getTrainingStatus,
+  projectPlan,
+  type Priority,
+} from '@/lib/program';
 import { getExercises, getBodyStats, getWorkouts } from '@/app/actions';
 import CollapsibleSection from '@/components/CollapsibleSection';
 import { getMondayOfWeek, RPE_LABELS } from '@/lib/format';
@@ -132,7 +144,13 @@ export default async function ProgramPage() {
       return status.week >= start && status.week <= end;
     }) ?? PROGRESSION[0];
 
-  const todayDayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date().getDay()];
+  // The plan follows his log, so the projection is "if you follow it from
+  // here" — today plus the next 4 days, alternating train / recover.
+  const sessions = workouts.map((w) => ({ date: w.date, name: w.name }));
+  const plan = getDynamicPlan(sessions);
+  const projection = projectPlan(sessions, new Date(), 5);
+  const sessionTarget = status.mode === 'return' ? status.returnWeek.sessions : `${WEEKLY_SESSION_TARGET}`;
+
   const latestWeight = [...bodyStats].reverse().find((s) => s.weight !== null)?.weight ?? 132;
   const firstWeight = bodyStats.find((s) => s.weight !== null)?.weight ?? null;
   const weightChange = firstWeight !== null ? +(latestWeight - firstWeight).toFixed(1) : null;
@@ -268,39 +286,43 @@ export default async function ProgramPage() {
         </section>
       )}
 
-      {/* Weekly Schedule */}
+      {/* What's next — a rolling projection off his own log. There is no fixed
+          weekly calendar any more: train, recover the next day, alternate A/B. */}
       <section>
-        <p className="section-label mb-3">
-          Weekly Schedule
-        </p>
-        <div className="grid grid-cols-7 gap-1">
-          {SCHEDULE.map((s) => {
+        <div className="mb-3 flex items-baseline justify-between gap-2">
+          <p className="section-label">What&apos;s next</p>
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] tabular-nums text-app-tx3">
+            {sessionsThisWeek}/{sessionTarget} this week
+          </span>
+        </div>
+        <div className="grid grid-cols-5 gap-1.5">
+          {projection.map((p) => {
             // Light IS the information system — Day A glows violet, Day B teal
-            const isFlex = s.workout === 'A/B';
             const cellCls =
-              s.type === 'gym'
-                ? isFlex
-                  ? 'border border-app-border-hi bg-white/[0.06]'
-                  : s.workout?.includes('A')
-                    ? 'border border-acc-violet/40 bg-acc-violet-deep/15 shadow-[0_0_14px_-4px_rgba(139,92,246,0.5)]'
-                    : 'border border-acc-teal/40 bg-acc-teal-deep/15 shadow-[0_0_14px_-4px_rgba(45,212,191,0.5)]'
-                : 'border border-app-border bg-app-surface';
-            const workoutCls = isFlex
-              ? 'bg-gradient-to-r from-acc-violet to-acc-teal bg-clip-text text-transparent'
-              : s.workout?.includes('A')
+              p.day === 'A'
+                ? 'border border-acc-violet/40 bg-acc-violet-deep/15 shadow-[0_0_14px_-4px_rgba(139,92,246,0.5)]'
+                : p.day === 'B'
+                  ? 'border border-acc-teal/40 bg-acc-teal-deep/15 shadow-[0_0_14px_-4px_rgba(45,212,191,0.5)]'
+                  : 'border border-app-border bg-app-surface';
+            const letterCls =
+              p.day === 'A'
                 ? 'text-acc-violet [text-shadow:0_0_14px_rgba(139,92,246,0.55)]'
                 : 'text-acc-teal [text-shadow:0_0_14px_rgba(45,212,191,0.55)]';
+            const label = p.isToday
+              ? 'Today'
+              : new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(p.date);
             return (
               <div
-                key={s.day}
+                key={p.date.toISOString()}
                 className={`rounded-xl p-2 text-center ${
-                  s.day === todayDayName ? 'ring-2 ring-white/25 ring-offset-1 ring-offset-app-bg' : ''
+                  p.isToday ? 'ring-2 ring-white/25 ring-offset-1 ring-offset-app-bg' : ''
                 } ${cellCls}`}
               >
-                <div className={`text-xs font-medium ${s.day === todayDayName ? 'text-app-tx1' : 'text-app-tx2'}`}>{s.day}</div>
-                {s.workout ? (
-                  <div className={`font-round text-sm font-extrabold mt-0.5 ${workoutCls}`}>
-                    {s.workout}
+                <div className={`text-xs font-medium ${p.isToday ? 'text-app-tx1' : 'text-app-tx2'}`}>{label}</div>
+                {p.day ? (
+                  <div className={`font-round text-sm font-extrabold mt-0.5 ${letterCls} ${p.mode === 'done-today' ? 'opacity-60' : ''}`}>
+                    {p.day}
+                    {p.mode === 'done-today' && <span className="ml-0.5 text-[10px] text-rpe-easy">✓</span>}
                   </div>
                 ) : (
                   <div className="text-xs text-app-tx3 mt-1">—</div>
@@ -309,6 +331,7 @@ export default async function ProgramPage() {
             );
           })}
         </div>
+        <p className="mt-2 text-[11px] leading-relaxed text-app-tx3">{plan.reason}</p>
       </section>
 
       {/* Day A */}

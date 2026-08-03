@@ -1,7 +1,16 @@
 import Link from 'next/link';
 import { getBodyStats, getWorkouts } from './actions';
-import { SCHEDULE, REST_ACTIVITIES, BREAK_THRESHOLD_DAYS, getTrainingStatus, getExerciseCountForDuration, getExercisesForDuration } from '@/lib/program';
-import { homeVerdict, phaseForWeek, type HomeVerdict } from '@/lib/coach';
+import {
+  getDynamicPlan,
+  getTrainingStatus,
+  getExerciseCountForDuration,
+  getExercisesForDuration,
+  parseDayLetter,
+  queuedDay,
+  recoveryActivity,
+} from '@/lib/program';
+import { phaseForWeek } from '@/lib/coach';
+import HomeVerdict from '@/components/HomeVerdict';
 import { formatDuration, formatRelative, getMondayOfWeek, kgCompact, RPE_LABELS, weekKey } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -85,67 +94,6 @@ function Chevron() {
     >
       <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-/* ── The verdict ─────────────────────────────────────────────
-   First object on the screen: one order, one muted sub-line, nothing else.
-   He wants to be TOLD what to do — this is the line that does it. The skin
-   follows the day accent (A violet · B teal) and only ever burns ember when
-   the return protocol is actually running. */
-function verdictSkin(verdict: HomeVerdict): { shell: string; nebula: string; lead: string; part: string } {
-  if (verdict.tone === 'return') {
-    return {
-      shell: 'border-acc-ember/35 shadow-glow-ember',
-      nebula: 'radial-gradient(300px 150px at 0% 0%, rgba(245,158,11,0.16), transparent 70%)',
-      lead: 'glow-amber',
-      part: 'text-app-tx1',
-    };
-  }
-  if (verdict.tone === 'train') {
-    if (verdict.day) {
-      return {
-        shell: verdict.day === 'A' ? 'border-acc-violet/30 shadow-glow-violet' : 'border-acc-teal/30 shadow-glow-teal',
-        nebula: DAY_ACCENT[verdict.day].nebula,
-        lead: verdict.day === 'A' ? 'glow-violet' : 'glow-teal',
-        part: 'text-app-tx1',
-      };
-    }
-    return {
-      shell: 'border-acc-cyan/30',
-      nebula: 'radial-gradient(300px 150px at 0% 0%, rgba(103,232,249,0.12), transparent 70%)',
-      lead: 'glow-cyan',
-      part: 'text-app-tx1',
-    };
-  }
-  return { shell: '', nebula: '', lead: 'text-app-tx2', part: 'text-app-tx3' };
-}
-
-function VerdictLine({ verdict }: { verdict: HomeVerdict }) {
-  const skin = verdictSkin(verdict);
-  return (
-    <section
-      aria-label="Today’s instruction"
-      className={`card-lg relative overflow-hidden px-4 py-3.5 ${skin.shell}`}
-    >
-      {skin.nebula && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-card-lg" style={{ background: skin.nebula }} />
-      )}
-      <p className="relative flex flex-wrap items-baseline gap-x-2 gap-y-1.5 font-round">
-        <span className={`text-[19px] font-extrabold uppercase leading-none tracking-[0.01em] ${skin.lead}`}>
-          {verdict.lead}
-        </span>
-        {verdict.parts.map((part) => (
-          <span key={part} className="flex items-baseline gap-2">
-            <span aria-hidden="true" className="text-[12px] leading-none text-app-tx3">·</span>
-            <span className={`text-[14px] font-semibold leading-none tabular-nums ${skin.part}`}>{part}</span>
-          </span>
-        ))}
-      </p>
-      {verdict.sub && (
-        <p className="relative mt-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3">{verdict.sub}</p>
-      )}
-    </section>
   );
 }
 
@@ -316,29 +264,20 @@ export default async function Home() {
     }
   }
 
-  // Today's schedule
-  const todayIdx = new Date().getDay();
-  const today = SCHEDULE[todayIdx];
-  const isGymDay = today?.type === 'gym';
-  const isSunday = todayIdx === 0;
-  const restActivity = REST_ACTIVITIES[todayIdx] ?? null;
-  let nextGymDay: (typeof SCHEDULE)[0] | null = null;
-  if (!isGymDay) {
-    for (let i = 1; i <= 7; i++) {
-      const s = SCHEDULE[(todayIdx + i) % 7];
-      if (s?.type === 'gym') { nextGymDay = s; break; }
-    }
-  }
+  const isSunday = new Date().getDay() === 0;
 
-  // Next suggested day
-  const lastDay = workouts[0]?.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
-  const suggestedDay: DayId | null = lastDay === 'A' ? 'B' : lastDay === 'B' ? 'A' : null;
+  // What his own log says to do today: train (alternating A/B), recover the
+  // day after a session, or nothing at all because it's already logged.
+  const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
+  const isTrainDay = plan.mode === 'train';
+  const isDoneToday = plan.mode === 'done-today';
+  // The glowing day. After a session logged today nothing glows — the day
+  // he did shows as done and the other stays neutral, both still startable.
+  const suggestedDay: DayId | null = isDoneToday ? null : plan.day;
+  const nextDay: DayId = queuedDay(plan);
+  const restActivity = recoveryActivity(plan.lastDay);
 
-  // Was the last-trained day inside the current training block (not before a layoff)?
   const lastWorkout = workouts[0] ?? null;
-  const lastTrainedThisBlock =
-    lastWorkout !== null &&
-    (Date.now() - new Date(lastWorkout.date).getTime()) / 86400000 < BREAK_THRESHOLD_DAYS;
 
   // Deload signal
   const deloadWarning = (() => {
@@ -357,9 +296,6 @@ export default async function Home() {
   const programWeek = status.week;
   const currentPhase = phaseForWeek(programWeek);
 
-  // The one line that tells him what to do today — program + status only.
-  const verdict = homeVerdict(status, suggestedDay);
-
   const phaseColor: Record<string, string> = {
     LEARN:    'bg-white/10 text-app-tx2',
     BUILD:    'bg-acc-indigo/25 text-indigo-300',
@@ -373,13 +309,22 @@ export default async function Home() {
   const heroVerb = hour >= 17 ? 'Tonight' : 'Today';
   const ringProgress = Math.min(1, sessionsThisWeek / 3);
   const suggestedAccent = suggestedDay ? DAY_ACCENT[suggestedDay] : null;
-  const dayOrder: DayId[] = suggestedDay === 'B' ? ['B', 'A'] : ['A', 'B'];
+  // Whatever is next sits on top — after a logged session that's the alternate.
+  const dayOrder: DayId[] = nextDay === 'B' ? ['B', 'A'] : ['A', 'B'];
 
   return (
     <div className="space-y-4">
 
-      {/* ── The verdict — first thing on the screen ─────── */}
-      <VerdictLine verdict={verdict} />
+      {/* ── The verdict — first thing on the screen ───────
+          Server-rendered from the plan + the training status. Inside the native
+          shell it upgrades itself with a HealthKit readiness read (and shows the
+          readiness banner above it); on the web that read never happens and this
+          is exactly the line the plan alone produces. */}
+      <HomeVerdict
+        status={status}
+        plan={plan}
+        lastSessionISO={lastWorkout?.date.toISOString() ?? null}
+      />
 
       {/* ── Greeting header ─────────────────────────────── */}
       <header className="flex items-end justify-between pt-1">
@@ -456,34 +401,30 @@ export default async function Home() {
 
           {/* Answer copy */}
           <div className="flex min-w-0 flex-col gap-1.5">
-            {isGymDay ? (
+            {isTrainDay ? (
               <span className="inline-flex items-center gap-1.5 self-start rounded-full bg-gradient-to-r from-acc-teal to-acc-cyan px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-[#0b1120] shadow-[0_0_20px_-4px_rgba(94,234,212,0.7)]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#0b1120] opacity-75" />
                 Gym day
               </span>
+            ) : isDoneToday ? (
+              <span className="inline-flex items-center gap-1.5 self-start rounded-full border border-rpe-easy/40 bg-rpe-easy/10 px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-rpe-easy">
+                <span className="h-1.5 w-1.5 rounded-full bg-rpe-easy opacity-80" />
+                Logged
+              </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 self-start rounded-full border border-app-border bg-white/5 px-2.5 py-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-app-tx3">
                 <span className="h-1.5 w-1.5 rounded-full bg-app-tx3 opacity-60" />
-                Rest day
+                Recovery day
               </span>
             )}
             <h2 className="font-round text-lg font-bold tracking-tight text-app-tx1">
-              {isGymDay ? `${heroVerb} you lift.` : 'Today you recover.'}
+              {isTrainDay ? `${heroVerb} you lift.` : isDoneToday ? 'Today is done.' : 'Today you recover.'}
             </h2>
-            {isGymDay ? (
-              <p className="text-xs text-app-tx2">
-                {suggestedDay ? (
-                  <>Day <b className={`font-semibold ${suggestedAccent?.accentText ?? ''}`}>{suggestedDay}</b> queued</>
-                ) : (
-                  <>Pick Day A or B below</>
-                )}
-              </p>
-            ) : nextGymDay ? (
-              <p className="text-xs text-app-tx2">
-                Next gym <b className="font-semibold text-app-tx1">{nextGymDay.day}</b>
-                {suggestedDay ? <> · Day <b className={`font-semibold ${suggestedAccent?.accentText ?? ''}`}>{suggestedDay}</b></> : null}
-              </p>
-            ) : null}
+            <p className="text-xs text-app-tx2">
+              {isTrainDay ? null : <>{isDoneToday ? 'Recover tomorrow' : restActivity} · </>}
+              Day <b className={`font-semibold ${DAY_ACCENT[nextDay].accentText}`}>{nextDay}</b>
+              {isTrainDay ? ' queued' : ' next'}
+            </p>
             {sessionsThisWeek > 0 && (
               <p className="text-xs tabular-nums text-app-tx2">
                 <b className="font-semibold text-[#99f6e4]">{kgCompact(weekVolume)} kg</b> this week
@@ -500,7 +441,7 @@ export default async function Home() {
           <div className="relative mt-3.5">
             <div className="flex items-baseline justify-between">
               <span className={`text-[10px] font-extrabold uppercase tracking-[0.16em] ${suggestedAccent.accentText}`}>
-                Start Day {suggestedDay}
+                {isTrainDay ? `Start Day ${suggestedDay}` : `Train anyway · Day ${suggestedDay}`}
               </span>
               <span className="text-[10px] text-app-tx3">pick a length</span>
             </div>
@@ -533,19 +474,17 @@ export default async function Home() {
                 Daily NEAT goal: <span className="font-semibold text-app-tx2">8,000 steps</span>
                 {' '}· ~40–50 kcal per 1k steps
               </p>
-              {!isGymDay && <p>{restActivity ?? 'Recover & recharge'}.</p>}
+              {!isTrainDay && <p>{restActivity}.</p>}
             </div>
           </details>
-          {isGymDay && (
-            status.mode === 'return' ? (
-              <span className="chip flex-none border border-acc-ember/40 bg-acc-ember/10 text-acc-ember">
-                Return W{status.week} · {status.returnWeek.phase}
-              </span>
-            ) : (
-              <span className={`chip flex-none ${phaseColor[currentPhase.phase] ?? 'bg-white/10 text-app-tx2'}`}>
-                Wk {programWeek} · {currentPhase.phase}
-              </span>
-            )
+          {status.mode === 'return' ? (
+            <span className="chip flex-none border border-acc-ember/40 bg-acc-ember/10 text-acc-ember">
+              Return W{status.week} · {status.returnWeek.phase}
+            </span>
+          ) : (
+            <span className={`chip flex-none ${phaseColor[currentPhase.phase] ?? 'bg-white/10 text-app-tx2'}`}>
+              Wk {programWeek} · {currentPhase.phase}
+            </span>
           )}
         </div>
       </section>
@@ -691,24 +630,27 @@ export default async function Home() {
       <div>
         <div className="mb-3 flex items-baseline justify-between px-1">
           <p className="section-label">
-            {isGymDay ? (hour >= 17 ? 'Tonight’s session' : 'Today’s session') : 'Next session'}
+            {isTrainDay ? (hour >= 17 ? 'Tonight’s session' : 'Today’s session') : 'Next session'}
           </p>
         </div>
 
+        {/* Both days stay startable, always — the plan suggests, it never blocks. */}
         <div className="space-y-2.5">
           {dayOrder.map((day) => {
-            const isSuggested = suggestedDay === day;
-            const variant: DayVariant = isSuggested
-              ? 'primary'
-              : suggestedDay
-                ? (lastTrainedThisBlock ? 'done' : 'muted')
-                : 'neutral';
+            const justLogged = isDoneToday && plan.day === day;
+            const variant: DayVariant = justLogged
+              ? 'done'
+              : suggestedDay === day
+                ? 'primary'
+                : suggestedDay
+                  ? 'muted'
+                  : 'neutral';
             return (
               <DayCard
                 key={day}
                 day={day}
                 variant={variant}
-                doneWhen={variant === 'done' && lastWorkout ? formatRelative(lastWorkout.date) : null}
+                doneWhen={justLogged && lastWorkout ? formatRelative(lastWorkout.date) : null}
               />
             );
           })}
@@ -799,7 +741,7 @@ export default async function Home() {
         ) : (
           <div className="space-y-2">
             {recentWorkouts.map((workout) => {
-              const dayLetter = workout.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
+              const dayLetter = parseDayLetter(workout.name);
               const vol = workout.sets.reduce((s, set) => s + set.weight * set.reps, 0);
               return (
                 <Link

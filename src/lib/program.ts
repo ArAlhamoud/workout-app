@@ -85,22 +85,210 @@ export const DURATION_LABELS: Record<Duration, string> = {
   60: 'Full',
 };
 
-export const SCHEDULE = [
-  { day: 'Sun', workout: 'A', type: 'gym' as const },
-  { day: 'Mon', workout: null, type: 'rest' as const },
-  { day: 'Tue', workout: 'B', type: 'gym' as const },
-  { day: 'Wed', workout: null, type: 'rest' as const },
-  { day: 'Thu', workout: 'A/B', type: 'gym' as const },
-  { day: 'Fri', workout: null, type: 'rest' as const },
-  { day: 'Sat', workout: null, type: 'rest' as const },
-];
+// ── Dynamic plan ─────────────────────────────────────────────
+// The plan follows BEHAVIOUR, not the calendar. A fixed weekly grid
+// (Sun A / Tue B / Thu A-or-B) lies twice: it calls a rest day after a
+// session he skipped, and it calls a gym day the morning after he trained.
+// The rules are simple and never block him:
+//   trained today      → celebrate, don't nag
+//   trained yesterday  → recover (never back-to-back)
+//   2+ days ago        → train the ALTERNATE of the last day letter
+//   nothing logged     → Day A
 
-export const REST_ACTIVITIES: Record<number, string> = {
-  1: '20 min walk',
-  3: '30 min swim or walk',
-  5: 'Full rest & stretch',
-  6: '30 min walk',
+export type DayId = 'A' | 'B';
+
+/**
+ * The one Day-letter parser: "Day B 45m — Aug 2" → 'B'. Freestyle sessions
+ * with no letter in the name return null and are handled by the caller.
+ */
+export function parseDayLetter(name: string | null | undefined): DayId | null {
+  const m = name?.match(/Day ([AB])/i);
+  return m ? (m[1].toUpperCase() as DayId) : null;
+}
+
+/** A/B alternation. Nothing lettered yet → Day A. */
+export function alternateDay(day: DayId | null | undefined): DayId {
+  return day === 'A' ? 'B' : 'A';
+}
+
+// Recovery is prescribed off the day just TRAINED, never off the weekday —
+// a calendar-keyed prescription is exactly what the dynamic plan removes.
+// Day A hammers quads, so its recovery stays flat and easy; Day B leaves the
+// legs fresh, so the water is on the table.
+export const RECOVERY_ACTIVITY: Record<DayId, string> = {
+  A: '20 min walk',
+  B: '30 min swim or walk',
 };
+
+/** Recovery prescription with nothing logged yet — the gentlest option. */
+export const RECOVERY_DEFAULT = '20 min walk';
+
+export function recoveryActivity(lastDay: DayId | null | undefined): string {
+  return lastDay ? RECOVERY_ACTIVITY[lastDay] : RECOVERY_DEFAULT;
+}
+
+/** A logged session, as little of it as the plan needs. */
+export interface LoggedSession {
+  date: Date | string;
+  /** Workout name — the Day letter is parsed out of it. */
+  name?: string | null;
+  /** Explicit letter, when the caller already knows it. Wins over `name`. */
+  day?: DayId | null;
+}
+
+export type PlanMode = 'train' | 'recover' | 'done-today';
+
+export interface DynamicPlan {
+  mode: PlanMode;
+  /**
+   * train    → the day to run now
+   * recover  → the day queued for the next session (he can still train it today)
+   * done-today → the day he actually logged today, or null if unlettered
+   */
+  day: DayId | null;
+  /** Whole calendar days since the last session; null when there is none. */
+  daysSinceLast: number | null;
+  /** Letter of the most recent session that carries one — drives alternation. */
+  lastDay: DayId | null;
+  /** One short sentence of why, for a <details> or a sub-line. */
+  reason: string;
+}
+
+const dayStart = (d: Date | string): number => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x.getTime();
+};
+
+/**
+ * Whole CALENDAR days between two instants: a session logged at 9 pm
+ * yesterday is 1 day ago at 7 am today, not 0. Elapsed-hours maths gets
+ * "trained yesterday" wrong for exactly the sessions he logs at night.
+ */
+export function calendarDaysBetween(now: Date | string, then: Date | string): number {
+  return Math.round((dayStart(now) - dayStart(then)) / 86400000);
+}
+
+function sessionLetter(s: LoggedSession): DayId | null {
+  if (s.day === 'A' || s.day === 'B') return s.day;
+  return parseDayLetter(s.name);
+}
+
+/**
+ * What the app should tell him to do right now, derived from his own log.
+ * Never returns a "blocked" state — 'recover' is advice, and both days stay
+ * startable in the UI.
+ */
+export function getDynamicPlan(sessions: LoggedSession[], now: Date = new Date()): DynamicPlan {
+  const desc = sessions
+    .filter((s): s is LoggedSession => s != null && s.date != null)
+    .slice()
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  if (!desc.length) {
+    return {
+      mode: 'train',
+      day: 'A',
+      daysSinceLast: null,
+      lastDay: null,
+      reason: 'Nothing logged yet — start with Day A.',
+    };
+  }
+
+  const last = desc[0];
+  // A future-dated log is still "today" as far as the plan is concerned.
+  const daysSinceLast = Math.max(0, calendarDaysBetween(now, last.date));
+
+  // An unlettered session (freestyle log) must not break the A/B rhythm:
+  // alternate from the most recent session that DOES carry a letter.
+  let lastDay: DayId | null = null;
+  for (const s of desc) {
+    const letter = sessionLetter(s);
+    if (letter) {
+      lastDay = letter;
+      break;
+    }
+  }
+
+  if (daysSinceLast === 0) {
+    const loggedToday = sessionLetter(last);
+    return {
+      mode: 'done-today',
+      day: loggedToday,
+      daysSinceLast: 0,
+      lastDay,
+      reason: loggedToday ? `Day ${loggedToday} is in the book today.` : 'Session logged today.',
+    };
+  }
+
+  const next = alternateDay(lastDay);
+
+  if (daysSinceLast === 1) {
+    return {
+      mode: 'recover',
+      day: next,
+      daysSinceLast: 1,
+      lastDay,
+      reason: `Trained yesterday — recover today, Day ${next} next.`,
+    };
+  }
+
+  return {
+    mode: 'train',
+    day: next,
+    daysSinceLast,
+    lastDay,
+    reason: lastDay
+      ? `${daysSinceLast} days since Day ${lastDay} — Day ${next} is up.`
+      : `${daysSinceLast} days since your last session — Day ${next} is up.`,
+  };
+}
+
+/**
+ * The day to queue next. Same as `plan.day` except after a session logged
+ * today, where the queued day is the ALTERNATE of what he just did rather
+ * than a repeat of it.
+ */
+export function queuedDay(plan: DynamicPlan): DayId {
+  if (plan.mode === 'done-today') return alternateDay(plan.day ?? plan.lastDay);
+  return plan.day ?? alternateDay(plan.lastDay);
+}
+
+export interface PlanDay {
+  date: Date;
+  mode: PlanMode;
+  /** The day letter this slot carries; null on recovery slots. */
+  day: DayId | null;
+  isToday: boolean;
+}
+
+/**
+ * Rolling projection: today plus the following days, assuming he follows the
+ * plan (train → recover → train → …). Each projected session is fed back in
+ * so the alternation and the never-back-to-back rule keep applying.
+ */
+export function projectPlan(sessions: LoggedSession[], now: Date = new Date(), days = 5): PlanDay[] {
+  const simulated: LoggedSession[] = sessions.map((s) => ({ date: s.date, name: s.name, day: s.day }));
+  const out: PlanDay[] = [];
+
+  for (let i = 0; i < days; i++) {
+    const at = new Date(now);
+    at.setDate(at.getDate() + i);
+    if (i > 0) at.setHours(12, 0, 0, 0); // midday keeps DST off the day count
+    const plan = getDynamicPlan(simulated, at);
+    out.push({
+      date: at,
+      mode: plan.mode,
+      day: plan.mode === 'recover' ? null : plan.day,
+      isToday: i === 0,
+    });
+    if (plan.mode === 'train' && plan.day) simulated.push({ date: at, day: plan.day });
+  }
+  return out;
+}
+
+/** Weekly session target for the dynamic plan — unchanged by the rewrite. */
+export const WEEKLY_SESSION_TARGET = 3;
 
 export const PROGRESSION = [
   { weeks: '1–2', phase: 'LEARN', desc: 'Lightest weight. Learn each movement: full range, 2s up / 3s down. Chase technique, not fatigue.' },

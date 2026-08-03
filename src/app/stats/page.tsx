@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getBodyStats, getWorkouts } from '../actions';
 import BodyStatForm from '@/components/BodyStatForm';
 import NativeHealthCard from '@/components/NativeHealthCard';
+import StepsCard from '@/components/StepsCard';
 import DeleteBodyStatButton from '@/components/DeleteBodyStatButton';
 import { effortDistribution, weeklyReport, type EffortDistribution, type Rpe } from '@/lib/coach';
 import { getTrainingStatus } from '@/lib/program';
@@ -466,6 +467,11 @@ export default async function StatsPage() {
           </div>
         </div>
       )}
+
+      {/* Steps — leads the body metrics: it's the one number here he can still
+          move today, and it's the only one not gated on logging something.
+          Native-only; renders nothing on the web or without step data. */}
+      <StepsCard />
 
       {/* Body weight metrics */}
       {latestWeight !== null && (

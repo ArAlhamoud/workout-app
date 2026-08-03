@@ -42,6 +42,13 @@ export async function createWorkout(data: {
   gym?: string;
   notes?: string;
   duration?: number;
+  /**
+   * UUID of the Apple Health workout this session was logged FROM, when the
+   * logger was opened off the auto-detect list. Storing it is what stops the
+   * same HKWorkout being offered again on the next visit — without it the
+   * detect route has to fall back on same-day matching.
+   */
+  healthWorkoutUuid?: string;
   sets: Array<{
     exerciseId: string;
     setNumber: number;
@@ -60,6 +67,7 @@ export async function createWorkout(data: {
       gym: data.gym || null,
       notes: data.notes || null,
       duration: data.duration ?? null,
+      healthWorkoutUuid: data.healthWorkoutUuid || null,
       sets: {
         create: data.sets.map((s) => ({
           ...s,
@@ -169,6 +177,57 @@ export async function addBodyStat(data: { weight?: number; waist?: number; arms?
 export async function deleteBodyStat(id: string) {
   await prisma.bodyStat.delete({ where: { id } });
   revalidatePath('/stats');
+}
+
+/**
+ * Imports a HealthKit cardio session (his Day B swim) as a lightweight workout
+ * with NO sets. There is nothing to log set-wise — the session is a duration
+ * and a name, and inventing a fake set just to satisfy the shape would poison
+ * every volume, PR and effort number in the app.
+ *
+ * Idempotent on the HealthKit UUID, so a double tap (or a re-offer after a
+ * failed refresh) returns the existing row instead of creating a twin.
+ */
+export async function importHealthWorkout(input: {
+  /** HKWorkout UUID — the idempotency key. */
+  healthWorkoutUuid: string;
+  name: string;
+  /** ISO instant the HealthKit session started; kept as the workout date. */
+  dateISO: string;
+  durationSec: number;
+  /** Energy as HealthKit recorded it. Never an app-side estimate. */
+  activeKcal?: number | null;
+}): Promise<{ id: string; created: boolean }> {
+  const existing = await prisma.workout.findFirst({
+    where: { healthWorkoutUuid: input.healthWorkoutUuid },
+    select: { id: true },
+  });
+  if (existing) return { id: existing.id, created: false };
+
+  const date = new Date(input.dateISO);
+  const durationSec = Math.round(input.durationSec);
+  const workout = await prisma.workout.create({
+    data: {
+      name: input.name,
+      // The real start instant, not a bare day: this is the one workout kind
+      // whose exact clock time is known, and it is what lets the detect route
+      // recognise the session by overlap afterwards.
+      date: Number.isNaN(date.getTime()) ? new Date() : date,
+      duration: durationSec > 0 ? durationSec : null,
+      activeKcal:
+        input.activeKcal != null && input.activeKcal > 0 ? Math.round(input.activeKcal) : null,
+      healthWorkoutUuid: input.healthWorkoutUuid,
+      // Already in Apple Health — that is where it came from. Marking it synced
+      // keeps /api/health/workouts from pushing it straight back and creating a
+      // duplicate HKWorkout for the same swim.
+      healthSyncedAt: new Date(),
+    },
+  });
+
+  revalidatePath('/workouts');
+  revalidatePath('/');
+  revalidatePath('/stats');
+  return { id: workout.id, created: true };
 }
 
 // Apple Health bridge
