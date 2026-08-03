@@ -126,7 +126,10 @@ function buildBlocks(
       sets: Array.from({ length: ie.sets }, (_, i) => ({
         exerciseId: ie.exerciseId,
         setNumber: i + 1,
-        reps: isTimed ? (prev?.reps ?? ie.defaultReps) : ie.defaultReps,
+        // Last session's reps, same as weight on the line below. The template's
+        // repsMin is only a floor; starting every set there means stepping up to
+        // what you actually did, once per set, ~27 times a session.
+        reps: prev?.reps ?? ie.defaultReps,
         weight: isTimed
           ? 0
           : prev?.weight
@@ -576,8 +579,6 @@ export default function WorkoutForm({
 
     setShowSummary({ sets: setsToSave.length, vol, prs, time: formatElapsed(elapsed) });
     setSubmitting(true);
-
-    await new Promise((r) => setTimeout(r, 2200));
 
     const fullNotes = [mood ? `Feeling ${mood}` : '', notes.trim()].filter(Boolean).join(' · ');
     try {

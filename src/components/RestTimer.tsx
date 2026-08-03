@@ -261,12 +261,10 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
               </button>
             </div>
           )}
-          {/* Native shell only: be honest that the alert needs the app open. */}
-          {native && !finished && (
-            <p className="px-4 pb-3 text-[11px] text-app-tx3">
-              Alerts need this screen open · background alerts ship in the next app update
-            </p>
-          )}
+          {/* The apology that used to live here — "background alerts ship in the
+              next app update" — is obsolete: scheduleRestAlert now arms a local
+              notification alongside the beep, so the alert survives a locked
+              screen. Nothing to explain, so nothing is printed. */}
         </div>
       </div>
     </div>
