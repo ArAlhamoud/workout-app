@@ -31,6 +31,10 @@ interface GymEquipment {
   swaps: Record<string, GymSwap>;
   /** Machines present that the program does not use. Reference only. */
   extras: string[];
+  /** Cardio available in this building, best first. */
+  cardio: string[];
+  /** Ranked cardio the program recommends that this building cannot offer. */
+  missingCardio: string[];
   /** Anything that changes how a logged number should be read. */
   weightNote?: string;
 }
@@ -71,6 +75,11 @@ const ALRAJHI: GymEquipment = {
     'Precor Rotary Torso',
     'Cybex VR1 Arm Extension (second triceps option)',
   ],
+  cardio: ['Rowing', 'Treadmill', 'Upright Bike', 'Elliptical'],
+  // No pool. Swimming is the top-ranked cardio in the program and it simply
+  // is not available here, so rowing takes its place — non-impact, seated,
+  // and the closest thing to a full-body burn on land.
+  missingCardio: ['Swimming'],
   weightNote:
     'The Hoist crossover and the Cybex are labelled in POUNDS. Log the number printed on the pin — weights here are compared only against other sessions at this gym, never against B_Fit.',
 };

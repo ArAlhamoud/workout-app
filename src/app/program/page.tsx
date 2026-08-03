@@ -7,6 +7,7 @@ import {
   RETURN_PROGRAM,
   BREAK_THRESHOLD_DAYS,
   CARDIO,
+  gymLabel,
   WEEKLY_SESSION_TARGET,
   getDynamicPlan,
   getTrainingStatus,
@@ -540,6 +541,13 @@ export default async function ProgramPage() {
                   >
                     {c.badge}
                   </span>
+                  {/* Only flagged when a gym cannot offer it — otherwise the
+                      ranking reads as if every option is always available. */}
+                  {c.gyms && (
+                    <span className="chip bg-app-surface2 text-app-tx3">
+                      {c.gyms.map(gymLabel).filter(Boolean).join(' · ')} only
+                    </span>
+                  )}
                 </div>
                 <Details label="More" className="mt-1">
                   <p className="text-app-tx2 text-xs leading-relaxed">{c.desc}</p>
@@ -659,7 +667,7 @@ export default async function ProgramPage() {
               <li>· All exercises are machine-based — no free-weight barbell loading on joints</li>
               <li>· Back Extension: neutral spine only — do NOT hyperextend at the top, squeeze glutes instead</li>
               <li>· Avoid treadmill running — walking only at 4–5 km/h, low incline</li>
-              <li>· Swimming is your best cardio — zero joint impact, maximum calorie burn</li>
+              <li>· Swimming is your best cardio — zero joint impact, maximum calorie burn. No pool at Alrajhi Tower: row there instead, it is the closest thing on land</li>
               <li>· Progress weight slowly — joint adaptation lags behind muscle strength</li>
               <li>· Pre-lift spinal mobility: 10 cat-cows + 8 bird-dogs each side before every session</li>
             </ul>

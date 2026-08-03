@@ -25,6 +25,8 @@ import {
 import {
   alternateDay,
   getDynamicPlan,
+  CARDIO,
+  cardioForGym,
   getDayTemplate,
   getTrainingStatus,
   parseDayLetter,
@@ -503,6 +505,30 @@ assert(gymSwap('Nordic Curl', 'work') === null, 'an off-program exercise has no 
 
 assert(gymWeightNote('bfit') === null, 'the home gym needs no weight caveat');
 assert((gymWeightNote('work') ?? '').includes('POUNDS'), 'Alrajhi warns that its stacks are in pounds');
+
+// ── cardio availability ──────────────────────────────────────
+// Swimming is ranked BEST and there is no pool at Alrajhi. If the ranking
+// ever shows it there, he walks to a pool that does not exist.
+assert(CARDIO.length === 5, `five ranked cardio options (got ${CARDIO.length})`);
+assert(
+  CARDIO.map((c) => c.rank).join() === '1,2,3,4,5',
+  'cardio ranks are contiguous and in order',
+);
+const bfitCardio = cardioForGym('bfit').map((c) => c.name);
+const workCardio = cardioForGym('work').map((c) => c.name);
+assert(bfitCardio.includes('Swimming'), 'B_Fit keeps swimming');
+assert(!workCardio.includes('Swimming'), 'Alrajhi has no pool, so no swimming');
+assert(workCardio.includes('Rowing'), 'Alrajhi offers rowing');
+assert(workCardio.length === 4, `Alrajhi shows its four real options (got ${workCardio.length})`);
+assert(
+  cardioForGym(null).length === CARDIO.length,
+  'an untagged context shows every option rather than hiding any',
+);
+// Everything above the treadmill must be non-impact — that is the ordering rule.
+assert(
+  CARDIO[CARDIO.length - 1].name === 'Treadmill',
+  'the treadmill stays ranked last',
+);
 
 // ── summary ──────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);

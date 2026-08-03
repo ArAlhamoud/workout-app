@@ -421,9 +421,28 @@ export function gymLabel(id: string | null | undefined): string | null {
   return getGym(id)?.name ?? null;
 }
 
-export const CARDIO = [
-  { rank: 1, name: 'Swimming', badge: 'BEST', desc: 'Zero joint impact. Highest calorie burn. 20–30 min any stroke.' },
-  { rank: 2, name: 'Upright Bike', badge: 'GREAT', desc: 'No weight on joints. Best for warm-ups and cardio finishers.' },
-  { rank: 3, name: 'Elliptical', badge: 'GOOD', desc: 'Low impact — distributes load across arms and legs.' },
-  { rank: 4, name: 'Treadmill', badge: 'CAUTION', desc: 'ONLY walking at 4–5 km/h, low incline. Never run.' },
+export interface CardioOption {
+  rank: number;
+  name: string;
+  badge: string;
+  desc: string;
+  /** Gym ids where this exists. Omitted means every gym has it. */
+  gyms?: string[];
+}
+
+// Ranked by calorie burn per minute against joint cost, at his bodyweight.
+// Everything above the treadmill is non-impact — that is the whole ordering
+// principle, not preference.
+export const CARDIO: CardioOption[] = [
+  { rank: 1, name: 'Swimming', badge: 'BEST', desc: 'Zero joint impact. Highest calorie burn. 20–30 min any stroke.', gyms: ['bfit'] },
+  { rank: 2, name: 'Rowing', badge: 'GREAT', desc: 'Zero impact and the biggest burn on land — you are seated, so none of your bodyweight loads the knees or hips. FORM: legs drive first, then lean back, then pull; reverse it on the way in. Never round your lower back at the catch. 15–20 min steady, or 10 × 1 min hard / 1 min easy.' },
+  { rank: 3, name: 'Upright Bike', badge: 'GREAT', desc: 'No weight on joints. Best for warm-ups and cardio finishers.' },
+  { rank: 4, name: 'Elliptical', badge: 'GOOD', desc: 'Low impact — distributes load across arms and legs.' },
+  { rank: 5, name: 'Treadmill', badge: 'CAUTION', desc: 'ONLY walking at 4–5 km/h, low incline. Never run.' },
 ];
+
+/** Cardio actually available in one building. */
+export function cardioForGym(gymId: string | null | undefined): CardioOption[] {
+  if (!gymId) return CARDIO;
+  return CARDIO.filter((c) => !c.gyms || c.gyms.includes(gymId));
+}
