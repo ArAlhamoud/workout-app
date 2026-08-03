@@ -143,8 +143,11 @@ export default async function NewWorkoutPage({
 
       {/* Duration switcher pills */}
       <div>
+        {/* "Minutes · 9 exercises" over bare 30/45/60 pills read as a value that
+            had gone missing. Name the choice, and let the pills carry the unit
+            the way the Home card already does. */}
         <p className="section-label mb-2">
-          Minutes · {initialExercises.length} exercises
+          Session length · {initialExercises.length} exercises
         </p>
         <div className="grid grid-cols-3 gap-2">
           {DURATIONS.map((d) => {
@@ -160,6 +163,7 @@ export default async function NewWorkoutPage({
                 }`}
               >
                 {d}
+                <span className="ml-1 text-[10px] font-medium opacity-60">min</span>
               </Link>
             );
           })}

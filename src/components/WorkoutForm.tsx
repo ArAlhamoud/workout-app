@@ -867,7 +867,11 @@ export default function WorkoutForm({
               }`}
             >
               {/* Header — sticky so exercise name stays visible while scrolling through sets */}
-              <div className={`sticky top-0 z-10 flex items-center gap-2 px-4 pt-4 pb-2 rounded-t-card-lg glass-overlay ${allDone ? 'bg-teal-950/70' : ''}`}>
+              {/* top-0 parked this under the status bar, so the exercise name
+                  sat behind the clock and the Dynamic Island while scrolling.
+                  The page draws into the safe area by design, so the sticky
+                  offset has to add it back. */}
+              <div className={`sticky top-[env(safe-area-inset-top)] z-10 flex items-center gap-2 px-4 pt-4 pb-2 rounded-t-card-lg glass-overlay ${allDone ? 'bg-teal-950/70' : ''}`}>
                 <span className="text-app-tx3 text-sm font-bold w-5 flex-shrink-0 tabular-nums">
                   {blockIdx + 1}
                 </span>
