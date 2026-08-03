@@ -405,7 +405,9 @@ export interface Gym {
 
 export const GYMS: Gym[] = [
   { id: 'bfit', name: 'B_Fit', note: 'Main gym · Life Fitness · Hoist · Hammer Strength' },
-  { id: 'work', name: 'Work',  note: 'Workplace gym' },
+  // id stays 'work' — it is the value already stored on tagged workouts, and
+  // renaming it would orphan them. Only the label changes.
+  { id: 'work', name: 'Alrajhi Tower', note: 'Workplace gym' },
 ];
 
 export const DEFAULT_GYM_ID = 'bfit';
