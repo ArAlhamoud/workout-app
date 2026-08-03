@@ -80,8 +80,12 @@ const ALRAJHI: GymEquipment = {
   // is not available here, so rowing takes its place — non-impact, seated,
   // and the closest thing to a full-body burn on land.
   missingCardio: ['Swimming'],
+  // Every stack here carries both scales — the Precor line, the Hoist
+  // crossover and the Cybex all print lb and kg side by side. So there is no
+  // conversion to do, only a column to read, and the pound column is the one
+  // that would quietly inflate a number if grabbed by mistake.
   weightNote:
-    'The Hoist crossover and the Cybex are labelled in POUNDS. Log the number printed on the pin — weights here are compared only against other sessions at this gym, never against B_Fit.',
+    'Stacks here show both scales — read the kg column, same as B_Fit. The pound number beside it is roughly double.',
 };
 
 // Machines that exist at Alrajhi but under a different name/geometry than the

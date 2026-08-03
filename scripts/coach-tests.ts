@@ -504,7 +504,7 @@ assert(gymSwap('Chest Press', null) === null, 'an untagged session gets no swap'
 assert(gymSwap('Nordic Curl', 'work') === null, 'an off-program exercise has no swap to offer');
 
 assert(gymWeightNote('bfit') === null, 'the home gym needs no weight caveat');
-assert((gymWeightNote('work') ?? '').includes('POUNDS'), 'Alrajhi warns that its stacks are in pounds');
+assert((gymWeightNote('work') ?? '').includes('kg column'), 'Alrajhi says which column to read');
 
 // ── cardio availability ──────────────────────────────────────
 // Swimming is ranked BEST and there is no pool at Alrajhi. If the ranking
