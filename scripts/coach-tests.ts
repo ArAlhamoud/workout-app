@@ -25,6 +25,7 @@ import {
 import {
   alternateDay,
   getDynamicPlan,
+  getDayTemplate,
   getTrainingStatus,
   parseDayLetter,
   projectPlan,
@@ -33,6 +34,7 @@ import {
   type DynamicPlan,
   type LoggedSession,
 } from '../src/lib/program';
+import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 
 interface HistoryFile {
   exercises: { id: string; name: string; category: string }[];
@@ -460,6 +462,47 @@ assert(
     JSON.stringify(vDone),
   'a note-less proceed changes nothing at all',
 );
+
+
+// ── per-gym equipment ────────────────────────────────────────
+// Every program movement must resolve to something real at Alrajhi Tower.
+// A silent gap here means standing in front of a machine that isn't there.
+const allProgramExercises = [
+  ...getDayTemplate('A').exercises,
+  ...getDayTemplate('B').exercises,
+];
+
+assert(allProgramExercises.length === 17, `the program still has 17 movements (got ${allProgramExercises.length})`);
+
+for (const ex of allProgramExercises) {
+  // Plank is floor work — it needs no machine at either gym.
+  if (ex.name === 'Plank') continue;
+  const swap = gymSwap(ex.name, 'work');
+  assert(swap !== null, `${ex.name} resolves to equipment at Alrajhi Tower`);
+  assert(!!swap && swap.machine.length > 0, `${ex.name} names its Alrajhi machine`);
+}
+
+// The five with no machine at all are rebuilt, so they must carry replacement
+// cues — the B_Fit cues describe hardware that does not exist there.
+for (const name of ['Pec Fly', 'Lateral Raise', 'Rear Delt Fly', 'Back Extension', 'Hip Abduction']) {
+  const swap = gymSwap(name, 'work');
+  assert(!!swap?.cues, `${name} is rebuilt at Alrajhi and carries its own cues`);
+  assert(!!swap?.youtubeUrl, `${name} carries its own video for the rebuilt version`);
+  assert(
+    swap!.machine.includes('crossover'),
+    `${name} is rebuilt on the crossover (got "${swap!.machine}")`,
+  );
+}
+
+// The home gym must never be rewritten — the program IS B_Fit.
+for (const ex of allProgramExercises) {
+  assert(gymSwap(ex.name, 'bfit') === null, `${ex.name} is untouched at B_Fit`);
+}
+assert(gymSwap('Chest Press', null) === null, 'an untagged session gets no swap');
+assert(gymSwap('Nordic Curl', 'work') === null, 'an off-program exercise has no swap to offer');
+
+assert(gymWeightNote('bfit') === null, 'the home gym needs no weight caveat');
+assert((gymWeightNote('work') ?? '').includes('POUNDS'), 'Alrajhi warns that its stacks are in pounds');
 
 // ── summary ──────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);

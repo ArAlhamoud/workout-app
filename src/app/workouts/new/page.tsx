@@ -4,6 +4,7 @@ import { getExercises, getLastSessionForExercises, getPersonalRecords, getWorkou
 import WorkoutForm from '@/components/WorkoutForm';
 import { combineIncrement, learnPinIncrements } from '@/lib/coach';
 import {
+  DEFAULT_GYM_ID,
   getDayTemplate,
   getDynamicPlan,
   getExercisesForDuration,
@@ -52,6 +53,7 @@ export default async function NewWorkoutPage({
           sets: te.sets,
           defaultReps: te.repsMin,
           name: te.name,
+          machine: te.machine,
           cues: te.cues,
           youtubeUrl: te.youtubeUrl,
           rest: te.rest,
@@ -64,7 +66,8 @@ export default async function NewWorkoutPage({
 
   const exerciseIds = initialExercises.map((e) => e.exerciseId);
   const [lastSession, personalRecords] = await Promise.all([
-    getLastSessionForExercises(exerciseIds),
+    // Seeded for the default gym; the form refetches if he tags Alrajhi Tower.
+    getLastSessionForExercises(exerciseIds, DEFAULT_GYM_ID),
     getPersonalRecords(),
   ]);
 

@@ -3,6 +3,7 @@
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { DEFAULT_GYM_ID } from '@/lib/program';
 
 export async function getExercises() {
   return prisma.exercise.findMany({ orderBy: { name: 'asc' } });
@@ -90,10 +91,23 @@ export async function deleteWorkout(id: string) {
 
 export async function getLastSessionForExercises(
   exerciseIds: string[],
+  gym?: string | null,
 ): Promise<Record<string, { weight: number; reps: number; rpe: number | null }>> {
   if (!exerciseIds.length) return {};
+  // Weight memory is per building. The same exercise sits on a different
+  // machine with a different stack — and at Alrajhi Tower a stack labelled in
+  // pounds — so a number carried across gyms would silently corrupt both the
+  // "Try N kg" suggestion and every plateau/1RM read that follows it.
+  // Sessions logged before gym tagging existed are untagged; they are all
+  // B_Fit, so the home gym claims them.
+  const gymFilter =
+    gym === DEFAULT_GYM_ID
+      ? { OR: [{ gym: DEFAULT_GYM_ID }, { gym: null }] }
+      : gym
+        ? { gym }
+        : {};
   const lastSets = await prisma.workoutSet.findMany({
-    where: { exerciseId: { in: exerciseIds } },
+    where: { exerciseId: { in: exerciseIds }, workout: gymFilter },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
     distinct: ['exerciseId'],
     select: { exerciseId: true, weight: true, reps: true, rpe: true },
