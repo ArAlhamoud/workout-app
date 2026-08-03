@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "rm -f next.config.ts && prisma generate && prisma db push && next build",
-    "db:apply": "prisma db push",
+    "_comment_build": "DO NOT add `prisma db push` here. It has broken production twice (e4fa396, and again in 7840432). The build runs on every deploy against the live database, so any guarded change — a unique constraint, a dropped column — aborts the whole deploy, and a schema push is not something a deploy should decide to do silently. Schema changes go through the Apply-schema GitHub Action, which shows a migrate-diff first.",
+    "build": "rm -f next.config.ts && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "db:push": "prisma db push",

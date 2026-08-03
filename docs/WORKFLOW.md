@@ -49,3 +49,23 @@ the Vercel preview on your phone, and it merges to `main` when you approve.
 Database schema changes cannot run from the sandbox — they ship as a
 manually-triggered GitHub Action (**Apply schema**), which prints a diff of what
 would change before applying it.
+
+## Never put `prisma db push` in the build script
+
+It looks like a convenience. It is a production outage waiting to happen, and it
+has already caused two:
+
+- `e4fa396` — the build pushed the deployed commit's schema against the live
+  database and tripped Prisma's data-loss guard. Every deploy failed.
+- `7840432` — reintroduced while streamlining the scripts. Same failure, same day
+  a unique constraint was added.
+
+Why it always breaks: the build runs on **every deploy**, against the **live**
+database. Any change Prisma considers risky — a unique constraint, a dropped or
+renamed column — makes it refuse and exit non-zero, which fails the deploy even
+though the app code was fine. And a deploy should never silently decide to alter
+a schema.
+
+Schema changes go through the **Apply schema** Action, which prints a
+`migrate diff` preview first and only passes `--accept-data-loss` when you
+explicitly ask for it. `npm run db:push` does the same thing locally.
