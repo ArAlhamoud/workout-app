@@ -11,7 +11,11 @@
   /* Frosted glass surfaces */
   --app-surface:     rgba(255, 255, 255, 0.055);
   --app-surface2:    rgba(255, 255, 255, 0.09);
-  --app-glass-solid: rgba(16, 18, 38, 0.72); /* overlays: nav, sheets, banners */
+  /* 0.88, not 0.72: backdrop-filter carries the rest of the opacity, and it
+     silently no-ops in the Capacitor web view whenever the element sits inside
+     a transformed ancestor. At 0.72 those cases let page text bleed through.
+     Modals should use .sheet-surface instead of relying on this at all. */
+  --app-glass-solid: rgba(16, 18, 38, 0.88); /* overlays: nav, sheets, banners */
 
   /* Luminous borders */
   --app-border:    rgba(255, 255, 255, 0.11);

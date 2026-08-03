@@ -585,7 +585,10 @@ export default function WorkoutForm({
               >
                 ⏱ rest
               </button>
+              {/* Labelled because it sits next to the "rest" toggle and was
+                  being read as rest time — it is the whole session's clock. */}
               <span className="text-xs text-app-tx3 tabular-nums font-round">
+                <span className="text-[9px] uppercase tracking-wider opacity-70 mr-1">session</span>
                 {formatElapsed(elapsed)}
               </span>
             </div>
@@ -1262,7 +1265,7 @@ export default function WorkoutForm({
 
       {showSummary && (
         <div className="fixed inset-0 z-[70] bg-[#05060f]/90 backdrop-blur-sm flex items-center justify-center px-4">
-          <div className="relative overflow-hidden glass-overlay border border-app-border-hi rounded-card-lg shadow-card-lg p-8 w-full max-w-sm text-center">
+          <div className="relative overflow-hidden sheet-surface border border-app-border-hi rounded-card-lg shadow-card-lg p-8 w-full max-w-sm text-center">
             {/* soft inner nebula — the observatory treatment */}
             <div
               aria-hidden

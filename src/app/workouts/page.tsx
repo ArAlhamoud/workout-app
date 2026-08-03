@@ -110,7 +110,13 @@ export default async function WorkoutsPage() {
                         )}
 
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-app-tx1 text-sm truncate">{workout.name}</div>
+                          {/* The row already shows the date on the right, so the
+                              generated "— Aug 2" suffix is redundant — and it was
+                              what pushed longer names into an ellipsis. Only the
+                              generated pattern is stripped; custom names survive. */}
+                          <div className="font-semibold text-app-tx1 text-sm truncate">
+                            {workout.name.replace(/\s+—\s+[A-Za-z]{3}\s+\d{1,2}$/, '')}
+                          </div>
                           {/* Only surfaced when away from the default gym — the
                               exception is the information, not the routine. */}
                           {workout.gym && workout.gym !== DEFAULT_GYM_ID && gymLabel(workout.gym) && (
