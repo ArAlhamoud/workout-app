@@ -69,7 +69,8 @@ export default function HealthInsights() {
       digits: number;
       direction: Row['direction'];
     }> = [
-      { key: 'steps', label: 'Steps', id: 'stepCount', unit: '', digits: 0, direction: 'higher-better' },
+      // Steps deliberately absent: StepsCard above already carries today's
+      // count and a 7-day average. Two step readouts on one screen is noise.
       { key: 'rhr', label: 'Resting HR', id: 'restingHeartRate', unit: ' bpm', digits: 0, direction: 'lower-better' },
       { key: 'hrv', label: 'HRV', id: 'heartRateVariabilitySDNN', unit: ' ms', digits: 0, direction: 'higher-better' },
     ];

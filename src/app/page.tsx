@@ -11,6 +11,7 @@ import {
 } from '@/lib/program';
 import { phaseForWeek } from '@/lib/coach';
 import HomeVerdict from '@/components/HomeVerdict';
+import StepsChipLabel from '@/components/StepsChipLabel';
 import { formatDuration, formatRelative, getMondayOfWeek, kgCompact, RPE_LABELS, weekKey } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -466,7 +467,7 @@ export default async function Home() {
         <div className="relative mt-3.5 flex items-start gap-2 border-t border-white/10 pt-3">
           <details className="group min-w-0 flex-1">
             <summary className={SUMMARY_CHIP}>
-              <span aria-hidden="true">🚶</span> 8k steps
+              <StepsChipLabel />
               <Chevron />
             </summary>
             <div className="mt-2 space-y-1 text-[11px] leading-relaxed text-app-tx3">
