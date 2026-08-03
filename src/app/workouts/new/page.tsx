@@ -68,7 +68,7 @@ export default async function NewWorkoutPage({
   const [lastSession, personalRecords] = await Promise.all([
     // Seeded for the default gym; the form refetches if he tags Alrajhi Tower.
     getLastSessionForExercises(exerciseIds, DEFAULT_GYM_ID),
-    getPersonalRecords(),
+    getPersonalRecords(DEFAULT_GYM_ID),
   ]);
 
   // Compute progression hints: exerciseId → true if same weight 2+ sessions with Easy/Med RPE
@@ -91,7 +91,12 @@ export default async function NewWorkoutPage({
 
   // Per-machine pin spacing: learned from weight-jump history, with any
   // manual pinIncrement on the exercise taking precedence.
-  const learnedIncrements = learnPinIncrements(allWorkouts);
+  // Home gym only. Pin spacing is a property of one physical stack, so
+  // learning it from a mix of buildings would infer a step size that exists
+  // on neither machine.
+  const learnedIncrements = learnPinIncrements(
+    allWorkouts.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID),
+  );
   const pinIncrements: Record<string, number> = {};
   for (const ex of exercises) {
     pinIncrements[ex.id] = combineIncrement(learnedIncrements[ex.id], ex.pinIncrement);

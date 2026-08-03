@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createWorkout, getLastSessionForExercises } from '@/app/actions';
+import { createWorkout, getLastSessionForExercises, getPersonalRecords } from '@/app/actions';
 import RestTimer from './RestTimer';
 import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
@@ -174,6 +174,10 @@ export default function WorkoutForm({
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
     buildBlocks(initialExercises, lastSession, returnLoadPct),
   );
+  // Weight memory for the gym currently tagged. Seeded for the home gym by
+  // the server; replaced wholesale when the tag changes.
+  const [sessionMemory, setSessionMemory] = useState(lastSession);
+  const [gymRecords, setGymRecords] = useState(personalRecords);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [restTimer, setRestTimer] = useState<{ seconds: number; exerciseName: string } | null>(null);
@@ -262,9 +266,13 @@ export default function WorkoutForm({
     const ids = Array.from(new Set(blocksRef.current.map((b) => b.exerciseId)));
     if (!ids.length) return;
     let cancelled = false;
+    getPersonalRecords(gym)
+      .then((recs) => { if (!cancelled) setGymRecords(recs); })
+      .catch(() => { /* PR badge is decoration; a stale one is not worth a crash */ });
     getLastSessionForExercises(ids, gym)
       .then((next) => {
         if (cancelled) return;
+        setSessionMemory(next);
         setBlocks((prev) =>
           prev.map((b) => {
             const prevSession = next[b.exerciseId];
@@ -348,13 +356,22 @@ export default function WorkoutForm({
   }
 
   function updateBlockExercise(uid: string, exerciseId: string) {
-    const prev = lastSession[exerciseId];
+    // sessionMemory, not the prop: the prop is seeded for the home gym, so
+    // swapping an exercise while tagged to Alrajhi would prefill a B_Fit
+    // weight off a different machine.
+    const prev = sessionMemory[exerciseId];
     setBlocks((cur) =>
       cur.map((b) =>
         b.uid === uid
           ? {
               ...b,
               exerciseId,
+              // Equipment metadata belongs to the exercise that was here, not
+              // the one replacing it. Left behind, a Chest Press → Pec Fly swap
+              // would keep showing the chest press machine and, at Alrajhi,
+              // apply the chest press swap instead of the cable-fly cues.
+              programName: undefined,
+              machine: undefined,
               cues: undefined,
               rest: undefined,
               targetReps: undefined,
@@ -813,7 +830,7 @@ export default function WorkoutForm({
         {blocks.map((block, blockIdx) => {
           const ex = exerciseById.get(block.exerciseId);
           const isTimed = block.unit === 'seconds';
-          const pr = ex ? (personalRecords[block.exerciseId] ?? 0) : 0;
+          const pr = ex ? (gymRecords[block.exerciseId] ?? 0) : 0;
           const hasNewPR = !isTimed && block.sets.some((s) => s.weight > 0 && s.weight > pr);
           const allDone = block.sets.length > 0 && block.sets.every((s) => s.done);
 
