@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "ios:deploy": "bash scripts/ios-deploy.sh"
+    "ios:deploy": "bash scripts/ios-deploy.sh",
+    "test": "prisma generate && tsc --noEmit && ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/coach-tests.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

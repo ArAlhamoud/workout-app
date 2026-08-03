@@ -3,6 +3,7 @@ import { getBodyStats, getWorkouts } from '../actions';
 import BodyStatForm from '@/components/BodyStatForm';
 import NativeHealthCard from '@/components/NativeHealthCard';
 import StepsCard from '@/components/StepsCard';
+import HealthInsights from '@/components/HealthInsights';
 import DeleteBodyStatButton from '@/components/DeleteBodyStatButton';
 import { effortDistribution, weeklyReport, type EffortDistribution, type Rpe } from '@/lib/coach';
 import { getTrainingStatus } from '@/lib/program';
@@ -386,6 +387,7 @@ export default async function StatsPage() {
 
       {/* Apple Health sync — only visible inside the native iOS shell */}
       <NativeHealthCard />
+      <HealthInsights />
 
       {/* Coach report */}
       {workouts.length > 0 && (

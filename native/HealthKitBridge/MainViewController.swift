@@ -1,3 +1,6 @@
+// SOURCE OF TRUTH. ios/App/App/MainViewController.swift is a copy the Xcode
+// target compiles; `npm run ios:deploy` overwrites it from this file. Edit here.
+
 import UIKit
 import Capacitor
 

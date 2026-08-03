@@ -69,3 +69,19 @@ a schema.
 Schema changes go through the **Apply schema** Action, which prints a
 `migrate diff` preview first and only passes `--accept-data-loss` when you
 explicitly ask for it. `npm run db:push` does the same thing locally.
+## Staging (not yet set up — needs the Vercel dashboard)
+
+Every deploy currently lands on the app you train with; there is no environment
+between a push and your phone. This cannot be configured from a session, so it
+is a manual step:
+
+1. Vercel → project → **Settings → Git** → confirm the production branch is
+   `main`.
+2. Push feature work to a branch rather than `main`. Vercel builds a **preview**
+   deployment automatically and gives it its own URL.
+3. To exercise a preview in the native shell, point `capacitor.config.ts` at the
+   preview URL and run `npm run ios:deploy`. Revert before the next real build —
+   the committed config must keep pointing at production.
+
+Until that is set up, treat a push to `main` as a deploy to the phone you train
+with, and prefer pushing before a session rather than during one.
