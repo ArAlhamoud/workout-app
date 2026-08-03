@@ -341,7 +341,20 @@ export default function NativeHealthCard() {
     if (weightsUp > 0) counts.push(`${weightsUp} weight${weightsUp === 1 ? '' : 's'}`);
     if (workoutsUp > 0) counts.push(`${workoutsUp} workout${workoutsUp === 1 ? '' : 's'}`);
     // Zero is never proof of denial or of absence — Health won't say which.
-    setStatus(counts.length > 0 ? `${counts.join(' · ')} ↑` : 'No data yet');
+    //
+    // But zero is also the NORMAL steady state, and "No data yet" read as a
+    // failure every time: weight only flows Health → app, and weigh-ins are
+    // entered in the app, so Health usually has none to give; workouts only
+    // flow app → Health, and only once each. Both counters at zero with no
+    // errors means everything is already where it belongs. Say that instead,
+    // and keep a distinct wording for the case where something did fail.
+    setStatus(
+      counts.length > 0
+        ? `${counts.join(' · ')} ↑`
+        : errs.length > 0
+          ? 'Sync incomplete'
+          : 'Everything already in sync',
+    );
     // Per-workout stages run in a loop; one cause shouldn't fill the card.
     setErrors([...new Set(errs)]);
     setBusy(null);
