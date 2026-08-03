@@ -208,6 +208,12 @@ input[type='time']::-webkit-calendar-picker-indicator {
   cursor: pointer;
 }
 
+/* The draft-resume pill is fixed above the nav bar; without this the last card
+   on a page sits underneath it. Set by WorkoutDraftBanner only while shown. */
+body.has-draft-banner main {
+  padding-bottom: calc(8rem + 3.25rem);
+}
+
 /* ── Press feedback ────────────────────────────────────────── */
 .pressable {
   @apply active:scale-[0.98] transition-transform duration-100;

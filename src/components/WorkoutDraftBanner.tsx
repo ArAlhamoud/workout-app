@@ -27,7 +27,20 @@ export default function WorkoutDraftBanner() {
     }
   }, [pathname]);
 
-  if (!draftName || pathname.startsWith('/workouts/new')) return null;
+  const visible = Boolean(draftName) && !pathname.startsWith('/workouts/new');
+
+  // The banner is fixed at 88px with ~44px of its own height, which overruns
+  // main's pb-32 (128px) and clips whatever ends the page — on Home that was
+  // the Return Protocol card's LOAD / SESSIONS / CAP labels. Reserve the extra
+  // room only while the banner is actually up, so no screen pays for it
+  // otherwise.
+  useEffect(() => {
+    if (!visible) return;
+    document.body.classList.add('has-draft-banner');
+    return () => document.body.classList.remove('has-draft-banner');
+  }, [visible]);
+
+  if (!visible) return null;
 
   return (
     <Link

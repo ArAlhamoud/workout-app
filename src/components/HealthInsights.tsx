@@ -55,6 +55,7 @@ export default function HealthInsights() {
     setNative(isNativeApp());
   }, []);
 
+
   const load = useCallback(async () => {
     setBusy(true);
     setError('');
@@ -156,7 +157,21 @@ export default function HealthInsights() {
     setBusy(false);
   }, []);
 
+  // Load on mount rather than behind a tap, matching StepsCard. A card that
+  // shows nothing until you press a button is asking for work before it gives
+  // anything back.
+  useEffect(() => {
+    if (native) void load();
+  }, [native, load]);
+
   if (!native) return null;
+
+  // Same rule StepsCard follows: no data, no card. Resting HR, HRV and sleep
+  // need a Watch; body composition needs a scale. Someone with neither should
+  // get a shorter Stats page, not a row of em-dashes explaining an absence.
+  const hasAny = rows?.some((r) => r.value !== null) ?? false;
+  if (rows && !hasAny) return null;
+  if (!rows && !busy) return null;
 
   const deltaClass = (row: Row) => {
     if (!row.delta || row.direction === 'neutral') return 'text-app-tx3';
@@ -174,15 +189,9 @@ export default function HealthInsights() {
           disabled={busy}
           className="chip bg-app-surface2 border border-app-border text-app-tx3 hover:text-app-tx1 transition-colors disabled:opacity-50"
         >
-          {busy ? 'Reading…' : rows ? 'Refresh' : 'Read Health'}
+          {busy ? 'Reading…' : 'Refresh'}
         </button>
       </div>
-
-      {rows === null && !busy && (
-        <p className="text-app-tx3 text-xs">
-          {WINDOW_DAYS}-day averages from Apple Health, against the {WINDOW_DAYS} before.
-        </p>
-      )}
 
       {rows && (
         <div className="divide-y divide-app-border/60">
