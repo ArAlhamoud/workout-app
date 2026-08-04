@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar';
 import InstallPrompt from '@/components/InstallPrompt';
 import WorkoutDraftBanner from '@/components/WorkoutDraftBanner';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
+import HealthAutoPilot from '@/components/HealthAutoPilot';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
         <DeepLinkHandler />
+        <HealthAutoPilot />
         <WorkoutDraftBanner />
         <Navbar />
         <InstallPrompt />

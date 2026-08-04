@@ -37,6 +37,10 @@ import {
   type LoggedSession,
 } from '../src/lib/program';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
+import { computeGapLadder } from '../src/lib/gap-guard';
+import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
+import { binHeartRate } from '../src/lib/hr-capture';
+import { normalizeSampleType } from '../src/lib/health';
 
 interface HistoryFile {
   exercises: { id: string; name: string; category: string }[];
@@ -529,6 +533,129 @@ assert(
   CARDIO[CARDIO.length - 1].name === 'Treadmill',
   'the treadmill stays ranked last',
 );
+
+
+// ── Gap Guard ladder ─────────────────────────────────────────
+// The ladder is the anti-gap weapon; its arithmetic must be exact. Both
+// collapses started as "one session, then silence past day 7", and rung 4
+// exists because BREAK_THRESHOLD_DAYS = 21 resets the program at day 21.
+console.log('computeGapLadder');
+{
+  const lastSession = '2026-08-01T10:00:00.000Z';
+  const dayAfter = new Date('2026-08-02T10:00:00.000Z');
+  const full = computeGapLadder(lastSession, 'B', dayAfter);
+  assert(full.length === 4, `all four rungs from day 1 (got ${full.length})`);
+  assert(
+    full.map((r) => r.day).join() === '3,5,7,19',
+    `rungs at days 3/5/7/19 (got ${full.map((r) => r.day).join()})`,
+  );
+  assert(full.every((r) => r.at.getTime() > dayAfter.getTime()), 'every rung is in the future');
+  assert(full[0].title.includes('Day B'), `rung 1 names the queued day (got "${full[0].title}")`);
+  assert(full[3].body.includes('return ramp'), 'day-19 rung warns about the 21-day reset');
+  assert(full.every((r) => r.at.getHours() === 17), 'rungs fire at 17:00 local — evening, when training is still possible');
+
+  // Six days in (his position today): days 3 and 5 are past, 7 and 19 remain.
+  const sixDaysIn = new Date('2026-08-07T10:00:00.000Z');
+  const late = computeGapLadder(lastSession, 'A', sixDaysIn);
+  assert(
+    late.map((r) => r.day).join() === '7,19',
+    `past rungs are dropped, not fired late (got ${late.map((r) => r.day).join()})`,
+  );
+
+  // 20+ days in: nothing left — the return ramp takes over from here.
+  const past21 = computeGapLadder(lastSession, 'A', new Date('2026-08-21T10:00:00.000Z'));
+  assert(past21.length === 0, 'after day 19 the ladder is silent');
+
+  assert(computeGapLadder('not-a-date', 'A', dayAfter).length === 0, 'garbage date → empty ladder, no throw');
+  const noDay = computeGapLadder(lastSession, null, dayAfter);
+  assert(noDay[0].title.includes('next session'), 'null day still reads naturally');
+}
+
+// ── Sick signal ──────────────────────────────────────────────
+console.log('assessSickSignal');
+{
+  const base = [52, 53, 52, 51, 53, 52, 54, 52, 53, 52]; // median 52
+  assert(assessSickSignal([...base, 59, 60]) === 'sick', 'two days at +7 bpm → sick');
+  assert(assessSickSignal([...base, 52, 53]) === 'clear', 'two days at baseline → clear');
+  assert(assessSickSignal([...base, 59, 53]) === 'unknown', 'one high day is a bad sensor night, not illness');
+  assert(assessSickSignal([...base, 56, 56]) === 'unknown', 'the +2..+5 gray zone stays unknown');
+  assert(assessSickSignal([...base, null, 60]) === 'unknown', 'a missing day cannot vote');
+  assert(assessSickSignal([52, 53, 60, 61]) === 'unknown', 'short baseline → no verdict');
+  assert(assessSickSignal([]) === 'unknown', 'empty input → unknown, no throw');
+}
+
+// ── HRV readiness clause ─────────────────────────────────────
+console.log('computeReadiness + HRV');
+{
+  const rested = { rhrDeltaBpm: -1, sleepHours: 7.5, hoursSinceLastSession: 48 };
+  const green = computeReadiness({ ...rested, hrvRatio: 1.05 });
+  assert(green?.verdict === 'push', 'good HRV leaves a green day green');
+  const crashed = computeReadiness({ ...rested, hrvRatio: 0.6 });
+  assert(crashed?.verdict === 'hold', 'HRV at 60% of baseline holds even a rested day');
+  assert(!!crashed && crashed.note.includes('HRV'), `the hold names HRV (got "${crashed?.note}")`);
+  const noOpinion = computeReadiness({ ...rested, hrvRatio: null });
+  assert(noOpinion?.verdict === 'push', 'null HRV is no opinion, never a red flag');
+  const hrvOnly = computeReadiness({ rhrDeltaBpm: null, sleepHours: null, hoursSinceLastSession: null, hrvRatio: 0.5 });
+  assert(hrvOnly?.verdict === 'hold', 'HRV alone can hold a day');
+  assert(
+    computeReadiness({ rhrDeltaBpm: null, sleepHours: null, hoursSinceLastSession: null }) === null,
+    'no inputs at all still returns null (pre-HRV contract intact)',
+  );
+}
+
+// ── HR binning ───────────────────────────────────────────────
+console.log('binHeartRate');
+{
+  const start = '2026-08-04T10:00:00.000Z';
+  const at = (sec: number) => new Date(new Date(start).getTime() + sec * 1000).toISOString();
+  const bins = binHeartRate(
+    [
+      { value: 100, dateISO: at(0) },
+      { value: 110, dateISO: at(5) },   // same 15 s bin → averaged
+      { value: 140, dateISO: at(20) },
+      { value: 150, dateISO: at(65) },
+    ],
+    start,
+  );
+  assert(
+    JSON.stringify(bins) === JSON.stringify([[0, 105], [15, 140], [60, 150]]),
+    `bins average within, sort across (got ${JSON.stringify(bins)})`,
+  );
+  const dirty = binHeartRate(
+    [
+      { value: 0, dateISO: at(0) },      // dead-sensor zero
+      { value: 300, dateISO: at(10) },   // impossible spike
+      { value: 120, dateISO: at(-30) },  // before the workout
+      { value: 130, dateISO: at(30) },
+    ],
+    start,
+  );
+  assert(
+    JSON.stringify(dirty) === JSON.stringify([[30, 130]]),
+    `garbage samples are dropped, not stored (got ${JSON.stringify(dirty)})`,
+  );
+  assert(binHeartRate([], start).length === 0, 'no samples → no bins');
+  assert(binHeartRate([{ value: 100, dateISO: at(0) }], 'garbage').length === 0, 'bad start date → empty, no throw');
+}
+
+// ── Import vocabulary ordering ───────────────────────────────
+// "resting_heart_rate" contains "heart_rate"; if the specific check does not
+// run first, daily resting HR gets classified as workout heart rate and
+// enrichWorkouts writes it onto whatever workout shares the day.
+console.log('normalizeSampleType');
+{
+  assert(normalizeSampleType('resting_heart_rate') === 'resting_hr', 'resting HR beats the liberal heart_rate match');
+  assert(normalizeSampleType('heart_rate_variability_sdnn') === 'hrv_sdnn', 'HRV beats the liberal heart_rate match');
+  assert(normalizeSampleType('heart_rate') === 'heart_rate', 'plain heart rate still works');
+  assert(normalizeSampleType('sleep_analysis') === 'sleep_asleep_h', 'sleep maps');
+  assert(normalizeSampleType('vo2_max') === 'vo2max', 'vo2max maps');
+  assert(normalizeSampleType('apple_sleeping_wrist_temperature') === 'wrist_temp_c', 'wrist temp maps');
+  assert(normalizeSampleType('respiratory_rate') === 'respiratory_rate', 'respiratory rate maps');
+  assert(normalizeSampleType('step_count') === 'steps', 'steps map');
+  assert(normalizeSampleType('body_mass') === 'weight', 'weight unchanged');
+  assert(normalizeSampleType('active_energy_burned') === 'active_energy', 'energy unchanged');
+  assert(normalizeSampleType('mystery_metric') === null, 'unknown stays unknown');
+}
 
 // ── summary ──────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -8,6 +8,10 @@ import RestTimer from './RestTimer';
 import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
+import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
+import { enqueueSave, newClientSaveId } from '@/lib/outbox';
+import { armGapGuard } from '@/lib/gap-guard';
+import { captureWorkoutHr } from '@/lib/hr-capture';
 
 interface Exercise {
   id: string;
@@ -187,7 +191,13 @@ export default function WorkoutForm({
   const [elapsed, setElapsed] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  /** Restored draft is >24 h old — worth an explicit look before continuing. */
+  const [draftIsStale, setDraftIsStale] = useState(false);
+  /** Save failed but the session is queued — it is NOT lost. */
+  const [queuedOffline, setQueuedOffline] = useState(false);
   const startRef = useRef(Date.now());
+  /** Idempotency key for this submission — survives retries, reset on clear. */
+  const saveIdRef = useRef<string | null>(null);
   const [autoTimer, setAutoTimer] = useState(true);
   const [prToast, setPrToast] = useState<string | null>(null);
   const [mood, setMood] = useState('');
@@ -220,37 +230,58 @@ export default function WorkoutForm({
     return () => keepScreenAwake(false);
   }, []);
 
-  // Restore draft on mount
+  // Restore draft on mount. localStorage is the fast path; the durable vault
+  // (native UserDefaults) is the copy that survives WKWebView storage
+  // eviction — checked only when localStorage came up empty.
   useEffect(() => {
+    const applyDraft = (draft: {
+      name?: string; date?: string; notes?: string; gym?: string;
+      blocks?: unknown; startTime?: number; savedAt?: number;
+    }): boolean => {
+      if (!Array.isArray(draft.blocks) || draft.blocks.length === 0) return false;
+      const age = Date.now() - (draft.savedAt ?? 0);
+      // An old draft is a real session that got interrupted — sickness, a
+      // dead phone. It used to be silently deleted at 24 h, which threw away
+      // ticked sets with real completedAt stamps. Now it restores with a
+      // prompt; discarding is his tap, never the app's.
+      setName(draft.name ?? initialName);
+      setDate(draft.date ?? today);
+      setNotes(draft.notes ?? '');
+      if (draft.gym) setGym(draft.gym);
+      setBlocks(draft.blocks as ExerciseBlock[]);
+      if (draft.startTime) startRef.current = draft.startTime;
+      setDraftRestored(true);
+      setDraftIsStale(age > 24 * 60 * 60 * 1000);
+      return true;
+    };
+
+    let restored = false;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const draft = JSON.parse(raw);
-        const age = Date.now() - (draft.savedAt ?? 0);
-        if (age < 24 * 60 * 60 * 1000 && Array.isArray(draft.blocks) && draft.blocks.length > 0) {
-          setName(draft.name ?? initialName);
-          setDate(draft.date ?? today);
-          setNotes(draft.notes ?? '');
-          if (draft.gym) setGym(draft.gym);
-          setBlocks(draft.blocks);
-          if (draft.startTime) startRef.current = draft.startTime;
-          setDraftRestored(true);
-        } else {
-          localStorage.removeItem(DRAFT_KEY);
-        }
-      }
+      if (raw) restored = applyDraft(JSON.parse(raw));
+      if (!restored && raw) localStorage.removeItem(DRAFT_KEY);
     } catch {
       localStorage.removeItem(DRAFT_KEY);
     }
     setInitialized(true);
+
+    if (!restored) {
+      void durableGet(DRAFT_KEY).then((vaulted) => {
+        if (!vaulted) return;
+        try {
+          applyDraft(JSON.parse(vaulted));
+        } catch { /* a corrupt vault copy restores nothing */ }
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-save draft on every change (skips until draft check is done)
+  // Auto-save draft on every change (skips until draft check is done).
+  // durableSet writes localStorage AND the native vault.
   useEffect(() => {
     if (!initialized) return;
     const draft = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    void durableSet(DRAFT_KEY, JSON.stringify(draft));
   }, [initialized, name, date, gym, notes, blocks]);
 
   // Switching gyms mid-setup invalidates every prefilled number: the machine
@@ -323,14 +354,16 @@ export default function WorkoutForm({
   }, []);
 
   function clearDraft() {
-    localStorage.removeItem(DRAFT_KEY);
+    void durableRemove(DRAFT_KEY);
     setName(initialName);
     setDate(today);
     setGym(DEFAULT_GYM_ID);
     setNotes('');
     setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct));
     startRef.current = Date.now();
+    saveIdRef.current = null;
     setDraftRestored(false);
+    setDraftIsStale(false);
   }
 
   const exerciseGroups = exercises.reduce<Record<string, Exercise[]>>((acc, ex) => {
@@ -581,23 +614,48 @@ export default function WorkoutForm({
     setSubmitting(true);
 
     const fullNotes = [mood ? `Feeling ${mood}` : '', notes.trim()].filter(Boolean).join(' · ');
+    // One id per submission attempt, held across retries in the same form
+    // life: if the first try lands server-side but times out client-side, the
+    // retry (or the outbox replay) dedupes into the same workout.
+    if (!saveIdRef.current) saveIdRef.current = newClientSaveId();
+    const payload = {
+      name: name.trim(),
+      date: date || localTodayStr(),
+      gym,
+      notes: fullNotes || undefined,
+      duration: Math.floor((Date.now() - startRef.current) / 1000),
+      clientSaveId: saveIdRef.current,
+      sets: setsToSave,
+    };
+    const startISO = new Date(startRef.current).toISOString();
     try {
-      const { id } = await createWorkout({
-        name: name.trim(),
-        date: date || localTodayStr(),
-        gym,
-        notes: fullNotes || undefined,
-        duration: Math.floor((Date.now() - startRef.current) / 1000),
-        sets: setsToSave,
-      });
+      const { id } = await createWorkout(payload);
       // Only clear the draft once the save has actually succeeded.
-      localStorage.removeItem(DRAFT_KEY);
+      void durableRemove(DRAFT_KEY);
+      // Fire-and-forget: pull the session's real HR curve off the Watch data
+      // and re-arm Gap Guard from today. Neither may delay navigation.
+      captureWorkoutHr(id, startISO, new Date().toISOString());
+      armGapGuard(new Date().toISOString(), null);
       hapticSuccess();
       router.push(`/workouts/${id}?new=1`);
     } catch {
-      setError('Failed to save. Please try again.');
-      setSubmitting(false);
-      setShowSummary(null);
+      // The session is not lost — queue it durably and say so. The outbox
+      // replays on network restore and on every app open; clientSaveId makes
+      // a replay of a save that secretly landed a no-op.
+      try {
+        await enqueueSave(payload);
+        void durableRemove(DRAFT_KEY);
+        armGapGuard(new Date().toISOString(), null);
+        setQueuedOffline(true);
+        setSubmitting(false);
+        setShowSummary(null);
+        hapticSuccess();
+      } catch {
+        // Even the durable queue failed — keep the draft, tell the truth.
+        setError('Failed to save. Your sets are still in the draft — try again.');
+        setSubmitting(false);
+        setShowSummary(null);
+      }
     }
   }
 
@@ -620,11 +678,21 @@ export default function WorkoutForm({
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
 
+        {/* Session queued offline — the save is safe, not lost */}
+        {queuedOffline && (
+          <div className="card rounded-card border-acc-teal/40 px-4 py-3">
+            <p className="text-acc-teal text-sm font-semibold">✓ Saved on this phone</p>
+            <p className="text-app-tx2 text-xs mt-0.5">
+              No connection right now — it uploads by itself when signal returns.
+            </p>
+          </div>
+        )}
+
         {/* Draft restored notice */}
         {draftRestored && (
           <div className="card rounded-card border-acc-teal/30 px-4 py-3 flex items-center justify-between">
             <span className="text-acc-teal text-sm">
-              ↩ Workout restored
+              {draftIsStale ? '↩ Old session restored — still yours to keep' : '↩ Workout restored'}
             </span>
             <button
               type="button"

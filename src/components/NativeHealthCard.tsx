@@ -268,6 +268,7 @@ export default function NativeHealthCard() {
     const errs: string[] = [];
     let weightsUp = 0;
     let workoutsUp = 0;
+    let workoutsEnriched = 0;
 
     // 1 — HealthKit weight → app (rolling window, never a since-last-sync cursor)
     try {
@@ -324,7 +325,13 @@ export default function NativeHealthCard() {
 
       if (enrichment.length > 0) {
         try {
-          await api('/api/health/import', { method: 'POST', body: JSON.stringify(enrichment) });
+          const res = (await api('/api/health/import', {
+            method: 'POST',
+            body: JSON.stringify(enrichment),
+          })) as { workoutsEnriched?: number };
+          // Counts, not checkmarks: this pipeline once looked green for weeks
+          // while delivering zero rows. The number is the honest signal.
+          if (typeof res.workoutsEnriched === 'number') workoutsEnriched = res.workoutsEnriched;
         } catch (e) {
           errs.push(reason(e, 'enrich'));
         }
@@ -340,6 +347,7 @@ export default function NativeHealthCard() {
     const counts: string[] = [];
     if (weightsUp > 0) counts.push(`${weightsUp} weight${weightsUp === 1 ? '' : 's'}`);
     if (workoutsUp > 0) counts.push(`${workoutsUp} workout${workoutsUp === 1 ? '' : 's'}`);
+    if (workoutsEnriched > 0) counts.push(`${workoutsEnriched} enriched ↓`);
     // Zero is never proof of denial or of absence — Health won't say which.
     //
     // But zero is also the NORMAL steady state, and "No data yet" read as a

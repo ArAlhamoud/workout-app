@@ -33,6 +33,14 @@ model Workout {
   // already-imported Apple Health session from being offered a second time.
   // Additive — `prisma db push` adds the column and index with no data loss.
   healthWorkoutUuid String?      @unique
+  // Client-generated save id — the outbox idempotency key. A save that timed
+  // out but actually landed must not create a second workout when the outbox
+  // replays it; createWorkout upserts on this. Null on every row saved before
+  // the outbox existed. Additive; unlimited NULLs under a unique index.
+  clientSaveId      String?      @unique
+  // Downsampled in-workout heart-rate curve, [[offsetSec, bpm], ...], written
+  // once by the native shell after save. Fill-null-only, never clobbered.
+  hrSeries          Json?
   sets              WorkoutSet[]
   createdAt         DateTime     @default(now())
 

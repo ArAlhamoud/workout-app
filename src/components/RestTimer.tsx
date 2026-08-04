@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { isNativeApp } from '@/lib/native-health';
 import {
   cancelRestNotification,
   hapticSuccess,
   scheduleRestNotification,
+  REST_DEADLINE_KEY,
+  REST_EXERCISE_KEY,
 } from '@/lib/native-feedback';
 
 interface RestTimerProps {
@@ -127,6 +129,10 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
   const [endsAt, setEndsAt] = useState(() => Date.now() + totalSeconds * 1000);
   const [remaining, setRemaining] = useState(totalSeconds);
   const [native, setNative] = useState(false);
+  // Ref, not a dep: the visibility handler must see the current onDismiss
+  // without re-subscribing (and re-persisting) on every parent render.
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
 
   useEffect(() => {
     setNative(isNativeApp());
@@ -142,11 +148,45 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
     return () => document.removeEventListener('pointerdown', onGesture, { capture: true });
   }, []);
 
+  // Mirror the live deadline where the notification-action handler can move
+  // it: "+30 s" tapped on the locked screen rewrites the stored value, and
+  // the visibility handler below picks the change up when the app foregrounds.
+  useEffect(() => {
+    try {
+      localStorage.setItem(REST_DEADLINE_KEY, String(endsAt));
+      localStorage.setItem(REST_EXERCISE_KEY, exerciseName);
+    } catch { /* a full quota only costs the lock-screen adjust */ }
+  }, [endsAt, exerciseName]);
+  useEffect(() => {
+    return () => {
+      try {
+        localStorage.removeItem(REST_DEADLINE_KEY);
+        localStorage.removeItem(REST_EXERCISE_KEY);
+      } catch { /* ignore */ }
+    };
+  }, []);
+
   // One interval per timer instance, keyed on endsAt only.
   useEffect(() => {
     setRemaining(remainingSeconds(endsAt));
     const tick = setInterval(() => setRemaining(remainingSeconds(endsAt)), 250);
-    const onVisible = () => setRemaining(remainingSeconds(endsAt));
+    const onVisible = () => {
+      // A lock-screen action may have moved or cleared the deadline while the
+      // app was backgrounded — the stored value wins over component state.
+      try {
+        const stored = localStorage.getItem(REST_DEADLINE_KEY);
+        if (stored === null) {
+          onDismissRef.current();
+          return;
+        }
+        const storedMs = Number(stored);
+        if (Number.isFinite(storedMs) && Math.abs(storedMs - endsAt) > 1000) {
+          setEndsAt(storedMs);
+          return;
+        }
+      } catch { /* fall through to plain recompute */ }
+      setRemaining(remainingSeconds(endsAt));
+    };
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       clearInterval(tick);

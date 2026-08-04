@@ -1,7 +1,21 @@
 // Pure helpers for the Apple Health bridge: payload parsing, sample→workout
 // matching, and the shared token guard used by /api/health/* routes.
 
-export type HealthSampleType = 'weight' | 'heart_rate' | 'active_energy';
+export type HealthSampleType =
+  | 'weight'
+  | 'heart_rate'
+  | 'active_energy'
+  // Daily recovery metrics — one value per calendar day, stored so the phone
+  // is no longer the only holder of the recovery history. These are NEVER
+  // matched to workouts (enrichWorkouts filters on heart_rate/active_energy
+  // only); they live purely as HealthSample rows.
+  | 'resting_hr'
+  | 'hrv_sdnn'
+  | 'sleep_asleep_h'
+  | 'vo2max'
+  | 'wrist_temp_c'
+  | 'respiratory_rate'
+  | 'steps';
 
 export interface ParsedSample {
   type: HealthSampleType;
@@ -22,11 +36,31 @@ const DEFAULT_UNITS: Record<HealthSampleType, string> = {
   weight: 'kg',
   heart_rate: 'count/min',
   active_energy: 'kcal',
+  resting_hr: 'count/min',
+  hrv_sdnn: 'ms',
+  sleep_asleep_h: 'h',
+  vo2max: 'mL/kg·min',
+  wrist_temp_c: 'degC',
+  respiratory_rate: 'count/min',
+  steps: 'count',
 };
 
 /** Liberal metric-name matching: maps any recognisable name to a canonical type. */
 export function normalizeSampleType(name: string): HealthSampleType | null {
   const n = name.toLowerCase();
+  // Specific names FIRST. "resting_heart_rate" contains "heart_rate", and the
+  // liberal check below would classify a daily resting-HR aggregate as
+  // workout heart rate — which enrichWorkouts would then write onto whatever
+  // workout shares the day. Order is load-bearing.
+  if (n.includes('resting')) return 'resting_hr';
+  if (n.includes('hrv') || n.includes('variability')) return 'hrv_sdnn';
+  // Wrist temp BEFORE sleep: "apple_sleeping_wrist_temperature" contains
+  // "sleep", and the wrong branch stores a temperature as hours of sleep.
+  if (n.includes('wrist_temp') || n.includes('wristtemperature')) return 'wrist_temp_c';
+  if (n.includes('sleep')) return 'sleep_asleep_h';
+  if (n.includes('vo2')) return 'vo2max';
+  if (n.includes('respiratory')) return 'respiratory_rate';
+  if (n.includes('step_count') || n === 'steps') return 'steps';
   if (n.includes('body_mass') || n.includes('weight')) return 'weight';
   if (n.includes('heart_rate') || n.includes('heartrate')) return 'heart_rate';
   if (n.includes('active_energy') || n.includes('activeenergy')) return 'active_energy';

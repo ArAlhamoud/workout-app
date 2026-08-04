@@ -64,6 +64,13 @@ export async function createWorkout(data: {
    * detect route has to fall back on same-day matching.
    */
   healthWorkoutUuid?: string;
+  /**
+   * Client-generated idempotency key, set by the offline outbox. A save that
+   * timed out client-side but actually landed must not become a second
+   * workout when the outbox replays it — the replay finds this key and gets
+   * the original row back. Plain online saves may omit it.
+   */
+  clientSaveId?: string;
   sets: Array<{
     exerciseId: string;
     setNumber: number;
@@ -75,6 +82,13 @@ export async function createWorkout(data: {
     completedAt?: string;
   }>;
 }) {
+  if (data.clientSaveId) {
+    const existing = await prisma.workout.findUnique({
+      where: { clientSaveId: data.clientSaveId },
+      select: { id: true },
+    });
+    if (existing) return { id: existing.id, deduped: true };
+  }
   const workout = await prisma.workout.create({
     data: {
       name: data.name,
@@ -83,6 +97,7 @@ export async function createWorkout(data: {
       notes: data.notes || null,
       duration: data.duration ?? null,
       healthWorkoutUuid: data.healthWorkoutUuid || null,
+      clientSaveId: data.clientSaveId || null,
       sets: {
         create: data.sets.map((s) => ({
           ...s,
