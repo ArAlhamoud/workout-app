@@ -164,9 +164,6 @@ export default async function ProgramPage() {
         <p className="section-label mb-1">
           12-Week Fat Loss
         </p>
-        <h1 className="bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text font-round text-2xl font-bold tracking-tight text-transparent">
-          Your Program
-        </h1>
       </div>
 
       {/* This Week — live status */}

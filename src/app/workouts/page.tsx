@@ -46,9 +46,6 @@ export default async function WorkoutsPage() {
       {/* Header */}
       <div className="flex items-center justify-between pt-1">
         <div>
-          <h1 className="text-xl font-bold font-round tracking-tight bg-clip-text text-transparent bg-[linear-gradient(100deg,#ffffff_20%,#c7d2fe_60%,#99f6e4_100%)]">
-            History
-          </h1>
           <p className="text-app-tx3 text-sm mt-0.5 tabular-nums">{workouts.length} sessions</p>
         </div>
       </div>

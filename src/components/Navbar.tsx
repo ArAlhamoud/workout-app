@@ -6,7 +6,7 @@ import LogWorkoutSheet from './LogWorkoutSheet';
 
 function IconHome({ active }: { active: boolean }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={active ? 0 : 1.8} strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 10L12 3l9 7v10a1 1 0 01-1 1H4a1 1 0 01-1-1z" />
       <polyline points="9 21 9 13 15 13 15 21" fill={active ? 'var(--app-bg)' : 'none'} stroke={active ? 'var(--app-bg)' : 'none'} strokeWidth="1.8" />
     </svg>
@@ -15,7 +15,7 @@ function IconHome({ active }: { active: boolean }) {
 
 function IconHistory({ active }: { active: boolean }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="9" />
       <polyline points="12 7 12 12 15 15" />
     </svg>
@@ -24,7 +24,7 @@ function IconHistory({ active }: { active: boolean }) {
 
 function IconProgram({ active }: { active: boolean }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
       <rect x="5" y="3" width="14" height="18" rx="2" />
       <line x1="9" y1="8" x2="15" y2="8" />
       <line x1="9" y1="12" x2="15" y2="12" />
@@ -35,7 +35,7 @@ function IconProgram({ active }: { active: boolean }) {
 
 function IconStats({ active }: { active: boolean }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="20" x2="18" y2="10" />
       <line x1="12" y1="20" x2="12" y2="4" />
       <line x1="6" y1="20" x2="6" y2="14" />
@@ -47,16 +47,14 @@ function Tab({ href, label, icon, active }: { href: string; label: string; icon:
   return (
     <Link
       href={href}
-      className={`flex flex-col items-center justify-center gap-1 rounded-[20px] my-1.5 mx-1 transition-all duration-200 active:scale-95 ${
+      aria-label={label}
+      className={`flex flex-col items-center justify-center rounded-[20px] my-1.5 mx-1 transition-all duration-200 active:scale-95 ${
         active ? 'text-[#99f6e4] bg-acc-teal/10' : 'text-app-tx3 hover:text-app-tx2'
       }`}
     >
       <div className={active ? '[filter:drop-shadow(0_0_6px_rgba(94,234,212,0.8))]' : ''}>
         {icon}
       </div>
-      <span className="text-[9px] font-bold tracking-widest uppercase">
-        {label}
-      </span>
     </Link>
   );
 }
@@ -77,7 +75,7 @@ export default function Navbar() {
       <div className="max-w-lg mx-auto relative px-3 pb-[max(env(safe-area-inset-bottom),0.625rem)]">
         {/* Frosted glass pill */}
         <div className="glass-overlay rounded-[28px] border border-app-border shadow-nav">
-          <div className="grid grid-cols-5 h-[62px]">
+          <div className="grid grid-cols-5 h-[54px]">
             <Tab href="/"        label="Home"    icon={<IconHome    active={isHome}    />} active={isHome}    />
             <Tab href="/workouts" label="History" icon={<IconHistory active={isHistory} />} active={isHistory} />
             {/* FAB inline in the bar, per the approved mockup */}

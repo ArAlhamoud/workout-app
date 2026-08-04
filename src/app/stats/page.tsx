@@ -120,16 +120,6 @@ function EffortBalanceRow({ effort, rpeCap }: { effort: EffortDistribution; rpeC
           );
         })}
       </div>
-      {rpeCap !== null && (
-        <div className="flex items-center justify-between mt-2.5">
-          <span className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-acc-ember/90">
-            We rebuild. We don&rsquo;t test.
-          </span>
-          <span className="text-[10px] text-app-tx3">
-            Ceiling · <b className="text-acc-ember font-semibold">{RPE_LABELS[rpeCap as Rpe]}</b>
-          </span>
-        </div>
-      )}
     </div>
   );
 }
@@ -409,9 +399,6 @@ export default async function StatsPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="pt-1">
-        <h1 className="text-xl font-bold font-round bg-gradient-to-r from-white via-indigo-200 to-teal-200 bg-clip-text text-transparent">
-          Progress
-        </h1>
       </div>
 
       {/* The chain — streak, momentum, lifetime. Numbers a gap cannot erase
@@ -455,13 +442,6 @@ export default async function StatsPage() {
         <div className="card-lg p-4">
           <p className={`section-label mb-2 ${status.mode === 'return' ? 'text-acc-ember/85' : ''}`}>
             {status.mode === 'return' ? 'Coach Directive' : 'Coach Report'}
-          </p>
-          <p
-            className={`font-bold text-sm leading-snug ${
-              status.mode === 'return' ? 'glow-amber' : 'text-app-tx1'
-            }`}
-          >
-            {report.headline}
           </p>
           {/* Glance: ONE instruction + up to three numbers. Every list the
               report builds lives behind "Full report" — never on the glance. */}
@@ -519,9 +499,6 @@ export default async function StatsPage() {
           <div className="mt-4 pt-3 border-t border-app-border">
             <div className="flex items-center justify-between mb-2">
               <p className="section-label">Effort Spectrum · 4 wk</p>
-              {effort.total > 0 && (
-                <span className="text-[10px] text-app-tx3">{effort.total} rated sets</span>
-              )}
             </div>
             <EffortBalanceRow
               effort={effort}
@@ -606,7 +583,6 @@ export default async function StatsPage() {
       <div className="card-lg p-4">
         <div className="flex items-center justify-between mb-3">
           <p className="section-label">Consistency · 12 weeks</p>
-          <span className="text-[11px] text-app-tx3">{workouts.length} sessions total</span>
         </div>
         <CalendarHeatmap workouts={workouts} />
       </div>
