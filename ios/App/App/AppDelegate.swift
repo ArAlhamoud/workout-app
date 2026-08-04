@@ -7,9 +7,59 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
+    /// Set when the app is launched cold by a Home-screen quick action. iOS
+    /// delivers it in launchOptions and does NOT call performActionFor in that
+    /// case, so it is held here until the webview exists to receive it.
+    private var pendingShortcutURL: URL?
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         requestNotificationAuthorization()
+
+        if let item = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
+            pendingShortcutURL = URL(string: item.type)
+        }
         return true
+    }
+
+    // MARK: - Home-screen quick actions
+    //
+    // Each shortcut's type string IS a workout:// URL (see Info.plist), so the
+    // whole feature is a forward into the same path the custom scheme already
+    // uses. DeepLinkHandler.tsx maps it onto its allowlist web-side; nothing
+    // here needs to know what "resume" or "start" mean.
+
+    /// Warm launch: the app is already running, the webview is listening.
+    func application(
+        _ application: UIApplication,
+        performActionFor shortcutItem: UIApplicationShortcutItem,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        guard let url = URL(string: shortcutItem.type) else {
+            completionHandler(false)
+            return
+        }
+        completionHandler(ApplicationDelegateProxy.shared.application(application, open: url, options: [:]))
+    }
+
+    /// Cold launch: the shell is still fetching the web app from Vercel when the
+    /// shortcut arrives, and an appUrlOpen fired before DeepLinkHandler mounts is
+    /// simply dropped — there is no queue on the JS side to catch it.
+    ///
+    /// A single delayed send was tried first and lost the link on a real cold
+    /// start, so this re-sends on a short ladder instead. Repeats are safe:
+    /// the handler maps a URL onto a route and pushes it, so delivering the same
+    /// link twice is the same navigation twice. The ladder is bounded — if every
+    /// rung misses, the app has simply opened on Home.
+    private static let shortcutDeliveryDelays: [TimeInterval] = [1.0, 2.2, 4.0, 6.5]
+
+    private func deliverPendingShortcut() {
+        guard let url = pendingShortcutURL else { return }
+        pendingShortcutURL = nil
+        for delay in Self.shortcutDeliveryDelays {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, open: url, options: [:])
+            }
+        }
     }
 
     /// Local notifications (rest timers, session reminders) need an OS-level
@@ -43,7 +93,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ application: UIApplication) {
-        // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
+        deliverPendingShortcut()
     }
 
     func applicationWillTerminate(_ application: UIApplication) {

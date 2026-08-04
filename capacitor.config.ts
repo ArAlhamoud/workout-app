@@ -19,6 +19,16 @@ const config: CapacitorConfig = {
   },
   ios: {
     contentInset: 'never',
+    // App-Bound Domains, the precondition for WKWebView running a service
+    // worker in a remote-URL shell, are DECLARED in Info.plist but not yet
+    // ENFORCED. Flipping this to true is the whole switch.
+    //
+    // Held off deliberately: enforcement restricts in-webview navigation to
+    // WKAppBoundDomains, and today it would buy nothing — the precaching
+    // service worker it exists to enable has not shipped yet — while risking
+    // the YouTube links in allowNavigation above. Both YouTube hosts are
+    // already listed in the plist so the switch is safe when the moment comes.
+    // limitsNavigationsToAppBoundDomains: true,
   },
 };
 

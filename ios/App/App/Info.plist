@@ -33,6 +33,36 @@
 			</array>
 		</dict>
 	</array>
+	<!-- Long-press the Home-screen icon. Each type string is a workout:// URL
+	     that AppDelegate forwards into the webview, where DeepLinkHandler
+	     already maps it onto its allowlist. No new native behaviour. -->
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Resume workout</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>workout://resume</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypePlay</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Start Day A</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>workout://start?day=A&amp;dur=45</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeAdd</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Start Day B</string>
+			<key>UIApplicationShortcutItemType</key>
+			<string>workout://start?day=B&amp;dur=45</string>
+			<key>UIApplicationShortcutItemIconType</key>
+			<string>UIApplicationShortcutIconTypeAdd</string>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
