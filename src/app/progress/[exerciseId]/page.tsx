@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import BackLink from '@/components/BackLink';
 import { getExerciseHistory } from '@/app/actions';
 import ProgressChart from '@/components/ProgressChart';
 import { CATEGORY_BADGE, formatDateShort } from '@/lib/format';
@@ -30,12 +31,7 @@ export default async function ProgressPage({
     <div className="space-y-4">
       {/* Header */}
       <div className="pt-1">
-        <Link
-          href="/program"
-          className="text-app-tx3 hover:text-app-tx2 text-sm transition-colors inline-flex items-center gap-1 mb-2"
-        >
-          ← Program
-        </Link>
+        <BackLink label="Back" />
         <div className="flex items-center gap-2.5 flex-wrap">
           <h1 className="text-xl font-bold text-app-tx1">{exercise.name}</h1>
           <div className="mt-2 flex gap-2">

@@ -16,7 +16,9 @@ import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact, RPE_LABELS } fro
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = { title: 'Progress' };
+// 'Progress' also names /progress/[exerciseId] and a chart heading; the tab
+// is Stats everywhere the user sees it.
+export const metadata: Metadata = { title: 'Stats' };
 
 /* Effort spectrum — Easy=teal, Med=amber, Hard=orange, Grind=magenta */
 const RPE_BAR_COLORS: Record<Rpe, string> = {

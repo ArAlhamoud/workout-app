@@ -32,6 +32,28 @@ interface Row {
   delta: string | null;
   /** Whether a rise is good, bad, or neither — drives the delta colour. */
   direction: 'higher-better' | 'lower-better' | 'neutral';
+  /** Current-window day values, oldest first, for the sparkline. Nulls dropped. */
+  series?: number[];
+}
+
+/**
+ * A 7-point sparkline. queryDailyStats already returns every day in the window
+ * and the card was averaging it away — the shape is the part that says whether
+ * a number is drifting or just noisy, and it costs no extra call.
+ */
+function Spark({ values, className }: { values: number[]; className: string }) {
+  if (values.length < 3) return null;
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const span = hi - lo || 1;
+  const points = values
+    .map((v, i) => `${(i / (values.length - 1)) * 56},${14 - ((v - lo) / span) * 12}`)
+    .join(' ');
+  return (
+    <svg viewBox="0 0 56 16" width="56" height="16" fill="none" aria-hidden="true" className="flex-none">
+      <polyline points={points} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className} />
+    </svg>
+  );
 }
 
 function mean(values: number[]): number | null {
@@ -91,6 +113,7 @@ export default function HealthInsights() {
               ? null
               : `${now - before >= 0 ? '+' : ''}${(now - before).toFixed(metric.digits)}`,
           direction: metric.direction,
+          series: curr,
         });
       } catch {
         next.push({ key: metric.key, label: metric.label, value: null, delta: null, direction: 'neutral' });
@@ -198,7 +221,10 @@ export default function HealthInsights() {
           {rows.map((row) => (
             <div key={row.key} className="flex items-baseline justify-between py-2">
               <span className="text-app-tx2 text-sm">{row.label}</span>
-              <span className="flex items-baseline gap-2">
+              <span className="flex items-center gap-2.5">
+                {row.series && row.series.length >= 3 && (
+                  <Spark values={row.series} className={deltaClass(row) || 'text-app-tx3'} />
+                )}
                 <span className="text-app-tx1 text-sm font-semibold tabular-nums">
                   {row.value ?? '—'}
                 </span>
