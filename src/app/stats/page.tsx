@@ -1,11 +1,15 @@
 import type { Metadata } from 'next';
-import { getBodyStats, getWorkouts } from '../actions';
+import { getActiveHold, getAllHolds, getBodyStats, getDailyHealthValues, getWorkouts } from '../actions';
+import HoldControl from '@/components/HoldControl';
 import BodyStatForm from '@/components/BodyStatForm';
 import NativeHealthCard from '@/components/NativeHealthCard';
 import StepsCard from '@/components/StepsCard';
 import HealthInsights from '@/components/HealthInsights';
 import DeleteBodyStatButton from '@/components/DeleteBodyStatButton';
-import { effortDistribution, weeklyReport, type EffortDistribution, type Rpe } from '@/lib/coach';
+import { bodyweightMilestones, effortDistribution, momentumBank, weeklyReport, type EffortDistribution, type Rpe } from '@/lib/coach';
+import { holdWeekKeys, lifetimeStats, weekStreak } from '@/lib/streak';
+import { sleepDebtHours } from '@/lib/coach';
+import { lastMonthRecap, yearRecap } from '@/lib/recap';
 import { getTrainingStatus } from '@/lib/program';
 import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact, RPE_LABELS } from '@/lib/format';
 
@@ -316,7 +320,12 @@ function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; r
 }
 
 export default async function StatsPage() {
-  const [stats, workouts] = await Promise.all([getBodyStats(), getWorkouts()]);
+  const [stats, workouts, holds, activeHold] = await Promise.all([
+    getBodyStats(),
+    getWorkouts(),
+    getAllHolds(),
+    getActiveHold(),
+  ]);
 
   const latestWeight = [...stats].reverse().find((s) => s.weight !== null)?.weight ?? null;
   const firstWeight = stats.find((s) => s.weight !== null)?.weight ?? null;
@@ -361,6 +370,21 @@ export default async function StatsPage() {
   // Coach intelligence
   const status = getTrainingStatus(workouts.map((w) => w.date));
   const report = weeklyReport(workouts, stats, status);
+  const streak = weekStreak({
+    sessionDates: workouts.map((w) => w.date),
+    excusedWeeks: holdWeekKeys(holds),
+  });
+  const momentum = momentumBank(workouts);
+  const life = lifetimeStats(workouts);
+  // Start weight = his first recorded weigh-in; the 5% ladder hangs off it.
+  const startWeight = stats.find((s) => s.weight != null)?.weight ?? null;
+  const milestones = startWeight ? bodyweightMilestones(stats, startWeight) : null;
+  const recap = lastMonthRecap(workouts, stats) ?? undefined;
+  const yearInIron = yearRecap(workouts, stats) ?? undefined;
+  const waistPoints = stats.filter((s) => s.waist != null);
+  // Hours, never a score: rolling fortnight of persisted sleep vs his own
+  // median need. Null until the autopilot has banked a week of nights.
+  const sleepDebt = sleepDebtHours(await getDailyHealthValues('sleep_asleep_h', 14));
   const effort = effortDistribution(workouts);
 
   const sorted = [...workouts].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -384,6 +408,38 @@ export default async function StatsPage() {
           Progress
         </h1>
       </div>
+
+      {/* The chain — streak, momentum, lifetime. Numbers a gap cannot erase
+          sit beside the two that a gap drains, on one glanceable strip. */}
+      {workouts.length > 0 && (
+        <div className="card-lg px-4 py-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className={`text-sm font-bold font-round ${
+              streak.status === 'alive' ? 'glow-teal' : streak.status === 'mendable' ? 'text-acc-ember' : 'text-app-tx1'
+            }`}>
+              {streak.label}
+            </span>
+            {momentum && (
+              <span className={`text-xs tabular-nums ${
+                momentum.direction === 'draining' ? 'text-acc-ember' : 'text-app-tx2'
+              }`}>
+                {momentum.label}
+              </span>
+            )}
+          </div>
+          <p className="text-app-tx3 text-[11px] mt-1 tabular-nums">
+            {life.sessions} sessions · {life.label} — yours for good
+          </p>
+        </div>
+      )}
+
+      {sleepDebt !== null && sleepDebt >= 3 && (
+        <p className="px-1 text-xs text-app-tx2 tabular-nums">
+          Sleep debt: <b className="text-acc-ember">{sleepDebt} h</b> over the last fortnight — tonight is the cheapest recovery you own.
+        </p>
+      )}
+
+      <HoldControl active={activeHold} />
 
       {/* Apple Health sync — only visible inside the native iOS shell */}
       <NativeHealthCard />
@@ -502,7 +558,44 @@ export default async function StatsPage() {
       <div className="card-lg p-4">
         <p className="section-label mb-4">Body Weight (kg)</p>
         <BodyWeightChart stats={stats} />
+        {milestones && (
+          <p className="mt-3 text-xs text-app-tx2 tabular-nums">
+            {milestones.atNewLow && <span className="text-acc-teal font-semibold">New low · </span>}
+            <b className="text-app-tx1">{milestones.label}</b>
+            {milestones.pctSteps > 0 && (
+              <span className="text-app-tx3"> · {milestones.pctSteps * 5}% of start lost</span>
+            )}
+          </p>
+        )}
+        {waistPoints.length >= 2 && (
+          <div className="mt-4 pt-3 border-t border-app-border">
+            <p className="section-label mb-2">Waist (cm)</p>
+            <p className="text-app-tx2 text-xs tabular-nums">
+              {waistPoints.slice(-6).map((p) => `${p.waist}`).join(' → ')}
+              <span className="text-app-tx3"> · last {Math.min(6, waistPoints.length)} tapes</span>
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Month in Iron — the recap card, locally generated */}
+      {(yearInIron ?? recap) && (
+        <div className="card-lg p-4">
+          <p className="section-label mb-2">{(yearInIron ?? recap)!.title}</p>
+          <p className="text-app-tx1 font-bold text-sm">{(yearInIron ?? recap)!.headline}</p>
+          {(yearInIron ?? recap)!.liftsProgressed.length > 0 && (
+            <Details label="Lifts that moved" className="mt-2">
+              <div className="space-y-1 mt-1">
+                {(yearInIron ?? recap)!.liftsProgressed.map((l) => (
+                  <p key={l.name} className="text-app-tx2 text-xs tabular-nums">
+                    {l.name}: {l.fromKg} → <b className="text-app-tx1">{l.toKg} kg</b>
+                  </p>
+                ))}
+              </div>
+            </Details>
+          )}
+        </div>
+      )}
 
       {/* Heatmap */}
       <div className="card-lg p-4">

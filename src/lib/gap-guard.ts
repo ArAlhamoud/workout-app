@@ -37,6 +37,8 @@ export interface GapRung {
   at: Date;
   title: string;
   body: string;
+  /** In-app route the notification tap lands on — always a one-tap action. */
+  route: string;
 }
 
 /**
@@ -74,34 +76,42 @@ export function computeGapLadder(
   const at = (days: number): Date =>
     new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + days, 17, 0, 0, 0);
 
+  // Every rung lands on a ONE-TAP action — a notification that opens the
+  // home screen hands the moment of motivation to a menu. Day 7 is the mend
+  // offer: the streak is repairable, which kills "the record's dead anyway".
+  const startRoute = queuedDay ? `/workouts/new?day=${queuedDay}&dur=45` : '/workouts/new';
   const rungs: GapRung[] = [
     {
       id: LADDER_IDS[0],
       day: 3,
       at: at(3),
       title: `${day} is up`,
-      body: 'Your best stretch ran every 2–4 days. A 30-min Express counts.',
+      body: 'Your best stretch ran every 2–4 days. Your streak holds if you train this week.',
+      route: startRoute,
     },
     {
       id: LADDER_IDS[1],
       day: 5,
       at: at(5),
       title: 'Day 5 without a session',
-      body: 'Both long breaks started exactly like this — one session, then quiet.',
+      body: 'Both long breaks started exactly like this. 15 minutes tonight counts — tap for the rescue session.',
+      route: '/workouts/new?rescue=1',
     },
     {
       id: LADDER_IDS[2],
       day: 7,
       at: at(7),
-      title: 'A week off',
-      body: `The 43-day break cost 3 kg. ${day} tonight resets the clock.`,
+      title: 'Your streak is mendable',
+      body: 'A missed week isn’t a dead record: two sessions in the next 7 days repair it. The 43-day break cost 3 kg — this one doesn’t have to.',
+      route: '/workouts/new?rescue=1',
     },
     {
       id: LADDER_IDS[3],
       day: 19,
       at: at(19),
       title: 'Two days from a program reset',
-      body: 'At 21 days off, the app restarts you on the 4-week return ramp. One session this week skips all of it.',
+      body: 'At 21 days off, the app restarts you on the 4-week return ramp. One session this week skips all of it — tap to book it.',
+      route: startRoute,
     },
   ];
 
@@ -137,6 +147,7 @@ export function armGapGuard(
     body: r.body,
     schedule: { at: r.at },
     sound: 'default',
+    extra: { route: r.route },
   }));
   scheduleLocalNotifications(specs);
 }
@@ -173,6 +184,7 @@ export function notifyComeback(queuedDay: DayId | null): void {
       body: `Resting HR is home. ${queuedDay ? `Day ${queuedDay}` : 'Your next session'} tomorrow — ramp loads apply if the break ran long.`,
       schedule: { at },
       sound: 'default',
+      extra: { route: queuedDay ? `/workouts/new?day=${queuedDay}&dur=45` : '/workouts/new' },
     },
   ]);
 }

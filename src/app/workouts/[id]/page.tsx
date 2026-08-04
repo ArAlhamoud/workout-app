@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import prisma from '@/lib/prisma';
 import { getWorkout } from '../../actions';
+import { calendarDaysBetween } from '@/lib/program';
+import { lifetimeStats } from '@/lib/streak';
 import DeleteButton from '@/components/DeleteButton';
 import { CATEGORY_BADGE, formatDateLong, formatDuration, kgCompact, RPE_LABELS } from '@/lib/format';
 import { gymLabel } from '@/lib/program';
@@ -13,9 +16,38 @@ const rpeBadge: Record<number, { label: string; cls: string }> = {
   4: { label: RPE_LABELS[4], cls: 'text-rpe-grind bg-rpe-grind/10 border-rpe-grind/30' },
 };
 
-export default async function WorkoutDetailPage({ params }: { params: { id: string } }) {
+export default async function WorkoutDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
   const workout = await getWorkout(params.id);
   if (!workout) notFound();
+
+  // The welcome-back moment — the highest-leverage screen in the app. The
+  // ladder gets him to open the app; what he sees after the first session
+  // back decides whether week 2 happens. Shown only right after saving
+  // (?new=1), only when this session ended a gap of 4+ days, and it leads
+  // with the numbers a gap can never take away.
+  const isFreshSave = searchParams?.new === '1';
+  let welcomeBack: { gapDays: number; sessions: number; tonnageLabel: string } | null = null;
+  if (isFreshSave) {
+    const previous = await prisma.workout.findFirst({
+      where: { date: { lt: workout.date }, id: { not: workout.id } },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    });
+    const gapDays = previous ? calendarDaysBetween(workout.date, previous.date) : 0;
+    if (previous && gapDays >= 4) {
+      const all = await prisma.workout.findMany({
+        select: { sets: { select: { weight: true, reps: true, isWarmup: true } } },
+      });
+      const life = lifetimeStats(all);
+      welcomeBack = { gapDays, sessions: life.sessions, tonnageLabel: life.label };
+    }
+  }
 
   const exerciseOrder: string[] = [];
   const exerciseMap = new Map<string, typeof workout.sets>();
@@ -38,6 +70,17 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-4">
+      {welcomeBack && (
+        <div className="card-lg border-acc-teal/40 px-4 py-4 shadow-[0_0_44px_-14px_rgba(45,212,191,0.45)]">
+          <p className="glow-teal font-round text-lg font-bold">Welcome back. This is how it&apos;s done.</p>
+          <p className="text-app-tx2 text-sm mt-1">
+            {welcomeBack.gapDays} days away changed nothing that matters —
+            <b className="text-app-tx1"> {welcomeBack.sessions} sessions</b> and
+            <b className="text-app-tx1"> {welcomeBack.tonnageLabel}</b> are yours for good.
+            Showing up today is the whole game.
+          </p>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between gap-4 pt-1">
         <div className="min-w-0">

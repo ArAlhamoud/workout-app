@@ -179,3 +179,21 @@ export function onRestAction(handler: (actionId: 'plus30' | 'done') => void): vo
     }),
   );
 }
+
+/**
+ * A plain tap on any notification carrying extra.route (the Gap Guard
+ * ladder, the comeback) navigates there — the moment of motivation lands on
+ * a prefilled screen, never on a menu. Capacitor reports plain taps with
+ * actionId 'tap'.
+ */
+export function onNotificationRoute(handler: (route: string) => void): void {
+  const notifications = plugin<LocalNotificationsPlugin>('LocalNotifications');
+  if (!notifications) return;
+  safely(
+    notifications.addListener('localNotificationActionPerformed', (payload) => {
+      if (payload?.actionId !== 'tap') return;
+      const route = payload?.notification?.extra?.route;
+      if (typeof route === 'string' && route.startsWith('/')) handler(route);
+    }),
+  );
+}

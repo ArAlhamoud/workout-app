@@ -80,6 +80,8 @@ export async function createWorkout(data: {
     rpe?: number;
     /** ISO instant the set was ticked done in the logger, when it was. */
     completedAt?: string;
+    /** Warm-up sets are logged but excluded from records/volume/plateaus. */
+    isWarmup?: boolean;
   }>;
 }) {
   if (data.clientSaveId) {
@@ -130,7 +132,7 @@ export async function getLastSessionForExercises(
   // Sessions logged before gym tagging existed are untagged; they are all
   // B_Fit, so the home gym claims them.
   const lastSets = await prisma.workoutSet.findMany({
-    where: { exerciseId: { in: exerciseIds }, workout: gym ? gymScope(gym) : {} },
+    where: { exerciseId: { in: exerciseIds }, isWarmup: false, workout: gym ? gymScope(gym) : {} },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
     distinct: ['exerciseId'],
     select: { exerciseId: true, weight: true, reps: true, rpe: true },
@@ -148,7 +150,7 @@ export async function getPersonalRecords(gym?: string | null): Promise<Record<st
   // session and never let it be beaten again.
   const records = await prisma.workoutSet.groupBy({
     by: ['exerciseId'],
-    where: gym ? { workout: gymScope(gym) } : undefined,
+    where: { isWarmup: false, ...(gym ? { workout: gymScope(gym) } : {}) },
     _max: { weight: true },
   });
   return records.reduce<Record<string, number>>((acc, r) => {
@@ -157,15 +159,18 @@ export async function getPersonalRecords(gym?: string | null): Promise<Record<st
   }, {});
 }
 
-export async function getExerciseHistory(exerciseId: string) {
+export async function getExerciseHistory(exerciseId: string, gym: string = DEFAULT_GYM_ID) {
   const exercise = await prisma.exercise.findUnique({
     where: { id: exerciseId },
     select: { name: true, category: true },
   });
   if (!exercise) return null;
 
+  // Gym-scoped (review catch): pooled history let a work-gym entry wear a
+  // false PR badge on the progress chart — the exact cross-gym corruption
+  // getPersonalRecords already guards against. Warm-ups never chart.
   const sets = await prisma.workoutSet.findMany({
-    where: { exerciseId },
+    where: { exerciseId, isWarmup: false, workout: gymScope(gym) },
     orderBy: { workout: { date: 'asc' } },
     select: {
       weight: true,
@@ -294,4 +299,117 @@ export async function getHealthOverview(): Promise<{
     samplesTotal,
     enrichedWorkouts,
   };
+}
+
+// ── Wave 2 ───────────────────────────────────────────────────
+
+/**
+ * Hevy's headline feature: best weight AT EACH REP COUNT, per gym. On a
+ * 12–15-rep pin-stack program, reps climbing at the same pin are the main
+ * form of progress — invisible to a heaviest-ever PR. exerciseId → reps →
+ * best kg. Warm-ups never count.
+ */
+export async function getRepRecords(
+  gym?: string | null,
+): Promise<Record<string, Record<number, number>>> {
+  const sets = await prisma.workoutSet.findMany({
+    where: { isWarmup: false, weight: { gt: 0 }, workout: gym ? gymScope(gym) : {} },
+    select: { exerciseId: true, reps: true, weight: true },
+  });
+  const records: Record<string, Record<number, number>> = {};
+  for (const s of sets) {
+    const byReps = (records[s.exerciseId] ??= {});
+    if (!byReps[s.reps] || s.weight > byReps[s.reps]) byReps[s.reps] = s.weight;
+  }
+  return records;
+}
+
+/**
+ * Last few sessions of one exercise at one gym — the mid-workout history
+ * drawer. Fetched lazily when the ⓘ layer opens; not part of page load.
+ */
+export async function getRecentExerciseSessions(
+  exerciseId: string,
+  gym: string,
+  limit = 3,
+): Promise<Array<{ date: string; topWeight: number; reps: number; rpe: number | null }>> {
+  const sets = await prisma.workoutSet.findMany({
+    where: { exerciseId, isWarmup: false, weight: { gt: 0 }, workout: gymScope(gym) },
+    orderBy: { workout: { date: 'desc' } },
+    select: { weight: true, reps: true, rpe: true, workout: { select: { date: true } } },
+    take: 60,
+  });
+  const bySession = new Map<string, { date: string; topWeight: number; reps: number; rpe: number | null }>();
+  for (const s of sets) {
+    const key = s.workout.date.toISOString().split('T')[0];
+    const cur = bySession.get(key);
+    if (!cur || s.weight > cur.topWeight) {
+      bySession.set(key, { date: key, topWeight: s.weight, reps: s.reps, rpe: s.rpe });
+    }
+  }
+  return [...bySession.values()].slice(0, limit);
+}
+
+// ── Holds — "holding, not losing" ────────────────────────────
+
+export async function getActiveHold(): Promise<{ id: string; endsAt: string; reason: string | null } | null> {
+  const hold = await prisma.hold.findFirst({
+    where: { endsAt: { gt: new Date() } },
+    orderBy: { endsAt: 'desc' },
+    select: { id: true, endsAt: true, reason: true },
+  });
+  return hold ? { id: hold.id, endsAt: hold.endsAt.toISOString(), reason: hold.reason } : null;
+}
+
+/** Declare a bounded hold. Capped at 3 weeks — longer is a decision to remake. */
+export async function startHold(days: number, reason?: string) {
+  const bounded = Math.min(21, Math.max(3, Math.round(days)));
+  const hold = await prisma.hold.create({
+    data: { endsAt: new Date(Date.now() + bounded * 86_400_000), reason: reason || null },
+  });
+  revalidatePath('/');
+  revalidatePath('/stats');
+  return { id: hold.id, endsAt: hold.endsAt.toISOString() };
+}
+
+export async function endHold(id: string) {
+  // Ending early = expiring now; the row stays as history for streak grace.
+  await prisma.hold.update({ where: { id }, data: { endsAt: new Date() } });
+  revalidatePath('/');
+  revalidatePath('/stats');
+}
+
+/** Every hold that overlaps history — the streak excuses these weeks. */
+export async function getAllHolds(): Promise<Array<{ startsAt: string; endsAt: string }>> {
+  const holds = await prisma.hold.findMany({ select: { startsAt: true, endsAt: true } });
+  return holds.map((h) => ({ startsAt: h.startsAt.toISOString(), endsAt: h.endsAt.toISOString() }));
+}
+
+/**
+ * The zero-equipment rescue: a 15-minute brisk walk logged as a real session
+ * so the chain (streak, Gap Guard, dynamic plan recovery day) stays intact.
+ * No sets — the walk IS the content, like an imported swim.
+ */
+export async function logRescueWalk() {
+  const workout = await prisma.workout.create({
+    data: {
+      name: `Rescue walk 15m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+      duration: 15 * 60,
+      notes: 'Zero-equipment rescue session — keeping the chain alive.',
+    },
+  });
+  revalidatePath('/');
+  revalidatePath('/workouts');
+  return { id: workout.id };
+}
+
+/** Last N days of a persisted daily recovery metric, oldest first. */
+export async function getDailyHealthValues(type: string, days = 14): Promise<Array<number | null>> {
+  const since = new Date(Date.now() - days * 86_400_000);
+  const rows = await prisma.healthSample.findMany({
+    where: { type, date: { gte: since } },
+    orderBy: { date: 'asc' },
+    select: { value: true },
+  });
+  return rows.map((r) => r.value);
 }

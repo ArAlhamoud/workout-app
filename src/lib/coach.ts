@@ -27,6 +27,8 @@ export interface CoachSet {
   weight: number;
   rpe: number | null;
   exercise: CoachExercise;
+  /** Warm-up sets are logged but never counted. Absent = working set. */
+  isWarmup?: boolean;
 }
 
 export interface CoachWorkout {
@@ -56,7 +58,7 @@ function sessionTops(workouts: CoachWorkout[]): Record<string, SessionTop[]> {
   for (const w of chrono) {
     const perSession: Record<string, { top: number; topRpe: number | null }> = {};
     for (const s of w.sets) {
-      if (s.weight <= 0) continue;
+      if (s.weight <= 0 || s.isWarmup) continue;
       const rpe = s.rpe != null && s.rpe > 0 ? s.rpe : null;
       const cur = perSession[s.exerciseId];
       if (!cur || s.weight > cur.top) {
@@ -189,7 +191,16 @@ export interface WeightTrend {
  * The 28-day window is anchored to the latest weigh-in so stale data still
  * reads as a trend rather than "no change since last month".
  */
-export function weightTrend(bodyStats: CoachBodyStat[]): WeightTrend {
+/**
+ * Options threading context the trend cannot see on its own.
+ * `returning` — inside the return ramp's early weeks, when glycogen and
+ * water refill puts 1–2 kg back in days and the scale is not measuring fat.
+ */
+export interface WeightTrendOptions {
+  returning?: boolean;
+}
+
+export function weightTrend(bodyStats: CoachBodyStat[], options: WeightTrendOptions = {}): WeightTrend {
   const pts = bodyStats
     .filter((s): s is CoachBodyStat & { weight: number } => s.weight != null)
     .map((s) => ({ t: time(s.date), w: s.weight }))
@@ -199,8 +210,16 @@ export function weightTrend(bodyStats: CoachBodyStat[]): WeightTrend {
     return { ema: null, kgPerWeek: null, classification: 'no_data', message: 'Log a weigh-in to start the trend.' };
   }
 
+  // Time-decayed EMA (per-day alpha), not sample-indexed. Sample-indexed
+  // smoothing treats "next weigh-in" as a fixed step, so after a 43-day gap
+  // ONE reading yanked the average 30% of the way — with silent auto-import
+  // the cadence is irregular by design, and the maths must not care.
   let ema = pts[0].w;
-  for (let i = 1; i < pts.length; i++) ema = 0.3 * pts[i].w + 0.7 * ema;
+  for (let i = 1; i < pts.length; i++) {
+    const gapDays = Math.max(0, (pts[i].t - pts[i - 1].t) / DAY_MS);
+    const alpha = 1 - Math.pow(0.9, Math.min(gapDays, 30)); // 0.1/day, capped
+    ema = ema + alpha * (pts[i].w - ema);
+  }
   ema = round2(ema);
 
   if (pts.length < 2) {
@@ -218,7 +237,13 @@ export function weightTrend(bodyStats: CoachBodyStat[]): WeightTrend {
   let message: string;
   if (kgPerWeek > 0) {
     classification = 'gaining';
-    message = `Weight trend is up (+${kgPerWeek} kg/week) — review intake.`;
+    // The re-entry explainer. In the first weeks back, refilled glycogen
+    // binds water — 1–2 kg on the scale that is not fat. "Review intake" at
+    // that exact moment punishes him for returning, which is the one thing
+    // the app must never do.
+    message = options.returning
+      ? `Scale up +${kgPerWeek} kg/week — expected after a break: refilled muscle fuel binds water. Fat loss resumes underneath; judge the trend in 2 weeks.`
+      : `Weight trend is up (+${kgPerWeek} kg/week) — review intake.`;
   } else if (kgPerWeek > -0.5) {
     classification = 'slow';
     message = `Losing ${Math.abs(kgPerWeek)} kg/week — slow. Tighten nutrition, keep lifting.`;
@@ -376,7 +401,10 @@ export function weeklyReport(
   const weekStart = getMondayOfWeek(now).getTime();
   const lastWeekStart = weekStart - 7 * DAY_MS;
   const volume = (ws: CoachWorkout[]) =>
-    ws.reduce((sum, w) => sum + w.sets.reduce((s, x) => s + x.weight * x.reps, 0), 0);
+    ws.reduce(
+      (sum, w) => sum + w.sets.reduce((s, x) => s + (x.isWarmup ? 0 : x.weight * x.reps), 0),
+      0,
+    );
 
   const thisWeek = workouts.filter((w) => time(w.date) >= weekStart);
   const lastWeek = workouts.filter((w) => time(w.date) >= lastWeekStart && time(w.date) < weekStart);
@@ -426,7 +454,7 @@ export function weeklyReport(
   }
 
   // Body-weight trend
-  const trend = weightTrend(bodyStats);
+  const trend = weightTrend(bodyStats, { returning: status.mode === 'return' });
   if (trend.classification === 'on_track') wins.push(trend.message);
   else if (trend.classification !== 'no_data') focus.push(trend.message);
 
@@ -499,4 +527,152 @@ export function nextTarget(topWeight: number, topRpe: number | null, increment: 
     action: 'add',
     note: 'Clean and easy last time — take the next pin.',
   };
+}
+
+// ── Momentum bank ────────────────────────────────────────────
+// Whoop's chronic-load gauge, inverted for HIS risk profile: the danger is
+// detraining, not overtraining. Session load = tonnage × mean RPE (warm-ups
+// excluded), summed over 28 days with per-day exponential decay — so the
+// bank visibly starts draining around idle day 3, exactly when the Gap
+// Guard ladder starts talking. Watching an asset drain is a different
+// motivator from being told you are lazy. Kilograms are consistent across
+// both gyms (dual-scale stacks), so pooling matches the volume decision.
+
+export interface Momentum {
+  /** 0–100. 100 ≈ the strongest 28-day stretch in his own history. */
+  pct: number;
+  /** 'building' | 'holding' | 'draining' vs seven days ago. */
+  direction: 'building' | 'holding' | 'draining';
+  label: string;
+}
+
+function sessionLoad(w: CoachWorkout): number {
+  let tonnage = 0;
+  let rpeSum = 0;
+  let rpeN = 0;
+  for (const s of w.sets) {
+    if (s.isWarmup) continue;
+    if (s.weight > 0 && s.reps > 0) tonnage += s.weight * s.reps;
+    if (s.rpe != null && s.rpe > 0) { rpeSum += s.rpe; rpeN++; }
+  }
+  const meanRpe = rpeN ? rpeSum / rpeN : 2; // unrated ≈ Med
+  return tonnage * meanRpe;
+}
+
+function bankAt(workouts: CoachWorkout[], at: Date): number {
+  let bank = 0;
+  for (const w of workouts) {
+    const ageDays = (at.getTime() - time(w.date)) / DAY_MS;
+    if (ageDays < 0 || ageDays > 28) continue;
+    bank += sessionLoad(w) * Math.pow(0.93, ageDays); // ~50% weight at 10 days
+  }
+  return bank;
+}
+
+export function momentumBank(workouts: CoachWorkout[], now: Date = new Date()): Momentum | null {
+  if (!workouts.length) return null;
+  // Self-baselined: 100% is his own best 28-day window, sampled at each
+  // session date — no population norms, per the no-sub-scores rule.
+  let best = 0;
+  for (const w of workouts) best = Math.max(best, bankAt(workouts, new Date(time(w.date))));
+  if (best <= 0) return null;
+
+  const current = bankAt(workouts, now);
+  const weekAgo = bankAt(workouts, new Date(now.getTime() - 7 * DAY_MS));
+  const pct = Math.round(Math.min(100, (current / best) * 100));
+  const direction: Momentum['direction'] =
+    current > weekAgo * 1.05 ? 'building' : current < weekAgo * 0.95 ? 'draining' : 'holding';
+  const arrow = direction === 'building' ? '↑' : direction === 'draining' ? '↓' : '→';
+  return { pct, direction, label: `Momentum ${pct}% ${arrow}` };
+}
+
+// ── Bodyweight milestones ────────────────────────────────────
+// Happy Scale's ladder: a 30–40 kg journey is invisible for months without
+// intermediate rungs. Two ladders on the TREND weight (never the raw scale):
+// kilogram decades (next: under 130) and 5%-of-start steps — 5% being the
+// clinically meaningful unit of health improvement at his weight.
+
+export interface Milestones {
+  nextDecade: number;
+  kgToDecade: number;
+  /** 5% steps completed since the starting weight. */
+  pctSteps: number;
+  nextPctTarget: number;
+  /** True when the current trend weight is the lowest ever recorded. */
+  atNewLow: boolean;
+  label: string;
+}
+
+export function bodyweightMilestones(
+  bodyStats: CoachBodyStat[],
+  startWeight: number,
+): Milestones | null {
+  const trend = weightTrend(bodyStats);
+  if (trend.ema === null) return null;
+  const ema = trend.ema;
+
+  // "Under N" is achieved when the trend is strictly below N, so the next
+  // decade is the largest multiple of 10 that is ≤ the trend. 133.4 → 130;
+  // at exactly 130.0 the target is still 130 (not under it yet).
+  const target = Math.floor(ema / 10) * 10;
+  const kgToDecade = round2(ema - target);
+
+  const stepKg = startWeight * 0.05;
+  const lost = Math.max(0, startWeight - ema);
+  const pctSteps = Math.floor(lost / stepKg);
+  const nextPctTarget = round2(startWeight - (pctSteps + 1) * stepKg);
+
+  const weights = bodyStats
+    .map((s) => s.weight)
+    .filter((w): w is number => w != null);
+  const atNewLow = weights.length > 0 && ema <= Math.min(...weights) + 0.2;
+
+  return {
+    nextDecade: target,
+    kgToDecade,
+    pctSteps,
+    nextPctTarget,
+    atNewLow,
+    label: `${kgToDecade} kg to under ${target}`,
+  };
+}
+
+// ── Micro-deload ─────────────────────────────────────────────
+// The ACTION after plateau detection. Alpha Progression's answer: don't
+// grind a stalled lift, reset it slightly and run back up. −10% rounded to
+// real pins via the learned increment (usually 1–2 pins), half the sets,
+// then normal progression resumes. When the next pin up is a big jump
+// (5+ kg stacks — the 23→27.5 case), tempo is the between-pins step.
+
+export interface DeloadPlan {
+  weight: number;
+  note: string;
+}
+
+export function deloadTarget(topWeight: number, increment: number): DeloadPlan {
+  const inc = increment > 0 ? increment : 2.5;
+  const raw = topWeight * 0.9;
+  const pinsDown = Math.max(1, Math.round((topWeight - raw) / inc));
+  const weight = round2(Math.max(inc, topWeight - pinsDown * inc));
+  const note =
+    inc >= 5
+      ? `Deload: ${weight} kg × half sets — or stay at ${topWeight} kg with a 3s lowering tempo`
+      : `Deload: ${weight} kg × half sets, then build back`;
+  return { weight, note };
+}
+
+// ── Sleep debt ───────────────────────────────────────────────
+// Hours, never a score. Debt vs his OWN median need over the window — a
+// number that is actionable the same night it is read.
+
+export function sleepDebtHours(dailyHours: Array<number | null>): number | null {
+  const nights = dailyHours.filter((h): h is number => h !== null && h > 0);
+  if (nights.length < 7) return null;
+  const sorted = [...nights].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const need = Math.max(6.5, median); // never let a bad fortnight lower the bar
+  // 15-minute tolerance per night: a median-definition quirk should not owe
+  // debt on a week of perfectly normal sleep.
+  const debt = nights.reduce((sum, h) => sum + Math.max(0, need - h - 0.25), 0);
+  return round2(debt);
 }

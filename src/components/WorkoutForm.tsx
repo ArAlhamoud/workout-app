@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createWorkout, getLastSessionForExercises, getPersonalRecords } from '@/app/actions';
+import { createWorkout, getLastSessionForExercises, getPersonalRecords, getRepRecords, getRecentExerciseSessions } from '@/app/actions';
 import RestTimer from './RestTimer';
 import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
@@ -11,6 +11,8 @@ import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { enqueueSave, newClientSaveId } from '@/lib/outbox';
 import { armGapGuard, clearComeback } from '@/lib/gap-guard';
+import { readReadiness } from '@/lib/health-metrics';
+import type { ReadinessSignal } from '@/lib/coach';
 import { captureWorkoutHr } from '@/lib/hr-capture';
 
 interface Exercise {
@@ -42,6 +44,8 @@ interface SetEntry {
   rpe: number;
   /** ISO instant the set was ticked done; cleared when it is un-ticked. */
   completedAt: string | null;
+  /** Warm-up sets are logged but never counted in records or volume. */
+  isWarmup?: boolean;
 }
 
 interface ExerciseBlock {
@@ -110,8 +114,9 @@ function buildBlocks(
   initialExercises: InitialExercise[],
   lastSession: Record<string, { weight: number; reps: number; rpe: number | null }>,
   returnLoadPct?: number,
+  pinIncrements: Record<string, number> = {},
 ): ExerciseBlock[] {
-  return initialExercises.map((ie) => {
+  return initialExercises.map((ie, blockIdx) => {
     const prev = lastSession[ie.exerciseId];
     const isTimed = ie.unit === 'seconds';
     return {
@@ -127,7 +132,30 @@ function buildBlocks(
       showCues: false,
       expandedNoteIdx: null,
       lastSession: prev,
-      sets: Array.from({ length: ie.sets }, (_, i) => ({
+      // One auto warm-up set on the first two machines of the session, at
+      // ~55% of the working weight rounded DOWN to a real pin. Cold joints
+      // meet the day's two heaviest compound movements first; later machines
+      // arrive warm. Flagged so it never touches records, volume or plateaus.
+      sets: [
+        ...(blockIdx < 2 && !isTimed && prev?.weight
+          ? (() => {
+              const inc = pinIncrements[ie.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+              const working = returnLoadPct ? scaleReturnWeight(prev.weight, returnLoadPct) : prev.weight;
+              const warm = Math.max(inc, Math.floor((working * 0.55) / inc) * inc);
+              return [{
+                exerciseId: ie.exerciseId,
+                setNumber: 0,
+                reps: ie.defaultReps,
+                weight: warm,
+                done: false,
+                notes: '',
+                rpe: 0,
+                completedAt: null,
+                isWarmup: true,
+              }];
+            })()
+          : []),
+        ...Array.from({ length: ie.sets }, (_, i) => ({
         exerciseId: ie.exerciseId,
         setNumber: i + 1,
         // Last session's reps, same as weight on the line below. The template's
@@ -144,6 +172,7 @@ function buildBlocks(
         rpe: 0,
         completedAt: null,
       })),
+      ],
     };
   });
 }
@@ -158,6 +187,9 @@ export default function WorkoutForm({
   returnLoadPct,
   returnRpeCap,
   pinIncrements = {},
+  repRecords = {},
+  deloadHints = {},
+  rescueMode = false,
   dayAccent,
 }: {
   exercises: Exercise[];
@@ -169,6 +201,12 @@ export default function WorkoutForm({
   returnLoadPct?: number;
   returnRpeCap?: number;
   pinIncrements?: Record<string, number>;
+  /** exerciseId → reps → best kg at this gym. Drives the rep-record toast. */
+  repRecords?: Record<string, Record<number, number>>;
+  /** exerciseId → plateau deload prescription, when detection fired. */
+  deloadHints?: Record<string, { weight: number; note: string }>;
+  /** 15-minute rescue session — compressed by construction. */
+  rescueMode?: boolean;
   /** Presentation only — threads the Aurora day accent (A violet · B teal) through steppers. */
   dayAccent?: 'A' | 'B';
 }) {
@@ -179,12 +217,20 @@ export default function WorkoutForm({
   const [gym, setGym] = useState(DEFAULT_GYM_ID);
   const [notes, setNotes] = useState('');
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
-    buildBlocks(initialExercises, lastSession, returnLoadPct),
+    buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements),
   );
   // Weight memory for the gym currently tagged. Seeded for the home gym by
   // the server; replaced wholesale when the tag changes.
   const [sessionMemory, setSessionMemory] = useState(lastSession);
   const [gymRecords, setGymRecords] = useState(personalRecords);
+  const [repRecordsState, setRepRecordsState] = useState(repRecords);
+  /** Health-derived read on today; 'hold' softens every push-harder cue. */
+  const [readiness, setReadiness] = useState<ReadinessSignal | null>(null);
+  /** Lazy per-exercise history for the ⓘ drawer, keyed by exerciseId. */
+  const [recentSessions, setRecentSessions] = useState<
+    Record<string, Array<{ date: string; topWeight: number; reps: number; rpe: number | null }>>
+  >({});
+  const [compressed, setCompressed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [restTimer, setRestTimer] = useState<{ seconds: number; exerciseName: string } | null>(null);
@@ -218,8 +264,29 @@ export default function WorkoutForm({
   const [showReturnInfo, setShowReturnInfo] = useState(false);
 
   function toggleInfo(uid: string) {
-    setInfoOpen((prev) => ({ ...prev, [uid]: !prev[uid] }));
+    setInfoOpen((prev) => {
+      const opening = !prev[uid];
+      if (opening) {
+        const block = blocksRef.current.find((b) => b.uid === uid);
+        if (block && !recentSessions[block.exerciseId]) {
+          getRecentExerciseSessions(block.exerciseId, gym)
+            .then((rows) =>
+              setRecentSessions((cur) => ({ ...cur, [block.exerciseId]: rows })),
+            )
+            .catch(() => { /* the drawer just stays empty */ });
+        }
+      }
+      return { ...prev, [uid]: opening };
+    });
   }
+
+  // One readiness read per form life. A 'hold' verdict quiets the try-more
+  // suggestions and offers the rescue session instead — shrink, don't skip.
+  useEffect(() => {
+    let cancelled = false;
+    readReadiness().then((r) => { if (!cancelled && r) setReadiness(r); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Load per-exercise machine notes after mount (avoids hydration mismatch)
   useEffect(() => {
@@ -325,6 +392,9 @@ export default function WorkoutForm({
     getPersonalRecords(gym)
       .then((recs) => { if (!cancelled) setGymRecords(recs); })
       .catch(() => { /* PR badge is decoration; a stale one is not worth a crash */ });
+    getRepRecords(gym)
+      .then((recs) => { if (!cancelled) setRepRecordsState(recs); })
+      .catch(() => { /* same: decoration */ });
     getLastSessionForExercises(ids, gym)
       .then((next) => {
         if (cancelled) return;
@@ -375,13 +445,40 @@ export default function WorkoutForm({
     return () => clearInterval(tick);
   }, []);
 
+  /**
+   * "I have 25 minutes." Keeps every machine but only its first not-yet-done
+   * working set (done sets always survive; warm-ups drop — a short session
+   * warms up on the first work set). One-way by design: un-compressing
+   * mid-session would re-add sets whose rest you already banked.
+   */
+  function compressSession() {
+    hapticTap();
+    setCompressed(true);
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.unit === 'seconds') return b;
+        let keptWorking = false;
+        return {
+          ...b,
+          rest: '60s',
+          sets: b.sets.filter((s) => {
+            if (s.done) return true;
+            if (s.isWarmup) return false;
+            if (!keptWorking) { keptWorking = true; return true; }
+            return false;
+          }),
+        };
+      }),
+    );
+  }
+
   function clearDraft() {
     void durableRemove(DRAFT_KEY);
     setName(initialName);
     setDate(today);
     setGym(DEFAULT_GYM_ID);
     setNotes('');
-    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct));
+    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements));
     startRef.current = Date.now();
     saveIdRef.current = null;
     setDraftRestored(false);
@@ -485,9 +582,18 @@ export default function WorkoutForm({
           const restSecs = block.rest ? parseRestSeconds(block.rest) : 90;
           setRestTimer({ seconds: restSecs, exerciseName: exName });
         }
-        const currentPR = personalRecords[block.exerciseId] ?? 0;
-        if (!block.unit && set.weight > 0 && set.weight > currentPR) {
-          setPrToast(exName);
+        // Two record ladders, checked in order of glory. All-time heaviest
+        // first; else the per-rep-count record (Hevy's insight) — on a
+        // 12–15-rep pin program, "9 reps where 8 was the best" is the usual
+        // form of progress and used to pass in silence. Warm-ups never count.
+        if (!block.unit && !set.isWarmup && set.weight > 0) {
+          const currentPR = gymRecords[block.exerciseId] ?? 0;
+          const repBest = repRecordsState[block.exerciseId]?.[set.reps] ?? 0;
+          if (set.weight > currentPR) {
+            setPrToast(`${exName} — all-time record`);
+          } else if (set.reps > 0 && set.weight > repBest) {
+            setPrToast(`${exName} — best ${set.reps}-rep set: ${set.weight} kg`);
+          }
         }
       }
       return updated;
@@ -626,9 +732,9 @@ export default function WorkoutForm({
     );
     if (!setsToSave.length) { setError('Log at least one set'); return; }
 
-    const vol = Math.round(setsToSave.reduce((sum, s) => sum + s.weight * s.reps, 0));
+    const vol = Math.round(setsToSave.reduce((sum, s) => sum + (s.isWarmup ? 0 : s.weight * s.reps), 0));
     const prs = submitBlocks
-      .filter(({ block: b, sets }) => !b.unit && sets.some((s) => s.weight > (personalRecords[b.exerciseId] ?? 0)))
+      .filter(({ block: b, sets }) => !b.unit && sets.some((s) => !s.isWarmup && s.weight > (gymRecords[b.exerciseId] ?? 0)))
       .map(({ block: b }) => exerciseById.get(b.exerciseId)?.name ?? '')
       .filter(Boolean);
 
@@ -730,6 +836,36 @@ export default function WorkoutForm({
               No connection right now — it uploads by itself when signal returns.
             </p>
           </div>
+        )}
+
+        {/* Readiness hold — shrink, don't skip */}
+        {readiness?.verdict === 'hold' && !rescueMode && (
+          <div className="card rounded-card border-acc-ember/40 px-4 py-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-acc-ember text-sm font-semibold">Recovery is low — hold weights today</p>
+              {readiness.note && <p className="text-app-tx3 text-xs mt-0.5 truncate">{readiness.note}</p>}
+            </div>
+            <Link
+              href="/workouts/new?rescue=1"
+              className="flex-shrink-0 text-xs font-bold px-3 py-2 rounded-card bg-acc-ember/10 border border-acc-ember/40 text-acc-ember"
+            >
+              15-min rescue
+            </Link>
+          </div>
+        )}
+
+        {/* One tap shrinks the session — a short session beats a skipped one */}
+        {!compressed && !rescueMode && blocks.length > 1 && (
+          <button
+            type="button"
+            onClick={compressSession}
+            className="w-full card rounded-card px-4 py-2.5 text-left text-xs text-app-tx2 hover:border-app-border-hi transition-colors"
+          >
+            ⏱ Short on time? <span className="text-app-tx3">One tap keeps every machine, first set only.</span>
+          </button>
+        )}
+        {compressed && (
+          <p className="text-app-tx3 text-[11px] px-1">Compressed — one working set per machine · 60s rests.</p>
         )}
 
         {/* Draft restored notice */}
@@ -953,10 +1089,15 @@ export default function WorkoutForm({
           const returnTarget = returnLoadPct && !isTimed && block.lastSession?.weight
             ? scaleReturnWeight(block.lastSession.weight, returnLoadPct)
             : null;
-          const shouldHold = !returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3;
-          const suggestWeight = !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold
-            ? +(block.lastSession.weight + (lastRpe === 1 ? 5 : 2.5)).toFixed(1)
-            : null;
+          const deload = deloadHints[block.exerciseId];
+          const readinessHold = readiness?.verdict === 'hold';
+          const shouldHold =
+            (!returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3) ||
+            readinessHold;
+          const suggestWeight =
+            !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload
+              ? +(block.lastSession.weight + (lastRpe === 1 ? 5 : 2.5)).toFixed(1)
+              : null;
 
           const est1RM = !isTimed
             ? block.sets.reduce((best, s) => Math.max(best, epley1RM(s.weight, s.reps)), 0)
@@ -1039,6 +1180,11 @@ export default function WorkoutForm({
                     &#8594; Try {suggestWeight} kg
                   </span>
                 )}
+                {deload && !returnTarget && !allDone && (
+                  <span className="text-xs bg-acc-ember/10 text-acc-ember px-2.5 py-1 rounded-full border border-acc-ember/40 font-medium">
+                    {deload.note}
+                  </span>
+                )}
                 {allDone && (
                   <span className="text-xs bg-acc-teal/15 text-acc-teal px-2.5 py-1 rounded-full border border-acc-teal/40 font-semibold shadow-[0_0_14px_-4px_rgba(45,212,191,0.7)]">
                     &#10003; Done
@@ -1111,6 +1257,13 @@ export default function WorkoutForm({
                   {machine && (
                     <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
                       {machine}
+                    </span>
+                  )}
+                  {(recentSessions[block.exerciseId] ?? []).length > 0 && (
+                    <span className="w-full text-[11px] text-app-tx3 tabular-nums">
+                      {(recentSessions[block.exerciseId] ?? [])
+                        .map((r) => `${r.date.slice(5).replace('-', '/')} · ${r.topWeight} kg × ${r.reps}${r.rpe ? ` · ${['','Easy','Med','Hard','Grind'][r.rpe]}` : ''}`)
+                        .join('   ')}
                     </span>
                   )}
                   {videoUrl && (
@@ -1192,12 +1345,14 @@ export default function WorkoutForm({
                             className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-90 ${
                               set.done
                                 ? 'bg-gradient-to-br from-acc-teal to-acc-teal-deep text-[#062521] shadow-glow-teal'
+                                : set.isWarmup
+                                ? 'bg-app-surface2 text-app-tx3 border border-dashed border-app-border active:bg-white/5'
                                 : isCurrentSet
                                 ? currentSetRing
                                 : 'bg-app-surface2 text-app-tx2 active:bg-white/5'
                             }`}
                           >
-                            {set.done ? '✓' : set.setNumber}
+                            {set.done ? '✓' : set.isWarmup ? 'W' : set.setNumber}
                           </button>
 
                           {isTimed ? (

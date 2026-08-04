@@ -20,6 +20,7 @@
 // one that makes looking at it optional.
 
 import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   isNativeApp,
   queryWeight,
@@ -32,6 +33,7 @@ import {
 import {
   registerRestActions,
   onRestAction,
+  onNotificationRoute,
   scheduleRestNotification,
   cancelRestNotification,
   REST_DEADLINE_KEY,
@@ -68,6 +70,7 @@ const RECOVERY_METRICS: Array<{ id: QuantityIdentifier; type: string }> = [
 interface VerdictPayload {
   queuedDay: DayId | null;
   lastSessionISO: string | null;
+  holdUntilISO?: string | null;
 }
 
 async function api(token: string, path: string, init?: RequestInit): Promise<unknown> {
@@ -164,7 +167,10 @@ async function runGapGuard(token: string): Promise<void> {
   // 'unknown' (or a failed read) changes nothing — the flag keeps its state.
 
   if (!verdict) return;
-  const paused = (await durableGet(SICK_FLAG_KEY)) === '1';
+  // Paused while sick AND while a declared hold runs — a bounded break he
+  // asked for must not be nagged through.
+  const holdActive = !!verdict.holdUntilISO && new Date(verdict.holdUntilISO).getTime() > Date.now();
+  const paused = (await durableGet(SICK_FLAG_KEY)) === '1' || holdActive;
   armGapGuard(verdict.lastSessionISO, verdict.queuedDay, { paused });
 }
 
@@ -254,6 +260,7 @@ async function runSyncs(token: string): Promise<void> {
 }
 
 export default function HealthAutoPilot() {
+  const router = useRouter();
   useEffect(() => {
     // The outbox is NOT native-only: a failed save in plain Safari queues
     // through the localStorage fallback, and must replay there too. Flush
@@ -269,6 +276,7 @@ export default function HealthAutoPilot() {
 
     registerRestActions();
     onRestAction(handleRestAction);
+    onNotificationRoute((route) => router.push(route));
 
     // Replay queued saves the moment signal comes back, not next open.
     const cap = (window as Window & {
@@ -301,6 +309,7 @@ export default function HealthAutoPilot() {
       document.removeEventListener('visibilitychange', onWake);
       window.removeEventListener('online', onOnline);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return null;
