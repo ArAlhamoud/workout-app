@@ -713,6 +713,26 @@ console.log('weekStreak');
   assert(mended.status === 'alive' && mended.weeks >= 3, `two sessions mend the break (got ${mended.weeks}, ${mended.status})`);
   assert(mended.label.includes('mended'), `the mend is named (got "${mended.label}")`);
 
+  // ADVERSARY REGRESSION: the mend must survive into later weeks. Friday it
+  // said "mended"; Monday's recompute must not hand back "1 wk streak".
+  const nextWeekView = weekStreak({
+    sessionDates: [d(2026,6,30), d(2026,7,7), d(2026,7,14), d(2026,7,28), d(2026,7,30), d(2026,8,4)],
+    now: new Date(2026, 7, 5, 12), // the week AFTER the two repair sessions
+  });
+  assert(
+    nextWeekView.status === 'alive' && nextWeekView.weeks >= 5,
+    `a mended week stays mended on later recomputes (got ${nextWeekView.weeks}, ${nextWeekView.status})`,
+  );
+
+  // A break under a declared hold: parked, not "on the line" — and mendable
+  // with two sessions in the first post-hold week.
+  const heldBreak = weekStreak({
+    sessionDates: [d(2026,7,7), d(2026,7,14)],
+    excusedWeeks: new Set(['2026-07-27', '2026-08-03']),
+    now: new Date(2026, 7, 5, 12), // mid-hold; week of Jul 20 broke first
+  });
+  assert(heldBreak.status !== 'mendable', `mid-hold never demands training (got ${heldBreak.status})`);
+
   // A hold excuses its weeks outright.
   const held = weekStreak({
     sessionDates: [d(2026,7,14), d(2026,7,7)],
@@ -817,7 +837,9 @@ console.log('deloadTarget');
   assert(small.weight === 45, `-10% at 2.5 kg pins lands on a real pin (got ${small.weight})`);
   assert(!small.note.includes('tempo'), 'small pins need no tempo escape');
   const big = deloadTarget(27.5, 5);
-  assert(big.note.includes('3s'), `big pin jumps offer the tempo step (got "${big.note}")`);
+  // 5s + pause, NOT 3s: the program's default cue is already a 3s eccentric,
+  // so 3s was an alternative to nothing (trainer's catch).
+  assert(big.note.includes('5s') && big.note.includes('pause'), `big pin jumps offer a real tempo step (got "${big.note}")`);
   const zero = deloadTarget(50, 0);
   assert(zero.weight > 0 && zero.weight < 50, 'a zero increment falls back safely');
 }

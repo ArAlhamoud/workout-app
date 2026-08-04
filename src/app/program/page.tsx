@@ -8,6 +8,7 @@ import {
   BREAK_THRESHOLD_DAYS,
   CARDIO,
   gymLabel,
+  isTrainingSession,
   WEEKLY_SESSION_TARGET,
   getDynamicPlan,
   getTrainingStatus,
@@ -135,7 +136,7 @@ export default async function ProgramPage() {
   const exerciseIdByName = new Map(exercises.map((e) => [e.name, e.id]));
 
   // Where the lifter actually is this week
-  const status = getTrainingStatus(workouts.map((w) => w.date));
+  const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
   const weekStart = getMondayOfWeek(new Date());
   const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
   const currentPhase =

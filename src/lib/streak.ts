@@ -80,14 +80,32 @@ function toLocalDay(d: Date | string): Date {
 export function weekStreak({ sessionDates, excusedWeeks, now = new Date() }: StreakInput): StreakState {
   const excused = excusedWeeks ?? new Set<string>();
   const trained = new Set<string>();
+  const sessionsPerWeek = new Map<string, number>();
   let earliest: number | null = null;
   for (const d of sessionDates) {
     const local = toLocalDay(d);
     if (Number.isNaN(local.getTime())) continue;
-    trained.add(weekKeyOf(local));
+    const key = weekKeyOf(local);
+    trained.add(key);
+    sessionsPerWeek.set(key, (sessionsPerWeek.get(key) ?? 0) + 1);
     const monday = weekStart(local).getTime();
     if (earliest === null || monday < earliest) earliest = monday;
   }
+
+  // A mend must be a FACT, not a mood: derived from the log alone, so it can
+  // never evaporate on next week's recompute (adversary's probe: "5 wk
+  // streak · mended" on Friday, "1 wk streak" on Monday). Rule: an empty
+  // week is permanently excused when the first non-excused week after it
+  // holds 2+ sessions — the repair work, wherever it lands relative to
+  // holds, keeps the chain welded forever.
+  const mendCovers = (emptyMonday: number): boolean => {
+    for (let t = emptyMonday + WEEK_MS, i = 0; i < 8; t += WEEK_MS, i++) {
+      const key = weekKeyOf(new Date(t));
+      if (excused.has(key) && !trained.has(key)) continue; // skip hold weeks
+      return (sessionsPerWeek.get(key) ?? 0) >= 2;
+    }
+    return false;
+  };
 
   const currentKey = weekKeyOf(now);
   const currentMonday = weekStart(now).getTime();
@@ -116,6 +134,7 @@ export function weekStreak({ sessionDates, excusedWeeks, now = new Date() }: Str
   let trainedInRun = 0;
   let bank = 0;
   let lastBreak: number | null = null; // Monday ms of the newest break
+  let mendedLastWeek = false; // last week was empty but repair work covered it
   for (let t = earliest; t < currentMonday; t += WEEK_MS) {
     const key = weekKeyOf(new Date(t));
     if (trained.has(key)) {
@@ -124,6 +143,9 @@ export function weekStreak({ sessionDates, excusedWeeks, now = new Date() }: Str
       if (trainedInRun % 4 === 0) bank++;
     } else if (excused.has(key)) {
       run++; // excused weeks extend the run but earn nothing
+    } else if (mendCovers(t)) {
+      run++; // mended weeks extend the run but earn nothing, like excused
+      if (t === currentMonday - WEEK_MS) mendedLastWeek = true;
     } else if (bank > 0) {
       bank--;
       run++;
@@ -141,18 +163,41 @@ export function weekStreak({ sessionDates, excusedWeeks, now = new Date() }: Str
   const weeks = weeksBeforeCurrent + (trained.has(currentKey) ? 1 : 0);
 
   const lastWeekMonday = currentMonday - WEEK_MS;
+  if (lastBreak === lastWeekMonday && excused.has(currentKey)) {
+    // Mid-hold, the pre-break streak is parked, not on the line — a hold
+    // card saying "streak protected" beside a demand to train is a lie
+    // (adversary). The retroactive mend keeps repair possible after the
+    // hold: 2 sessions in the first post-hold week weld the chain.
+    return {
+      weeks: weeksBeforeCurrent,
+      bank,
+      thisWeekSessions,
+      status: 'alive',
+      mendNeeds: 0,
+      label: `${weeksBeforeCurrent} wk streak · on hold`,
+    };
+  }
   if (lastBreak === lastWeekMonday) {
-    // The dangerous moment: the break is exactly one week old. Two sessions
-    // this week stitch it closed — recount with last week excused.
-    if (thisWeekSessions >= 2) {
-      const mended = weekStreak({
-        sessionDates,
-        excusedWeeks: new Set([...excused, weekKeyOf(new Date(lastWeekMonday))]),
-        now,
-      });
-      return { ...mended, label: `${mended.weeks} wk streak · mended` };
-    }
+    // The dangerous moment: the break is exactly one week old. (Two sessions
+    // this week never reach here — mendCovers already welded the chain in
+    // the forward pass, permanently.)
     const needs = 2 - thisWeekSessions;
+    // The program forbids back-to-back sessions, so mending needs enough
+    // days left in the week: 2 sessions need 3 days, 1 needs 1. Demanding
+    // the impossible late on a Sunday reads as taunting — offer the fresh
+    // start instead.
+    const dowIdx = (now.getDay() + 6) % 7; // Mon=0 … Sun=6
+    const daysLeft = 7 - dowIdx;
+    if ((needs === 2 && daysLeft < 3) || (needs === 1 && daysLeft < 1)) {
+      return {
+        weeks: 1,
+        bank: 0,
+        thisWeekSessions,
+        status: 'rebuilding',
+        mendNeeds: 0,
+        label: 'fresh week Monday — first session starts the rebuild',
+      };
+    }
     // Show the streak that is WAITING to be repaired, not a zero. It is the
     // stake on the table, and the stake is the motivator.
     const atStake = (() => {
@@ -191,7 +236,9 @@ export function weekStreak({ sessionDates, excusedWeeks, now = new Date() }: Str
     thisWeekSessions,
     status: 'alive',
     mendNeeds: 0,
-    label: `${weeks} wk streak${bank > 0 ? ` · ${bank} protected` : ''}`,
+    label: mendedLastWeek
+      ? `${weeks} wk streak · mended`
+      : `${weeks} wk streak${bank > 0 ? ` · ${bank} protected` : ''}`,
   };
 }
 

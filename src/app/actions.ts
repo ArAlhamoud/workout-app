@@ -391,6 +391,17 @@ export async function getAllHolds(): Promise<Array<{ startsAt: string; endsAt: s
  * No sets — the walk IS the content, like an imported swim.
  */
 export async function logRescueWalk() {
+  // Idempotent per calendar day (steward's veto): a timed-out-but-landed
+  // tap must not create two walks — two phantom sessions on one day would
+  // falsely mend a streak and permanently inflate the lifetime count.
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const existing = await prisma.workout.findFirst({
+    where: { name: { startsWith: 'Rescue walk' }, date: { gte: dayStart } },
+    select: { id: true },
+  });
+  if (existing) return { id: existing.id, deduped: true };
+
   const workout = await prisma.workout.create({
     data: {
       name: `Rescue walk 15m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,

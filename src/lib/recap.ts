@@ -27,15 +27,19 @@ function inRange(d: Date | string, start: Date, end: Date): boolean {
   return t >= start.getTime() && t < end.getTime();
 }
 
+// Keyed by gym AND exercise: a Precor stack number beating a Life Fitness
+// one is not progress, it is a different machine (CLAUDE.md rule 2 — the
+// adversary minted a fake "Chest Press 40 → 55" from one work-gym session).
 function bestPerExercise(
-  workouts: CoachWorkout[],
+  workouts: RecapWorkout[],
 ): Map<string, { name: string; best: number }> {
   const best = new Map<string, { name: string; best: number }>();
   for (const w of workouts) {
     for (const s of w.sets) {
       if (s.isWarmup || s.weight <= 0) continue;
-      const cur = best.get(s.exerciseId);
-      if (!cur || s.weight > cur.best) best.set(s.exerciseId, { name: s.exercise.name, best: s.weight });
+      const key = `${w.gym ?? 'bfit'}:${s.exerciseId}`;
+      const cur = best.get(key);
+      if (!cur || s.weight > cur.best) best.set(key, { name: s.exercise.name, best: s.weight });
     }
   }
   return best;
@@ -55,6 +59,8 @@ export function buildRecap(
 
   // Progress = the period's best beat everything before the period.
   const before = bestPerExercise(workouts.filter((w) => new Date(w.date).getTime() < start.getTime()));
+  // Only pairs that exist in BOTH maps compare — a first-ever session at a
+  // gym is baseline-setting, not progress.
   const during = bestPerExercise(period);
   const liftsProgressed: RecapPeriod['liftsProgressed'] = [];
   for (const [id, entry] of during) {

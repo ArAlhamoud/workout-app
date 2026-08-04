@@ -4,8 +4,18 @@ import { getExerciseHistory } from '@/app/actions';
 import ProgressChart from '@/components/ProgressChart';
 import { CATEGORY_BADGE, formatDateShort } from '@/lib/format';
 
-export default async function ProgressPage({ params }: { params: { exerciseId: string } }) {
-  const result = await getExerciseHistory(params.exerciseId);
+export default async function ProgressPage({
+  params,
+  searchParams,
+}: {
+  params: { exerciseId: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
+  // Per-gym chart with an explicit switch — pooling minted false PRs, but
+  // hiding Alrajhi history entirely was the steward's objection to the fix.
+  const rawGym = Array.isArray(searchParams?.gym) ? searchParams?.gym[0] : searchParams?.gym;
+  const gym = rawGym === 'work' ? 'work' : 'bfit';
+  const result = await getExerciseHistory(params.exerciseId, gym);
   if (!result) notFound();
 
   const { exercise, history, pr, totalSessions } = result;
@@ -28,6 +38,24 @@ export default async function ProgressPage({ params }: { params: { exerciseId: s
         </Link>
         <div className="flex items-center gap-2.5 flex-wrap">
           <h1 className="text-xl font-bold text-app-tx1">{exercise.name}</h1>
+          <div className="mt-2 flex gap-2">
+            {[
+              { id: 'bfit', label: 'B_Fit' },
+              { id: 'work', label: 'Alrajhi' },
+            ].map((g) => (
+              <Link
+                key={g.id}
+                href={`?gym=${g.id}`}
+                className={`chip border transition-colors ${
+                  gym === g.id
+                    ? 'border-acc-teal/50 bg-acc-teal/10 text-acc-teal'
+                    : 'border-app-border bg-app-surface2 text-app-tx3 hover:text-app-tx2'
+                }`}
+              >
+                {g.label}
+              </Link>
+            ))}
+          </div>
           <span className={`chip border ${colorClass}`}>{exercise.category}</span>
         </div>
       </div>

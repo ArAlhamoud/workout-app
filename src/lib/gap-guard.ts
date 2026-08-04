@@ -102,7 +102,7 @@ export function computeGapLadder(
       day: 7,
       at: at(7),
       title: 'Your streak is mendable',
-      body: 'A missed week isn’t a dead record: two sessions in the next 7 days repair it. The 43-day break cost 3 kg — this one doesn’t have to.',
+      body: 'A missed week isn’t a dead record: two sessions before Sunday night repair it (rest day between, as always). The 43-day break cost 3 kg — this one doesn’t have to.',
       route: '/workouts/new?rescue=1',
     },
     {
@@ -110,7 +110,7 @@ export function computeGapLadder(
       day: 19,
       at: at(19),
       title: 'Two days from a program reset',
-      body: 'At 21 days off, the app restarts you on the 4-week return ramp. One session this week skips all of it — tap to book it.',
+      body: 'At day 21 the 4-week return ramp takes over. A session in the next two days keeps you on your normal program — tap to start it.',
       route: startRoute,
     },
   ];

@@ -217,7 +217,9 @@ export function weightTrend(bodyStats: CoachBodyStat[], options: WeightTrendOpti
   let ema = pts[0].w;
   for (let i = 1; i < pts.length; i++) {
     const gapDays = Math.max(0, (pts[i].t - pts[i - 1].t) / DAY_MS);
-    const alpha = 1 - Math.pow(0.9, Math.min(gapDays, 30)); // 0.1/day, capped
+    // Floor at ~half a day: a same-timestamp correction (import + manual
+    // entry on one bare date) must still nudge the EMA, not vanish at α=0.
+    const alpha = 1 - Math.pow(0.9, Math.min(Math.max(gapDays, 0.5), 30));
     ema = ema + alpha * (pts[i].w - ema);
   }
   ema = round2(ema);
@@ -580,8 +582,20 @@ export function momentumBank(workouts: CoachWorkout[], now: Date = new Date()): 
   const current = bankAt(workouts, now);
   const weekAgo = bankAt(workouts, new Date(now.getTime() - 7 * DAY_MS));
   const pct = Math.round(Math.min(100, (current / best) * 100));
+  // A single comeback session after a long gap beats the week-ago baseline
+  // for days — a green "building" during exactly the silence this gauge was
+  // built to fight (trainer's catch). Three idle days IS draining, no
+  // matter what last week looked like: the decay is happening right now.
+  const lastSession = Math.max(...workouts.map((w) => time(w.date)));
+  const idleDays = (now.getTime() - lastSession) / DAY_MS;
   const direction: Momentum['direction'] =
-    current > weekAgo * 1.05 ? 'building' : current < weekAgo * 0.95 ? 'draining' : 'holding';
+    idleDays >= 3
+      ? 'draining'
+      : current > weekAgo * 1.05
+        ? 'building'
+        : current < weekAgo * 0.95
+          ? 'draining'
+          : 'holding';
   const arrow = direction === 'building' ? '↑' : direction === 'draining' ? '↓' : '→';
   return { pct, direction, label: `Momentum ${pct}% ${arrow}` };
 }
@@ -654,9 +668,12 @@ export function deloadTarget(topWeight: number, increment: number): DeloadPlan {
   const raw = topWeight * 0.9;
   const pinsDown = Math.max(1, Math.round((topWeight - raw) / inc));
   const weight = round2(Math.max(inc, topWeight - pinsDown * inc));
+  // The program's default cue is ALREADY a 3s eccentric, so 3s is not an
+  // alternative to anything (trainer's catch). The between-pins step must be
+  // harder than the default: a 5s lowering with a pause at the stretch.
   const note =
     inc >= 5
-      ? `Deload: ${weight} kg × half sets — or stay at ${topWeight} kg with a 3s lowering tempo`
+      ? `Deload: ${weight} kg × half sets — or hold ${topWeight} kg with a 5s lowering + 1s pause`
       : `Deload: ${weight} kg × half sets, then build back`;
   return { weight, note };
 }

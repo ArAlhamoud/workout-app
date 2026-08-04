@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { checkHealthAuth } from '@/lib/health';
 import { homeVerdict } from '@/lib/coach';
-import { calendarDaysBetween, getDynamicPlan, getTrainingStatus, queuedDay } from '@/lib/program';
+import { calendarDaysBetween, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay } from '@/lib/program';
 import { holdWeekKeys, weekStreak } from '@/lib/streak';
 
 export const runtime = 'nodejs';
@@ -35,7 +35,8 @@ export async function GET(request: Request) {
     }),
   ]);
 
-  const status = getTrainingStatus(workouts.map((w) => w.date), now);
+  const trainingOnly = workouts.filter(isTrainingSession);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now);
   const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })), now);
   const verdict = homeVerdict(status, plan, now);
   const streak = weekStreak({
@@ -44,10 +45,10 @@ export async function GET(request: Request) {
     now,
   });
 
-  const lastSessionISO = workouts.length ? workouts[0].date.toISOString() : null;
+  const lastSessionISO = trainingOnly.length ? trainingOnly[0].date.toISOString() : null;
   // Calendar days, not elapsed-ms floor: a session logged yesterday evening
   // is "1 day ago" this morning even though fewer than 24 h have passed.
-  const daysSince = workouts.length ? Math.max(0, calendarDaysBetween(now, workouts[0].date)) : null;
+  const daysSince = trainingOnly.length ? Math.max(0, calendarDaysBetween(now, trainingOnly[0].date)) : null;
 
   return NextResponse.json({
     lead: verdict.lead,

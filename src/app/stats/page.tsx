@@ -10,7 +10,7 @@ import { bodyweightMilestones, effortDistribution, momentumBank, weeklyReport, t
 import { holdWeekKeys, lifetimeStats, weekStreak } from '@/lib/streak';
 import { sleepDebtHours } from '@/lib/coach';
 import { lastMonthRecap, yearRecap } from '@/lib/recap';
-import { getTrainingStatus } from '@/lib/program';
+import { getTrainingStatus, isTrainingSession } from '@/lib/program';
 import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -277,10 +277,11 @@ function BodyWeightChart({ stats }: { stats: { date: Date; weight: number | null
   );
 }
 
-function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; reps: number; exercise: { category: string } }[] }[] }) {
+function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; reps: number; isWarmup?: boolean; exercise: { category: string } }[] }[] }) {
   const vol: Record<string, number> = {};
   for (const w of workouts) {
     for (const s of w.sets) {
+      if (s.isWarmup) continue;
       const cat = s.exercise.category;
       vol[cat] = (vol[cat] ?? 0) + s.weight * s.reps;
     }
@@ -332,11 +333,13 @@ export default async function StatsPage() {
   const weightChange =
     latestWeight !== null && firstWeight !== null ? +(latestWeight - firstWeight).toFixed(1) : null;
 
+  // Warm-ups never count toward any total — the same rule every coach
+  // aggregate applies, or this card contradicts the report beside it.
   const totalVolume = workouts.reduce(
-    (sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0),
+    (sum, w) => sum + w.sets.reduce((s, set) => s + (set.isWarmup ? 0 : set.weight * set.reps), 0),
     0,
   );
-  const totalSets = workouts.reduce((n, w) => n + w.sets.length, 0);
+  const totalSets = workouts.reduce((n, w) => n + w.sets.filter((set) => !set.isWarmup).length, 0);
 
   const prByExercise: Record<string, { name: string; weight: number; reps: number }> = {};
   for (const w of workouts) {
@@ -359,16 +362,18 @@ export default async function StatsPage() {
   const lastWeekStart = new Date(thisWeekStart);
   lastWeekStart.setDate(thisWeekStart.getDate() - 7);
 
+  const workingVol = (w: (typeof workouts)[number]) =>
+    w.sets.reduce((s, set) => s + (set.isWarmup ? 0 : set.weight * set.reps), 0);
   const thisWeekVol = workouts
     .filter((w) => new Date(w.date) >= thisWeekStart)
-    .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0);
+    .reduce((sum, w) => sum + workingVol(w), 0);
   const lastWeekVol = workouts
     .filter((w) => new Date(w.date) >= lastWeekStart && new Date(w.date) < thisWeekStart)
-    .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0);
+    .reduce((sum, w) => sum + workingVol(w), 0);
   const volChange = lastWeekVol > 0 ? Math.round(((thisWeekVol - lastWeekVol) / lastWeekVol) * 100) : null;
 
   // Coach intelligence
-  const status = getTrainingStatus(workouts.map((w) => w.date));
+  const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
   const report = weeklyReport(workouts, stats, status);
   const streak = weekStreak({
     sessionDates: workouts.map((w) => w.date),

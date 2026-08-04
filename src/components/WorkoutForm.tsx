@@ -115,10 +115,17 @@ function buildBlocks(
   lastSession: Record<string, { weight: number; reps: number; rpe: number | null }>,
   returnLoadPct?: number,
   pinIncrements: Record<string, number> = {},
+  deloadHints: Record<string, { weight: number; note: string }> = {},
 ): ExerciseBlock[] {
   return initialExercises.map((ie, blockIdx) => {
     const prev = lastSession[ie.exerciseId];
     const isTimed = ie.unit === 'seconds';
+    // The prefill IS the instruction (that is why ramp weights pre-scale).
+    // A deload rendered only as a chip beside a full-weight prefill loses to
+    // the prefill every time — so a plateaued machine opens AT the deload
+    // weight with half the sets, and building back is the explicit act.
+    const deload = !returnLoadPct && !isTimed ? deloadHints[ie.exerciseId] : undefined;
+    const setCount = deload ? Math.max(1, Math.ceil(ie.sets / 2)) : ie.sets;
     return {
       uid: Math.random().toString(36).slice(2),
       exerciseId: ie.exerciseId,
@@ -155,7 +162,7 @@ function buildBlocks(
               }];
             })()
           : []),
-        ...Array.from({ length: ie.sets }, (_, i) => ({
+        ...Array.from({ length: setCount }, (_, i) => ({
         exerciseId: ie.exerciseId,
         setNumber: i + 1,
         // Last session's reps, same as weight on the line below. The template's
@@ -164,9 +171,11 @@ function buildBlocks(
         reps: prev?.reps ?? ie.defaultReps,
         weight: isTimed
           ? 0
-          : prev?.weight
-            ? (returnLoadPct ? scaleReturnWeight(prev.weight, returnLoadPct) : prev.weight)
-            : 0,
+          : deload
+            ? deload.weight
+            : prev?.weight
+              ? (returnLoadPct ? scaleReturnWeight(prev.weight, returnLoadPct) : prev.weight)
+              : 0,
         done: false,
         notes: '',
         rpe: 0,
@@ -217,7 +226,7 @@ export default function WorkoutForm({
   const [gym, setGym] = useState(DEFAULT_GYM_ID);
   const [notes, setNotes] = useState('');
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
-    buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements),
+    buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints),
   );
   // Weight memory for the gym currently tagged. Seeded for the home gym by
   // the server; replaced wholesale when the tag changes.
@@ -329,6 +338,7 @@ export default function WorkoutForm({
     };
 
     let restored = false;
+    if (rescueMode) { setInitialized(true); return; }
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) restored = applyDraft(JSON.parse(raw));
@@ -370,9 +380,13 @@ export default function WorkoutForm({
   // durableSet writes localStorage AND the native vault.
   useEffect(() => {
     if (!initialized) return;
+    // Rescue sessions are draft-free: merely opening the rescue screen from
+    // a notification and backing out must not leave a 60% "Rescue" draft
+    // that tomorrow's normal logger restores (adversary).
+    if (rescueMode) return;
     const draft = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current };
     void durableSet(DRAFT_KEY, JSON.stringify(draft));
-  }, [initialized, name, date, gym, notes, blocks]);
+  }, [initialized, rescueMode, name, date, gym, notes, blocks]);
 
   // Switching gyms mid-setup invalidates every prefilled number: the machine
   // is different, and at Alrajhi Tower the stack is labelled in pounds. Pull
@@ -404,24 +418,30 @@ export default function WorkoutForm({
             const prevSession = next[b.exerciseId];
             if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession };
             const isTimed = b.unit === 'seconds';
+            const working = prevSession?.weight
+              ? (returnLoadPct ? scaleReturnWeight(prevSession.weight, returnLoadPct) : prevSession.weight)
+              : 0;
+            // The warm-up stays a warm-up across a gym switch: 55% floored
+            // to a pin — mapping it to the other gym's FULL working weight
+            // made the cold first set the heaviest of the day (adversary).
+            const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+            const warm = working > 0 ? Math.max(inc, Math.floor((working * 0.55) / inc) * inc) : 0;
             return {
               ...b,
               lastSession: prevSession,
               sets: b.sets.map((s) => ({
                 ...s,
-                weight: isTimed
-                  ? 0
-                  : prevSession?.weight
-                    ? (returnLoadPct ? scaleReturnWeight(prevSession.weight, returnLoadPct) : prevSession.weight)
-                    : 0,
+                weight: isTimed ? 0 : s.isWarmup ? warm : working,
               })),
             };
           }),
         );
+        // 6: the ⓘ drawer cache is B_Fit numbers — poison at another gym.
+        setRecentSessions({});
       })
       .catch(() => { /* keep the current numbers rather than blanking the form */ });
     return () => { cancelled = true; };
-  }, [gym, initialized, returnLoadPct]);
+  }, [gym, initialized, returnLoadPct, pinIncrements]);
 
   // Auto-dismiss draft restored banner after 4s
   useEffect(() => {
@@ -478,7 +498,7 @@ export default function WorkoutForm({
     setDate(today);
     setGym(DEFAULT_GYM_ID);
     setNotes('');
-    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements));
+    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints));
     startRef.current = Date.now();
     saveIdRef.current = null;
     setDraftRestored(false);
@@ -1180,7 +1200,7 @@ export default function WorkoutForm({
                     &#8594; Try {suggestWeight} kg
                   </span>
                 )}
-                {deload && !returnTarget && !allDone && (
+                {deload && gym === DEFAULT_GYM_ID && !returnTarget && !allDone && (
                   <span className="text-xs bg-acc-ember/10 text-acc-ember px-2.5 py-1 rounded-full border border-acc-ember/40 font-medium">
                     {deload.note}
                   </span>
