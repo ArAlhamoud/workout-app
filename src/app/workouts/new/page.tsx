@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getExercises, getLastSessionForExercises, getPersonalRecords, getWorkouts } from '../../actions';
+import { getExercises, getLastSessionForExercises, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
+import RescueWalkButton from '@/components/RescueWalkButton';
 import WorkoutForm from '@/components/WorkoutForm';
-import { combineIncrement, learnPinIncrements } from '@/lib/coach';
+import { combineIncrement, deloadTarget, detectPlateau, learnPinIncrements } from '@/lib/coach';
 import {
   DEFAULT_GYM_ID,
   getDayTemplate,
+  isTrainingSession,
   getDynamicPlan,
   getExercisesForDuration,
   getPlankTarget,
@@ -39,10 +41,23 @@ export default async function NewWorkoutPage({
       ? day
       : queuedDay(getDynamicPlan(allWorkouts.map((w) => ({ date: w.date, name: w.name }))));
 
-  const initialName = `Day ${validDay} ${validDur}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+  // The rescue session: 15 minutes, four priority-1 machines, 60% loads.
+  // Reached from Gap Guard notifications and the readiness-hold banner. Its
+  // only job is keeping the chain alive on a day a full session won't happen.
+  const isRescue = (Array.isArray(searchParams.rescue) ? searchParams.rescue[0] : searchParams.rescue) === '1';
+  const RESCUE_EXERCISES = ['Leg Press', 'Chest Press', 'Lat Pulldown', 'Mid Row'];
+  const RESCUE_LOAD_PCT = 60;
+
+  const initialName = isRescue
+    ? `Rescue 15m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    : `Day ${validDay} ${validDur}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
   const initialExercises = (() => {
-    const templateExercises = getExercisesForDuration(validDay, validDur);
+    const templateExercises = isRescue
+      ? ([...getDayTemplate('A').exercises, ...getDayTemplate('B').exercises]
+          .filter((te) => RESCUE_EXERCISES.includes(te.name))
+          .map((te) => ({ ...te, sets: 2 })))
+      : getExercisesForDuration(validDay, validDur);
     const exerciseMap = new Map(exercises.map((e) => [e.name, e]));
     return templateExercises
       .map((te) => {
@@ -70,6 +85,7 @@ export default async function NewWorkoutPage({
     getLastSessionForExercises(exerciseIds, DEFAULT_GYM_ID),
     getPersonalRecords(DEFAULT_GYM_ID),
   ]);
+  const repRecords = await getRepRecords(DEFAULT_GYM_ID);
 
   // Compute progression hints: exerciseId → true if same weight 2+ sessions with Easy/Med RPE
   const last2ByExercise: Record<string, { weight: number; rpe: number | null }[]> = {};
@@ -86,7 +102,7 @@ export default async function NewWorkoutPage({
       }
     }
   }
-  const status = getTrainingStatus(allWorkouts.map((w) => w.date));
+  const status = getTrainingStatus(allWorkouts.filter(isTrainingSession).map((w) => w.date));
   const isReturning = status.mode === 'return';
 
   // Per-machine pin spacing: learned from weight-jump history, with any
@@ -112,6 +128,23 @@ export default async function NewWorkoutPage({
         if (recent.weight === prev.weight && recent.rpe != null && recent.rpe <= 2) {
           progressionHints[exId] = true;
         }
+      }
+    }
+  }
+
+  // The plateau's ACTION: when detection fires for a machine, its next
+  // session opens with a concrete deload prescription instead of a shrug.
+  // Suppressed during the return ramp — everything is deloaded there already.
+  const deloadHints: Record<string, { weight: number; note: string }> = {};
+  if (!isReturning && !isRescue) {
+    // Home-gym history only — the same scoping pin-increment learning uses,
+    // and for the same reason: an interleaved work-gym session both masks
+    // real plateaus and prescribes deloads from the wrong stack (adversary).
+    const homeWorkouts = allWorkouts.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID);
+    for (const ex of exercises) {
+      const result = detectPlateau(homeWorkouts, ex.id);
+      if (result.plateaued && result.weight != null && result.suggestion?.includes('pin')) {
+        deloadHints[ex.id] = deloadTarget(result.weight, pinIncrements[ex.id]);
       }
     }
   }
@@ -170,6 +203,16 @@ export default async function NewWorkoutPage({
         </div>
       </div>
 
+      {isRescue && (
+        <div className="card-lg px-4 py-3">
+          <p className="text-acc-ember text-sm font-semibold">Rescue session — 15 minutes counts</p>
+          <p className="text-app-tx2 text-xs mt-1">
+            Four machines, two light sets each. Two easy minutes on the bike first — then straight in.
+            This keeps the streak, the plan and the habit alive.
+          </p>
+          <RescueWalkButton />
+        </div>
+      )}
       <WorkoutForm
         exercises={exercises}
         initialName={initialName}
@@ -177,8 +220,16 @@ export default async function NewWorkoutPage({
         lastSession={lastSession}
         personalRecords={personalRecords}
         progressionHints={progressionHints}
-        returnLoadPct={isReturning ? status.returnWeek.loadPct : undefined}
-        returnRpeCap={isReturning ? status.returnWeek.rpeCap : undefined}
+        repRecords={repRecords}
+        deloadHints={deloadHints}
+        rescueMode={isRescue}
+        returnLoadPct={
+          // Mid-ramp, last-logged weights are ALREADY scaled — 60% of 60% is
+          // a 36% session wearing a 60% label (trainer). Ramp prefill as-is
+          // is the right rescue load then.
+          isRescue ? (isReturning ? undefined : RESCUE_LOAD_PCT) : isReturning ? status.returnWeek.loadPct : undefined
+        }
+        returnRpeCap={isRescue ? 2 : isReturning ? status.returnWeek.rpeCap : undefined}
         pinIncrements={pinIncrements}
         dayAccent={validDay}
       />

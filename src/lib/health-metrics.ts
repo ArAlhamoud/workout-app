@@ -11,8 +11,10 @@
 // rather than an error chip — silence is the honest fallback. The sync UI
 // (NativeHealthCard) is where failures are allowed to be loud.
 
-import type { ReadinessSignal } from '@/lib/coach';
-import { isNativeApp, queryCategory, queryDailyStats } from '@/lib/native-health';
+// Relative, not '@/': this module is imported by scripts/coach-tests.ts,
+// which runs under plain ts-node with no path-alias resolution.
+import type { ReadinessSignal } from './coach';
+import { isNativeApp, queryCategory, queryDailyStats } from './native-health';
 
 const HOUR_MS = 3_600_000;
 
@@ -207,6 +209,93 @@ export async function lastNightSleepHours(): Promise<number | null> {
   }
 }
 
+// ── HRV ──────────────────────────────────────────────────────
+
+export interface HrvTrend {
+  /** Today's SDNN in ms, or null when the Watch hasn't reported. */
+  today: number | null;
+  /** Median over the trailing window excluding today. */
+  median: number | null;
+  /** today / median. Below ~0.75 reads as autonomic stress. */
+  ratio: number | null;
+}
+
+/** Fewer baseline days than this and the ratio is noise, not signal. */
+const HRV_MIN_BASELINE_DAYS = 10;
+
+/**
+ * SDNN against its own trailing median. Watch SDNN is sparse (mostly sleep
+ * and Breathe sessions), so this returns nulls freely — the readiness rule
+ * treats null as "no opinion", never as a bad sign.
+ */
+export async function hrvTrend(days = 28): Promise<HrvTrend | null> {
+  if (!isNativeApp()) return null;
+  try {
+    const { days: buckets } = await queryDailyStats('heartRateVariabilitySDNN', days);
+    if (!buckets.length) return null;
+    const today = buckets[buckets.length - 1].value;
+    const base = buckets
+      .slice(0, -1)
+      .map((b) => b.value)
+      .filter((v): v is number => v !== null);
+    if (base.length < HRV_MIN_BASELINE_DAYS) {
+      return { today: today === null ? null : round1(today), median: null, ratio: null };
+    }
+    const med = median(base);
+    return {
+      today: today === null ? null : round1(today),
+      median: med === null ? null : round1(med),
+      ratio: today === null || med === null || med === 0 ? null : round1(today / med),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Sick signal ──────────────────────────────────────────────
+// His 17-day gap was illness, and it died the way breaks die: open-ended,
+// no re-entry date. This converts "sick" into a state with an exit — the
+// gap ladder pauses while it holds, and a comeback fires when it clears.
+
+export type SickState = 'sick' | 'clear' | 'unknown';
+
+/** Elevated this far above the trailing median reads as illness... */
+const SICK_RHR_BPM = 5;
+/** ...and back within this of the median reads as recovered. */
+const CLEAR_RHR_BPM = 2;
+
+/**
+ * Classify the last two daily resting-HR buckets against the median of the
+ * days before them. Pure — feed it queryDailyStats output. Two consecutive
+ * elevated days are required: one high reading is a bad night's sensor data,
+ * two is a pattern.
+ *
+ * 'unknown' whenever the data cannot say either way (missing days, short
+ * baseline). Callers must treat 'unknown' as "no change", never as a verdict.
+ */
+export function assessSickSignal(buckets: Array<number | null>): SickState {
+  if (buckets.length < 9) return 'unknown';
+  const recent = buckets.slice(-2);
+  const base = buckets.slice(0, -2).filter((v): v is number => v !== null);
+  if (base.length < 7 || recent.some((v) => v === null)) return 'unknown';
+  const med = median(base);
+  if (med === null) return 'unknown';
+  if (recent.every((v) => (v as number) > med + SICK_RHR_BPM)) return 'sick';
+  if (recent.every((v) => (v as number) <= med + CLEAR_RHR_BPM)) return 'clear';
+  return 'unknown';
+}
+
+/** Fetch daily resting HR and classify. Null off-native or on query failure. */
+export async function readSickSignal(days = 28): Promise<SickState | null> {
+  if (!isNativeApp()) return null;
+  try {
+    const { days: buckets } = await queryDailyStats('restingHeartRate', days);
+    return assessSickSignal(buckets.map((b) => b.value));
+  } catch {
+    return null;
+  }
+}
+
 // ── Readiness ────────────────────────────────────────────────
 
 export interface ReadinessInputs {
@@ -216,6 +305,8 @@ export interface ReadinessInputs {
   sleepHours: number | null;
   /** Hours since the last logged training session. */
   hoursSinceLastSession: number | null;
+  /** Today's HRV SDNN over its trailing median. Optional; null = no opinion. */
+  hrvRatio?: number | null;
 }
 
 /** Resting HR this far above baseline is a stress signal, not noise. */
@@ -226,6 +317,8 @@ const SLEEP_FLOOR_H = 5.5;
 const RECOVERY_FLOOR_H = 24;
 /** Resting HR at or under baseline AND this much sleep earns a green light. */
 const SLEEP_GREEN_H = 7;
+/** SDNN this far below its median is autonomic stress, not day-to-day noise. */
+const HRV_HOLD_RATIO = 0.75;
 
 const rhrNote = (delta: number) => {
   const bpm = Math.round(delta);
@@ -247,8 +340,11 @@ export function computeReadiness({
   rhrDeltaBpm,
   sleepHours,
   hoursSinceLastSession,
+  hrvRatio = null,
 }: ReadinessInputs): ReadinessSignal | null {
-  if (rhrDeltaBpm === null && sleepHours === null && hoursSinceLastSession === null) return null;
+  if (rhrDeltaBpm === null && sleepHours === null && hoursSinceLastSession === null && hrvRatio === null) {
+    return null;
+  }
 
   // Note stays two facts at most — this renders as a single glanceable line.
   const note = (parts: string[]) => parts.slice(0, 2).join(' · ');
@@ -258,6 +354,9 @@ export function computeReadiness({
   if (sleepHours !== null && sleepHours < SLEEP_FLOOR_H) holds.push(sleepNote(sleepHours));
   if (hoursSinceLastSession !== null && hoursSinceLastSession < RECOVERY_FLOOR_H) {
     holds.push(recoveryNote(hoursSinceLastSession));
+  }
+  if (hrvRatio !== null && hrvRatio < HRV_HOLD_RATIO) {
+    holds.push(`HRV ${Math.round(hrvRatio * 100)}% of baseline`);
   }
   if (holds.length) return { verdict: 'hold', note: note(holds) };
 
@@ -292,10 +391,15 @@ export async function readReadiness(
   options: { lastSessionISO?: string | null } = {},
 ): Promise<ReadinessSignal | null> {
   if (!isNativeApp()) return null;
-  const [rhr, sleepHours] = await Promise.all([restingHeartRateTrend(), lastNightSleepHours()]);
+  const [rhr, sleepHours, hrv] = await Promise.all([
+    restingHeartRateTrend(),
+    lastNightSleepHours(),
+    hrvTrend(),
+  ]);
   return computeReadiness({
     rhrDeltaBpm: rhr?.deltaBpm ?? null,
     sleepHours,
     hoursSinceLastSession: hoursSince(options.lastSessionISO),
+    hrvRatio: hrv?.ratio ?? null,
   });
 }

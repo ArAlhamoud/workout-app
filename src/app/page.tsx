@@ -7,6 +7,7 @@ import {
   getExercisesForDuration,
   parseDayLetter,
   queuedDay,
+  isTrainingSession,
   recoveryActivity,
 } from '@/lib/program';
 import { phaseForWeek } from '@/lib/coach';
@@ -212,7 +213,7 @@ export default async function Home() {
   // Week volume
   const weekVolume = workouts
     .filter((w) => new Date(w.date) >= weekStart)
-    .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + set.weight * set.reps, 0), 0);
+    .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + (set.isWarmup ? 0 : set.weight * set.reps), 0), 0);
 
   const isSunday = new Date().getDay() === 0;
 
@@ -242,7 +243,7 @@ export default async function Home() {
   })();
 
   // Where the lifter actually is: fresh, ramping back after a layoff, or mid-program
-  const status = getTrainingStatus(workouts.map((w) => w.date));
+  const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
   const programWeek = status.week;
   const currentPhase = phaseForWeek(programWeek);
 

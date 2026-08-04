@@ -127,6 +127,16 @@ export function recoveryActivity(lastDay: DayId | null | undefined): string {
   return lastDay ? RECOVERY_ACTIVITY[lastDay] : RECOVERY_DEFAULT;
 }
 
+/**
+ * A rescue walk keeps the STREAK alive — that is its whole job — but it is
+ * not a training stimulus. It must never reset the 21-day break clock, count
+ * as a ramp session, or flip tomorrow into a recovery day (trainer's veto:
+ * a walk on layoff day 20 would silently hand back full pre-break weights).
+ */
+export function isTrainingSession(s: { name?: string | null }): boolean {
+  return !(s.name ?? '').startsWith('Rescue walk');
+}
+
 /** A logged session, as little of it as the plan needs. */
 export interface LoggedSession {
   date: Date | string;
@@ -179,7 +189,9 @@ function sessionLetter(s: LoggedSession): DayId | null {
  * Never returns a "blocked" state — 'recover' is advice, and both days stay
  * startable in the UI.
  */
-export function getDynamicPlan(sessions: LoggedSession[], now: Date = new Date()): DynamicPlan {
+export function getDynamicPlan(allSessions: LoggedSession[], now: Date = new Date()): DynamicPlan {
+  // Walks and other non-training rows are invisible to the plan.
+  const sessions = allSessions.filter(isTrainingSession);
   const desc = sessions
     .filter((s): s is LoggedSession => s != null && s.date != null)
     .slice()

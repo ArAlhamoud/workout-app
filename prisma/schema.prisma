@@ -33,6 +33,14 @@ model Workout {
   // already-imported Apple Health session from being offered a second time.
   // Additive — `prisma db push` adds the column and index with no data loss.
   healthWorkoutUuid String?      @unique
+  // Client-generated save id — the outbox idempotency key. A save that timed
+  // out but actually landed must not create a second workout when the outbox
+  // replays it; createWorkout upserts on this. Null on every row saved before
+  // the outbox existed. Additive; unlimited NULLs under a unique index.
+  clientSaveId      String?      @unique
+  // Downsampled in-workout heart-rate curve, [[offsetSec, bpm], ...], written
+  // once by the native shell after save. Fill-null-only, never clobbered.
+  hrSeries          Json?
   sets              WorkoutSet[]
   createdAt         DateTime     @default(now())
 
@@ -52,6 +60,10 @@ model WorkoutSet {
   // never backfilled: sets saved without ticking (and every historical row)
   // simply have no stamp. Additive — `prisma db push` adds it with no data loss.
   completedAt DateTime?
+  // Warm-up sets are logged but never counted: excluded from records, volume
+  // and plateau detection. Default false, so every historical row stays a
+  // working set. Additive — adds with a default, no data loss.
+  isWarmup    Boolean   @default(false)
   workout     Workout   @relation(fields: [workoutId], references: [id], onDelete: Cascade)
   exercise    Exercise  @relation(fields: [exerciseId], references: [id])
 
@@ -67,6 +79,20 @@ model BodyStat {
   arms      Float?
   source    String   @default("manual")
   createdAt DateTime @default(now())
+}
+
+// A declared "holding, not losing" window — MacroFactor's diet break, adapted.
+// Converts the failure mode from unbounded (43 silent days) into bounded: a
+// hold has an expiry, pauses the Gap Guard ladder and coaching pressure, and
+// its weeks are excused from the streak. Ending early is one tap.
+model Hold {
+  id        String   @id @default(cuid())
+  startsAt  DateTime @default(now())
+  endsAt    DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([endsAt])
 }
 
 model HealthSample {

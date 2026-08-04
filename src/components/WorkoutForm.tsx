@@ -3,11 +3,17 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createWorkout, getLastSessionForExercises, getPersonalRecords } from '@/app/actions';
+import { createWorkout, getLastSessionForExercises, getPersonalRecords, getRepRecords, getRecentExerciseSessions } from '@/app/actions';
 import RestTimer from './RestTimer';
 import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
+import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
+import { enqueueSave, newClientSaveId } from '@/lib/outbox';
+import { armGapGuard, clearComeback } from '@/lib/gap-guard';
+import { readReadiness } from '@/lib/health-metrics';
+import type { ReadinessSignal } from '@/lib/coach';
+import { captureWorkoutHr } from '@/lib/hr-capture';
 
 interface Exercise {
   id: string;
@@ -38,6 +44,8 @@ interface SetEntry {
   rpe: number;
   /** ISO instant the set was ticked done; cleared when it is un-ticked. */
   completedAt: string | null;
+  /** Warm-up sets are logged but never counted in records or volume. */
+  isWarmup?: boolean;
 }
 
 interface ExerciseBlock {
@@ -106,10 +114,18 @@ function buildBlocks(
   initialExercises: InitialExercise[],
   lastSession: Record<string, { weight: number; reps: number; rpe: number | null }>,
   returnLoadPct?: number,
+  pinIncrements: Record<string, number> = {},
+  deloadHints: Record<string, { weight: number; note: string }> = {},
 ): ExerciseBlock[] {
-  return initialExercises.map((ie) => {
+  return initialExercises.map((ie, blockIdx) => {
     const prev = lastSession[ie.exerciseId];
     const isTimed = ie.unit === 'seconds';
+    // The prefill IS the instruction (that is why ramp weights pre-scale).
+    // A deload rendered only as a chip beside a full-weight prefill loses to
+    // the prefill every time — so a plateaued machine opens AT the deload
+    // weight with half the sets, and building back is the explicit act.
+    const deload = !returnLoadPct && !isTimed ? deloadHints[ie.exerciseId] : undefined;
+    const setCount = deload ? Math.max(1, Math.ceil(ie.sets / 2)) : ie.sets;
     return {
       uid: Math.random().toString(36).slice(2),
       exerciseId: ie.exerciseId,
@@ -123,7 +139,30 @@ function buildBlocks(
       showCues: false,
       expandedNoteIdx: null,
       lastSession: prev,
-      sets: Array.from({ length: ie.sets }, (_, i) => ({
+      // One auto warm-up set on the first two machines of the session, at
+      // ~55% of the working weight rounded DOWN to a real pin. Cold joints
+      // meet the day's two heaviest compound movements first; later machines
+      // arrive warm. Flagged so it never touches records, volume or plateaus.
+      sets: [
+        ...(blockIdx < 2 && !isTimed && prev?.weight
+          ? (() => {
+              const inc = pinIncrements[ie.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+              const working = returnLoadPct ? scaleReturnWeight(prev.weight, returnLoadPct) : prev.weight;
+              const warm = Math.max(inc, Math.floor((working * 0.55) / inc) * inc);
+              return [{
+                exerciseId: ie.exerciseId,
+                setNumber: 0,
+                reps: ie.defaultReps,
+                weight: warm,
+                done: false,
+                notes: '',
+                rpe: 0,
+                completedAt: null,
+                isWarmup: true,
+              }];
+            })()
+          : []),
+        ...Array.from({ length: setCount }, (_, i) => ({
         exerciseId: ie.exerciseId,
         setNumber: i + 1,
         // Last session's reps, same as weight on the line below. The template's
@@ -132,14 +171,17 @@ function buildBlocks(
         reps: prev?.reps ?? ie.defaultReps,
         weight: isTimed
           ? 0
-          : prev?.weight
-            ? (returnLoadPct ? scaleReturnWeight(prev.weight, returnLoadPct) : prev.weight)
-            : 0,
+          : deload
+            ? deload.weight
+            : prev?.weight
+              ? (returnLoadPct ? scaleReturnWeight(prev.weight, returnLoadPct) : prev.weight)
+              : 0,
         done: false,
         notes: '',
         rpe: 0,
         completedAt: null,
       })),
+      ],
     };
   });
 }
@@ -154,6 +196,9 @@ export default function WorkoutForm({
   returnLoadPct,
   returnRpeCap,
   pinIncrements = {},
+  repRecords = {},
+  deloadHints = {},
+  rescueMode = false,
   dayAccent,
 }: {
   exercises: Exercise[];
@@ -165,6 +210,12 @@ export default function WorkoutForm({
   returnLoadPct?: number;
   returnRpeCap?: number;
   pinIncrements?: Record<string, number>;
+  /** exerciseId → reps → best kg at this gym. Drives the rep-record toast. */
+  repRecords?: Record<string, Record<number, number>>;
+  /** exerciseId → plateau deload prescription, when detection fired. */
+  deloadHints?: Record<string, { weight: number; note: string }>;
+  /** 15-minute rescue session — compressed by construction. */
+  rescueMode?: boolean;
   /** Presentation only — threads the Aurora day accent (A violet · B teal) through steppers. */
   dayAccent?: 'A' | 'B';
 }) {
@@ -175,19 +226,37 @@ export default function WorkoutForm({
   const [gym, setGym] = useState(DEFAULT_GYM_ID);
   const [notes, setNotes] = useState('');
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
-    buildBlocks(initialExercises, lastSession, returnLoadPct),
+    buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints),
   );
   // Weight memory for the gym currently tagged. Seeded for the home gym by
   // the server; replaced wholesale when the tag changes.
   const [sessionMemory, setSessionMemory] = useState(lastSession);
   const [gymRecords, setGymRecords] = useState(personalRecords);
+  const [repRecordsState, setRepRecordsState] = useState(repRecords);
+  /** Health-derived read on today; 'hold' softens every push-harder cue. */
+  const [readiness, setReadiness] = useState<ReadinessSignal | null>(null);
+  /** Lazy per-exercise history for the ⓘ drawer, keyed by exerciseId. */
+  const [recentSessions, setRecentSessions] = useState<
+    Record<string, Array<{ date: string; topWeight: number; reps: number; rpe: number | null }>>
+  >({});
+  const [compressed, setCompressed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [restTimer, setRestTimer] = useState<{ seconds: number; exerciseName: string } | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
+  /** Restored draft is >24 h old — worth an explicit look before continuing. */
+  const [draftIsStale, setDraftIsStale] = useState(false);
+  /** Save failed but the session is queued — it is NOT lost. */
+  const [queuedOffline, setQueuedOffline] = useState(false);
   const startRef = useRef(Date.now());
+  /** Idempotency key for this submission — survives retries, reset on clear. */
+  const saveIdRef = useRef<string | null>(null);
+  /** Last gym the memory refetch ran for — also synced by a draft restore. */
+  const lastGymRef = useRef<string | null>(null);
+  /** True once the user touches anything — gates the async vault restore. */
+  const dirtyRef = useRef(false);
   const [autoTimer, setAutoTimer] = useState(true);
   const [prToast, setPrToast] = useState<string | null>(null);
   const [mood, setMood] = useState('');
@@ -204,8 +273,29 @@ export default function WorkoutForm({
   const [showReturnInfo, setShowReturnInfo] = useState(false);
 
   function toggleInfo(uid: string) {
-    setInfoOpen((prev) => ({ ...prev, [uid]: !prev[uid] }));
+    setInfoOpen((prev) => {
+      const opening = !prev[uid];
+      if (opening) {
+        const block = blocksRef.current.find((b) => b.uid === uid);
+        if (block && !recentSessions[block.exerciseId]) {
+          getRecentExerciseSessions(block.exerciseId, gym)
+            .then((rows) =>
+              setRecentSessions((cur) => ({ ...cur, [block.exerciseId]: rows })),
+            )
+            .catch(() => { /* the drawer just stays empty */ });
+        }
+      }
+      return { ...prev, [uid]: opening };
+    });
   }
+
+  // One readiness read per form life. A 'hold' verdict quiets the try-more
+  // suggestions and offers the rescue session instead — shrink, don't skip.
+  useEffect(() => {
+    let cancelled = false;
+    readReadiness().then((r) => { if (!cancelled && r) setReadiness(r); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Load per-exercise machine notes after mount (avoids hydration mismatch)
   useEffect(() => {
@@ -220,38 +310,83 @@ export default function WorkoutForm({
     return () => keepScreenAwake(false);
   }, []);
 
-  // Restore draft on mount
+  // Restore draft on mount. localStorage is the fast path; the durable vault
+  // (native UserDefaults) is the copy that survives WKWebView storage
+  // eviction — checked only when localStorage came up empty.
   useEffect(() => {
+    const applyDraft = (draft: {
+      name?: string; date?: string; notes?: string; gym?: string;
+      blocks?: unknown; startTime?: number; savedAt?: number;
+    }): boolean => {
+      if (!Array.isArray(draft.blocks) || draft.blocks.length === 0) return false;
+      const age = Date.now() - (draft.savedAt ?? 0);
+      // An old draft is a real session that got interrupted — sickness, a
+      // dead phone. It used to be silently deleted at 24 h, which threw away
+      // ticked sets with real completedAt stamps. Now it restores with a
+      // prompt; discarding is his tap, never the app's.
+      setName(draft.name ?? initialName);
+      setDate(draft.date ?? today);
+      setNotes(draft.notes ?? '');
+      // Sync the ref too, or the gym-change effect reads the restore as a
+      // switch and refetches weights over the draft's own numbers.
+      if (draft.gym) { lastGymRef.current = draft.gym; setGym(draft.gym); }
+      setBlocks(draft.blocks as ExerciseBlock[]);
+      if (draft.startTime) startRef.current = draft.startTime;
+      setDraftRestored(true);
+      setDraftIsStale(age > 24 * 60 * 60 * 1000);
+      return true;
+    };
+
+    let restored = false;
+    if (rescueMode) { setInitialized(true); return; }
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const draft = JSON.parse(raw);
-        const age = Date.now() - (draft.savedAt ?? 0);
-        if (age < 24 * 60 * 60 * 1000 && Array.isArray(draft.blocks) && draft.blocks.length > 0) {
-          setName(draft.name ?? initialName);
-          setDate(draft.date ?? today);
-          setNotes(draft.notes ?? '');
-          if (draft.gym) setGym(draft.gym);
-          setBlocks(draft.blocks);
-          if (draft.startTime) startRef.current = draft.startTime;
-          setDraftRestored(true);
-        } else {
-          localStorage.removeItem(DRAFT_KEY);
-        }
-      }
+      if (raw) restored = applyDraft(JSON.parse(raw));
+      if (!restored && raw) localStorage.removeItem(DRAFT_KEY);
     } catch {
       localStorage.removeItem(DRAFT_KEY);
     }
-    setInitialized(true);
+
+    if (restored) {
+      setInitialized(true);
+    } else {
+      // The autosave gate stays CLOSED until the vault check settles — were
+      // it open, the first autosave would write the pristine template over
+      // the vault copy before the async read could restore it.
+      void durableGet(DRAFT_KEY)
+        .then((vaulted) => {
+          if (!vaulted) return;
+          // The vault read lost a race against the user: they already
+          // started typing. Their live keystrokes outrank a stored copy.
+          if (dirtyRef.current) return;
+          try {
+            applyDraft(JSON.parse(vaulted));
+          } catch { /* a corrupt vault copy restores nothing */ }
+        })
+        .finally(() => setInitialized(true));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-save draft on every change (skips until draft check is done)
+  // Any form-state change after mount marks the form dirty — the signal the
+  // async vault restore checks so it never overwrites live keystrokes.
+  const firstChangeRef = useRef(true);
+  useEffect(() => {
+    if (firstChangeRef.current) { firstChangeRef.current = false; return; }
+    dirtyRef.current = true;
+  }, [name, date, gym, notes, blocks]);
+
+  // Auto-save draft on every change (skips until draft check is done).
+  // durableSet writes localStorage AND the native vault.
   useEffect(() => {
     if (!initialized) return;
+    // Rescue sessions are draft-free: merely opening the rescue screen from
+    // a notification and backing out must not leave a 60% "Rescue" draft
+    // that tomorrow's normal logger restores (adversary).
+    if (rescueMode) return;
     const draft = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current };
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
-  }, [initialized, name, date, gym, notes, blocks]);
+    void durableSet(DRAFT_KEY, JSON.stringify(draft));
+  }, [initialized, rescueMode, name, date, gym, notes, blocks]);
 
   // Switching gyms mid-setup invalidates every prefilled number: the machine
   // is different, and at Alrajhi Tower the stack is labelled in pounds. Pull
@@ -259,7 +394,6 @@ export default function WorkoutForm({
   // Blocks with a completed set are left alone — those are logged facts.
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
-  const lastGymRef = useRef<string | null>(null);
   useEffect(() => {
     if (!initialized) return;
     if (lastGymRef.current === null) { lastGymRef.current = gym; return; }
@@ -272,6 +406,9 @@ export default function WorkoutForm({
     getPersonalRecords(gym)
       .then((recs) => { if (!cancelled) setGymRecords(recs); })
       .catch(() => { /* PR badge is decoration; a stale one is not worth a crash */ });
+    getRepRecords(gym)
+      .then((recs) => { if (!cancelled) setRepRecordsState(recs); })
+      .catch(() => { /* same: decoration */ });
     getLastSessionForExercises(ids, gym)
       .then((next) => {
         if (cancelled) return;
@@ -281,24 +418,30 @@ export default function WorkoutForm({
             const prevSession = next[b.exerciseId];
             if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession };
             const isTimed = b.unit === 'seconds';
+            const working = prevSession?.weight
+              ? (returnLoadPct ? scaleReturnWeight(prevSession.weight, returnLoadPct) : prevSession.weight)
+              : 0;
+            // The warm-up stays a warm-up across a gym switch: 55% floored
+            // to a pin — mapping it to the other gym's FULL working weight
+            // made the cold first set the heaviest of the day (adversary).
+            const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+            const warm = working > 0 ? Math.max(inc, Math.floor((working * 0.55) / inc) * inc) : 0;
             return {
               ...b,
               lastSession: prevSession,
               sets: b.sets.map((s) => ({
                 ...s,
-                weight: isTimed
-                  ? 0
-                  : prevSession?.weight
-                    ? (returnLoadPct ? scaleReturnWeight(prevSession.weight, returnLoadPct) : prevSession.weight)
-                    : 0,
+                weight: isTimed ? 0 : s.isWarmup ? warm : working,
               })),
             };
           }),
         );
+        // 6: the ⓘ drawer cache is B_Fit numbers — poison at another gym.
+        setRecentSessions({});
       })
       .catch(() => { /* keep the current numbers rather than blanking the form */ });
     return () => { cancelled = true; };
-  }, [gym, initialized, returnLoadPct]);
+  }, [gym, initialized, returnLoadPct, pinIncrements]);
 
   // Auto-dismiss draft restored banner after 4s
   useEffect(() => {
@@ -322,15 +465,44 @@ export default function WorkoutForm({
     return () => clearInterval(tick);
   }, []);
 
+  /**
+   * "I have 25 minutes." Keeps every machine but only its first not-yet-done
+   * working set (done sets always survive; warm-ups drop — a short session
+   * warms up on the first work set). One-way by design: un-compressing
+   * mid-session would re-add sets whose rest you already banked.
+   */
+  function compressSession() {
+    hapticTap();
+    setCompressed(true);
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.unit === 'seconds') return b;
+        let keptWorking = false;
+        return {
+          ...b,
+          rest: '60s',
+          sets: b.sets.filter((s) => {
+            if (s.done) return true;
+            if (s.isWarmup) return false;
+            if (!keptWorking) { keptWorking = true; return true; }
+            return false;
+          }),
+        };
+      }),
+    );
+  }
+
   function clearDraft() {
-    localStorage.removeItem(DRAFT_KEY);
+    void durableRemove(DRAFT_KEY);
     setName(initialName);
     setDate(today);
     setGym(DEFAULT_GYM_ID);
     setNotes('');
-    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct));
+    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints));
     startRef.current = Date.now();
+    saveIdRef.current = null;
     setDraftRestored(false);
+    setDraftIsStale(false);
   }
 
   const exerciseGroups = exercises.reduce<Record<string, Exercise[]>>((acc, ex) => {
@@ -430,9 +602,18 @@ export default function WorkoutForm({
           const restSecs = block.rest ? parseRestSeconds(block.rest) : 90;
           setRestTimer({ seconds: restSecs, exerciseName: exName });
         }
-        const currentPR = personalRecords[block.exerciseId] ?? 0;
-        if (!block.unit && set.weight > 0 && set.weight > currentPR) {
-          setPrToast(exName);
+        // Two record ladders, checked in order of glory. All-time heaviest
+        // first; else the per-rep-count record (Hevy's insight) — on a
+        // 12–15-rep pin program, "9 reps where 8 was the best" is the usual
+        // form of progress and used to pass in silence. Warm-ups never count.
+        if (!block.unit && !set.isWarmup && set.weight > 0) {
+          const currentPR = gymRecords[block.exerciseId] ?? 0;
+          const repBest = repRecordsState[block.exerciseId]?.[set.reps] ?? 0;
+          if (set.weight > currentPR) {
+            setPrToast(`${exName} — all-time record`);
+          } else if (set.reps > 0 && set.weight > repBest) {
+            setPrToast(`${exName} — best ${set.reps}-rep set: ${set.weight} kg`);
+          }
         }
       }
       return updated;
@@ -571,9 +752,9 @@ export default function WorkoutForm({
     );
     if (!setsToSave.length) { setError('Log at least one set'); return; }
 
-    const vol = Math.round(setsToSave.reduce((sum, s) => sum + s.weight * s.reps, 0));
+    const vol = Math.round(setsToSave.reduce((sum, s) => sum + (s.isWarmup ? 0 : s.weight * s.reps), 0));
     const prs = submitBlocks
-      .filter(({ block: b, sets }) => !b.unit && sets.some((s) => s.weight > (personalRecords[b.exerciseId] ?? 0)))
+      .filter(({ block: b, sets }) => !b.unit && sets.some((s) => !s.isWarmup && s.weight > (gymRecords[b.exerciseId] ?? 0)))
       .map(({ block: b }) => exerciseById.get(b.exerciseId)?.name ?? '')
       .filter(Boolean);
 
@@ -581,23 +762,70 @@ export default function WorkoutForm({
     setSubmitting(true);
 
     const fullNotes = [mood ? `Feeling ${mood}` : '', notes.trim()].filter(Boolean).join(' · ');
+    // One id per submission attempt, held across retries in the same form
+    // life: if the first try lands server-side but times out client-side, the
+    // retry (or the outbox replay) dedupes into the same workout.
+    if (!saveIdRef.current) saveIdRef.current = newClientSaveId();
+    const payload = {
+      name: name.trim(),
+      date: date || localTodayStr(),
+      gym,
+      notes: fullNotes || undefined,
+      duration: Math.floor((Date.now() - startRef.current) / 1000),
+      clientSaveId: saveIdRef.current,
+      sets: setsToSave,
+    };
+    // A restored multi-day draft carries an ancient startRef; without a clamp
+    // the HR capture would bin DAYS of background heart rate onto one workout
+    // and the duration would read as 50 hours. 3 h matches the server's cap.
+    const sessionStart = Math.max(startRef.current, Date.now() - 3 * 3_600_000);
+    payload.duration = Math.floor((Date.now() - sessionStart) / 1000);
+    const startISO = new Date(sessionStart).toISOString();
     try {
-      const { id } = await createWorkout({
-        name: name.trim(),
-        date: date || localTodayStr(),
-        gym,
-        notes: fullNotes || undefined,
-        duration: Math.floor((Date.now() - startRef.current) / 1000),
-        sets: setsToSave,
-      });
+      const { id, deduped } = await createWorkout(payload);
+      if (deduped) {
+        // This clientSaveId already landed — the outbox flushed it in the
+        // background. The CURRENT form contents were NOT saved; pretending
+        // otherwise would swallow them. Fresh id so a deliberate re-save
+        // creates a real workout.
+        saveIdRef.current = null;
+        setSubmitting(false);
+        setShowSummary(null);
+        setError('This session already uploaded in the background. Tap Save again to log what’s on screen as a new workout.');
+        return;
+      }
       // Only clear the draft once the save has actually succeeded.
-      localStorage.removeItem(DRAFT_KEY);
+      void durableRemove(DRAFT_KEY);
+      // Fire-and-forget: pull the session's real HR curve off the Watch data
+      // and re-arm Gap Guard from today. Neither may delay navigation.
+      captureWorkoutHr(id, startISO, new Date().toISOString());
+      armGapGuard(new Date().toISOString(), null);
+      clearComeback();
       hapticSuccess();
       router.push(`/workouts/${id}?new=1`);
     } catch {
-      setError('Failed to save. Please try again.');
-      setSubmitting(false);
-      setShowSummary(null);
+      // The session is not lost — queue it durably and say so. The outbox
+      // replays on network restore and on every app open; clientSaveId makes
+      // a replay of a save that secretly landed a no-op.
+      try {
+        await enqueueSave(payload);
+        // The queued session is owned SOLELY by the outbox now. Reset the
+        // form completely: a live copy of already-queued sets would be
+        // re-autosaved as a draft on the next keystroke, restore tomorrow,
+        // and double-log with a fresh id (review finding, corrupts-data).
+        clearDraft();
+        armGapGuard(new Date().toISOString(), null);
+        clearComeback();
+        setQueuedOffline(true);
+        setSubmitting(false);
+        setShowSummary(null);
+        hapticSuccess();
+      } catch {
+        // Even the durable queue failed — keep the draft, tell the truth.
+        setError('Failed to save. Your sets are still in the draft — try again.');
+        setSubmitting(false);
+        setShowSummary(null);
+      }
     }
   }
 
@@ -620,11 +848,51 @@ export default function WorkoutForm({
     <>
       <form onSubmit={handleSubmit} className="space-y-4">
 
+        {/* Session queued offline — the save is safe, not lost */}
+        {queuedOffline && (
+          <div className="card rounded-card border-acc-teal/40 px-4 py-3">
+            <p className="text-acc-teal text-sm font-semibold">✓ Saved on this phone</p>
+            <p className="text-app-tx2 text-xs mt-0.5">
+              No connection right now — it uploads by itself when signal returns.
+            </p>
+          </div>
+        )}
+
+        {/* Readiness hold — shrink, don't skip */}
+        {readiness?.verdict === 'hold' && !rescueMode && (
+          <div className="card rounded-card border-acc-ember/40 px-4 py-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-acc-ember text-sm font-semibold">Recovery is low — hold weights today</p>
+              {readiness.note && <p className="text-app-tx3 text-xs mt-0.5 truncate">{readiness.note}</p>}
+            </div>
+            <Link
+              href="/workouts/new?rescue=1"
+              className="flex-shrink-0 text-xs font-bold px-3 py-2 rounded-card bg-acc-ember/10 border border-acc-ember/40 text-acc-ember"
+            >
+              15-min rescue
+            </Link>
+          </div>
+        )}
+
+        {/* One tap shrinks the session — a short session beats a skipped one */}
+        {!compressed && !rescueMode && blocks.length > 1 && (
+          <button
+            type="button"
+            onClick={compressSession}
+            className="w-full card rounded-card px-4 py-2.5 text-left text-xs text-app-tx2 hover:border-app-border-hi transition-colors"
+          >
+            ⏱ Short on time? <span className="text-app-tx3">One tap keeps every machine, first set only.</span>
+          </button>
+        )}
+        {compressed && (
+          <p className="text-app-tx3 text-[11px] px-1">Compressed — one working set per machine · 60s rests.</p>
+        )}
+
         {/* Draft restored notice */}
         {draftRestored && (
           <div className="card rounded-card border-acc-teal/30 px-4 py-3 flex items-center justify-between">
             <span className="text-acc-teal text-sm">
-              ↩ Workout restored
+              {draftIsStale ? '↩ Old session restored — still yours to keep' : '↩ Workout restored'}
             </span>
             <button
               type="button"
@@ -841,10 +1109,15 @@ export default function WorkoutForm({
           const returnTarget = returnLoadPct && !isTimed && block.lastSession?.weight
             ? scaleReturnWeight(block.lastSession.weight, returnLoadPct)
             : null;
-          const shouldHold = !returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3;
-          const suggestWeight = !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold
-            ? +(block.lastSession.weight + (lastRpe === 1 ? 5 : 2.5)).toFixed(1)
-            : null;
+          const deload = deloadHints[block.exerciseId];
+          const readinessHold = readiness?.verdict === 'hold';
+          const shouldHold =
+            (!returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3) ||
+            readinessHold;
+          const suggestWeight =
+            !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload
+              ? +(block.lastSession.weight + (lastRpe === 1 ? 5 : 2.5)).toFixed(1)
+              : null;
 
           const est1RM = !isTimed
             ? block.sets.reduce((best, s) => Math.max(best, epley1RM(s.weight, s.reps)), 0)
@@ -927,6 +1200,11 @@ export default function WorkoutForm({
                     &#8594; Try {suggestWeight} kg
                   </span>
                 )}
+                {deload && gym === DEFAULT_GYM_ID && !returnTarget && !allDone && (
+                  <span className="text-xs bg-acc-ember/10 text-acc-ember px-2.5 py-1 rounded-full border border-acc-ember/40 font-medium">
+                    {deload.note}
+                  </span>
+                )}
                 {allDone && (
                   <span className="text-xs bg-acc-teal/15 text-acc-teal px-2.5 py-1 rounded-full border border-acc-teal/40 font-semibold shadow-[0_0_14px_-4px_rgba(45,212,191,0.7)]">
                     &#10003; Done
@@ -999,6 +1277,13 @@ export default function WorkoutForm({
                   {machine && (
                     <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
                       {machine}
+                    </span>
+                  )}
+                  {(recentSessions[block.exerciseId] ?? []).length > 0 && (
+                    <span className="w-full text-[11px] text-app-tx3 tabular-nums">
+                      {(recentSessions[block.exerciseId] ?? [])
+                        .map((r) => `${r.date.slice(5).replace('-', '/')} · ${r.topWeight} kg × ${r.reps}${r.rpe ? ` · ${['','Easy','Med','Hard','Grind'][r.rpe]}` : ''}`)
+                        .join('   ')}
                     </span>
                   )}
                   {videoUrl && (
@@ -1080,12 +1365,14 @@ export default function WorkoutForm({
                             className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-90 ${
                               set.done
                                 ? 'bg-gradient-to-br from-acc-teal to-acc-teal-deep text-[#062521] shadow-glow-teal'
+                                : set.isWarmup
+                                ? 'bg-app-surface2 text-app-tx3 border border-dashed border-app-border active:bg-white/5'
                                 : isCurrentSet
                                 ? currentSetRing
                                 : 'bg-app-surface2 text-app-tx2 active:bg-white/5'
                             }`}
                           >
-                            {set.done ? '✓' : set.setNumber}
+                            {set.done ? '✓' : set.isWarmup ? 'W' : set.setNumber}
                           </button>
 
                           {isTimed ? (

@@ -70,7 +70,7 @@ export default async function WorkoutsPage() {
         <div className="space-y-6">
           {groups.map((group) => {
             const weekVol = group.items.reduce(
-              (sum, w) => sum + w.sets.reduce((s, set) => s + set.reps * set.weight, 0),
+              (sum, w) => sum + w.sets.reduce((s, set) => s + (set.isWarmup ? 0 : set.reps * set.weight), 0),
               0,
             );
             return (
@@ -88,7 +88,7 @@ export default async function WorkoutsPage() {
 
                 <div className="space-y-2">
                   {group.items.map((workout) => {
-                    const totalVolume = workout.sets.reduce((sum, s) => sum + s.reps * s.weight, 0);
+                    const totalVolume = workout.sets.reduce((sum, s) => sum + (s.isWarmup ? 0 : s.reps * s.weight), 0);
                     const dayLetter = workout.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
                     return (
                       <Link

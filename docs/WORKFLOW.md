@@ -69,6 +69,18 @@ a schema.
 Schema changes go through the **Apply schema** Action, which prints a
 `migrate diff` preview first and only passes `--accept-data-loss` when you
 explicitly ask for it. `npm run db:push` does the same thing locally.
+
+The cloud session can trigger this Action itself (GitHub API) and read the
+preview from the run logs — the gate is that SOMEONE reads the diff before
+accepting, not that a human clicks the button. The rules the session follows:
+
+- Dispatch on the **branch** that carries the schema change, before merge.
+- First run WITHOUT `accept_data_loss`; read the printed diff in the logs.
+- Accept only when the diff is purely additive (ADD COLUMN / CREATE TABLE /
+  CREATE INDEX — no DROP, no ALTER TYPE, no RENAME).
+- A "data loss" warning about a unique index on a brand-new column is the
+  known false alarm (all existing rows are NULL); anything else stops and
+  goes to the owner.
 ## Staging (not yet set up — needs the Vercel dashboard)
 
 Every deploy currently lands on the app you train with; there is no environment

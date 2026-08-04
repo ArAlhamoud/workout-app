@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import prisma from '@/lib/prisma';
 import { getWorkout } from '../../actions';
+import { calendarDaysBetween, getTrainingStatus, isTrainingSession } from '@/lib/program';
+import { lifetimeStats } from '@/lib/streak';
 import DeleteButton from '@/components/DeleteButton';
 import { CATEGORY_BADGE, formatDateLong, formatDuration, kgCompact, RPE_LABELS } from '@/lib/format';
 import { gymLabel } from '@/lib/program';
@@ -13,9 +16,57 @@ const rpeBadge: Record<number, { label: string; cls: string }> = {
   4: { label: RPE_LABELS[4], cls: 'text-rpe-grind bg-rpe-grind/10 border-rpe-grind/30' },
 };
 
-export default async function WorkoutDetailPage({ params }: { params: { id: string } }) {
+export default async function WorkoutDetailPage({
+  params,
+  searchParams,
+}: {
+  params: { id: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
   const workout = await getWorkout(params.id);
   if (!workout) notFound();
+
+  // The welcome-back moment — the highest-leverage screen in the app. The
+  // ladder gets him to open the app; what he sees after the first session
+  // back decides whether week 2 happens. Shown only right after saving
+  // (?new=1), only when this session ended a gap of 4+ days, and it leads
+  // with the numbers a gap can never take away.
+  // ?new=1 survives in bookmarks and back-navigation; the ceremony is for
+  // the moment of saving, so it also requires the row to be minutes old.
+  const isFreshSave =
+    searchParams?.new === '1' && Date.now() - workout.createdAt.getTime() < 6 * 3_600_000;
+  let welcomeBack: { gapDays: number; sessions: number; tonnageLabel: string } | null = null;
+  // 6+, not 4: his normal cadence runs 2–4 days, and a full comeback
+  // ceremony after an ordinary weekend cheapens the real one (trainer).
+  // Walks earn no ceremony and reset no gap — only training does either.
+  if (isFreshSave && isTrainingSession(workout)) {
+    const previous = await prisma.workout.findFirst({
+      where: {
+        date: { lt: workout.date },
+        id: { not: workout.id },
+        NOT: { name: { startsWith: 'Rescue walk' } },
+      },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    });
+    const gapDays = previous ? calendarDaysBetween(workout.date, previous.date) : 0;
+    if (previous && gapDays >= 6) {
+      const all = await prisma.workout.findMany({
+        select: { sets: { select: { weight: true, reps: true, isWarmup: true } } },
+      });
+      const life = lifetimeStats(all);
+      welcomeBack = { gapDays, sessions: life.sessions, tonnageLabel: life.label };
+    }
+  }
+  // The hardcoded ±2.5/5 kg "Next Session Targets" block below is ramp-blind:
+  // on a return-ramp day it says "Easy — add 5 kg" to deliberately deloaded
+  // lifts, directly under the comeback card (trainer). Hidden while ramping —
+  // the logger's pre-scaled prefill is the only voice then.
+  const allDates = await prisma.workout.findMany({
+    where: { NOT: { name: { startsWith: 'Rescue walk' } } },
+    select: { date: true },
+  });
+  const inReturnRamp = getTrainingStatus(allDates.map((w) => w.date)).mode === 'return';
 
   const exerciseOrder: string[] = [];
   const exerciseMap = new Map<string, typeof workout.sets>();
@@ -27,7 +78,7 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
     exerciseMap.get(set.exerciseId)!.push(set);
   }
 
-  const totalVolume = workout.sets.reduce((sum, s) => sum + s.reps * s.weight, 0);
+  const totalVolume = workout.sets.reduce((sum, s) => sum + (s.isWarmup ? 0 : s.reps * s.weight), 0);
 
   const dayMatch = workout.name.match(/Day ([AB])/i);
   const dayLetter = dayMatch?.[1]?.toUpperCase();
@@ -38,6 +89,17 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-4">
+      {welcomeBack && (
+        <div className="card-lg border-acc-teal/40 px-4 py-4 shadow-[0_0_44px_-14px_rgba(45,212,191,0.45)]">
+          <p className="glow-teal font-round text-lg font-bold">Welcome back. This is how it&apos;s done.</p>
+          <p className="text-app-tx2 text-sm mt-1">
+            {welcomeBack.gapDays} days away changed nothing that matters —
+            <b className="text-app-tx1"> {welcomeBack.sessions} sessions</b> and
+            <b className="text-app-tx1"> {welcomeBack.tonnageLabel}</b> are yours for good.
+            Showing up today is the whole game.
+          </p>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-start justify-between gap-4 pt-1">
         <div className="min-w-0">
@@ -109,7 +171,7 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
           const sets = exerciseMap.get(exId)!;
           const exercise = sets[0].exercise;
           const colorClass = CATEGORY_BADGE[exercise.category] ?? 'text-app-tx2 bg-app-surface2 border-app-border';
-          const exVolume = sets.reduce((s, set) => s + set.reps * set.weight, 0);
+          const exVolume = sets.reduce((s, set) => s + (set.isWarmup ? 0 : set.reps * set.weight), 0);
 
           return (
             <div key={exId} className="card-lg overflow-hidden">
@@ -164,12 +226,18 @@ export default async function WorkoutDetailPage({ params }: { params: { id: stri
 
       {/* Next session targets */}
       {(() => {
+        // Ramp-blind by construction (hardcoded ±2.5/5 kg): silenced during
+        // the return ramp, where "Easy — add 5 kg" on a deliberately
+        // deloaded lift is exactly wrong. Warm-ups prescribe nothing.
+        if (inReturnRamp) return null;
         const targets: { name: string; current: number; next: number; note: string }[] = [];
         for (const exId of exerciseOrder) {
           const sets = exerciseMap.get(exId)!;
-          const maxWeight = Math.max(...sets.map((s) => s.weight));
+          const workingSets = sets.filter((st) => !st.isWarmup);
+          if (!workingSets.length) continue;
+          const maxWeight = Math.max(...workingSets.map((s) => s.weight));
           if (maxWeight <= 0) continue;
-          const maxRpe = sets.reduce((m, s) => (s.rpe && s.rpe > m ? s.rpe : m), 0);
+          const maxRpe = workingSets.reduce((m, s) => (s.rpe && s.rpe > m ? s.rpe : m), 0);
           let next = maxWeight;
           let note = '';
           if (maxRpe === 0)      { next = +(maxWeight + 2.5).toFixed(1); note = 'No RPE — try +2.5 kg'; }

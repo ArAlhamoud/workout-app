@@ -17,6 +17,10 @@ import {
   phaseForWeek,
   weeklyReport,
   weightTrend,
+  bodyweightMilestones,
+  deloadTarget,
+  momentumBank,
+  sleepDebtHours,
   type CoachBodyStat,
   type CoachExercise,
   type CoachWorkout,
@@ -37,6 +41,12 @@ import {
   type LoggedSession,
 } from '../src/lib/program';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
+import { computeGapLadder } from '../src/lib/gap-guard';
+import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
+import { binHeartRate } from '../src/lib/hr-capture';
+import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
+import { lastMonthRecap, yearRecap } from '../src/lib/recap';
+import { normalizeSampleType } from '../src/lib/health';
 
 interface HistoryFile {
   exercises: { id: string; name: string; category: string }[];
@@ -218,9 +228,10 @@ const report = weeklyReport(data.workouts, data.bodyStats, status, day('2026-07-
 assert(report.headline.length > 0, 'headline present');
 assert(report.headline.includes('Return ramp week 1'), `headline reflects return week 1 (got "${report.headline}")`);
 // Whatever lane the live weigh-ins are in, the trend has to reach the report.
+const reportTrend = weightTrend(data.bodyStats, { returning: status.mode === 'return' });
 assert(
-  [...report.wins, ...report.focus].includes(trend.message),
-  `the live weight trend surfaces (${trend.classification})`,
+  [...report.wins, ...report.focus].includes(reportTrend.message),
+  `the live weight trend surfaces (${reportTrend.classification})`,
 );
 // …and the fat-loss lane specifically lands in wins, on a fixed series.
 const losingReport = weeklyReport(data.workouts, losingStats, status, day('2026-07-29T12:00:00Z'));
@@ -529,6 +540,359 @@ assert(
   CARDIO[CARDIO.length - 1].name === 'Treadmill',
   'the treadmill stays ranked last',
 );
+
+
+// ── Gap Guard ladder ─────────────────────────────────────────
+// The ladder is the anti-gap weapon; its arithmetic must be exact. Both
+// collapses started as "one session, then silence past day 7", and rung 4
+// exists because BREAK_THRESHOLD_DAYS = 21 resets the program at day 21.
+console.log('computeGapLadder');
+{
+  const lastSession = '2026-08-01T10:00:00.000Z';
+  const dayAfter = new Date('2026-08-02T10:00:00.000Z');
+  const full = computeGapLadder(lastSession, 'B', dayAfter);
+  assert(full.length === 4, `all four rungs from day 1 (got ${full.length})`);
+  assert(
+    full.map((r) => r.day).join() === '3,5,7,19',
+    `rungs at days 3/5/7/19 (got ${full.map((r) => r.day).join()})`,
+  );
+  assert(full.every((r) => r.at.getTime() > dayAfter.getTime()), 'every rung is in the future');
+  assert(full[0].title.includes('Day B'), `rung 1 names the queued day (got "${full[0].title}")`);
+  assert(full[3].body.includes('return ramp'), 'day-19 rung warns about the 21-day reset');
+  assert(full.every((r) => r.at.getHours() === 17), 'rungs fire at 17:00 local — evening, when training is still possible');
+
+  // Six days in (his position today): days 3 and 5 are past, 7 and 19 remain.
+  const sixDaysIn = new Date('2026-08-07T10:00:00.000Z');
+  const late = computeGapLadder(lastSession, 'A', sixDaysIn);
+  assert(
+    late.map((r) => r.day).join() === '7,19',
+    `past rungs are dropped, not fired late (got ${late.map((r) => r.day).join()})`,
+  );
+
+  // 20+ days in: nothing left — the return ramp takes over from here.
+  const past21 = computeGapLadder(lastSession, 'A', new Date('2026-08-21T10:00:00.000Z'));
+  assert(past21.length === 0, 'after day 19 the ladder is silent');
+
+  assert(computeGapLadder('not-a-date', 'A', dayAfter).length === 0, 'garbage date → empty ladder, no throw');
+
+  // Workout dates are stored as bare UTC days. The anchor must be that
+  // calendar day LOCALLY — read as an instant it is 03:00 in Riyadh, and in
+  // a negative-offset zone it lands the previous evening, shifting every
+  // rung a day early (review finding).
+  const bareDay = computeGapLadder('2026-08-01T00:00:00.000Z', 'A', new Date(2026, 7, 1, 12));
+  assert(bareDay.length === 4, 'bare-day date yields the full ladder');
+  assert(
+    bareDay[0].at.getDate() === 4 && bareDay[0].at.getMonth() === 7 && bareDay[0].at.getHours() === 17,
+    `bare-day rung 1 lands on local Aug 4 17:00 (got ${bareDay[0].at.toString()})`,
+  );
+  const noDay = computeGapLadder(lastSession, null, dayAfter);
+  assert(noDay[0].title.includes('next session'), 'null day still reads naturally');
+}
+
+// ── Sick signal ──────────────────────────────────────────────
+console.log('assessSickSignal');
+{
+  const base = [52, 53, 52, 51, 53, 52, 54, 52, 53, 52]; // median 52
+  assert(assessSickSignal([...base, 59, 60]) === 'sick', 'two days at +7 bpm → sick');
+  assert(assessSickSignal([...base, 52, 53]) === 'clear', 'two days at baseline → clear');
+  assert(assessSickSignal([...base, 59, 53]) === 'unknown', 'one high day is a bad sensor night, not illness');
+  assert(assessSickSignal([...base, 56, 56]) === 'unknown', 'the +2..+5 gray zone stays unknown');
+  assert(assessSickSignal([...base, null, 60]) === 'unknown', 'a missing day cannot vote');
+  assert(assessSickSignal([52, 53, 60, 61]) === 'unknown', 'short baseline → no verdict');
+  assert(assessSickSignal([]) === 'unknown', 'empty input → unknown, no throw');
+}
+
+// ── HRV readiness clause ─────────────────────────────────────
+console.log('computeReadiness + HRV');
+{
+  const rested = { rhrDeltaBpm: -1, sleepHours: 7.5, hoursSinceLastSession: 48 };
+  const green = computeReadiness({ ...rested, hrvRatio: 1.05 });
+  assert(green?.verdict === 'push', 'good HRV leaves a green day green');
+  const crashed = computeReadiness({ ...rested, hrvRatio: 0.6 });
+  assert(crashed?.verdict === 'hold', 'HRV at 60% of baseline holds even a rested day');
+  assert(!!crashed && crashed.note.includes('HRV'), `the hold names HRV (got "${crashed?.note}")`);
+  const noOpinion = computeReadiness({ ...rested, hrvRatio: null });
+  assert(noOpinion?.verdict === 'push', 'null HRV is no opinion, never a red flag');
+  const hrvOnly = computeReadiness({ rhrDeltaBpm: null, sleepHours: null, hoursSinceLastSession: null, hrvRatio: 0.5 });
+  assert(hrvOnly?.verdict === 'hold', 'HRV alone can hold a day');
+  assert(
+    computeReadiness({ rhrDeltaBpm: null, sleepHours: null, hoursSinceLastSession: null }) === null,
+    'no inputs at all still returns null (pre-HRV contract intact)',
+  );
+}
+
+// ── HR binning ───────────────────────────────────────────────
+console.log('binHeartRate');
+{
+  const start = '2026-08-04T10:00:00.000Z';
+  const at = (sec: number) => new Date(new Date(start).getTime() + sec * 1000).toISOString();
+  const bins = binHeartRate(
+    [
+      { value: 100, dateISO: at(0) },
+      { value: 110, dateISO: at(5) },   // same 15 s bin → averaged
+      { value: 140, dateISO: at(20) },
+      { value: 150, dateISO: at(65) },
+    ],
+    start,
+  );
+  assert(
+    JSON.stringify(bins) === JSON.stringify([[0, 105], [15, 140], [60, 150]]),
+    `bins average within, sort across (got ${JSON.stringify(bins)})`,
+  );
+  const dirty = binHeartRate(
+    [
+      { value: 0, dateISO: at(0) },      // dead-sensor zero
+      { value: 300, dateISO: at(10) },   // impossible spike
+      { value: 120, dateISO: at(-30) },  // before the workout
+      { value: 130, dateISO: at(30) },
+    ],
+    start,
+  );
+  assert(
+    JSON.stringify(dirty) === JSON.stringify([[30, 130]]),
+    `garbage samples are dropped, not stored (got ${JSON.stringify(dirty)})`,
+  );
+  assert(binHeartRate([], start).length === 0, 'no samples → no bins');
+  assert(binHeartRate([{ value: 100, dateISO: at(0) }], 'garbage').length === 0, 'bad start date → empty, no throw');
+}
+
+// ── Import vocabulary ordering ───────────────────────────────
+// "resting_heart_rate" contains "heart_rate"; if the specific check does not
+// run first, daily resting HR gets classified as workout heart rate and
+// enrichWorkouts writes it onto whatever workout shares the day.
+console.log('normalizeSampleType');
+{
+  assert(normalizeSampleType('resting_heart_rate') === 'resting_hr', 'resting HR beats the liberal heart_rate match');
+  assert(normalizeSampleType('heart_rate_variability_sdnn') === 'hrv_sdnn', 'HRV beats the liberal heart_rate match');
+  assert(normalizeSampleType('heart_rate') === 'heart_rate', 'plain heart rate still works');
+  assert(normalizeSampleType('sleep_analysis') === 'sleep_asleep_h', 'sleep maps');
+  assert(normalizeSampleType('vo2_max') === 'vo2max', 'vo2max maps');
+  assert(normalizeSampleType('apple_sleeping_wrist_temperature') === 'wrist_temp_c', 'wrist temp maps');
+  assert(normalizeSampleType('respiratory_rate') === 'respiratory_rate', 'respiratory rate maps');
+  assert(normalizeSampleType('step_count') === 'steps', 'steps map');
+  assert(normalizeSampleType('body_mass') === 'weight', 'weight unchanged');
+  assert(normalizeSampleType('active_energy_burned') === 'active_energy', 'energy unchanged');
+  assert(normalizeSampleType('mystery_metric') === null, 'unknown stays unknown');
+}
+
+// ── weekStreak ───────────────────────────────────────────────
+// The forgiving streak. Monday weeks; one session keeps a week; bank 1 per
+// 4 trained weeks; holds excused; mendable for one week; never renders zero.
+console.log('weekStreak');
+{
+  // now = Wed 2026-08-05. Weeks are Mon-anchored.
+  const now = new Date(2026, 7, 5, 12);
+  const d = (y: number, m: number, day: number) => new Date(y, m - 1, day, 18);
+
+  // Trained every week for 5 weeks incl this one.
+  const five = weekStreak({
+    sessionDates: [d(2026,7,7), d(2026,7,14), d(2026,7,21), d(2026,7,28), d(2026,8,4)],
+    now,
+  });
+  assert(five.status === 'alive' && five.weeks === 5, `five straight weeks read 5 (got ${five.weeks}, ${five.status})`);
+  assert(five.bank === 1, `four completed past weeks bank one protection (got ${five.bank})`);
+
+  // Same but LAST week empty: the bank spends itself silently.
+  const banked = weekStreak({
+    sessionDates: [d(2026,6,30), d(2026,7,7), d(2026,7,14), d(2026,7,21), d(2026,8,4)],
+    now,
+  });
+  assert(banked.status === 'alive', `a banked week absorbs one empty week (got ${banked.status})`);
+
+  // Short streak, last week empty, no bank: mendable, not dead.
+  const broke = weekStreak({ sessionDates: [d(2026,7,21), d(2026,7,14)], now });
+  assert(broke.status === 'mendable', `a fresh break is mendable (got ${broke.status})`);
+  assert(broke.mendNeeds === 2, `mending needs 2 sessions (got ${broke.mendNeeds})`);
+
+  // One session this week: one more mends it.
+  const half = weekStreak({ sessionDates: [d(2026,7,21), d(2026,7,14), d(2026,8,4)], now });
+  assert(half.status === 'mendable' && half.mendNeeds === 1, `one logged, one to go (got ${half.mendNeeds})`);
+
+  // Two sessions this week: mended, streak restored and labelled so.
+  const mended = weekStreak({ sessionDates: [d(2026,7,21), d(2026,7,14), d(2026,8,3), d(2026,8,4)], now });
+  assert(mended.status === 'alive' && mended.weeks >= 3, `two sessions mend the break (got ${mended.weeks}, ${mended.status})`);
+  assert(mended.label.includes('mended'), `the mend is named (got "${mended.label}")`);
+
+  // ADVERSARY REGRESSION: the mend must survive into later weeks. Friday it
+  // said "mended"; Monday's recompute must not hand back "1 wk streak".
+  const nextWeekView = weekStreak({
+    sessionDates: [d(2026,6,30), d(2026,7,7), d(2026,7,14), d(2026,7,28), d(2026,7,30), d(2026,8,4)],
+    now: new Date(2026, 7, 5, 12), // the week AFTER the two repair sessions
+  });
+  assert(
+    nextWeekView.status === 'alive' && nextWeekView.weeks >= 5,
+    `a mended week stays mended on later recomputes (got ${nextWeekView.weeks}, ${nextWeekView.status})`,
+  );
+
+  // A break under a declared hold: parked, not "on the line" — and mendable
+  // with two sessions in the first post-hold week.
+  const heldBreak = weekStreak({
+    sessionDates: [d(2026,7,7), d(2026,7,14)],
+    excusedWeeks: new Set(['2026-07-27', '2026-08-03']),
+    now: new Date(2026, 7, 5, 12), // mid-hold; week of Jul 20 broke first
+  });
+  assert(heldBreak.status !== 'mendable', `mid-hold never demands training (got ${heldBreak.status})`);
+
+  // A hold excuses its weeks outright.
+  const held = weekStreak({
+    sessionDates: [d(2026,7,14), d(2026,7,7)],
+    excusedWeeks: new Set(['2026-07-20', '2026-07-27', '2026-08-03']),
+    now,
+  });
+  assert(held.status === 'alive', `hold weeks are excused (got ${held.status})`);
+
+  // A true long break: rebuilding, never zero.
+  const rebuilt = weekStreak({ sessionDates: [d(2026,5,10)], now });
+  assert(rebuilt.status === 'rebuilding', `an old break rebuilds (got ${rebuilt.status})`);
+  assert(rebuilt.weeks >= 1 && !rebuilt.label.includes('0'), `never renders zero (got "${rebuilt.label}")`);
+
+  // Bare-UTC-day dates (the storage format) count in the right local week.
+  const bare = weekStreak({ sessionDates: ['2026-08-03T00:00:00.000Z'], now });
+  assert(bare.thisWeekSessions === 1, `bare UTC day lands in its local week (got ${bare.thisWeekSessions})`);
+
+  // Empty history.
+  const empty = weekStreak({ sessionDates: [], now });
+  assert(empty.status === 'rebuilding' && empty.label.length > 0, 'no history → rebuilding, labelled');
+}
+
+// ── momentumBank ─────────────────────────────────────────────
+console.log('momentumBank');
+{
+  const ex = { id: 'x', name: 'X', category: 'LEGS' } as CoachExercise;
+  const w = (daysAgo: number, now: Date): CoachWorkout => ({
+    date: new Date(now.getTime() - daysAgo * 86_400_000),
+    sets: [{ exerciseId: 'x', reps: 10, weight: 50, rpe: 2, exercise: ex }],
+  });
+  const now = new Date(2026, 7, 5);
+  const active = momentumBank([w(1, now), w(3, now), w(6, now), w(9, now)], now);
+  assert(active !== null && active.pct > 60, `recent training holds a high bank (got ${active?.pct})`);
+  const idle = momentumBank([w(20, now), w(23, now), w(26, now)], now);
+  assert(idle !== null && active !== null && idle.pct < active.pct, 'idle weeks drain the bank');
+  assert(idle !== null && idle.direction === 'draining', `three idle weeks read draining (got ${idle?.direction})`);
+  assert(momentumBank([], now) === null, 'no history → no gauge, no fake number');
+  // Warm-ups add nothing.
+  const withWarm = momentumBank([{
+    date: now,
+    sets: [
+      { exerciseId: 'x', reps: 10, weight: 50, rpe: 2, exercise: ex },
+      { exerciseId: 'x', reps: 10, weight: 500, rpe: 4, exercise: ex, isWarmup: true },
+    ],
+  }], now);
+  const withoutWarm = momentumBank([{
+    date: now,
+    sets: [{ exerciseId: 'x', reps: 10, weight: 50, rpe: 2, exercise: ex }],
+  }], now);
+  assert(withWarm?.pct === withoutWarm?.pct, 'warm-up sets add no momentum');
+}
+
+// ── time-decayed EMA + re-entry explainer ────────────────────
+console.log('weightTrend v2');
+{
+  // Dense then a 43-day gap: the post-gap reading must move the EMA gently.
+  const dense: CoachBodyStat[] = [
+    { date: '2026-05-01T00:00:00Z', weight: 132 },
+    { date: '2026-05-08T00:00:00Z', weight: 131.4 },
+    { date: '2026-05-15T00:00:00Z', weight: 130.8 },
+  ];
+  const afterGap = weightTrend([...dense, { date: '2026-06-27T00:00:00Z', weight: 133 }]);
+  assert(afterGap.ema !== null && afterGap.ema < 133, `one post-gap weigh-in does not own the EMA (got ${afterGap.ema})`);
+
+  // Fixed-lane assertions still hold under the new smoothing.
+  const lane = weightTrend([
+    { date: '2026-05-01T00:00:00.000Z', weight: 132 },
+    { date: '2026-05-14T00:00:00.000Z', weight: 131 },
+    { date: '2026-05-28T00:00:00.000Z', weight: 130 },
+  ]);
+  assert(lane.classification === 'on_track', `the fat-loss lane still classifies (got ${lane.classification})`);
+
+  const gaining: CoachBodyStat[] = [
+    { date: '2026-08-01T00:00:00Z', weight: 131 },
+    { date: '2026-08-08T00:00:00Z', weight: 132.5 },
+  ];
+  const plain = weightTrend(gaining);
+  const returning = weightTrend(gaining, { returning: true });
+  assert(plain.message.includes('review intake'), 'normal gaining still warns');
+  assert(returning.message.includes('after a break'), `returning reframes the spike (got "${returning.message}")`);
+  assert(!returning.message.includes('review intake'), 'the return ramp never scolds intake');
+}
+
+// ── bodyweightMilestones ─────────────────────────────────────
+console.log('bodyweightMilestones');
+{
+  const stats: CoachBodyStat[] = [
+    { date: '2026-06-01T00:00:00Z', weight: 135 },
+    { date: '2026-07-01T00:00:00Z', weight: 133.5 },
+    { date: '2026-08-01T00:00:00Z', weight: 133 },
+  ];
+  const m = bodyweightMilestones(stats, 135);
+  assert(m !== null && m.nextDecade === 130, `next decade from ~133 is under-130 (got ${m?.nextDecade})`);
+  assert(m !== null && m.kgToDecade > 0 && m.kgToDecade < 5, `kg-to-go is sane (got ${m?.kgToDecade})`);
+  assert(bodyweightMilestones([], 135) === null, 'no weigh-ins → no ladder');
+}
+
+// ── deloadTarget ─────────────────────────────────────────────
+console.log('deloadTarget');
+{
+  const small = deloadTarget(50, 2.5);
+  assert(small.weight === 45, `-10% at 2.5 kg pins lands on a real pin (got ${small.weight})`);
+  assert(!small.note.includes('tempo'), 'small pins need no tempo escape');
+  const big = deloadTarget(27.5, 5);
+  // 5s + pause, NOT 3s: the program's default cue is already a 3s eccentric,
+  // so 3s was an alternative to nothing (trainer's catch).
+  assert(big.note.includes('5s') && big.note.includes('pause'), `big pin jumps offer a real tempo step (got "${big.note}")`);
+  const zero = deloadTarget(50, 0);
+  assert(zero.weight > 0 && zero.weight < 50, 'a zero increment falls back safely');
+}
+
+// ── sleepDebtHours ───────────────────────────────────────────
+console.log('sleepDebtHours');
+{
+  const goodWeek = [7.2, 7.0, 7.4, 7.1, 7.3, 7.2, 7.0];
+  assert(sleepDebtHours(goodWeek) === 0, 'sleeping at your median owes nothing');
+  const roughWeek = [7.0, 7.0, 7.0, 7.0, 5.0, 5.5, 7.0, 6.0];
+  const debt = sleepDebtHours(roughWeek);
+  assert(debt !== null && debt > 3 && debt < 6, `short nights accumulate (got ${debt})`);
+  assert(sleepDebtHours([7, 7]) === null, 'under a week of nights → no verdict');
+  assert(sleepDebtHours([]) === null, 'no data → null, never zero-as-fact');
+}
+
+// ── lifetimeStats + recap ────────────────────────────────────
+console.log('lifetime + recap');
+{
+  const ex = { id: 'x', name: 'Leg Press', category: 'LEGS' } as CoachExercise;
+  const mk = (iso: string, weight: number): CoachWorkout & { name: string } => ({
+    date: iso,
+    name: 'Day A',
+    sets: [
+      { exerciseId: 'x', reps: 10, weight, rpe: 2, exercise: ex },
+      { exerciseId: 'x', reps: 10, weight: 20, rpe: null, exercise: ex, isWarmup: true },
+    ],
+  });
+  const life = lifetimeStats([mk('2026-07-05T00:00:00Z', 50), mk('2026-07-20T00:00:00Z', 55)]);
+  assert(life.sessions === 2, 'sessions count');
+  assert(life.tonnageKg === 1050, `warm-ups excluded from tonnage (got ${life.tonnageKg})`);
+
+  const recap = lastMonthRecap(
+    [mk('2026-06-20T00:00:00Z', 50), mk('2026-07-05T00:00:00Z', 52.5), mk('2026-07-20T00:00:00Z', 55)],
+    [{ date: '2026-06-25T00:00:00Z', weight: 134 }, { date: '2026-07-28T00:00:00Z', weight: 132.8 }],
+    new Date(2026, 7, 3),
+  );
+  assert(recap !== null && recap.sessions === 2, `July recap counts July only (got ${recap?.sessions})`);
+  assert(recap !== null && recap.liftsProgressed.length === 1 && recap.liftsProgressed[0].toKg === 55,
+    'a lift that moved inside the month is named');
+  assert(lastMonthRecap([], [], new Date(2026, 7, 3)) === null, 'an empty month renders nothing');
+  assert(yearRecap([mk('2026-03-01T00:00:00Z', 50)], [], new Date(2026, 5, 15)) === null,
+    'the year recap only exists in December/January');
+}
+
+// ── holdWeekKeys ─────────────────────────────────────────────
+console.log('holdWeekKeys');
+{
+  const keys = holdWeekKeys([{ startsAt: new Date(2026, 7, 4), endsAt: new Date(2026, 7, 18) }]);
+  assert(keys.has('2026-08-03') && keys.has('2026-08-10') && keys.has('2026-08-17'),
+    `a two-week hold excuses all three touched weeks (got ${[...keys].join()})`);
+  assert(holdWeekKeys([]).size === 0, 'no holds, no excuses');
+}
 
 // ── summary ──────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);
