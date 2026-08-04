@@ -271,6 +271,8 @@ export default function WorkoutForm({
   // the return-protocol expander. Presentation state only.
   const [infoOpen, setInfoOpen] = useState<Record<string, boolean>>({});
   const [showReturnInfo, setShowReturnInfo] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [detailsAutoClosed, setDetailsAutoClosed] = useState(false);
 
   function toggleInfo(uid: string) {
     setInfoOpen((prev) => {
@@ -830,6 +832,16 @@ export default function WorkoutForm({
   }
 
   const doneCount = blocks.reduce((n, b) => n + b.sets.filter((s) => s.done).length, 0);
+
+  // Fold the admin card away the first time a set is ticked — from then on the
+  // screen is about lifting, not metadata. Once only: reopening it is a
+  // deliberate tap that must not be undone by the next set.
+  useEffect(() => {
+    if (!detailsAutoClosed && doneCount > 0) {
+      setDetailsOpen(false);
+      setDetailsAutoClosed(true);
+    }
+  }, [doneCount, detailsAutoClosed]);
   const totalSets = blocks.reduce((n, b) => n + b.sets.length, 0);
 
   // Aurora day accent — Day A glows violet, Day B (and freestyle) teal.
@@ -904,12 +916,23 @@ export default function WorkoutForm({
           </div>
         )}
 
-        {/* Workout details */}
+        {/* Workout details — collapses once lifting starts. Name, date, notes,
+            gym and mood are answered before set 1 and re-read almost never, but
+            they occupied a full screen between the header and exercise 1. The
+            header row (with the session clock and rest toggle) always stays. */}
         <div className="card-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="section-label">
-              Workout Details
-            </span>
+            <button
+              type="button"
+              onClick={() => setDetailsOpen((v) => !v)}
+              className="flex items-center gap-1.5 -m-1 p-1"
+              aria-expanded={detailsOpen}
+            >
+              <span className="section-label">Workout Details</span>
+              <span className={`text-[9px] text-app-tx3 transition-transform duration-200 ${detailsOpen ? 'rotate-180' : ''}`}>
+                &#9660;
+              </span>
+            </button>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -929,6 +952,8 @@ export default function WorkoutForm({
               </span>
             </div>
           </div>
+          {detailsOpen && (
+            <>
           <input
             type="text"
             value={name}
@@ -997,6 +1022,8 @@ export default function WorkoutForm({
               ))}
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {/* Progress bar */}
@@ -1011,7 +1038,7 @@ export default function WorkoutForm({
             <span className="text-app-tx3 text-xs tabular-nums flex-shrink-0">
               {doneCount}/{totalSets}
             </span>
-          </div>
+        </div>
         )}
 
         {/* Return protocol — coach directive, ember amber on glass */}
@@ -1149,23 +1176,15 @@ export default function WorkoutForm({
                 <span className="text-app-tx3 text-sm font-bold w-5 flex-shrink-0 tabular-nums">
                   {blockIdx + 1}
                 </span>
-                <select
-                  value={block.exerciseId}
-                  onChange={(e) => updateBlockExercise(block.uid, e.target.value)}
-                  className="flex-1 bg-app-surface2 border border-app-border rounded-card px-3 h-11 text-app-tx1 text-sm focus:outline-none focus:border-acc-teal/60 min-w-0 transition-colors"
-                >
-                  {Object.entries(exerciseGroups)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([cat, exs]) => (
-                      <optgroup key={cat} label={cat}>
-                        {exs.map((e) => (
-                          <option key={e.id} value={e.id}>
-                            {e.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                </select>
+                {/* Static, not a control. This was a full-width <select> over the
+                    whole library: a stray thumb mid-set opened the iOS wheel, and
+                    landing on another exercise ran updateBlockExercise, which
+                    wipes machine, cues, target, rest and every prefilled weight in
+                    the block. Swapping is deliberate now — it lives in the info
+                    panel, behind a tap you meant to make. */}
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-app-tx1">
+                  {exerciseById.get(block.exerciseId)?.name ?? 'Exercise'}
+                </span>
                 <Link
                   href={`/progress/${block.exerciseId}`}
                   className="text-app-tx3 hover:text-acc-teal transition-colors text-base flex-shrink-0 w-8 h-11 flex items-center justify-center"
@@ -1254,6 +1273,26 @@ export default function WorkoutForm({
               {/* Detail layer — relocated glance-row chips, one tap away */}
               {infoOpen[block.uid] && (
                 <div className="mx-4 mb-3 bg-white/[0.03] border border-app-border rounded-xl px-3 py-2.5 flex items-center gap-2 flex-wrap">
+                  <label className="w-full text-[10px] font-bold uppercase tracking-[0.12em] text-app-tx3">
+                    Swap exercise
+                    <select
+                      value={block.exerciseId}
+                      onChange={(e) => updateBlockExercise(block.uid, e.target.value)}
+                      className="mt-1 h-10 w-full min-w-0 rounded-card border border-app-border bg-app-surface2 px-3 text-sm font-normal normal-case tracking-normal text-app-tx1 transition-colors focus:border-acc-teal/60 focus:outline-none"
+                    >
+                      {Object.entries(exerciseGroups)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([cat, exs]) => (
+                          <optgroup key={cat} label={cat}>
+                            {exs.map((e) => (
+                              <option key={e.id} value={e.id}>
+                                {e.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                    </select>
+                  </label>
                   {progressionHints[block.exerciseId] && !shouldHold && !allDone && (
                     <span className="text-xs bg-acc-teal/10 text-acc-teal px-2.5 py-1 rounded-full border border-acc-teal/30 font-medium">
                       ⬆ Ready to progress
@@ -1359,21 +1398,11 @@ export default function WorkoutForm({
                           </div>
                         )}
                         <div className={`flex items-center gap-1.5 transition-transform duration-200 ${isSwipedOpen ? '-translate-x-16' : ''}`}>
-                          <button
-                            type="button"
-                            onClick={() => toggleSetDone(block.uid, i)}
-                            className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-90 ${
-                              set.done
-                                ? 'bg-gradient-to-br from-acc-teal to-acc-teal-deep text-[#062521] shadow-glow-teal'
-                                : set.isWarmup
-                                ? 'bg-app-surface2 text-app-tx3 border border-dashed border-app-border active:bg-white/5'
-                                : isCurrentSet
-                                ? currentSetRing
-                                : 'bg-app-surface2 text-app-tx2 active:bg-white/5'
-                            }`}
-                          >
-                            {set.done ? '✓' : set.isWarmup ? 'W' : set.setNumber}
-                          </button>
+                          <span className={`w-6 flex-shrink-0 text-center text-xs font-bold tabular-nums ${
+                            set.done ? 'text-acc-teal' : 'text-app-tx3'
+                          }`}>
+                            {set.isWarmup ? 'W' : set.setNumber}
+                          </span>
 
                           {isTimed ? (
                             <div className={`flex-1 ${stepperShell}`}>
@@ -1456,6 +1485,22 @@ export default function WorkoutForm({
                               </div>
                             </>
                           )}
+
+                          <button
+                            type="button"
+                            onClick={() => toggleSetDone(block.uid, i)}
+                            className={`w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-90 ${
+                              set.done
+                                ? 'bg-gradient-to-br from-acc-teal to-acc-teal-deep text-[#062521] shadow-glow-teal'
+                                : set.isWarmup
+                                ? 'bg-app-surface2 text-app-tx3 border border-dashed border-app-border active:bg-white/5'
+                                : isCurrentSet
+                                ? currentSetRing
+                                : 'bg-app-surface2 text-app-tx2 active:bg-white/5'
+                            }`}
+                          >
+                            {set.done ? '✓' : set.isWarmup ? 'W' : set.setNumber}
+                          </button>
 
                         </div>
                       </div>
