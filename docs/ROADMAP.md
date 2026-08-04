@@ -1,4 +1,28 @@
-# Roadmap — the team's 10
+# Roadmap
+
+## Wave 2 — the researched 20 (BUILT, commit 7bedd02)
+
+Product of a five-cluster web research pass over ~30 leading fitness apps
+(Strong, Hevy, Fitbod, Whoop, MacroFactor, Gentler Streak, Duolingo's
+streak research, …), critiqued for fit against this one user. All twenty
+shipped in one wave:
+
+**Gap war:** forgiving weekly streak · streak mend · welcome-back moment ·
+rescue sessions (machine + walk) · one-tap compression · momentum bank ·
+declared holds.
+**Progress:** per-rep-range records + live toast · lifetime tonnage ·
+bodyweight milestone ladder · time-decayed trend engine · re-entry
+explainers · Month/Year in Iron.
+**Coaching:** readiness-scaled sessions · micro-deloads + tempo step ·
+auto warm-up sets · sleep debt in hours · mid-workout history drawer.
+**Insurance:** waist trend surfacing · /api/export JSON+CSV.
+
+Killed with reasons: plate calculator (no barbells), daily streaks
+(guilt-driven abandonment), CTL/fitness-age curves (endurance pseudo-math
++ shame instrument), voice logging (split-brain), photo capture (needs the
+Filesystem plugin — moved to Mac trip 1).
+
+# Wave 1 — the team's 10
 
 Product of a five-role review (trainer, device-tester, editor, data-steward,
 adversary; definitions in `.claude/agents/`) against the real history in
