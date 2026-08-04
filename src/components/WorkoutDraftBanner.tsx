@@ -3,12 +3,16 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { durableRemove } from '@/lib/native-store';
 
 const DRAFT_KEY = 'workout-draft';
 
 export default function WorkoutDraftBanner() {
   const pathname = usePathname();
   const [draftName, setDraftName] = useState<string | null>(null);
+  // Discard is two taps on purpose: the pill is fixed above the nav bar, and a
+  // single stray thumb should never bin a session that is mid-flight.
+  const [confirming, setConfirming] = useState(false);
 
   useEffect(() => {
     try {
@@ -25,6 +29,7 @@ export default function WorkoutDraftBanner() {
     } catch {
       setDraftName(null);
     }
+    setConfirming(false);
   }, [pathname]);
 
   const visible = Boolean(draftName) && !pathname.startsWith('/workouts/new');
@@ -42,17 +47,58 @@ export default function WorkoutDraftBanner() {
 
   if (!visible) return null;
 
+  /** Clear both stores: the logger persists through durableSet, which writes
+   *  native Preferences as well as localStorage. Removing only one leaves a
+   *  draft that reappears on the next cold start. */
+  async function discard() {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch { /* the durable remove below still runs */ }
+    await durableRemove(DRAFT_KEY).catch(() => {});
+    setDraftName(null);
+    setConfirming(false);
+  }
+
+  const shell =
+    'glass-overlay flex items-center gap-2.5 max-w-full rounded-full border shadow-glow-teal px-4 py-2.5 text-sm font-semibold text-app-tx1';
+
   return (
-    <Link
-      href="/workouts/new"
-      className="fixed bottom-[calc(88px+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex justify-center px-4"
-    >
-      {/* Frosted glass pill · teal glow */}
-      <span className="glass-overlay flex items-center gap-2.5 max-w-full rounded-full border border-acc-teal/30 shadow-glow-teal px-4 py-2.5 text-sm font-semibold text-app-tx1 pressable">
-        <span className="w-2 h-2 rounded-full bg-acc-teal shadow-glow-teal motion-safe:animate-pulse flex-shrink-0" />
-        <span className="truncate glow-teal">{draftName} in progress</span>
-        <span className="text-app-tx2 text-xs flex-shrink-0">· Tap to resume</span>
-      </span>
-    </Link>
+    <div className="fixed bottom-[calc(88px+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex justify-center px-4">
+      {confirming ? (
+        <div className={`${shell} border-rpe-grind/40`}>
+          <span className="truncate text-app-tx2">Discard {draftName}?</span>
+          <button
+            type="button"
+            onClick={discard}
+            className="flex-shrink-0 rounded-full border border-rpe-grind/50 bg-rpe-grind/10 px-3 py-1 text-xs font-bold text-rpe-grind transition-colors hover:bg-rpe-grind/20"
+          >
+            Discard
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirming(false)}
+            className="flex-shrink-0 px-2 py-1 text-xs font-semibold text-app-tx3 transition-colors hover:text-app-tx1"
+          >
+            Keep
+          </button>
+        </div>
+      ) : (
+        <div className={`${shell} border-acc-teal/30`}>
+          <Link href="/workouts/new" className="flex min-w-0 items-center gap-2.5 pressable">
+            <span className="h-2 w-2 flex-shrink-0 rounded-full bg-acc-teal shadow-glow-teal motion-safe:animate-pulse" />
+            <span className="truncate glow-teal">{draftName} in progress</span>
+            <span className="flex-shrink-0 text-xs text-app-tx2">· Tap to resume</span>
+          </Link>
+          <button
+            type="button"
+            aria-label="Discard this workout"
+            onClick={() => setConfirming(true)}
+            className="-mr-1.5 flex-shrink-0 px-2 py-1 text-lg leading-none text-app-tx3 transition-colors hover:text-rpe-grind"
+          >
+            &#215;
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
