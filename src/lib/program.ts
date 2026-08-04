@@ -79,11 +79,6 @@ export function getPlankTarget(week: number): { min: number; max: number } {
   return { min: 60, max: 60 };
 }
 
-export const DURATION_LABELS: Record<Duration, string> = {
-  30: 'Express',
-  45: 'Standard',
-  60: 'Full',
-};
 
 // ── Dynamic plan ─────────────────────────────────────────────
 // The plan follows BEHAVIOUR, not the calendar. A fixed weekly grid

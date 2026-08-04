@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { getActiveHold, getAllHolds, getBodyStats, getDailyHealthValues, getWorkouts } from '../actions';
 import HoldControl from '@/components/HoldControl';
 import BodyStatForm from '@/components/BodyStatForm';
@@ -653,9 +654,13 @@ export default async function StatsPage() {
                   : `${uniqueWeights[0]} → … → ${uniqueWeights[uniqueWeights.length - 1]}`
                 : null;
               return (
-                <div
+                /* /progress/[exerciseId] already exists and renders this
+                   exercise's full history — nothing linked to it from the one
+                   screen that lists his PRs. */
+                <Link
                   key={pr.exerciseId}
-                  className="card flex items-center justify-between px-4 py-3"
+                  href={`/progress/${pr.exerciseId}`}
+                  className="card pressable flex items-center justify-between px-4 py-3 transition-colors hover:border-app-border-hi"
                 >
                   <div>
                     <span className="text-app-tx1 text-sm font-medium">{pr.name}</span>
@@ -669,7 +674,7 @@ export default async function StatsPage() {
                       <div className="text-app-tx3 text-xs tabular-nums">~{epley1RM(pr.weight, pr.reps)} kg 1RM</div>
                     )}
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

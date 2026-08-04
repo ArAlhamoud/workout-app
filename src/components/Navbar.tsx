@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import LogWorkoutSheet from './LogWorkoutSheet';
 
 function IconHome({ active }: { active: boolean }) {
   return (
@@ -78,9 +77,21 @@ export default function Navbar() {
           <div className="grid grid-cols-5 h-[54px]">
             <Tab href="/"        label="Home"    icon={<IconHome    active={isHome}    />} active={isHome}    />
             <Tab href="/workouts" label="History" icon={<IconHistory active={isHistory} />} active={isHistory} />
-            {/* FAB inline in the bar, per the approved mockup */}
+            {/* One entry point. The sheet this replaced offered a 2x3 grid of
+                day x duration, but /workouts/new already resolves the queued day
+                and its default length — so the grid asked a question the app had
+                already answered, in a second place, with its own layering bugs. */}
             <div className="flex items-center justify-center">
-              <LogWorkoutSheet />
+              <Link
+                href="/workouts/new"
+                aria-label="Start a workout"
+                className="flex h-12 w-12 items-center justify-center rounded-full transition-all active:scale-90 bg-[conic-gradient(from_200deg,#5eead4,#818cf8,#c084fc,#5eead4)] shadow-[0_0_26px_-4px_rgba(129,140,248,0.85),inset_0_1px_0_rgba(255,255,255,0.5)] hover:brightness-110"
+              >
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0b1120" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </Link>
             </div>
             <Tab href="/program" label="Program"  icon={<IconProgram active={isProgram} />} active={isProgram} />
             <Tab href="/stats"   label="Stats"    icon={<IconStats   active={isStats}   />} active={isStats}   />
