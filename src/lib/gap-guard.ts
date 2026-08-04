@@ -50,17 +50,29 @@ export function computeGapLadder(
   queuedDay: DayId | null,
   now: Date = new Date(),
 ): GapRung[] {
-  const last = new Date(lastSessionISO).getTime();
-  if (Number.isNaN(last)) return [];
+  const parsed = new Date(lastSessionISO);
+  if (Number.isNaN(parsed.getTime())) return [];
   const day = queuedDay ? `Day ${queuedDay}` : 'Your next session';
+
+  // Workout dates are stored as bare UTC days ("2026-08-01T00:00:00Z").
+  // Read as an instant, that is 03:00 in Riyadh — or yesterday evening in
+  // any negative-offset zone, which would shift every rung a day early.
+  // A bare day means "that calendar day, locally".
+  const bare =
+    parsed.getUTCHours() === 0 &&
+    parsed.getUTCMinutes() === 0 &&
+    parsed.getUTCSeconds() === 0 &&
+    parsed.getUTCMilliseconds() === 0;
+  const anchor = bare
+    ? new Date(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate())
+    : parsed;
 
   // Fire at 17:00 local on the rung day — early evening, when a session is
   // still possible today, rather than a morning nag that is stale by night.
-  const at = (days: number): Date => {
-    const d = new Date(last + days * DAY_MS);
-    d.setHours(17, 0, 0, 0);
-    return d;
-  };
+  // Calendar arithmetic, not ms maths: adding days as milliseconds drifts an
+  // hour across a DST boundary.
+  const at = (days: number): Date =>
+    new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + days, 17, 0, 0, 0);
 
   const rungs: GapRung[] = [
     {
@@ -111,7 +123,11 @@ export function armGapGuard(
   options: { paused?: boolean; now?: Date } = {},
 ): void {
   if (!isNativeApp()) return;
-  cancelLocalNotifications([...LADDER_IDS, COMEBACK_NOTIFICATION_ID]);
+  // Ladder only. The comeback (2006) is NOT cancelled here: the app-open
+  // re-arm runs moments after notifyComeback schedules it, and a blanket
+  // cancel would kill the appointment it just made. Logging a session is
+  // what clears a pending comeback — clearComeback() at the save sites.
+  cancelLocalNotifications(LADDER_IDS);
   if (options.paused || !lastSessionISO) return;
 
   const rungs = computeGapLadder(lastSessionISO, queuedDay, options.now);
@@ -123,6 +139,12 @@ export function armGapGuard(
     sound: 'default',
   }));
   scheduleLocalNotifications(specs);
+}
+
+/** A logged session makes a pending comeback appointment moot. */
+export function clearComeback(): void {
+  if (!isNativeApp()) return;
+  cancelLocalNotifications([COMEBACK_NOTIFICATION_ID]);
 }
 
 /** One-shot "rest, you look run down" note when the sick signal trips. */

@@ -42,21 +42,29 @@ export async function durableGet(key: string): Promise<string | null> {
 /**
  * Writes to BOTH stores when native. localStorage stays the synchronous fast
  * path the UI reads; Preferences is the copy that survives eviction.
+ *
+ * Returns whether AT LEAST ONE store accepted the write. The outbox treats
+ * false as a hard failure — telling the user "saved on this phone" when no
+ * store holds the bytes would be the exact lie this module exists to prevent.
  */
-export async function durableSet(key: string, value: string): Promise<void> {
+export async function durableSet(key: string, value: string): Promise<boolean> {
+  let ok = false;
   try {
     localStorage.setItem(key, value);
+    ok = true;
   } catch {
-    /* quota — the durable copy below still lands */
+    /* quota — the durable copy below may still land */
   }
   const p = prefs();
   if (p) {
     try {
       await p.set({ key, value });
+      ok = true;
     } catch {
-      /* nothing else to do; localStorage copy stands */
+      /* localStorage verdict stands */
     }
   }
+  return ok;
 }
 
 export async function durableRemove(key: string): Promise<void> {

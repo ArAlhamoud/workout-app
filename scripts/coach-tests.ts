@@ -567,6 +567,17 @@ console.log('computeGapLadder');
   assert(past21.length === 0, 'after day 19 the ladder is silent');
 
   assert(computeGapLadder('not-a-date', 'A', dayAfter).length === 0, 'garbage date → empty ladder, no throw');
+
+  // Workout dates are stored as bare UTC days. The anchor must be that
+  // calendar day LOCALLY — read as an instant it is 03:00 in Riyadh, and in
+  // a negative-offset zone it lands the previous evening, shifting every
+  // rung a day early (review finding).
+  const bareDay = computeGapLadder('2026-08-01T00:00:00.000Z', 'A', new Date(2026, 7, 1, 12));
+  assert(bareDay.length === 4, 'bare-day date yields the full ladder');
+  assert(
+    bareDay[0].at.getDate() === 4 && bareDay[0].at.getMonth() === 7 && bareDay[0].at.getHours() === 17,
+    `bare-day rung 1 lands on local Aug 4 17:00 (got ${bareDay[0].at.toString()})`,
+  );
   const noDay = computeGapLadder(lastSession, null, dayAfter);
   assert(noDay[0].title.includes('next session'), 'null day still reads naturally');
 }

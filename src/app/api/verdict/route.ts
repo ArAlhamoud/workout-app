@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { checkHealthAuth } from '@/lib/health';
 import { homeVerdict } from '@/lib/coach';
-import { getDynamicPlan, getTrainingStatus, queuedDay } from '@/lib/program';
+import { calendarDaysBetween, getDynamicPlan, getTrainingStatus, queuedDay } from '@/lib/program';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,9 +31,9 @@ export async function GET(request: Request) {
   const verdict = homeVerdict(status, plan, now);
 
   const lastSessionISO = workouts.length ? workouts[0].date.toISOString() : null;
-  const daysSince = lastSessionISO
-    ? Math.floor((now.getTime() - new Date(lastSessionISO).getTime()) / 86_400_000)
-    : null;
+  // Calendar days, not elapsed-ms floor: a session logged yesterday evening
+  // is "1 day ago" this morning even though fewer than 24 h have passed.
+  const daysSince = workouts.length ? Math.max(0, calendarDaysBetween(now, workouts[0].date)) : null;
 
   return NextResponse.json({
     lead: verdict.lead,

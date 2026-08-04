@@ -10,7 +10,7 @@ import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { enqueueSave, newClientSaveId } from '@/lib/outbox';
-import { armGapGuard } from '@/lib/gap-guard';
+import { armGapGuard, clearComeback } from '@/lib/gap-guard';
 import { captureWorkoutHr } from '@/lib/hr-capture';
 
 interface Exercise {
@@ -198,6 +198,10 @@ export default function WorkoutForm({
   const startRef = useRef(Date.now());
   /** Idempotency key for this submission — survives retries, reset on clear. */
   const saveIdRef = useRef<string | null>(null);
+  /** Last gym the memory refetch ran for — also synced by a draft restore. */
+  const lastGymRef = useRef<string | null>(null);
+  /** True once the user touches anything — gates the async vault restore. */
+  const dirtyRef = useRef(false);
   const [autoTimer, setAutoTimer] = useState(true);
   const [prToast, setPrToast] = useState<string | null>(null);
   const [mood, setMood] = useState('');
@@ -247,7 +251,9 @@ export default function WorkoutForm({
       setName(draft.name ?? initialName);
       setDate(draft.date ?? today);
       setNotes(draft.notes ?? '');
-      if (draft.gym) setGym(draft.gym);
+      // Sync the ref too, or the gym-change effect reads the restore as a
+      // switch and refetches weights over the draft's own numbers.
+      if (draft.gym) { lastGymRef.current = draft.gym; setGym(draft.gym); }
       setBlocks(draft.blocks as ExerciseBlock[]);
       if (draft.startTime) startRef.current = draft.startTime;
       setDraftRestored(true);
@@ -263,18 +269,35 @@ export default function WorkoutForm({
     } catch {
       localStorage.removeItem(DRAFT_KEY);
     }
-    setInitialized(true);
 
-    if (!restored) {
-      void durableGet(DRAFT_KEY).then((vaulted) => {
-        if (!vaulted) return;
-        try {
-          applyDraft(JSON.parse(vaulted));
-        } catch { /* a corrupt vault copy restores nothing */ }
-      });
+    if (restored) {
+      setInitialized(true);
+    } else {
+      // The autosave gate stays CLOSED until the vault check settles — were
+      // it open, the first autosave would write the pristine template over
+      // the vault copy before the async read could restore it.
+      void durableGet(DRAFT_KEY)
+        .then((vaulted) => {
+          if (!vaulted) return;
+          // The vault read lost a race against the user: they already
+          // started typing. Their live keystrokes outrank a stored copy.
+          if (dirtyRef.current) return;
+          try {
+            applyDraft(JSON.parse(vaulted));
+          } catch { /* a corrupt vault copy restores nothing */ }
+        })
+        .finally(() => setInitialized(true));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Any form-state change after mount marks the form dirty — the signal the
+  // async vault restore checks so it never overwrites live keystrokes.
+  const firstChangeRef = useRef(true);
+  useEffect(() => {
+    if (firstChangeRef.current) { firstChangeRef.current = false; return; }
+    dirtyRef.current = true;
+  }, [name, date, gym, notes, blocks]);
 
   // Auto-save draft on every change (skips until draft check is done).
   // durableSet writes localStorage AND the native vault.
@@ -290,7 +313,6 @@ export default function WorkoutForm({
   // Blocks with a completed set are left alone — those are logged facts.
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
-  const lastGymRef = useRef<string | null>(null);
   useEffect(() => {
     if (!initialized) return;
     if (lastGymRef.current === null) { lastGymRef.current = gym; return; }
@@ -627,15 +649,32 @@ export default function WorkoutForm({
       clientSaveId: saveIdRef.current,
       sets: setsToSave,
     };
-    const startISO = new Date(startRef.current).toISOString();
+    // A restored multi-day draft carries an ancient startRef; without a clamp
+    // the HR capture would bin DAYS of background heart rate onto one workout
+    // and the duration would read as 50 hours. 3 h matches the server's cap.
+    const sessionStart = Math.max(startRef.current, Date.now() - 3 * 3_600_000);
+    payload.duration = Math.floor((Date.now() - sessionStart) / 1000);
+    const startISO = new Date(sessionStart).toISOString();
     try {
-      const { id } = await createWorkout(payload);
+      const { id, deduped } = await createWorkout(payload);
+      if (deduped) {
+        // This clientSaveId already landed — the outbox flushed it in the
+        // background. The CURRENT form contents were NOT saved; pretending
+        // otherwise would swallow them. Fresh id so a deliberate re-save
+        // creates a real workout.
+        saveIdRef.current = null;
+        setSubmitting(false);
+        setShowSummary(null);
+        setError('This session already uploaded in the background. Tap Save again to log what’s on screen as a new workout.');
+        return;
+      }
       // Only clear the draft once the save has actually succeeded.
       void durableRemove(DRAFT_KEY);
       // Fire-and-forget: pull the session's real HR curve off the Watch data
       // and re-arm Gap Guard from today. Neither may delay navigation.
       captureWorkoutHr(id, startISO, new Date().toISOString());
       armGapGuard(new Date().toISOString(), null);
+      clearComeback();
       hapticSuccess();
       router.push(`/workouts/${id}?new=1`);
     } catch {
@@ -644,8 +683,13 @@ export default function WorkoutForm({
       // a replay of a save that secretly landed a no-op.
       try {
         await enqueueSave(payload);
-        void durableRemove(DRAFT_KEY);
+        // The queued session is owned SOLELY by the outbox now. Reset the
+        // form completely: a live copy of already-queued sets would be
+        // re-autosaved as a draft on the next keystroke, restore tomorrow,
+        // and double-log with a fresh id (review finding, corrupts-data).
+        clearDraft();
         armGapGuard(new Date().toISOString(), null);
+        clearComeback();
         setQueuedOffline(true);
         setSubmitting(false);
         setShowSummary(null);

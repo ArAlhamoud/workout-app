@@ -38,13 +38,17 @@ import {
   REST_EXERCISE_KEY,
 } from '@/lib/native-feedback';
 import { armGapGuard, notifySickRest, notifyComeback } from '@/lib/gap-guard';
-import { flushOutbox } from '@/lib/outbox';
+import { scheduleLocalNotifications } from '@/lib/native-feedback';
+import { flushOutbox, retryDead } from '@/lib/outbox';
+import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { lastNightSleepHours, readSickSignal } from '@/lib/health-metrics';
 import type { DayId } from '@/lib/program';
 
 const TOKEN_KEY = 'health-sync-token';
 const AUTOPILOT_STAMP_KEY = 'health-autopilot-last-run';
 const SICK_FLAG_KEY = 'gap-guard-sick-paused';
+const DEAD_RETRY_STAMP_KEY = 'outbox-dead-last-retry';
+const DEAD_NOTIFICATION_ID = 2007;
 const SYNC_THROTTLE_MIN = 30;
 const WEIGHT_WINDOW_DAYS = 30;
 /** Recovery dailies re-pushed over a rolling week — upserts make this free. */
@@ -86,6 +90,35 @@ async function api(token: string, path: string, init?: RequestInit): Promise<unk
   }
 }
 
+/**
+ * Flush the outbox and keep the dead queue honest. Entries that failed
+ * MAX_ATTEMPTS times park rather than vanish; once a day they get another
+ * chance, and while any exist a notification says so — a stuck workout must
+ * never be silently stuck.
+ */
+async function flushAndWatch(): Promise<void> {
+  try {
+    const lastRetry = Number(localStorage.getItem(DEAD_RETRY_STAMP_KEY));
+    if (!Number.isFinite(lastRetry) || Date.now() - lastRetry > 24 * 3_600_000) {
+      localStorage.setItem(DEAD_RETRY_STAMP_KEY, String(Date.now()));
+      await retryDead();
+    }
+    const result = await flushOutbox();
+    if (result.dead > 0) {
+      scheduleLocalNotifications([
+        {
+          id: DEAD_NOTIFICATION_ID,
+          title: 'A workout is stuck',
+          body: `${result.dead} saved session${result.dead === 1 ? '' : 's'} keep${result.dead === 1 ? 's' : ''} failing to upload. They are safe on this phone — open the app while online to retry.`,
+          schedule: { at: new Date(Date.now() + 3_000) },
+        },
+      ]);
+    }
+  } catch {
+    /* housekeeping never breaks a screen */
+  }
+}
+
 /** "+30 s" / "Done" tapped on the rest-over notification. */
 function handleRestAction(actionId: 'plus30' | 'done'): void {
   try {
@@ -116,29 +149,31 @@ async function runGapGuard(token: string): Promise<void> {
     /* offline: re-arm from nothing is worse than leaving the ladder alone */
   }
 
-  const wasSick = localStorage.getItem(SICK_FLAG_KEY) === '1';
+  // Durable, not localStorage: losing this flag to WKWebView eviction would
+  // un-pause the ladder mid-illness and nag a man with a fever.
+  const wasSick = (await durableGet(SICK_FLAG_KEY)) === '1';
   const sick = await readSickSignal(); // null off-native / query failure
 
   if (sick === 'sick' && !wasSick) {
-    localStorage.setItem(SICK_FLAG_KEY, '1');
+    await durableSet(SICK_FLAG_KEY, '1');
     notifySickRest();
   } else if (sick === 'clear' && wasSick) {
-    localStorage.removeItem(SICK_FLAG_KEY);
+    await durableRemove(SICK_FLAG_KEY);
     notifyComeback(verdict?.queuedDay ?? null);
   }
   // 'unknown' (or a failed read) changes nothing — the flag keeps its state.
 
   if (!verdict) return;
-  const paused = localStorage.getItem(SICK_FLAG_KEY) === '1';
+  const paused = (await durableGet(SICK_FLAG_KEY)) === '1';
   armGapGuard(verdict.lastSessionISO, verdict.queuedDay, { paused });
 }
 
 /** The heavier, throttled half: weight, recovery metrics, workout push. */
 async function runSyncs(token: string): Promise<void> {
-  const last = Number(localStorage.getItem(AUTOPILOT_STAMP_KEY));
+  const last = Number(await durableGet(AUTOPILOT_STAMP_KEY));
   if (Number.isFinite(last) && Date.now() - last < SYNC_THROTTLE_MIN * 60_000) return;
   // Stamp before running, not after: two rapid opens must not double-run.
-  localStorage.setItem(AUTOPILOT_STAMP_KEY, String(Date.now()));
+  await durableSet(AUTOPILOT_STAMP_KEY, String(Date.now()));
 
   // 1 — silent weigh-ins. Rolling window, never a since-cursor (back-dated
   // samples), and the import route refuses to overwrite manual entries.
@@ -156,21 +191,26 @@ async function runSyncs(token: string): Promise<void> {
 
   // 2 — recovery dailies. The phone stops being the only holder of the
   // recovery history. Unit comes from the bridge verbatim (steward's rule).
+  // Dates go over as bare local calendar days ("2026-08-04"): an ISO instant
+  // shifts across midnight UTC, splitting one metric-day into two rows and
+  // breaking the one-value-per-day meaning of @@unique(type, date, source).
+  const localDay = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   try {
     const rows: Array<{ type: string; value: number; unit: string; date: string }> = [];
     for (const metric of RECOVERY_METRICS) {
       try {
         const { days, unit } = await queryDailyStats(metric.id, RECOVERY_WINDOW_DAYS);
         for (const d of days) {
-          if (d.value !== null) rows.push({ type: metric.type, value: d.value, unit, date: d.dateISO });
+          if (d.value !== null) {
+            rows.push({ type: metric.type, value: d.value, unit, date: localDay(new Date(d.dateISO)) });
+          }
         }
       } catch { /* a type with no data (or iOS 15 wrist temp) just skips */ }
     }
     const sleepH = await lastNightSleepHours();
     if (sleepH !== null) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      rows.push({ type: 'sleep_asleep_h', value: sleepH, unit: 'h', date: today.toISOString() });
+      rows.push({ type: 'sleep_asleep_h', value: sleepH, unit: 'h', date: localDay(new Date()) });
     }
     if (rows.length) {
       await api(token, '/api/health/import', { method: 'POST', body: JSON.stringify(rows) });
@@ -215,27 +255,52 @@ async function runSyncs(token: string): Promise<void> {
 
 export default function HealthAutoPilot() {
   useEffect(() => {
-    if (!isNativeApp()) return;
+    // The outbox is NOT native-only: a failed save in plain Safari queues
+    // through the localStorage fallback, and must replay there too. Flush
+    // before the native gate, and again whenever the browser reports the
+    // network back.
+    void flushAndWatch();
+    const onOnline = () => void flushAndWatch();
+    window.addEventListener('online', onOnline);
+
+    if (!isNativeApp()) {
+      return () => window.removeEventListener('online', onOnline);
+    }
 
     registerRestActions();
     onRestAction(handleRestAction);
 
-    void flushOutbox();
     // Replay queued saves the moment signal comes back, not next open.
     const cap = (window as Window & {
       Capacitor?: { Plugins?: { Network?: { addListener?: (e: string, h: (s: { connected: boolean }) => void) => void } } };
     }).Capacitor;
     try {
       cap?.Plugins?.Network?.addListener?.('networkStatusChange', (status) => {
-        if (status.connected) void flushOutbox();
+        if (status.connected) void flushAndWatch();
       });
     } catch { /* no Network plugin — app-open flushes still stand */ }
 
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) return; // Gap Guard needs the server; without a token, nothing to do.
+    const run = () => {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) return; // Gap Guard needs the server; without a token, nothing to do.
+      void runGapGuard(token);
+      void runSyncs(token); // self-throttled to once per 30 min
+    };
+    run();
 
-    void runGapGuard(token);
-    void runSyncs(token);
+    // iOS keeps the WebView alive across days — a layout mount effect that
+    // runs once would mean Gap Guard re-arms once a week. Foregrounding the
+    // app is the real "app open" event.
+    const onWake = () => {
+      if (document.visibilityState !== 'visible') return;
+      void flushAndWatch();
+      run();
+    };
+    document.addEventListener('visibilitychange', onWake);
+    return () => {
+      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('online', onOnline);
+    };
   }, []);
 
   return null;
