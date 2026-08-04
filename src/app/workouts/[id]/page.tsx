@@ -103,12 +103,7 @@ export default async function WorkoutDetailPage({
       {/* Header */}
       <div className="flex items-start justify-between gap-4 pt-1">
         <div className="min-w-0">
-          <Link
-            href="/workouts"
-            className="text-app-tx3 hover:text-app-tx2 text-sm transition-colors inline-flex items-center gap-1 mb-2"
-          >
-            ← History
-          </Link>
+          
           <div className="flex items-center gap-3">
             {dayLetter && (
               <span className={`font-round text-[17px] font-extrabold w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${
@@ -190,15 +185,10 @@ export default async function WorkoutDetailPage({
 
               {/* Set rows */}
               <div className="px-4 py-3 space-y-1.5">
-                <div className="grid grid-cols-3 text-[10px] text-app-tx3 font-semibold uppercase tracking-wide mb-2">
-                  <span>Set</span>
-                  <span>Weight × Reps</span>
-                  <span className="text-right">Volume</span>
-                </div>
                 {sets.map((set) => {
                   const rpe = set.rpe ? rpeBadge[set.rpe] : null;
                   return (
-                    <div key={set.id} className="grid grid-cols-3 text-sm items-center py-0.5">
+                    <div key={set.id} className="flex items-center gap-3 text-sm py-0.5">
                       <div className="flex items-center gap-1.5">
                         <span className="text-app-tx3 tabular-nums w-4 text-center">{set.setNumber}</span>
                         {rpe && (
@@ -211,9 +201,6 @@ export default async function WorkoutDetailPage({
                         {set.weight > 0 ? `${set.weight} kg` : '—'}
                         <span className="text-app-tx3 mx-1">×</span>
                         {set.reps}
-                      </span>
-                      <span className="text-app-tx3 text-xs text-right tabular-nums">
-                        {set.reps * set.weight > 0 ? `${(set.reps * set.weight).toFixed(0)} kg` : '—'}
                       </span>
                     </div>
                   );
