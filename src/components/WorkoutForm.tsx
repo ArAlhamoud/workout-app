@@ -911,25 +911,6 @@ export default function WorkoutForm({
 
               {/* Meta row */}
               <div className="flex items-center gap-2 px-4 pb-3 flex-wrap">
-                {block.lastSession && !isTimed && (
-                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
-                    Last: {block.lastSession.weight} kg &#215; {block.lastSession.reps}
-                    {block.lastSession.rpe != null && block.lastSession.rpe > 0 && (
-                      <span className={`ml-1.5 font-semibold ${
-                        block.lastSession.rpe === 1 ? 'text-rpe-easy' :
-                        block.lastSession.rpe === 2 ? 'text-rpe-med' :
-                        block.lastSession.rpe === 3 ? 'text-rpe-hard' : 'text-rpe-grind'
-                      }`}>
-                        · {['','Easy','Med','Hard','Grind'][block.lastSession.rpe]}
-                      </span>
-                    )}
-                  </span>
-                )}
-                {block.lastSession && isTimed && (
-                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
-                    Last: {formatSeconds(block.lastSession.reps)}
-                  </span>
-                )}
                 {/* One actionable suggestion — return target while ramping, else hold/try */}
                 {returnTarget && !allDone && (
                   <span className="text-xs bg-acc-ember/10 text-acc-ember px-2.5 py-1 rounded-full border border-acc-ember/30 font-medium tabular-nums shadow-[0_0_14px_-4px_rgba(245,158,11,0.6)]">
@@ -1064,24 +1045,6 @@ export default function WorkoutForm({
                 </div>
               )}
 
-              {/* Column headers */}
-              <div className="px-4 pb-1">
-                {isTimed ? (
-                  <div className="flex items-center gap-1.5 text-xs text-app-tx3 font-semibold uppercase tracking-wide">
-                    <span className="w-12 flex-shrink-0 text-center">Set</span>
-                    <span className="flex-1 text-center">Duration</span>
-                    <span className="w-5 flex-shrink-0" />
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-xs text-app-tx3 font-semibold uppercase tracking-wide">
-                    <span className="w-12 flex-shrink-0 text-center">Set</span>
-                    <span className="flex-[3] min-w-0 text-center">Weight &middot; kg</span>
-                    <span className="flex-[2] min-w-0 text-center">Reps</span>
-                    <span className="w-5 flex-shrink-0" />
-                  </div>
-                )}
-              </div>
-
               {/* Sets */}
               <div className="px-4 space-y-1.5 pb-1 pt-1">
                 {block.sets.map((set, i) => {
@@ -1207,14 +1170,6 @@ export default function WorkoutForm({
                             </>
                           )}
 
-                          <button
-                            type="button"
-                            onClick={() => removeSet(block.uid, i)}
-                            disabled={block.sets.length === 1}
-                            className="w-5 h-12 flex-shrink-0 flex items-center justify-center text-app-tx3 hover:text-red-400 transition-colors disabled:opacity-20 text-xl leading-none"
-                          >
-                            &#215;
-                          </button>
                         </div>
                       </div>
 
@@ -1370,17 +1325,14 @@ export default function WorkoutForm({
               <div className="grid grid-cols-3 gap-2 mb-5">
                 <div className="bg-white/[0.04] border border-app-border rounded-card p-3">
                   <div className="font-round text-2xl font-light tabular-nums glow-violet">{showSummary.sets}</div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.11em] text-app-tx3 mt-1">Sets</div>
                 </div>
                 <div className="bg-white/[0.04] border border-app-border rounded-card p-3">
                   <div className="font-round text-2xl font-light tabular-nums glow-teal">
                     {showSummary.vol >= 1000 ? `${(showSummary.vol / 1000).toFixed(1)}k` : showSummary.vol}
                   </div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.11em] text-app-tx3 mt-1">kg lifted</div>
                 </div>
                 <div className="bg-white/[0.04] border border-app-border rounded-card p-3">
                   <div className="font-round text-2xl font-light tabular-nums glow-cyan">{showSummary.time}</div>
-                  <div className="text-[10px] font-bold uppercase tracking-[0.11em] text-app-tx3 mt-1">Duration</div>
                 </div>
               </div>
               {showSummary.prs.length > 0 && (
