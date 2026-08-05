@@ -917,6 +917,7 @@ console.log('coach-ai');
     bodyStats: [{ date: '2026-08-01T00:00:00.000Z', weight: 133, waist: null }],
     recovery: [{ type: 'sleep_asleep_h', date: '2026-08-01T00:00:00.000Z', value: 7.2, unit: 'h' }],
     holds: [],
+    rescueWalks30d: 2,
   });
   assert(ctx.includes('Leg Press:40x12@2'), 'sets serialize compactly');
   assert(!ctx.includes('22.5x12'), 'warm-ups never reach the coach as working sets');
@@ -936,6 +937,7 @@ console.log('coach-ai');
     bodyStats: Array.from({ length: 500 }, () => ({ date: '2026-01-01T00:00:00.000Z', weight: 130, waist: null })),
     recovery: Array.from({ length: 900 }, () => ({ type: 'steps', date: '2026-01-01T00:00:00.000Z', value: 1, unit: 'count' })),
     holds: [],
+    rescueWalks30d: 0,
   });
   const bigParsed = JSON.parse(big);
   assert(bigParsed.workouts.length === 40, `workout history caps at 40 (got ${bigParsed.workouts.length})`);
@@ -958,6 +960,10 @@ console.log('coach-ai');
 
   // The constitution carries the load-bearing rules.
   assert(COACH_SYSTEM.includes('never suggest exceeding'), 'ramp caps are in the constitution');
+  assert(COACH_SYSTEM.includes('drop one pin and rebuild'), 'the Grind rule matches nextTarget — drop, not hold (trainer catch)');
+  assert(COACH_SYSTEM.includes('Ab Crunch machine IS prescribed'), 'the flexion rule carves out the prescribed machine (trainer catch)');
+  assert(COACH_SYSTEM.includes('DELOAD'), 'deload week is in the constitution');
+  assert(COACH_SYSTEM.includes('NO pool'), 'per-gym facilities are in the constitution');
   assert(COACH_SYSTEM.includes('NEVER comparable across gyms'), 'the cross-gym rule is in the constitution');
   assert(COACH_SYSTEM.includes('Rescue walk'), 'walks-are-not-training is in the constitution');
   assert(COACH_SYSTEM.includes('2-4 short sentences'), 'the glance rule bounds the brief');

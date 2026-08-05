@@ -40,7 +40,12 @@ export async function POST(request: Request) {
     : [];
   if (!turns.length) return NextResponse.json({ error: 'No turns' }, { status: 400 });
 
-  const { context, todayLine } = await assembleCoachContext();
-  const reply = await coachChat(context, todayLine, turns);
-  return NextResponse.json({ reply });
+  try {
+    const { context, todayLine } = await assembleCoachContext();
+    const reply = await coachChat(context, todayLine, turns);
+    return NextResponse.json({ reply });
+  } catch {
+    // Context assembly failed (DB, missing table) — degrade, never 500.
+    return NextResponse.json({ reply: null });
+  }
 }

@@ -28,7 +28,12 @@ export interface CoachContextInput {
     startWeightKg: number | null;
     goal: string;
   };
-  status: { mode: string; week: number; returnWeek?: { week: number; loadPct: number; rpeCap: number } | null };
+  status: {
+    mode: string;
+    week: number;
+    phase?: string | null;
+    returnWeek?: { week: number; loadPct: number; rpeCap: number } | null;
+  };
   plan: { mode: string; day: string | null; daysSinceLast: number | null };
   streak: { weeks: number; status: string; label: string };
   workouts: Array<{
@@ -40,6 +45,8 @@ export interface CoachContextInput {
   bodyStats: Array<{ date: string; weight: number | null; waist: number | null }>;
   recovery: Array<{ type: string; date: string; value: number; unit: string }>;
   holds: Array<{ startsAt: string; endsAt: string }>;
+  /** Rescue walks in the last 30 days — chain-keepers, never training. */
+  rescueWalks30d: number;
 }
 
 /** Caps keep the context bounded no matter how long the history grows. */
@@ -73,11 +80,13 @@ export function buildCoachContext(input: CoachContextInput): string {
 
   return JSON.stringify(
     {
+      _ordering: 'workouts are newest-first; bodyStats and recoveryDaily are oldest-first',
       profile: input.profile,
       trainingStatus: input.status,
       dynamicPlan: input.plan,
       streak: input.streak,
       holds: input.holds,
+      rescueWalks30d: input.rescueWalks30d,
       workouts,
       bodyStats,
       recoveryDaily: recovery,
@@ -98,8 +107,10 @@ WHO HE IS: mid-40s, ~133 kg, fat-loss goal, machine-only training (pin-loaded st
 HARD RULES YOU NEVER OVERRIDE (the app enforces these; contradicting them confuses and harms):
 - Two alternating days: A (legs/push/core) and B (back/pull/posterior). Never back-to-back training days — train, recover a day, alternate.
 - After 21+ days off, a 4-week return ramp applies (60/70/85/100% of pre-break loads with RPE caps). During a ramp: never suggest exceeding the week's load percentage or RPE cap. Water-weight regain in ramp weeks 1-2 is glycogen, not fat — never scold it.
-- RPE scale is 1=Easy 2=Med 3=Hard 4=Grind. If last session's top set was Hard or Grind, hold the weight; progression only from Easy/Med.
-- Joint-first: no treadmill running (walking only), no spinal flexion under load, conservative range on shoulders. Machines only, by design.
+- RPE scale is 1=Easy 2=Med 3=Hard 4=Grind. If last session's top set was Hard, hold the weight. If it was Grind, drop one pin and rebuild — the app's own targets do exactly this; agree with them. Progression only from Easy/Med.
+- Joint-first: no treadmill running (walking only), machines only by design, conservative range on shoulders, neutral spine on hinges (the seated Back Extension is a hip extension — never lumbar cranking). The seated Ab Crunch machine IS prescribed and fine; what is banned is free-weight or roman-chair spinal loading.
+- Week 7 of the 12-week progression is a DELOAD (drop loads ~40%, same movements). When the context shows phase DELOAD, never suggest progressing weight that week.
+- Facilities differ: swimming exists only at B_Fit. Alrajhi Tower has rowing, bike and elliptical but NO pool — never prescribe a swim there; rowing is its best cardio.
 - Weight suggestions must be reachable by his machine's pins — suggest "one pin up/down", not arbitrary numbers, unless you know the exact increment from history.
 - A "Rescue walk" row keeps his streak alive but is NOT training stimulus — never count it as a session for ramp or recovery purposes.
 
