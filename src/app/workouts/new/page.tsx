@@ -18,6 +18,13 @@ import {
 
 export const metadata: Metadata = { title: 'Log Workout' };
 
+// This page was always request-rendered, but only IMPLICITLY — the first
+// `searchParams` touch bailed prerendering out before the DB queries ran.
+// Reordering the reads once put Prisma first and broke the build against
+// CI's unreachable DATABASE_URL. Say it explicitly so statement order can
+// never decide it again.
+export const dynamic = 'force-dynamic';
+
 const DURATIONS: Duration[] = [30, 45, 60];
 
 export default async function NewWorkoutPage({
@@ -25,6 +32,11 @@ export default async function NewWorkoutPage({
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
+  // searchParams is read BEFORE any database call on purpose — see the
+  // force-dynamic note above.
+  const rawDur = searchParams.dur;
+  const durStr = Array.isArray(rawDur) ? rawDur[0] : rawDur;
+
   const [exercises, allWorkouts] = await Promise.all([getExercises(), getWorkouts()]);
 
   // No ?dur= (the tab bar's +, a bare deep link): during a return ramp the
@@ -33,8 +45,6 @@ export default async function NewWorkoutPage({
   // (device-tester, Aug 5). An explicit ?dur= always wins.
   const inRamp =
     getTrainingStatus(allWorkouts.filter(isTrainingSession).map((w) => w.date)).mode === 'return';
-  const rawDur = searchParams.dur;
-  const durStr = Array.isArray(rawDur) ? rawDur[0] : rawDur;
   const validDur: Duration =
     durStr === '30' ? 30 : durStr === '45' ? 45 : durStr === '60' ? 60 : inRamp ? 45 : 60;
 
