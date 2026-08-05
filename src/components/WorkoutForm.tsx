@@ -1003,6 +1003,18 @@ export default function WorkoutForm({
               {gymWeightNote(gym)}
             </p>
           )}
+          {/* First time at the work gym: no per-gym history means blank pins
+              on unfamiliar machines. The coach can translate B_Fit strength
+              into conservative starting guidance — chat text only, never a
+              prefill, so nothing touches per-gym weight memory. */}
+          {gym !== DEFAULT_GYM_ID && Object.keys(gymRecords).length === 0 && (
+            <a
+              href={`/coach?q=${encodeURIComponent('Plan my first Alrajhi Tower session — conservative starting pins from my B_Fit history, one pin light.')}`}
+              className="-mt-1 block text-[11px] font-semibold text-acc-cyan"
+            >
+              First time here? Ask the coach for starting pins →
+            </a>
+          )}
           <div>
             <p className="text-app-tx3 text-xs mb-1.5">How do you feel?</p>
             <div className="flex gap-2">
@@ -1430,7 +1442,7 @@ export default function WorkoutForm({
                                 <button
                                   type="button"
                                   onClick={() => stepWeight(block, i, -1)}
-                                  className={`w-11 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
+                                  className={`w-9 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
                                 >
                                   &#8722;
                                 </button>
@@ -1449,17 +1461,21 @@ export default function WorkoutForm({
                                 <button
                                   type="button"
                                   onClick={() => stepWeight(block, i, 1)}
-                                  className={`w-11 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
+                                  className={`w-9 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
                                 >
                                   +
                                 </button>
                               </div>
 
+                              {/* Reps shell: w-9 buttons + min-w-[30px] input, not w-11 +
+                                  min-w-0 — at iPhone width the old math left ~12px for the
+                                  value and the digits clipped to an invisible sliver
+                                  (device-tester, Aug 5). */}
                               <div className={`flex-[2] ${stepperShell}`}>
                                 <button
                                   type="button"
                                   onClick={() => updateSet(block.uid, i, 'reps', Math.max(0, set.reps - 1))}
-                                  className={`w-11 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
+                                  className={`w-9 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
                                 >
                                   &#8722;
                                 </button>
@@ -1473,12 +1489,12 @@ export default function WorkoutForm({
                                   onChange={(e) =>
                                     updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
                                   }
-                                  className="flex-1 bg-transparent text-app-tx1 text-base font-semibold text-center focus:outline-none tabular-nums min-w-0 h-full"
+                                  className="flex-1 bg-transparent text-app-tx1 text-base font-semibold text-center focus:outline-none tabular-nums min-w-[30px] h-full"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => updateSet(block.uid, i, 'reps', set.reps + 1)}
-                                  className={`w-11 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
+                                  className={`w-9 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
                                 >
                                   +
                                 </button>

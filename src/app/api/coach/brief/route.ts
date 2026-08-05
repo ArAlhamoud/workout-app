@@ -14,7 +14,7 @@
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { generateCoachBrief } from '@/lib/coach-ai';
 import { assembleCoachContext, todayKey } from '@/lib/coach-context';
 
@@ -44,7 +44,11 @@ export async function GET() {
       const existing = await prisma.coachNote.findUnique({ where: { day } });
       if (existing && existing.brief) {
         return NextResponse.json({
-          note: { brief: existing.brief, directives: existing.directives ?? [] },
+          note: {
+            brief: existing.brief,
+            directives: existing.directives ?? [],
+            proposal: existing.proposal ?? null,
+          },
           cached: true,
         });
       }
@@ -61,7 +65,13 @@ export async function GET() {
 
     await prisma.coachNote.update({
       where: { day },
-      data: { brief: brief.brief, directives: brief.directives as unknown as Prisma.InputJsonValue },
+      data: {
+        brief: brief.brief,
+        directives: brief.directives as unknown as Prisma.InputJsonValue,
+        proposal: brief.proposal
+          ? (brief.proposal as unknown as Prisma.InputJsonValue)
+          : Prisma.DbNull,
+      },
     });
 
     return NextResponse.json({ note: brief, cached: false });

@@ -1,5 +1,40 @@
 # Roadmap
 
+## Wave 4 — the coach in the silence (BUILT)
+
+Product of a 10-agent panel (5 proposal lenses → synthesis → 3 judges →
+adversary) asked "what does a frontier model uniquely add?". What
+survived, reshaped by the adversary:
+
+- **The Voice Through the Door** — the day-7/day-19 gap-ladder rungs are
+  rewritten by the coach at app-open (`/api/coach/ladder-copy`,
+  row-as-lock, ≤2 calls/day). Guards are code, not prompt: static copy
+  always arms first; generated copy passes an acceptance gate (every
+  number must appear in the injected fact sheet, length caps, banned
+  shame lexicon, day-19 must carry the reset fact) or the static words
+  stand. No "why he stopped" facts are injected — nothing to anchor an
+  invented story to.
+- **One-Tap Levers** — brief directives split by mechanism: session/rescue
+  chips are plain deep links; `declare-hold`/`end-hold` arrive as ONE
+  approvable proposal whose bounds live in the server action (3–14 days,
+  and never past lastSession+20d — no hold can silently cross the day-21
+  ramp threshold).
+- **The descent ladder** — constitution rule: full session → 30-min →
+  rescue → walk, one rung per decline, stop after two, end with grace.
+- **"What got in the way?"** — one optional line at the welcome-back
+  moment (`Workout.gapReason`), the only causal gap fact the coach may
+  ever cite. Hold reasons now reach the coach too.
+- **Alrajhi cold start (demoted to experiment)** — a chip on the work-gym
+  toggle preseeds /coach with the starting-pins question. Chat text only;
+  nothing touches per-gym weight memory. Build the structured version
+  only if the chat logs show real use.
+
+Killed by the panel, with reasons: **Sunday Read** (8 workouts can't
+support weekly synthesis; the pitch hallucinated its own flagship insight
+against documented ground truth; the daily brief already owns
+reconciliation), **Plate reader** (pivots the app into half a diet app —
+the shame class the kill-list already executed).
+
 ## Wave 3 — the Coach (BUILT)
 
 The layer only a frontier model can be: `claude-opus-5` reads the entire

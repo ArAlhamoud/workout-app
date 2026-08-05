@@ -41,6 +41,10 @@ model Workout {
   // Downsampled in-workout heart-rate curve, [[offsetSec, bpm], ...], written
   // once by the native shell after save. Fill-null-only, never clobbered.
   hrSeries          Json?
+  // One optional line captured at the welcome-back moment: what got in the
+  // way before this comeback session. The highest-value missing datum in the
+  // gap war — the coach reads it; nothing else does. Additive, nullable.
+  gapReason         String?
   sets              WorkoutSet[]
   createdAt         DateTime     @default(now())
 
@@ -104,8 +108,27 @@ model CoachNote {
   day        String   @unique
   brief      String
   directives Json?
+  // One approvable lever ({action, days?, reason?}) — rendered as an
+  // Approve button, executed only by an explicit tap through a server
+  // action that re-clamps every bound. Additive, nullable.
+  proposal   Json?
   model      String
   createdAt  DateTime @default(now())
+}
+
+// Coach-written gap-ladder notification copy, one row per calendar day
+// (row-as-lock, same cost-bound pattern as CoachNote). `anchor` is the bare
+// date of the last training session the copy was composed against — copy is
+// only served while that anchor still holds, and regenerated (at most once
+// more that day) when a new session moves it. `copy` null = attempted and
+// failed/rejected: the static ladder stands, no retry until tomorrow.
+model CoachLadderCopy {
+  id        String   @id @default(cuid())
+  day       String   @unique
+  anchor    String
+  copy      Json?
+  model     String
+  createdAt DateTime @default(now())
 }
 
 model HealthSample {

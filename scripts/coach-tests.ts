@@ -47,6 +47,7 @@ import { binHeartRate } from '../src/lib/hr-capture';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
 import { lastMonthRecap, yearRecap } from '../src/lib/recap';
 import { buildCoachContext, parseCoachBrief, COACH_SYSTEM } from '../src/lib/coach-ai';
+import { buildLadderFactSheet, validateLadderCopy } from '../src/lib/coach-ladder';
 import { normalizeSampleType } from '../src/lib/health';
 
 interface HistoryFile {
@@ -967,6 +968,94 @@ console.log('coach-ai');
   assert(COACH_SYSTEM.includes('NEVER comparable across gyms'), 'the cross-gym rule is in the constitution');
   assert(COACH_SYSTEM.includes('Rescue walk'), 'walks-are-not-training is in the constitution');
   assert(COACH_SYSTEM.includes('2-4 short sentences'), 'the glance rule bounds the brief');
+
+  // Wave 4: descent ladder + bounded proposals + work-gym guidance.
+  assert(COACH_SYSTEM.includes('full session → 30-minute compressed session → 15-minute rescue session'),
+    'the descent ladder is spelled out rung by rung');
+  assert(COACH_SYSTEM.includes('Stop negotiating after two declines'), 'the ladder ends with grace, not pressure');
+  assert(COACH_SYSTEM.includes('holds are for circumstances, not moods'), 'hold proposals are fenced to real obstacles');
+  assert(COACH_SYSTEM.includes('start one pin light and expect Easy'), 'work-gym starting guidance is conservative by rule');
+
+  // whyGap: his own words reach the coach; nothing else invents gap causes.
+  const gapCtx = buildCoachContext({
+    profile: { weightKg: 133, startWeightKg: 135, goal: 'x' },
+    status: { mode: 'normal', week: 3, returnWeek: null },
+    plan: { mode: 'train', day: 'B', daysSinceLast: 2 },
+    streak: { weeks: 1, status: 'alive', label: '1' },
+    workouts: [
+      { date: '2026-07-29T00:00:00.000Z', name: 'Day A 45m', gym: null, gapReason: 'work travel, two weeks in Jeddah', sets: [] },
+      { date: '2026-06-16T00:00:00.000Z', name: 'Day A 30m', gym: null, gapReason: null, sets: [] },
+    ],
+    bodyStats: [],
+    recovery: [],
+    holds: [{ startsAt: '2026-05-01T00:00:00.000Z', endsAt: '2026-05-08T00:00:00.000Z', reason: 'sick' }],
+    rescueWalks30d: 0,
+  });
+  const gapParsed = JSON.parse(gapCtx);
+  assert(gapParsed.workouts[0].whyGap === 'work travel, two weeks in Jeddah', 'gapReason reaches the coach as whyGap');
+  assert(!('whyGap' in gapParsed.workouts[1]), 'workouts without a reason carry no whyGap key');
+  assert(gapParsed.holds[0].reason === 'sick', 'hold reasons reach the coach');
+
+  // Proposals: parsed only inside hard bounds, degrade to null otherwise.
+  const withHold = parseCoachBrief({
+    brief: 'Travel week — hold it.',
+    directives: [],
+    proposal: { action: 'declare-hold', days: 10, reason: 'Jeddah trip' },
+  });
+  assert(withHold !== null && withHold.proposal?.action === 'declare-hold' && withHold.proposal.days === 10,
+    'a bounded declare-hold proposal parses');
+  const tooLong = parseCoachBrief({ brief: 'x', directives: [], proposal: { action: 'declare-hold', days: 30 } });
+  assert(tooLong !== null && tooLong.proposal === null, 'a 30-day hold proposal is rejected, not clamped');
+  const badAction = parseCoachBrief({ brief: 'x', directives: [], proposal: { action: 'delete-history' } });
+  assert(badAction !== null && badAction.proposal === null, 'an unknown action degrades to no proposal');
+  const endHoldP = parseCoachBrief({ brief: 'x', directives: [], proposal: { action: 'end-hold' } });
+  assert(endHoldP !== null && endHoldP.proposal?.action === 'end-hold', 'end-hold parses without params');
+  const noProposal = parseCoachBrief({ brief: 'Ordinary day.', directives: [] });
+  assert(noProposal !== null && noProposal.proposal === null, 'no proposal on ordinary days');
+}
+
+// ── coach-ladder: the Voice Through the Door ─────────────────
+console.log('coach-ladder');
+{
+  const facts = buildLadderFactSheet({
+    lastSessionDate: '2026-07-29',
+    lastSessionName: 'Day A 45m — Jul 29',
+    topSet: 'Lat Pulldown 22.5 kg × 12',
+    queuedDay: 'B',
+    longestGapDays: 43,
+  });
+  assert(facts.includes('22.5 kg × 12'), 'the fact sheet carries the top set');
+  assert(facts.includes('43 days'), 'the fact sheet carries the computed longest gap');
+  assert(facts.includes('day-21') && facts.includes('4-week'), 'the reset facts are stated, not assumed');
+
+  // The gate: numbers must come from the sheet, verbatim.
+  const good7 = { day: 7, title: 'Day B is still queued', body: 'A missed week is mendable — 2 sessions before Sunday night repair it. Your Lat Pulldown 22.5 kg × 12 is right where you left it. 15 minutes counts.' };
+  assert(validateLadderCopy(good7, facts, 7) === null, 'grounded day-7 copy passes the gate');
+
+  const invented = { day: 7, title: 'Come back', body: 'You were pressing 80 kg two weeks ago.' };
+  assert(validateLadderCopy(invented, facts, 7) !== null, 'an invented number is rejected');
+
+  const shame = { day: 7, title: 'Still waiting', body: 'No more excuses — 2 sessions or the streak dies.' };
+  assert(validateLadderCopy(shame, facts, 7) !== null, 'banned lexicon is rejected mechanically');
+
+  const tooLongBody = { day: 7, title: 'Hi', body: 'x'.repeat(300) };
+  assert(validateLadderCopy(tooLongBody, facts, 7) !== null, 'an over-length body is rejected');
+
+  const wrongDay = { day: 19, title: 'Hi', body: 'ok' };
+  assert(validateLadderCopy(wrongDay, facts, 7) !== null, 'a day mismatch is rejected');
+
+  const soft19 = { day: 19, title: 'One session this week', body: 'Day B is queued and 15 minutes counts.' };
+  assert(validateLadderCopy(soft19, facts, 19) !== null, 'day-19 copy without the reset fact is rejected');
+
+  const good19 = { day: 19, title: '2 days from a program reset', body: 'At day 21 the 4-week return ramp takes over. One session in the next 2 days keeps your normal program — Day B is queued.' };
+  assert(validateLadderCopy(good19, facts, 19) === null, 'day-19 copy carrying the reset fact passes');
+
+  // The static rungs must themselves pass the gate they fall back from —
+  // if the fallback can't pass, the gate is wrong, not the fallback.
+  const rungs = computeGapLadder('2026-07-29', 'B', new Date('2026-07-30T12:00:00'));
+  const static7 = rungs.find((r) => r.day === 7);
+  const static19 = rungs.find((r) => r.day === 19);
+  assert(!!static7 && !!static19, 'static rungs 7 and 19 exist to fall back to');
 }
 
 // ── summary ──────────────────────────────────────────────────

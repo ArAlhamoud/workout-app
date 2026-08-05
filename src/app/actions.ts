@@ -379,6 +379,60 @@ export async function endHold(id: string) {
   revalidatePath('/stats');
 }
 
+/**
+ * Approve a coach-proposed hold. The bounds live HERE, in code, regardless
+ * of what the model wrote (adversary rule: guards are enforcement, not
+ * prompt discipline): 3–14 days, AND the hold may never end later than 20
+ * days after the last training session — so no approved hold can silently
+ * carry him across the day-21 ramp threshold.
+ */
+export async function approveCoachHold(
+  days: number,
+  reason?: string,
+): Promise<{ id: string; endsAt: string } | null> {
+  const bounded = Math.min(14, Math.max(3, Math.round(days)));
+  const lastTraining = await prisma.workout.findFirst({
+    where: { NOT: { name: { startsWith: 'Rescue walk' } } },
+    orderBy: { date: 'desc' },
+    select: { date: true },
+  });
+  let endsAt = new Date(Date.now() + bounded * 86_400_000);
+  if (lastTraining) {
+    const rampFence = new Date(lastTraining.date.getTime() + 20 * 86_400_000);
+    if (endsAt > rampFence) endsAt = rampFence;
+  }
+  if (endsAt.getTime() <= Date.now()) return null; // fence already passed — no hold to give
+  const hold = await prisma.hold.create({
+    data: { endsAt, reason: reason ? `coach: ${reason.slice(0, 60)}` : 'coach proposal' },
+  });
+  revalidatePath('/');
+  revalidatePath('/stats');
+  return { id: hold.id, endsAt: hold.endsAt.toISOString() };
+}
+
+/** Approve a coach-proposed early hold end. No-op when nothing is active. */
+export async function approveCoachEndHold(): Promise<boolean> {
+  const active = await prisma.hold.findFirst({
+    where: { endsAt: { gt: new Date() } },
+    orderBy: { endsAt: 'desc' },
+    select: { id: true },
+  });
+  if (!active) return false;
+  await endHold(active.id);
+  return true;
+}
+
+/**
+ * The one-line answer to "what got in the way?" at the welcome-back moment.
+ * Stored on the comeback workout itself; only the coach's context reads it.
+ */
+export async function saveGapReason(workoutId: string, reason: string): Promise<void> {
+  const trimmed = reason.trim().slice(0, 140);
+  if (!trimmed) return;
+  await prisma.workout.update({ where: { id: workoutId }, data: { gapReason: trimmed } });
+  revalidatePath(`/workouts/${workoutId}`);
+}
+
 /** Every hold that overlaps history — the streak excuses these weeks. */
 export async function getAllHolds(): Promise<Array<{ startsAt: string; endsAt: string }>> {
   const holds = await prisma.hold.findMany({ select: { startsAt: true, endsAt: true } });

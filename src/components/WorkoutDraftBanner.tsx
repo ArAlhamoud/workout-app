@@ -86,7 +86,9 @@ export default function WorkoutDraftBanner() {
         <div className={`${shell} border-acc-teal/30`}>
           <Link href="/workouts/new" className="flex min-w-0 items-center gap-2.5 pressable">
             <span className="h-2 w-2 flex-shrink-0 rounded-full bg-acc-teal shadow-glow-teal motion-safe:animate-pulse" />
-            <span className="truncate glow-teal">{draftName} in progress</span>
+            {/* No " in progress" suffix — beside "Tap to resume" it said
+                nothing, and it was the first thing truncation ate. */}
+            <span className="truncate glow-teal">{draftName}</span>
             <span className="flex-shrink-0 text-xs text-app-tx2">· Tap to resume</span>
           </Link>
           <button

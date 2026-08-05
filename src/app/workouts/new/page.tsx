@@ -25,12 +25,18 @@ export default async function NewWorkoutPage({
 }: {
   searchParams: { [key: string]: string | string[] | undefined };
 }) {
+  const [exercises, allWorkouts] = await Promise.all([getExercises(), getWorkouts()]);
+
+  // No ?dur= (the tab bar's +, a bare deep link): during a return ramp the
+  // default is 45, not 60 — Home's CTA already says 45 then, and entering
+  // through a different door must not silently double the prescribed day
+  // (device-tester, Aug 5). An explicit ?dur= always wins.
+  const inRamp =
+    getTrainingStatus(allWorkouts.filter(isTrainingSession).map((w) => w.date)).mode === 'return';
   const rawDur = searchParams.dur;
   const durStr = Array.isArray(rawDur) ? rawDur[0] : rawDur;
   const validDur: Duration =
-    durStr === '30' ? 30 : durStr === '45' ? 45 : durStr === '60' ? 60 : 60;
-
-  const [exercises, allWorkouts] = await Promise.all([getExercises(), getWorkouts()]);
+    durStr === '30' ? 30 : durStr === '45' ? 45 : durStr === '60' ? 60 : inRamp ? 45 : 60;
 
   // No ?day= — e.g. the tab bar or a deep link — so fall back to the day the
   // dynamic plan has queued rather than dropping him into a blank freestyle log.

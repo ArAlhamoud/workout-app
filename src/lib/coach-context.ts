@@ -35,7 +35,7 @@ export async function assembleCoachContext(): Promise<{ context: string; todayLi
       where: { ...walkFilter, date: { gte: new Date(Date.now() - 30 * 86_400_000) } },
     }),
     prisma.bodyStat.findMany({ orderBy: [{ date: 'asc' }, { id: 'asc' }] }),
-    prisma.hold.findMany({ select: { startsAt: true, endsAt: true } }),
+    prisma.hold.findMany({ select: { startsAt: true, endsAt: true, reason: true } }),
     prisma.healthSample.findMany({
       where: { type: { in: ['resting_hr', 'hrv_sdnn', 'sleep_asleep_h', 'steps'] } },
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
@@ -76,6 +76,7 @@ export async function assembleCoachContext(): Promise<{ context: string; todayLi
       date: w.date.toISOString(),
       name: w.name,
       gym: w.gym,
+      gapReason: w.gapReason,
       sets: w.sets.map((s) => ({
         exercise: s.exercise.name,
         weight: s.weight,
@@ -88,7 +89,11 @@ export async function assembleCoachContext(): Promise<{ context: string; todayLi
     recovery: recovery
       .reverse()
       .map((r) => ({ type: r.type, date: r.date.toISOString(), value: r.value, unit: r.unit })),
-    holds: holds.map((h) => ({ startsAt: h.startsAt.toISOString(), endsAt: h.endsAt.toISOString() })),
+    holds: holds.map((h) => ({
+      startsAt: h.startsAt.toISOString(),
+      endsAt: h.endsAt.toISOString(),
+      reason: h.reason,
+    })),
     rescueWalks30d: walks30d,
   };
 

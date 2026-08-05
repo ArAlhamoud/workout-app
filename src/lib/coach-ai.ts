@@ -40,11 +40,13 @@ export interface CoachContextInput {
     date: string;
     name: string;
     gym: string | null;
+    /** His one-line answer to "what got in the way?" before this comeback. */
+    gapReason?: string | null;
     sets: Array<{ exercise: string; weight: number; reps: number; rpe: number | null; isWarmup?: boolean }>;
   }>;
   bodyStats: Array<{ date: string; weight: number | null; waist: number | null }>;
   recovery: Array<{ type: string; date: string; value: number; unit: string }>;
-  holds: Array<{ startsAt: string; endsAt: string }>;
+  holds: Array<{ startsAt: string; endsAt: string; reason?: string | null }>;
   /** Rescue walks in the last 30 days — chain-keepers, never training. */
   rescueWalks30d: number;
 }
@@ -63,6 +65,10 @@ export function buildCoachContext(input: CoachContextInput): string {
     date: w.date.slice(0, 10),
     name: w.name,
     gym: w.gym ?? 'bfit',
+    // "whyGap" — his own words for what preceded this comeback session.
+    // The one causal fact the coach may cite about a gap; everything else
+    // about gap causes is off-limits (never invent a story).
+    ...(w.gapReason ? { whyGap: w.gapReason.slice(0, 140) } : {}),
     sets: w.sets
       .filter((s) => !s.isWarmup)
       .map((s) => `${s.exercise}:${s.weight}x${s.reps}${s.rpe ? `@${s.rpe}` : ''}`),
@@ -116,6 +122,12 @@ HARD RULES YOU NEVER OVERRIDE (the app enforces these; contradicting them confus
 
 VOICE: A real coach, not an app. Direct, warm, zero shame — his data shows gaps follow discouragement, so the comeback is always celebrated and the next step is always small and concrete. Numbers over adjectives. His own data over generic advice. When his sleep or resting HR argues against pushing, say so plainly and shrink the day rather than cancel it. Never invent data not in the context; if something isn't logged, say you can't see it.
 
+THE DESCENT LADDER (when he says he can't face a session, in chat or by declining): never accept "nothing" while a smaller real thing exists. Step down exactly one rung per decline: full session → 30-minute compressed session → 15-minute rescue session (4 machines at easy loads) → rescue walk. Attach the matching directive chip so the step is one tap. Stop negotiating after two declines and end with grace — the door stays open, no follow-up pressure, no guilt. A rung he takes is a win; say so.
+
+PROPOSALS (the one place you may reach for a lever): when his own words describe a bounded life obstacle — travel, illness, a work crunch — you may attach ONE proposal: declare-hold (3-14 days, with his stated reason) or end-hold (when a hold is active and he is clearly back). The app renders it as an Approve button and enforces its own hard bounds; never write as if the action already happened, and never propose a hold to a man who is merely discouraged — holds are for circumstances, not moods.
+
+WORK-GYM STARTING POINTS: when he asks what to lift at Alrajhi Tower with no history there, give conservative starting guidance from his B_Fit strength — always "start one pin light and expect Easy", never a promise. Different brand, different stack: your numbers are a first guess to calibrate from, not targets, and they are never records.
+
 FORM: The daily brief is 2-4 short sentences — a glance, not an essay (the app's rule: say each thing once). Chat replies can go longer when he asks, but default tight. Never use bullet lists in the brief.`;
 
 // ── Directives ───────────────────────────────────────────────
@@ -129,9 +141,23 @@ export interface CoachDirective {
   label: string;
 }
 
+/**
+ * A lever the coach asks to pull. Display + one explicit Approve tap —
+ * nothing executes without the tap, and the server action re-clamps every
+ * bound regardless of what the model wrote.
+ */
+export interface CoachProposal {
+  action: 'declare-hold' | 'end-hold';
+  /** declare-hold only: 3–14 days. */
+  days?: number;
+  /** Short reason shown on the button and stored on the hold. */
+  reason?: string;
+}
+
 export interface CoachBrief {
   brief: string;
   directives: CoachDirective[];
+  proposal: CoachProposal | null;
 }
 
 const BRIEF_SCHEMA = {
@@ -159,13 +185,25 @@ const BRIEF_SCHEMA = {
         },
       },
     },
+    proposal: {
+      type: 'object' as const,
+      description:
+        'OPTIONAL, rare: one approvable lever when his words describe a bounded life obstacle. Omit on ordinary days.',
+      additionalProperties: false,
+      required: ['action'],
+      properties: {
+        action: { type: 'string' as const, enum: ['declare-hold', 'end-hold'] },
+        days: { type: 'number' as const, description: 'declare-hold only: 3-14.' },
+        reason: { type: 'string' as const, description: 'His stated reason, at most 60 characters.' },
+      },
+    },
   },
 };
 
 /** Parse + bound a model reply into a CoachBrief, or null if unusable. */
 export function parseCoachBrief(raw: unknown): CoachBrief | null {
   if (!raw || typeof raw !== 'object') return null;
-  const obj = raw as { brief?: unknown; directives?: unknown };
+  const obj = raw as { brief?: unknown; directives?: unknown; proposal?: unknown };
   if (typeof obj.brief !== 'string' || !obj.brief.trim()) return null;
   const directives = Array.isArray(obj.directives)
     ? obj.directives
@@ -177,9 +215,30 @@ export function parseCoachBrief(raw: unknown): CoachBrief | null {
         .slice(0, 3)
         .map((d) => ({ type: d.type, label: d.label.slice(0, 40) }))
     : [];
+
+  // Proposals are bounded HERE as well as at the server action — a malformed
+  // action or out-of-range day count degrades to "no proposal", never to a
+  // best-effort guess.
+  let proposal: CoachProposal | null = null;
+  if (obj.proposal && typeof obj.proposal === 'object') {
+    const p = obj.proposal as { action?: unknown; days?: unknown; reason?: unknown };
+    if (p.action === 'end-hold') {
+      proposal = { action: 'end-hold' };
+    } else if (p.action === 'declare-hold') {
+      const days = typeof p.days === 'number' && Number.isFinite(p.days) ? Math.round(p.days) : NaN;
+      if (days >= 3 && days <= 14) {
+        proposal = {
+          action: 'declare-hold',
+          days,
+          reason: typeof p.reason === 'string' ? p.reason.trim().slice(0, 60) : undefined,
+        };
+      }
+    }
+  }
+
   // The glance rule is a hard bound, not a vibe: cap the brief's length so a
   // verbose day can never flood the home screen.
-  return { brief: obj.brief.trim().slice(0, 600), directives };
+  return { brief: obj.brief.trim().slice(0, 600), directives, proposal };
 }
 
 // ── API calls ────────────────────────────────────────────────

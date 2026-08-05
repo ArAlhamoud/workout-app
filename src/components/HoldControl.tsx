@@ -8,11 +8,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { startHold, endHold } from '@/app/actions';
-import { armGapGuard } from '@/lib/gap-guard';
-import { scheduleLocalNotifications, cancelLocalNotifications } from '@/lib/native-feedback';
-
-/** The wake-up at the far side of a hold — the ladder's dark-window bridge. */
-const HOLD_END_NOTIFICATION_ID = 2008;
+import { holdDeclaredFollowThrough, holdEndedFollowThrough } from '@/lib/hold-client';
 
 export default function HoldControl({
   active,
@@ -36,28 +32,12 @@ export default function HoldControl({
 
   const startTwoWeeks = async () => {
     const { endsAt } = await startHold(14);
-    // The rungs are already scheduled with iOS; waiting for the next
-    // app-open to honour the hold means day-3/5 fire mid-hold (adversary).
-    // Cancel now, and re-arm the ladder anchored at the hold's END, so the
-    // anti-gap machine is never dark across the hold→gap transition.
-    armGapGuard(endsAt, null);
-    scheduleLocalNotifications([
-      {
-        id: HOLD_END_NOTIFICATION_ID,
-        title: 'Hold complete',
-        body: 'Two weeks held, nothing lost. Your next session picks up where you paused.',
-        schedule: { at: new Date(new Date(endsAt).getTime() + 9 * 3_600_000) },
-        sound: 'default',
-        extra: { route: '/workouts/new' },
-      },
-    ]);
+    holdDeclaredFollowThrough(endsAt);
   };
 
   const endEarly = async (id: string) => {
     await endHold(id);
-    cancelLocalNotifications([HOLD_END_NOTIFICATION_ID]);
-    // Gap clock restarts from today — the hold ended by his own hand.
-    armGapGuard(new Date().toISOString(), null);
+    holdEndedFollowThrough();
   };
 
   if (active) {
