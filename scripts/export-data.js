@@ -17,8 +17,13 @@ async function main() {
   // Apple Health samples — tolerate the table not existing yet (schema not applied).
   let healthSamplesTotal = 0;
   let latestWeightSample = null;
+  // The rows themselves, not just a count. This snapshot is the only off-Neon
+  // copy of the app's data, and it excluded this table entirely — the count
+  // made it look covered.
+  let healthSamples = [];
   try {
     healthSamplesTotal = await prisma.healthSample.count();
+    healthSamples = await prisma.healthSample.findMany({ orderBy: { date: 'asc' } });
     latestWeightSample = await prisma.healthSample.findFirst({
       where: { type: 'weight' },
       orderBy: { date: 'desc' },
@@ -35,6 +40,7 @@ async function main() {
     totalHealthSamples: healthSamplesTotal,
     latestWeightSample,
     exercises,
+    healthSamples,
     workouts,
     bodyStats: stats,
   };

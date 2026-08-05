@@ -19,13 +19,16 @@ export async function GET(request: Request) {
   const auth = checkHealthAuth(request);
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
-  const [workouts, bodyStats, exercises] = await Promise.all([
+  const [workouts, bodyStats, exercises, healthSamples] = await Promise.all([
     prisma.workout.findMany({
       orderBy: { date: 'asc' },
       include: { sets: { include: { exercise: { select: { name: true } } }, orderBy: { setNumber: 'asc' } } },
     }),
     prisma.bodyStat.findMany({ orderBy: { date: 'asc' } }),
     prisma.exercise.findMany({ orderBy: { name: 'asc' } }),
+    // Imported from Apple Health, but the app is the only place they are
+    // stored in this shape — an export that omits them is not a backup.
+    prisma.healthSample.findMany({ orderBy: { date: 'asc' } }),
   ]);
 
   const format = new URL(request.url).searchParams.get('format');
@@ -60,5 +63,6 @@ export async function GET(request: Request) {
     exercises,
     workouts,
     bodyStats,
+    healthSamples,
   });
 }
