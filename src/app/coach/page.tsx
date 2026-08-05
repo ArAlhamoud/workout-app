@@ -22,6 +22,13 @@ export default function CoachPage() {
 
   useEffect(() => {
     setToken(localStorage.getItem(TOKEN_KEY));
+    // ?q= preseeds the input (e.g. the work-gym "plan my first Alrajhi
+    // session" chip). window.location, not useSearchParams — no Suspense
+    // boundary needed for one optional read at mount.
+    try {
+      const q = new URLSearchParams(window.location.search).get('q');
+      if (q) setDraft(q.slice(0, 500));
+    } catch { /* no preseed */ }
   }, []);
 
   useEffect(() => {

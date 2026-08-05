@@ -14,7 +14,7 @@
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { generateCoachBrief } from '@/lib/coach-ai';
 import { assembleCoachContext, todayKey } from '@/lib/coach-context';
 
@@ -44,7 +44,11 @@ export async function GET() {
       const existing = await prisma.coachNote.findUnique({ where: { day } });
       if (existing && existing.brief) {
         return NextResponse.json({
-          note: { brief: existing.brief, directives: existing.directives ?? [] },
+          note: {
+            brief: existing.brief,
+            directives: existing.directives ?? [],
+            proposal: existing.proposal ?? null,
+          },
           cached: true,
         });
       }
@@ -59,9 +63,33 @@ export async function GET() {
     const brief = await generateCoachBrief(context, todayLine);
     if (!brief) return NextResponse.json({ note: null }); // empty row stands — done for today
 
+    // "Holds are for circumstances, not moods" needs a fence in CODE
+    // (trainer): a declare-hold proposal survives only when a logged
+    // circumstance exists — a recent gapReason in his own words, or a
+    // recent hold he declared himself. No evidence → the words stay, the
+    // lever is dropped. (end-hold needs no evidence; it only ever shrinks
+    // a pause.)
+    if (brief.proposal?.action === 'declare-hold') {
+      const since = new Date(Date.now() - 21 * 86_400_000);
+      const [recentReason, recentHold] = await Promise.all([
+        prisma.workout.findFirst({
+          where: { gapReason: { not: null }, date: { gte: since } },
+          select: { id: true },
+        }),
+        prisma.hold.findFirst({ where: { endsAt: { gte: since } }, select: { id: true } }),
+      ]);
+      if (!recentReason && !recentHold) brief.proposal = null;
+    }
+
     await prisma.coachNote.update({
       where: { day },
-      data: { brief: brief.brief, directives: brief.directives as unknown as Prisma.InputJsonValue },
+      data: {
+        brief: brief.brief,
+        directives: brief.directives as unknown as Prisma.InputJsonValue,
+        proposal: brief.proposal
+          ? (brief.proposal as unknown as Prisma.InputJsonValue)
+          : Prisma.DbNull,
+      },
     });
 
     return NextResponse.json({ note: brief, cached: false });

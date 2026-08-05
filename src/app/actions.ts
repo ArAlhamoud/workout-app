@@ -379,6 +379,90 @@ export async function endHold(id: string) {
   revalidatePath('/stats');
 }
 
+/** A tapped proposal is consumed for the whole day — the Approve button
+ *  must never come back on a remount and invite a duplicate tap. */
+async function consumeCoachProposal(): Promise<void> {
+  const { todayKey } = await import('@/lib/coach-context');
+  const { Prisma } = await import('@prisma/client');
+  await prisma.coachNote
+    .updateMany({ where: { day: todayKey() }, data: { proposal: Prisma.DbNull } })
+    .catch(() => { /* pre-schema window — nothing to consume */ });
+}
+
+/**
+ * Approve a coach-proposed hold. The bounds live HERE, in code, regardless
+ * of what the model wrote (adversary rule: guards are enforcement, not
+ * prompt discipline): 3–7 days (trainer: a real circumstance can be
+ * re-proposed; 14 app-endorsed silent days cannot), AND the hold may never
+ * end later than 20 days after the last training session — so no approved
+ * hold can silently carry him across the day-21 ramp threshold.
+ * Idempotent: an already-active hold is returned, never duplicated.
+ */
+export async function approveCoachHold(
+  days: number,
+  reason?: string,
+): Promise<{ id: string; endsAt: string; clamped: boolean; already: boolean } | null> {
+  await consumeCoachProposal();
+
+  const active = await prisma.hold.findFirst({
+    where: { endsAt: { gt: new Date() } },
+    orderBy: { endsAt: 'desc' },
+    select: { id: true, endsAt: true },
+  });
+  if (active) {
+    return { id: active.id, endsAt: active.endsAt.toISOString(), clamped: false, already: true };
+  }
+
+  const bounded = Math.min(7, Math.max(3, Math.round(days)));
+  const lastTraining = await prisma.workout.findFirst({
+    where: { NOT: { name: { startsWith: 'Rescue walk' } } },
+    orderBy: { date: 'desc' },
+    select: { date: true },
+  });
+  let endsAt = new Date(Date.now() + bounded * 86_400_000);
+  let clamped = false;
+  if (lastTraining) {
+    const rampFence = new Date(lastTraining.date.getTime() + 20 * 86_400_000);
+    if (endsAt > rampFence) {
+      endsAt = rampFence;
+      clamped = true;
+    }
+  }
+  if (endsAt.getTime() <= Date.now()) return null; // fence already passed — no hold to give
+  const hold = await prisma.hold.create({
+    data: { endsAt, reason: reason ? `coach: ${reason.slice(0, 60)}` : 'coach proposal' },
+  });
+  revalidatePath('/');
+  revalidatePath('/stats');
+  return { id: hold.id, endsAt: hold.endsAt.toISOString(), clamped, already: false };
+}
+
+/** Approve a coach-proposed early hold end. Ends EVERY active hold — a
+ *  duplicate row must not keep the ladder paused after "hold ended". */
+export async function approveCoachEndHold(): Promise<boolean> {
+  await consumeCoachProposal();
+  const now = new Date();
+  const ended = await prisma.hold.updateMany({
+    where: { endsAt: { gt: now } },
+    data: { endsAt: now },
+  });
+  if (!ended.count) return false;
+  revalidatePath('/');
+  revalidatePath('/stats');
+  return true;
+}
+
+/**
+ * The one-line answer to "what got in the way?" at the welcome-back moment.
+ * Stored on the comeback workout itself; only the coach's context reads it.
+ */
+export async function saveGapReason(workoutId: string, reason: string): Promise<void> {
+  const trimmed = reason.trim().slice(0, 140);
+  if (!trimmed) return;
+  await prisma.workout.update({ where: { id: workoutId }, data: { gapReason: trimmed } });
+  revalidatePath(`/workouts/${workoutId}`);
+}
+
 /** Every hold that overlaps history — the streak excuses these weeks. */
 export async function getAllHolds(): Promise<Array<{ startsAt: string; endsAt: string }>> {
   const holds = await prisma.hold.findMany({ select: { startsAt: true, endsAt: true } });

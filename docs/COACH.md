@@ -48,3 +48,31 @@ context block is prompt-cached). A month of heavy use stays under $10.
 - One `CoachNote` row per calendar day (unique key) bounds generation cost
   even though the brief route is unauthenticated.
 - Chat requires the health-sync bearer token.
+
+## Wave 4 — the coach's hands (and where their bounds live)
+
+**Ladder copy** (`/api/coach/ladder-copy`, `src/lib/coach-ladder.ts`):
+the day-7 and day-19 gap notifications are rewritten from his real state.
+The static copy always arms first; generated copy must pass a code-level
+acceptance gate — every number verbatim from the injected fact sheet,
+title ≤48 / body ≤200 chars, banned shame lexicon, day-19 must state the
+reset fact — or the static words stand. One generation per day
+(row-as-lock on `CoachLadderCopy.day`), plus at most one regeneration if
+a new session moves the anchor. No key → static ladder, forever, silently.
+
+**Proposals**: the brief may carry ONE `{action, days, reason}` —
+`declare-hold` or `end-hold` only. Rendered as an Approve button; nothing
+executes without the tap, and `approveCoachHold` re-clamps in code: 3–14
+days, never ending later than 20 days after the last training session,
+so no approved hold can carry him across the day-21 ramp threshold.
+
+**Directive deep links**: `session` and `rescue` chips navigate into the
+existing logger routes. Navigation needs no approval machinery.
+
+**gapReason**: his one-line answer to "what got in the way?" at the
+welcome-back moment is the only causal gap fact the coach may cite —
+the constitution forbids inventing gap stories, and the fact sheet for
+ladder copy carries no "why" facts at all.
+
+Cost delta: ladder copy ≈ $0.01–0.06 per active day (mostly cache-read),
+nothing on days the app never opens. Still under $10/month all-in.

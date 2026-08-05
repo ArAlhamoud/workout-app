@@ -39,7 +39,7 @@ import {
   REST_DEADLINE_KEY,
   REST_EXERCISE_KEY,
 } from '@/lib/native-feedback';
-import { armGapGuard, notifySickRest, notifyComeback } from '@/lib/gap-guard';
+import { armGapGuard, notifySickRest, notifyComeback, refreshLadderCopy } from '@/lib/gap-guard';
 import { scheduleLocalNotifications } from '@/lib/native-feedback';
 import { flushOutbox, retryDead } from '@/lib/outbox';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
@@ -172,6 +172,12 @@ async function runGapGuard(token: string): Promise<void> {
   const holdActive = !!verdict.holdUntilISO && new Date(verdict.holdUntilISO).getTime() > Date.now();
   const paused = (await durableGet(SICK_FLAG_KEY)) === '1' || holdActive;
   armGapGuard(verdict.lastSessionISO, verdict.queuedDay, { paused });
+  // The static ladder is now armed. Upgrade rungs 7/19 to coach-written
+  // copy if the server has any — fire-and-forget, never blocks, never
+  // downgrades (any failure leaves the static words standing).
+  if (!paused && verdict.lastSessionISO) {
+    void refreshLadderCopy(verdict.lastSessionISO, verdict.queuedDay, token);
+  }
 }
 
 /** The heavier, throttled half: weight, recovery metrics, workout push. */

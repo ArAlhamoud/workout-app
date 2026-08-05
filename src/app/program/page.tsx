@@ -138,7 +138,13 @@ export default async function ProgramPage() {
   // Where the lifter actually is this week
   const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
   const weekStart = getMondayOfWeek(new Date());
-  const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
+  // TRAINING sessions only (trainer veto in program.ts: a rescue walk must
+  // never count as a ramp session). Unfiltered, two walks "spent" the ramp
+  // week's budget and the strip told a man who had done zero training that
+  // nothing was due all week.
+  const sessionsThisWeek = workouts.filter(
+    (w) => isTrainingSession(w) && new Date(w.date) >= weekStart,
+  ).length;
   const currentPhase =
     PROGRESSION.find((p) => {
       const parts = p.weeks.split('–').map((s) => parseInt(s.trim()));
@@ -150,8 +156,27 @@ export default async function ProgramPage() {
   // here" — today plus the next 4 days, alternating train / recover.
   const sessions = workouts.map((w) => ({ date: w.date, name: w.name }));
   const plan = getDynamicPlan(sessions);
-  const projection = projectPlan(sessions, new Date(), 5);
+  let projection = projectPlan(sessions, new Date(), 5);
   const sessionTarget = status.mode === 'return' ? status.returnWeek.sessions : `${WEEKLY_SESSION_TARGET}`;
+  if (status.mode === 'return') {
+    // The strip must not out-plan the protocol: pure alternation paints 3
+    // train days into a 2-session ramp week, directly under "0/2 this week"
+    // (device-tester, Aug 5). Slots past this week's remaining budget become
+    // recovery; next week's slots spend next week's budget.
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 7);
+    // sessions is a display string ('2', '2–3') — cap at its generous end.
+    const weekTarget = Math.max(...(status.returnWeek.sessions.match(/\d+/g) ?? ['3']).map(Number));
+    let budget = Math.max(0, weekTarget - sessionsThisWeek);
+    projection = projection.map((p) => {
+      if (p.mode !== 'train' || p.date < weekStart || p.date >= weekEnd) return p;
+      if (budget > 0) {
+        budget -= 1;
+        return p;
+      }
+      return { ...p, mode: 'recover' as const, day: null };
+    });
+  }
 
   const latestWeight = [...bodyStats].reverse().find((s) => s.weight !== null)?.weight ?? 132;
   const firstWeight = bodyStats.find((s) => s.weight !== null)?.weight ?? null;

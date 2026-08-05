@@ -152,6 +152,68 @@ export function armGapGuard(
   scheduleLocalNotifications(specs);
 }
 
+/**
+ * The Voice Through the Door — swap the static words on rungs 7 and 19 for
+ * coach-written copy, when (and only when) the server has some.
+ *
+ * Ordering is the safety property: armGapGuard has ALREADY scheduled the
+ * full static ladder synchronously before this runs. This is a
+ * fire-and-forget upgrade — any failure (offline, no key, generation
+ * rejected by the acceptance gate, anchor moved) changes nothing. The
+ * anchor check matters: copy composed against an older last-session date
+ * must never ride a rung armed from a newer one.
+ */
+export async function refreshLadderCopy(
+  lastSessionISO: string,
+  queuedDay: DayId | null,
+  token: string,
+  options: { now?: Date } = {},
+): Promise<void> {
+  if (!isNativeApp()) return;
+  try {
+    const res = await fetch('/api/coach/ladder-copy', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as {
+      rungs: Array<{ day: number; title: string; body: string }> | null;
+      anchor?: string;
+    };
+    if (!data.rungs || !data.anchor) return;
+
+    // The client's armed anchor, as the same bare calendar day the server
+    // uses. A mismatch (unsynced offline save, midnight edge) skips the
+    // upgrade — the static rungs are already correct for whatever is armed.
+    const armed = computeGapLadder(lastSessionISO, queuedDay, options.now);
+    if (!armed.length) return;
+    const clientAnchor = new Date(
+      armed[0].at.getFullYear(), armed[0].at.getMonth(), armed[0].at.getDate() - armed[0].day,
+    );
+    const y = clientAnchor.getFullYear();
+    const m = String(clientAnchor.getMonth() + 1).padStart(2, '0');
+    const d = String(clientAnchor.getDate()).padStart(2, '0');
+    if (`${y}-${m}-${d}` !== data.anchor) return;
+
+    const specs: LocalNotificationSpec[] = [];
+    for (const rung of armed) {
+      const generated = data.rungs.find((g) => g.day === rung.day);
+      if (!generated) continue; // static rung stays as armed
+      specs.push({
+        id: rung.id,
+        title: generated.title,
+        body: generated.body,
+        schedule: { at: rung.at },
+        sound: 'default',
+        extra: { route: rung.route },
+      });
+    }
+    // Same ids, same fire dates, same routes — only the words change.
+    if (specs.length) scheduleLocalNotifications(specs);
+  } catch {
+    /* static ladder stands */
+  }
+}
+
 /** A logged session makes a pending comeback appointment moot. */
 export function clearComeback(): void {
   if (!isNativeApp()) return;

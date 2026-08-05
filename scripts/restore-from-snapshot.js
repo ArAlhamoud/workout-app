@@ -52,6 +52,7 @@ async function main() {
   const workouts = snap.workouts ?? [];
   const bodyStats = snap.bodyStats ?? [];
   const healthSamples = snap.healthSamples ?? [];
+  const holds = snap.holds ?? [];
   const sets = workouts.flatMap((w) => w.sets ?? []);
 
   console.log(`snapshot   ${FILE}`);
@@ -151,6 +152,13 @@ async function main() {
     await prisma.healthSample.upsert({ where: { id: h.id }, update: h, create: h });
   }
   if (healthSamples.length) console.log(`  health      ${healthSamples.length}`);
+
+  // Holds are the streak's excuse ledger — a restore without them turns
+  // every excused week into a broken streak. Absent in pre-fix snapshots.
+  for (const h of holds) {
+    await prisma.hold.upsert({ where: { id: h.id }, update: h, create: h });
+  }
+  if (holds.length) console.log(`  holds       ${holds.length}`);
 
   const after = await prisma.workout.count();
   console.log(`\ndone — target now holds ${after} workouts.`);

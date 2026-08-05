@@ -5,6 +5,7 @@ import { getWorkout } from '../../actions';
 import { calendarDaysBetween, getTrainingStatus, isTrainingSession } from '@/lib/program';
 import { lifetimeStats } from '@/lib/streak';
 import DeleteButton from '@/components/DeleteButton';
+import GapReasonInput from '@/components/GapReasonInput';
 import { CATEGORY_BADGE, formatDateLong, formatDuration, kgCompact, RPE_LABELS } from '@/lib/format';
 import { gymLabel } from '@/lib/program';
 
@@ -98,6 +99,14 @@ export default async function WorkoutDetailPage({
             <b className="text-app-tx1"> {welcomeBack.tonnageLabel}</b> are yours for good.
             Showing up today is the whole game.
           </p>
+          {/* Never echo the reason back (editor): it was collected for the
+              coach's context, and re-reading your own bad fortnight on a
+              celebration card is the -100%-badge class of mistake. */}
+          {workout.gapReason ? (
+            <p className="mt-2 text-xs text-app-tx3">Noted.</p>
+          ) : (
+            <GapReasonInput workoutId={workout.id} />
+          )}
         </div>
       )}
       {/* Header */}

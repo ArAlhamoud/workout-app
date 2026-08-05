@@ -363,7 +363,6 @@ export default async function StatsPage() {
   const lastWeekVol = workouts
     .filter((w) => new Date(w.date) >= lastWeekStart && new Date(w.date) < thisWeekStart)
     .reduce((sum, w) => sum + workingVol(w), 0);
-  const volChange = lastWeekVol > 0 ? Math.round(((thisWeekVol - lastWeekVol) / lastWeekVol) * 100) : null;
 
   // Coach intelligence
   const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
@@ -600,19 +599,13 @@ export default async function StatsPage() {
             </div>
             <div className="metric-label">This week</div>
           </div>
+          {/* Two numbers, no grade. The old red "-100%" fired on every rest
+              week, ramp week and hold — a shame instrument by the app's own
+              standard (the same class the kill-list executed CTL curves for). */}
           <div className="card p-4">
-            <div className={`metric-value ${
-              volChange === null ? 'text-app-tx3' :
-              volChange > 0 ? 'text-acc-teal' :
-              volChange < 0 ? 'text-rose-400' : 'text-app-tx1'
-            }`}>
+            <div className="metric-value text-app-tx1">
               {kgCompact(lastWeekVol)}
               <span className="text-app-tx3 text-sm font-semibold ml-0.5">kg</span>
-              {volChange !== null && (
-                <span className="text-sm font-bold ml-1">
-                  {volChange > 0 ? `+${volChange}%` : volChange < 0 ? `${volChange}%` : '='}
-                </span>
-              )}
             </div>
             <div className="metric-label">Last week</div>
           </div>
