@@ -1,5 +1,13 @@
 # Roadmap
 
+## Wave 3 — the Coach (BUILT)
+
+The layer only a frontier model can be: `claude-opus-5` reads the entire
+history + recovery data and writes the morning brief; `/coach` is a chat
+you can argue with. Hard program rules travel in the system prompt;
+degradation is total (no key → app identical to before). See
+`docs/COACH.md` — needs `ANTHROPIC_API_KEY` in Vercel to light up.
+
 ## Wave 2 — the researched 20 (BUILT, commit 7bedd02)
 
 Product of a five-cluster web research pass over ~30 leading fitness apps

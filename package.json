@@ -19,6 +19,7 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@capacitor-community/keep-awake": "^8.0.1",
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.4.2",

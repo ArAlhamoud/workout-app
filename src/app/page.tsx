@@ -11,6 +11,7 @@ import {
   recoveryActivity,
 } from '@/lib/program';
 import { phaseForWeek } from '@/lib/coach';
+import CoachCard from '@/components/CoachCard';
 import HomeVerdict from '@/components/HomeVerdict';
 import StepsChipLabel from '@/components/StepsChipLabel';
 import { formatDuration, formatRelative, getMondayOfWeek, kgCompact, RPE_LABELS, weekKey } from '@/lib/format';
@@ -276,6 +277,9 @@ export default async function Home() {
         plan={plan}
         lastSessionISO={lastWorkout?.date.toISOString() ?? null}
       />
+
+      {/* The coach's voice — renders nothing until a note exists */}
+      <CoachCard />
 
       {/* ── Hero: answer first — ring + tonight's plan ──── */}
       <section className="card-lg relative overflow-hidden p-4">
