@@ -3,21 +3,27 @@
 // row-as-lock cost bound as /api/coach/brief — whoever wins the create
 // generates, everyone else reads, a failed attempt stands until tomorrow.
 //
-// The client (gap-guard refresh) arms the STATIC ladder first, then calls
-// this and overwrites rungs 7/19 only when copy comes back — and only when
-// the anchor here matches the anchor it armed from. Every failure path
-// returns { rungs: null } and the static ladder stands.
+// Token-gated (data-steward): the response embeds his last session, top set
+// and gap facts, and a request can be the day's one paid generation. The
+// only caller (refreshLadderCopy via HealthAutoPilot) already holds the
+// health-sync bearer, so the gate costs one header.
+//
+// The client arms the STATIC ladder first, then calls this and overwrites
+// rungs 7/19 only when copy comes back — and only when the anchor here
+// matches the anchor it armed from. Every failure path returns
+// { rungs: null } and the static ladder stands.
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import {
-  buildLadderFactSheet,
+  buildLadderFacts,
   generateLadderCopy,
   type LadderRungCopy,
 } from '@/lib/coach-ladder';
 import { todayKey } from '@/lib/coach-context';
-import { getDynamicPlan, queuedDay } from '@/lib/program';
+import { checkHealthAuth } from '@/lib/health';
+import { getDynamicPlan, gymLabel, queuedDay } from '@/lib/program';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,7 +32,10 @@ export const maxDuration = 60;
 
 const MODEL = 'claude-opus-5';
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = checkHealthAuth(request);
+  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
+
   try {
     const day = todayKey();
 
@@ -77,8 +86,10 @@ export async function GET() {
 
     if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ rungs: null });
 
+    // Top set carries its gym tag (rule 2): a pin at Alrajhi is not a pin
+    // at B_Fit, and copy that fires weeks later must say which it means.
     const topSet = last.sets[0]
-      ? `${last.sets[0].exercise.name} ${last.sets[0].weight} kg × ${last.sets[0].reps}`
+      ? `${last.sets[0].exercise.name} ${last.sets[0].weight} kg × ${last.sets[0].reps} at ${gymLabel(last.gym) ?? 'B_Fit'}`
       : null;
     const sessions = await prisma.workout.findMany({
       where: { NOT: { name: { startsWith: 'Rescue walk' } } },
@@ -93,7 +104,7 @@ export async function GET() {
       if (longestGapDays === null || gap > longestGapDays) longestGapDays = gap;
     }
 
-    const factSheet = buildLadderFactSheet({
+    const facts = buildLadderFacts({
       lastSessionDate: anchor,
       lastSessionName: last.name,
       topSet,
@@ -101,13 +112,18 @@ export async function GET() {
       longestGapDays,
     });
 
-    const rungs = await generateLadderCopy(factSheet);
+    const rungs = await generateLadderCopy(facts);
     if (!rungs) return NextResponse.json({ rungs: null }); // row stands — done for today
 
-    await prisma.coachLadderCopy.update({
-      where: { day },
+    // Anchor-conditional write-back (adversary): a slow first generation
+    // finishing AFTER a mid-day regeneration must not overwrite fresher
+    // copy — that would pair the NEW anchor with STALE copy and defeat the
+    // client-side anchor guard. Lose the race → serve nothing.
+    const stored = await prisma.coachLadderCopy.updateMany({
+      where: { day, anchor },
       data: { copy: rungs as unknown as Prisma.InputJsonValue },
     });
+    if (stored.count !== 1) return NextResponse.json({ rungs: null });
     return NextResponse.json({ rungs, anchor });
   } catch {
     // Missing table (pre-schema window), DB down — the static ladder stands.

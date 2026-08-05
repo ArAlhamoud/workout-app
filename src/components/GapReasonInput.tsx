@@ -37,7 +37,7 @@ export default function GapReasonInput({ workoutId }: { workoutId: string }) {
         maxLength={140}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') void save(); }}
-        placeholder="What got in the way? (optional — helps your coach)"
+        placeholder="What got in the way? (optional)"
         className="min-w-0 flex-1 bg-transparent text-sm text-app-tx1 placeholder:text-app-tx3 focus:outline-none"
       />
       {value.trim() && (

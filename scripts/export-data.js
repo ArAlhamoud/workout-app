@@ -14,6 +14,16 @@ async function main() {
     prisma.exercise.findMany({ orderBy: { name: 'asc' } }),
   ]);
 
+  // Holds — the streak's excuse ledger (data-steward): a restore that loses
+  // these turns every excused week into a broken streak, and the coach loses
+  // his stated reasons. Tolerate the table not existing yet.
+  let holds = [];
+  try {
+    holds = await prisma.hold.findMany({ orderBy: { startsAt: 'asc' } });
+  } catch (e) {
+    console.warn('Hold table unavailable, skipping holds export:', e.message);
+  }
+
   // Apple Health samples — tolerate the table not existing yet (schema not applied).
   let healthSamplesTotal = 0;
   let latestWeightSample = null;
@@ -38,9 +48,11 @@ async function main() {
     totalBodyStats: stats.length,
     totalExercises: exercises.length,
     totalHealthSamples: healthSamplesTotal,
+    totalHolds: holds.length,
     latestWeightSample,
     exercises,
     healthSamples,
+    holds,
     workouts,
     bodyStats: stats,
   };

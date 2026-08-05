@@ -176,7 +176,7 @@ async function runGapGuard(token: string): Promise<void> {
   // copy if the server has any — fire-and-forget, never blocks, never
   // downgrades (any failure leaves the static words standing).
   if (!paused && verdict.lastSessionISO) {
-    void refreshLadderCopy(verdict.lastSessionISO, verdict.queuedDay);
+    void refreshLadderCopy(verdict.lastSessionISO, verdict.queuedDay, token);
   }
 }
 

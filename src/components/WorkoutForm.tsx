@@ -1009,7 +1009,7 @@ export default function WorkoutForm({
               prefill, so nothing touches per-gym weight memory. */}
           {gym !== DEFAULT_GYM_ID && Object.keys(gymRecords).length === 0 && (
             <a
-              href={`/coach?q=${encodeURIComponent('Plan my first Alrajhi Tower session — conservative starting pins from my B_Fit history, one pin light.')}`}
+              href={`/coach?q=${encodeURIComponent('Plan my first Alrajhi Tower session.')}`}
               className="-mt-1 block text-[11px] font-semibold text-acc-cyan"
             >
               First time here? Ask the coach for starting pins →

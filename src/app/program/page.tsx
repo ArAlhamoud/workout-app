@@ -138,7 +138,13 @@ export default async function ProgramPage() {
   // Where the lifter actually is this week
   const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
   const weekStart = getMondayOfWeek(new Date());
-  const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
+  // TRAINING sessions only (trainer veto in program.ts: a rescue walk must
+  // never count as a ramp session). Unfiltered, two walks "spent" the ramp
+  // week's budget and the strip told a man who had done zero training that
+  // nothing was due all week.
+  const sessionsThisWeek = workouts.filter(
+    (w) => isTrainingSession(w) && new Date(w.date) >= weekStart,
+  ).length;
   const currentPhase =
     PROGRESSION.find((p) => {
       const parts = p.weeks.split('–').map((s) => parseInt(s.trim()));

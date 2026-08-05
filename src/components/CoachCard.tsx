@@ -32,6 +32,7 @@ interface Proposal {
 
 const CHIP_STYLE: Record<string, string> = {
   session: 'border-acc-teal/40 bg-acc-teal/10 text-acc-teal',
+  'session-30': 'border-acc-teal/40 bg-acc-teal/10 text-acc-teal',
   rescue: 'border-acc-ember/40 bg-acc-ember/10 text-acc-ember',
   rest: 'border-acc-cyan/40 bg-acc-cyan/10 text-acc-cyan',
   'hold-weights': 'border-rpe-med/40 bg-rpe-med/10 text-rpe-med',
@@ -39,9 +40,12 @@ const CHIP_STYLE: Record<string, string> = {
   flag: 'border-rpe-hard/40 bg-rpe-hard/10 text-rpe-hard',
 };
 
-/** Where an actionable chip lands — the descent ladder's one-tap rungs. */
+/** Where an actionable chip lands — the descent ladder's one-tap rungs.
+ *  The 30-minute rung opens the 30-minute FORM (trainer): a chip promising
+ *  30 minutes that opens the full 60-minute day is a decline generator. */
 const CHIP_ROUTE: Record<string, string> = {
   session: '/workouts/new',
+  'session-30': '/workouts/new?dur=30',
   rescue: '/workouts/new?rescue=1',
 };
 
@@ -78,14 +82,17 @@ export default function CoachCard() {
     setApproving(true);
     try {
       if (proposal.action === 'declare-hold') {
-        const hold = await approveCoachHold(proposal.days ?? 7, proposal.reason);
-        if (hold) {
+        const hold = await approveCoachHold(proposal.days ?? 5, proposal.reason);
+        if (hold && hold.already) {
+          setApproved('A hold is already running.');
+        } else if (hold) {
           holdDeclaredFollowThrough(hold.endsAt);
-          setApproved(
-            `On hold until ${new Date(hold.endsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
-          );
+          const until = new Date(hold.endsAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          // Say when the server shortened what the button promised (editor):
+          // consent label and executed action must not silently diverge.
+          setApproved(hold.clamped ? `On hold until ${until} — capped at the day-21 reset.` : `On hold until ${until}`);
         } else {
-          setApproved('Too close to the ramp threshold — no hold to give.');
+          setApproved('Too close to the day-21 reset for a hold.');
         }
       } else {
         const ended = await approveCoachEndHold();
@@ -102,7 +109,7 @@ export default function CoachCard() {
 
   const proposalLabel = (p: Proposal) =>
     p.action === 'declare-hold'
-      ? `Hold ${p.days ?? 7} days${p.reason ? ` — ${p.reason}` : ''}`
+      ? `Hold ${p.days ?? 5} days${p.reason ? ` — ${p.reason}` : ''}`
       : 'End the hold now';
 
   return (
@@ -139,6 +146,11 @@ export default function CoachCard() {
           className="mt-2.5 w-full rounded-card border border-acc-cyan/40 bg-acc-cyan/10 px-3 py-2 text-left text-xs font-semibold text-acc-cyan transition-colors active:bg-acc-cyan/20 disabled:text-app-tx3"
         >
           {approving ? 'Approving…' : `Approve: ${proposalLabel(note.proposal)}`}
+          {note.proposal.action === 'declare-hold' && (
+            <span className="mt-0.5 block text-[10px] font-normal text-app-tx3">
+              Pauses gap reminders until it ends. Streak protected.
+            </span>
+          )}
         </button>
       )}
       {approved && <p className="mt-2.5 text-xs text-app-tx2">{approved}</p>}

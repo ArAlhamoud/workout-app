@@ -1,0 +1,45 @@
+name: Fix history anomalies
+
+# The sanctioned way to run scripts/fix-history-anomalies.js against the
+# live database (data-steward: live-DB work ships as a manually-triggered
+# Action with a preview step, never from an ad-hoc machine). The dry run
+# ALWAYS prints first; the write only happens when `apply` is checked.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Write the fixes (leave unchecked to preview only)'
+        type: boolean
+        default: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: npm install --no-audit --progress=false
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Preview (dry run)
+        run: node scripts/fix-history-anomalies.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Apply fixes
+        if: ${{ inputs.apply }}
+        run: node scripts/fix-history-anomalies.js --apply
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

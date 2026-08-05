@@ -63,6 +63,24 @@ export async function GET() {
     const brief = await generateCoachBrief(context, todayLine);
     if (!brief) return NextResponse.json({ note: null }); // empty row stands — done for today
 
+    // "Holds are for circumstances, not moods" needs a fence in CODE
+    // (trainer): a declare-hold proposal survives only when a logged
+    // circumstance exists — a recent gapReason in his own words, or a
+    // recent hold he declared himself. No evidence → the words stay, the
+    // lever is dropped. (end-hold needs no evidence; it only ever shrinks
+    // a pause.)
+    if (brief.proposal?.action === 'declare-hold') {
+      const since = new Date(Date.now() - 21 * 86_400_000);
+      const [recentReason, recentHold] = await Promise.all([
+        prisma.workout.findFirst({
+          where: { gapReason: { not: null }, date: { gte: since } },
+          select: { id: true },
+        }),
+        prisma.hold.findFirst({ where: { endsAt: { gte: since } }, select: { id: true } }),
+      ]);
+      if (!recentReason && !recentHold) brief.proposal = null;
+    }
+
     await prisma.coachNote.update({
       where: { day },
       data: {

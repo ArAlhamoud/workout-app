@@ -47,7 +47,7 @@ import { binHeartRate } from '../src/lib/hr-capture';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
 import { lastMonthRecap, yearRecap } from '../src/lib/recap';
 import { buildCoachContext, parseCoachBrief, COACH_SYSTEM } from '../src/lib/coach-ai';
-import { buildLadderFactSheet, validateLadderCopy } from '../src/lib/coach-ladder';
+import { buildLadderFacts, validateLadderCopy } from '../src/lib/coach-ladder';
 import { normalizeSampleType } from '../src/lib/health';
 
 interface HistoryFile {
@@ -970,8 +970,11 @@ console.log('coach-ai');
   assert(COACH_SYSTEM.includes('2-4 short sentences'), 'the glance rule bounds the brief');
 
   // Wave 4: descent ladder + bounded proposals + work-gym guidance.
-  assert(COACH_SYSTEM.includes('full session → 30-minute compressed session → 15-minute rescue session'),
-    'the descent ladder is spelled out rung by rung');
+  assert(
+    COACH_SYSTEM.includes('full session → 30-minute compressed session') &&
+      COACH_SYSTEM.includes('15-minute rescue session') &&
+      COACH_SYSTEM.includes("'session-30'"),
+    'the descent ladder is spelled out rung by rung, each with its one-tap chip type');
   assert(COACH_SYSTEM.includes('Stop negotiating after two declines'), 'the ladder ends with grace, not pressure');
   assert(COACH_SYSTEM.includes('holds are for circumstances, not moods'), 'hold proposals are fenced to real obstacles');
   assert(COACH_SYSTEM.includes('start one pin light and expect Easy'), 'work-gym starting guidance is conservative by rule');
@@ -1000,12 +1003,13 @@ console.log('coach-ai');
   const withHold = parseCoachBrief({
     brief: 'Travel week — hold it.',
     directives: [],
-    proposal: { action: 'declare-hold', days: 10, reason: 'Jeddah trip' },
+    proposal: { action: 'declare-hold', days: 5, reason: 'Jeddah trip' },
   });
-  assert(withHold !== null && withHold.proposal?.action === 'declare-hold' && withHold.proposal.days === 10,
+  assert(withHold !== null && withHold.proposal?.action === 'declare-hold' && withHold.proposal.days === 5,
     'a bounded declare-hold proposal parses');
-  const tooLong = parseCoachBrief({ brief: 'x', directives: [], proposal: { action: 'declare-hold', days: 30 } });
-  assert(tooLong !== null && tooLong.proposal === null, 'a 30-day hold proposal is rejected, not clamped');
+  const tooLong = parseCoachBrief({ brief: 'x', directives: [], proposal: { action: 'declare-hold', days: 10 } });
+  assert(tooLong !== null && tooLong.proposal === null,
+    'a 10-day hold proposal is rejected — coach holds cap at 7 (trainer)');
   const badAction = parseCoachBrief({ brief: 'x', directives: [], proposal: { action: 'delete-history' } });
   assert(badAction !== null && badAction.proposal === null, 'an unknown action degrades to no proposal');
   const endHoldP = parseCoachBrief({ brief: 'x', directives: [], proposal: { action: 'end-hold' } });
@@ -1017,26 +1021,44 @@ console.log('coach-ai');
 // ── coach-ladder: the Voice Through the Door ─────────────────
 console.log('coach-ladder');
 {
-  const facts = buildLadderFactSheet({
+  // Jul 29 2026 is a Wednesday: the day-7 rung fires on a Wednesday, 5 days
+  // left in the Monday week → the mend offer is feasible.
+  const facts = buildLadderFacts({
     lastSessionDate: '2026-07-29',
     lastSessionName: 'Day A 45m — Jul 29',
-    topSet: 'Lat Pulldown 22.5 kg × 12',
+    topSet: 'Lat Pulldown 22.5 kg × 12 at B_Fit',
     queuedDay: 'B',
     longestGapDays: 43,
   });
-  assert(facts.includes('22.5 kg × 12'), 'the fact sheet carries the top set');
-  assert(facts.includes('43 days'), 'the fact sheet carries the computed longest gap');
-  assert(facts.includes('day-21') && facts.includes('4-week'), 'the reset facts are stated, not assumed');
+  assert(facts.sheet.includes('22.5 kg × 12'), 'the fact sheet carries the top set');
+  assert(facts.sheet.includes('43 days'), 'the fact sheet carries the computed longest gap');
+  assert(facts.sheet.includes('day-21') && facts.sheet.includes('4-week'), 'the reset facts are stated, not assumed');
+  assert(facts.mendOffer && facts.sheet.includes('rest day between'), 'the mend fact carries the rest-day condition');
+  assert(!facts.allowed.has('29') && !facts.allowed.has('45') && !facts.allowed.has('2026'),
+    'date and session-name fragments are NOT whitelisted numbers (trainer probe)');
 
-  // The gate: numbers must come from the sheet, verbatim.
-  const good7 = { day: 7, title: 'Day B is still queued', body: 'A missed week is mendable — 2 sessions before Sunday night repair it. Your Lat Pulldown 22.5 kg × 12 is right where you left it. 15 minutes counts.' };
+  // The gate: numbers must come from fact VALUES, and weights must be real.
+  const good7 = { day: 7, title: 'Day B is still queued', body: 'A missed week is mendable — 2 sessions before Sunday night repair it, rest day between. Your Lat Pulldown 22.5 kg × 12 is right where you left it. 15 minutes counts.' };
   assert(validateLadderCopy(good7, facts, 7) === null, 'grounded day-7 copy passes the gate');
 
   const invented = { day: 7, title: 'Come back', body: 'You were pressing 80 kg two weeks ago.' };
   assert(validateLadderCopy(invented, facts, 7) !== null, 'an invented number is rejected');
 
-  const shame = { day: 7, title: 'Still waiting', body: 'No more excuses — 2 sessions or the streak dies.' };
+  const dateWeight = { day: 7, title: 'Your bar is set', body: 'Your Lat Pulldown was at 29 kg. 15 minutes tonight.' };
+  assert(validateLadderCopy(dateWeight, facts, 7) !== null, 'a date fragment cannot become a weight (trainer probe)');
+
+  const legalNumberWrongUnit = { day: 7, title: 'Day B waits', body: 'Come back to your 43 kg Lat Pulldown — 15 minutes.' };
+  assert(validateLadderCopy(legalNumberWrongUnit, facts, 7) !== null,
+    'a legal number with an invented kg unit is rejected (43 is a day count, not a weight)');
+
+  const backToBack = { day: 7, title: 'Save the week', body: '2 sessions before Sunday night repair the streak — tonight and tomorrow both, 15 minutes each.' };
+  assert(validateLadderCopy(backToBack, facts, 7) !== null,
+    'a mend offer without the rest-day cue is rejected (trainer blocker: no back-to-back days)');
+
+  const shame = { day: 7, title: 'Still waiting', body: 'Time to move — 2 sessions or the streak dies.' };
   assert(validateLadderCopy(shame, facts, 7) !== null, 'banned lexicon is rejected mechanically');
+  const quite = { day: 7, title: 'Day B is queued', body: 'Quite a week — a 15 minute rescue keeps the 2 session mend alive, rest day between.' };
+  assert(validateLadderCopy(quite, facts, 7) === null, "'quite' does not trip the 'quit' ban (word boundary)");
 
   const tooLongBody = { day: 7, title: 'Hi', body: 'x'.repeat(300) };
   assert(validateLadderCopy(tooLongBody, facts, 7) !== null, 'an over-length body is rejected');
@@ -1049,6 +1071,21 @@ console.log('coach-ladder');
 
   const good19 = { day: 19, title: '2 days from a program reset', body: 'At day 21 the 4-week return ramp takes over. One session in the next 2 days keeps your normal program — Day B is queued.' };
   assert(validateLadderCopy(good19, facts, 19) === null, 'day-19 copy carrying the reset fact passes');
+
+  // Saturday anchor → day-7 rung fires on a Saturday → 2 days left → the
+  // week cannot be mended with a rest day between. The offer must vanish.
+  const satFacts = buildLadderFacts({
+    lastSessionDate: '2026-08-01',
+    lastSessionName: 'Day B 45m — Aug 1',
+    topSet: null,
+    queuedDay: 'A',
+    longestGapDays: 43,
+  });
+  assert(!satFacts.mendOffer && satFacts.sheet.includes('cannot be mended'),
+    'a Saturday fire date withdraws the mend offer (matches streak.ts)');
+  const mendAnyway = { day: 7, title: 'Save it', body: '2 sessions before Sunday night repair the streak, rest day between. 15 minutes.' };
+  assert(validateLadderCopy(mendAnyway, satFacts, 7) !== null,
+    'mend copy on an unmendable week is rejected even with the rest-day cue');
 
   // The static rungs must themselves pass the gate they fall back from —
   // if the fallback can't pass, the gate is wrong, not the fallback.

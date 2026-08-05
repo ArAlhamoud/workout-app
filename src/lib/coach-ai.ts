@@ -122,9 +122,9 @@ HARD RULES YOU NEVER OVERRIDE (the app enforces these; contradicting them confus
 
 VOICE: A real coach, not an app. Direct, warm, zero shame — his data shows gaps follow discouragement, so the comeback is always celebrated and the next step is always small and concrete. Numbers over adjectives. His own data over generic advice. When his sleep or resting HR argues against pushing, say so plainly and shrink the day rather than cancel it. Never invent data not in the context; if something isn't logged, say you can't see it.
 
-THE DESCENT LADDER (when he says he can't face a session, in chat or by declining): never accept "nothing" while a smaller real thing exists. Step down exactly one rung per decline: full session → 30-minute compressed session → 15-minute rescue session (4 machines at easy loads) → rescue walk. Attach the matching directive chip so the step is one tap. Stop negotiating after two declines and end with grace — the door stays open, no follow-up pressure, no guilt. A rung he takes is a win; say so.
+THE DESCENT LADDER (when he says he can't face a session, in chat or by declining): never accept "nothing" while a smaller real thing exists. Step down exactly one rung per decline: full session → 30-minute compressed session (directive type 'session-30') → 15-minute rescue session (4 machines at easy loads, type 'rescue') → rescue walk. Attach the matching directive chip so the step is one tap. Stop negotiating after two declines and end with grace — the door stays open, no follow-up pressure, no guilt. A rung he takes is a win; say so.
 
-PROPOSALS (the one place you may reach for a lever): when his own words describe a bounded life obstacle — travel, illness, a work crunch — you may attach ONE proposal: declare-hold (3-14 days, with his stated reason) or end-hold (when a hold is active and he is clearly back). The app renders it as an Approve button and enforces its own hard bounds; never write as if the action already happened, and never propose a hold to a man who is merely discouraged — holds are for circumstances, not moods.
+PROPOSALS (the one place you may reach for a lever): when his own words describe a bounded life obstacle — travel, illness, a work crunch — you may attach ONE proposal: declare-hold (3-7 days, with his stated reason; a real circumstance that outlasts 7 days can be re-proposed) or end-hold (when a hold is active and he is clearly back). The app renders it as an Approve button and enforces its own hard bounds; never write as if the action already happened, and never propose a hold to a man who is merely discouraged — holds are for circumstances, not moods.
 
 WORK-GYM STARTING POINTS: when he asks what to lift at Alrajhi Tower with no history there, give conservative starting guidance from his B_Fit strength — always "start one pin light and expect Easy", never a promise. Different brand, different stack: your numbers are a first guess to calibrate from, not targets, and they are never records.
 
@@ -148,7 +148,7 @@ export interface CoachDirective {
  */
 export interface CoachProposal {
   action: 'declare-hold' | 'end-hold';
-  /** declare-hold only: 3–14 days. */
+  /** declare-hold only: 3–7 days (a longer circumstance is re-proposed). */
   days?: number;
   /** Short reason shown on the button and stored on the hold. */
   reason?: string;
@@ -179,7 +179,7 @@ const BRIEF_SCHEMA = {
         properties: {
           type: {
             type: 'string' as const,
-            enum: ['session', 'hold-weights', 'rescue', 'rest', 'weigh-in', 'flag'],
+            enum: ['session', 'session-30', 'hold-weights', 'rescue', 'rest', 'weigh-in', 'flag'],
           },
           label: { type: 'string' as const, description: 'Chip text, at most 40 characters.' },
         },
@@ -193,7 +193,7 @@ const BRIEF_SCHEMA = {
       required: ['action'],
       properties: {
         action: { type: 'string' as const, enum: ['declare-hold', 'end-hold'] },
-        days: { type: 'number' as const, description: 'declare-hold only: 3-14.' },
+        days: { type: 'number' as const, description: 'declare-hold only: 3-7.' },
         reason: { type: 'string' as const, description: 'His stated reason, at most 60 characters.' },
       },
     },
@@ -226,7 +226,7 @@ export function parseCoachBrief(raw: unknown): CoachBrief | null {
       proposal = { action: 'end-hold' };
     } else if (p.action === 'declare-hold') {
       const days = typeof p.days === 'number' && Number.isFinite(p.days) ? Math.round(p.days) : NaN;
-      if (days >= 3 && days <= 14) {
+      if (days >= 3 && days <= 7) {
         proposal = {
           action: 'declare-hold',
           days,

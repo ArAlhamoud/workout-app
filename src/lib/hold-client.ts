@@ -20,7 +20,7 @@ export function holdDeclaredFollowThrough(endsAt: string): void {
     {
       id: HOLD_END_NOTIFICATION_ID,
       title: 'Hold complete',
-      body: 'Held, nothing lost. Your next session picks up where you paused.',
+      body: 'Nothing lost — your next session picks up where you paused.',
       schedule: { at: new Date(new Date(endsAt).getTime() + 9 * 3_600_000) },
       sound: 'default',
       extra: { route: '/workouts/new' },
