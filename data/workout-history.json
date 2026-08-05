@@ -1,9 +1,9 @@
 {
-  "exportedAt": "2026-08-04T07:41:01.812Z",
+  "exportedAt": "2026-08-05T07:40:34.128Z",
   "totalWorkouts": 8,
   "totalBodyStats": 5,
   "totalExercises": 20,
-  "totalHealthSamples": 0,
+  "totalHealthSamples": 11,
   "latestWeightSample": null,
   "exercises": [
     {
@@ -147,6 +147,118 @@
       "createdAt": "2026-04-15T19:48:45.159Z"
     }
   ],
+  "healthSamples": [
+    {
+      "id": "cmsfkujsk0000xomdi7kl04ot",
+      "type": "resting_hr",
+      "date": "2026-07-30T00:00:00.000Z",
+      "value": 73,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.810Z"
+    },
+    {
+      "id": "cmsfkujto0004xomdq72r5tyf",
+      "type": "steps",
+      "date": "2026-07-30T00:00:00.000Z",
+      "value": 3653.909963777169,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.852Z"
+    },
+    {
+      "id": "cmsfkujt70001xomdh7e6e20a",
+      "type": "hrv_sdnn",
+      "date": "2026-07-30T00:00:00.000Z",
+      "value": 111.2569654555603,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.836Z"
+    },
+    {
+      "id": "cmsfkujtr0005xomd5gjil8ud",
+      "type": "steps",
+      "date": "2026-07-31T00:00:00.000Z",
+      "value": 2937,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.856Z"
+    },
+    {
+      "id": "cmsfkujtb0002xomd3owogrrd",
+      "type": "hrv_sdnn",
+      "date": "2026-07-31T00:00:00.000Z",
+      "value": 17.89297607253485,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.839Z"
+    },
+    {
+      "id": "cmsfkujtk0003xomdy4zekvz5",
+      "type": "hrv_sdnn",
+      "date": "2026-08-01T00:00:00.000Z",
+      "value": 16.31092656762389,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.848Z"
+    },
+    {
+      "id": "cmsfkujtv0006xomd6f1bpevf",
+      "type": "steps",
+      "date": "2026-08-01T00:00:00.000Z",
+      "value": 6060,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.859Z"
+    },
+    {
+      "id": "cmsfkujty0007xomdsa04rav6",
+      "type": "steps",
+      "date": "2026-08-02T00:00:00.000Z",
+      "value": 3236,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.863Z"
+    },
+    {
+      "id": "cmsfkuju30008xomdv4nqygsd",
+      "type": "steps",
+      "date": "2026-08-03T00:00:00.000Z",
+      "value": 2670,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.868Z"
+    },
+    {
+      "id": "cmsfkuju70009xomda8prc6um",
+      "type": "steps",
+      "date": "2026-08-04T00:00:00.000Z",
+      "value": 1585,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.871Z"
+    },
+    {
+      "id": "cmsfn3ynr000a48uq6r0vx5fy",
+      "type": "steps",
+      "date": "2026-08-05T00:00:00.000Z",
+      "value": 254,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T05:22:04.216Z"
+    }
+  ],
   "workouts": [
     {
       "id": "cmp08dl8l00001n56x6935u5u",
@@ -160,6 +272,8 @@
       "activeKcal": null,
       "healthSyncedAt": "2026-08-02T17:08:47.758Z",
       "healthWorkoutUuid": null,
+      "clientSaveId": null,
+      "hrSeries": null,
       "createdAt": "2026-05-10T20:33:59.491Z",
       "sets": [
         {
@@ -172,6 +286,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -190,6 +305,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -208,6 +324,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -226,6 +343,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -244,6 +362,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -262,6 +381,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -280,6 +400,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -298,6 +419,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -316,6 +438,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -334,6 +457,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -352,6 +476,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -370,6 +495,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -392,6 +518,8 @@
       "activeKcal": null,
       "healthSyncedAt": "2026-08-02T17:08:47.758Z",
       "healthWorkoutUuid": null,
+      "clientSaveId": null,
+      "hrSeries": null,
       "createdAt": "2026-05-13T20:08:35.483Z",
       "sets": [
         {
@@ -404,6 +532,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -422,6 +551,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -440,6 +570,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -458,6 +589,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -476,6 +608,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -494,6 +627,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -512,6 +646,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -530,6 +665,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -548,6 +684,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -566,6 +703,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -584,6 +722,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -602,6 +741,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -620,6 +760,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -638,6 +779,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -656,6 +798,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -674,6 +817,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -692,6 +836,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -710,6 +855,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -732,6 +878,8 @@
       "activeKcal": null,
       "healthSyncedAt": "2026-08-02T17:08:47.758Z",
       "healthWorkoutUuid": null,
+      "clientSaveId": null,
+      "hrSeries": null,
       "createdAt": "2026-05-17T22:43:43.233Z",
       "sets": [
         {
@@ -744,6 +892,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -762,6 +911,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -780,6 +930,7 @@
           "notes": null,
           "rpe": 3,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -798,6 +949,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -816,6 +968,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -834,6 +987,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -852,6 +1006,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -870,6 +1025,7 @@
           "notes": null,
           "rpe": 3,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -888,6 +1044,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -906,6 +1063,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -924,6 +1082,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -942,6 +1101,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -960,6 +1120,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -978,6 +1139,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -996,6 +1158,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -1014,6 +1177,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -1032,6 +1196,7 @@
           "notes": null,
           "rpe": 3,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -1050,6 +1215,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -1072,6 +1238,8 @@
       "activeKcal": null,
       "healthSyncedAt": "2026-08-02T17:08:47.758Z",
       "healthWorkoutUuid": null,
+      "clientSaveId": null,
+      "hrSeries": null,
       "createdAt": "2026-05-19T20:08:04.218Z",
       "sets": [
         {
@@ -1084,6 +1252,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1102,6 +1271,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1120,6 +1290,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1138,6 +1309,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1156,6 +1328,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1174,6 +1347,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1192,6 +1366,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1210,6 +1385,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1228,6 +1404,7 @@
           "notes": null,
           "rpe": 3,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1246,6 +1423,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1264,6 +1442,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1282,6 +1461,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1300,6 +1480,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1318,6 +1499,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1336,6 +1518,7 @@
           "notes": null,
           "rpe": 3,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1354,6 +1537,7 @@
           "notes": null,
           "rpe": 4,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1372,6 +1556,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1390,6 +1575,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1412,6 +1598,8 @@
       "activeKcal": null,
       "healthSyncedAt": "2026-08-02T17:08:47.758Z",
       "healthWorkoutUuid": null,
+      "clientSaveId": null,
+      "hrSeries": null,
       "createdAt": "2026-05-23T18:10:35.780Z",
       "sets": [
         {
@@ -1424,6 +1612,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -1442,6 +1631,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -1460,6 +1650,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -1478,6 +1669,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -1496,6 +1688,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -1514,6 +1707,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -1532,6 +1726,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -1550,6 +1745,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -1568,6 +1764,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -1586,6 +1783,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -1604,6 +1802,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -1622,6 +1821,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -1640,6 +1840,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -1658,6 +1859,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -1676,6 +1878,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -1694,6 +1897,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -1712,6 +1916,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -1734,6 +1939,8 @@
       "activeKcal": null,
       "healthSyncedAt": "2026-08-02T17:08:47.758Z",
       "healthWorkoutUuid": null,
+      "clientSaveId": null,
+      "hrSeries": null,
       "createdAt": "2026-05-30T18:02:10.301Z",
       "sets": [
         {
@@ -1746,6 +1953,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1764,6 +1972,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1782,6 +1991,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1800,6 +2010,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1818,6 +2029,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1836,6 +2048,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46k000e11by41cdclm9",
             "name": "Cable Face Pull",
@@ -1854,6 +2067,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr464000b11byotiuejog",
             "name": "Rear Delt Fly",
@@ -1872,6 +2086,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -1890,6 +2105,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46k000e11by41cdclm9",
             "name": "Cable Face Pull",
@@ -1908,6 +2124,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -1926,6 +2143,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -1944,6 +2162,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -1962,6 +2181,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -1980,6 +2200,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -1998,6 +2219,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -2016,6 +2238,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr464000b11byotiuejog",
             "name": "Rear Delt Fly",
@@ -2034,6 +2257,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45x000a11bygxz3rzq0",
             "name": "Leg Curl",
@@ -2052,6 +2276,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr469000c11byf8hj8hzj",
             "name": "Bicep Curl",
@@ -2070,6 +2295,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46f000d11byrg1aizdn",
             "name": "Triceps Extension",
@@ -2088,6 +2314,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr464000b11byotiuejog",
             "name": "Rear Delt Fly",
@@ -2106,6 +2333,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46k000e11by41cdclm9",
             "name": "Cable Face Pull",
@@ -2124,6 +2352,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45m000811bylyejpvpk",
             "name": "Lat Pulldown",
@@ -2142,6 +2371,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -2160,6 +2390,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45h000711byn7tp5i02",
             "name": "Plank",
@@ -2182,6 +2413,8 @@
       "activeKcal": null,
       "healthSyncedAt": "2026-08-02T17:08:47.758Z",
       "healthWorkoutUuid": null,
+      "clientSaveId": null,
+      "hrSeries": null,
       "createdAt": "2026-06-16T06:24:57.691Z",
       "sets": [
         {
@@ -2194,6 +2427,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -2212,6 +2446,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2230,6 +2465,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2248,6 +2484,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2266,6 +2503,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2284,6 +2522,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2302,6 +2541,7 @@
           "notes": null,
           "rpe": 2,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2320,6 +2560,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -2338,6 +2579,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2356,6 +2598,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2374,6 +2617,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2392,6 +2636,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr45s000911by7xs3v5nq",
             "name": "Mid Row",
@@ -2414,6 +2659,8 @@
       "activeKcal": null,
       "healthSyncedAt": "2026-08-02T17:08:47.758Z",
       "healthWorkoutUuid": null,
+      "clientSaveId": null,
+      "hrSeries": null,
       "createdAt": "2026-07-29T20:33:52.488Z",
       "sets": [
         {
@@ -2426,6 +2673,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2444,6 +2692,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2462,6 +2711,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -2480,6 +2730,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -2498,6 +2749,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmpsvzaa3000014d5squs5art",
             "name": "Hip Thrust Machine",
@@ -2516,6 +2768,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -2534,6 +2787,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2552,6 +2806,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2570,6 +2825,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
@@ -2588,6 +2844,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2606,6 +2863,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmpsvzaa3000014d5squs5art",
             "name": "Hip Thrust Machine",
@@ -2624,6 +2882,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -2642,6 +2901,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -2660,6 +2920,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -2678,6 +2939,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr46p000f11byzmt808od",
             "name": "Ab Crunch",
@@ -2696,6 +2958,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44o000211byjdmy1avq",
             "name": "Shoulder Press",
@@ -2714,6 +2977,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr456000511byjzz673fg",
             "name": "Pec Fly",
@@ -2732,6 +2996,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmpsvzaa3000014d5squs5art",
             "name": "Hip Thrust Machine",
@@ -2750,6 +3015,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44u000311bypxi03ywu",
             "name": "Leg Extension",
@@ -2768,6 +3034,7 @@
           "notes": null,
           "rpe": null,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr447000011byrx817v5l",
             "name": "Leg Press",
@@ -2786,6 +3053,7 @@
           "notes": null,
           "rpe": 1,
           "completedAt": null,
+          "isWarmup": false,
           "exercise": {
             "id": "cmo0gr44i000111bygug550i3",
             "name": "Chest Press",
