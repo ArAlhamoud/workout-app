@@ -46,6 +46,7 @@ import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
 import { binHeartRate } from '../src/lib/hr-capture';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
 import { lastMonthRecap, yearRecap } from '../src/lib/recap';
+import { buildCoachContext, parseCoachBrief, COACH_SYSTEM } from '../src/lib/coach-ai';
 import { normalizeSampleType } from '../src/lib/health';
 
 interface HistoryFile {
@@ -892,6 +893,74 @@ console.log('holdWeekKeys');
   assert(keys.has('2026-08-03') && keys.has('2026-08-10') && keys.has('2026-08-17'),
     `a two-week hold excuses all three touched weeks (got ${[...keys].join()})`);
   assert(holdWeekKeys([]).size === 0, 'no holds, no excuses');
+}
+
+// ── coach-ai pure functions ──────────────────────────────────
+console.log('coach-ai');
+{
+  const ctx = buildCoachContext({
+    profile: { weightKg: 133, startWeightKg: 135, goal: 'fat loss' },
+    status: { mode: 'normal', week: 3, returnWeek: null },
+    plan: { mode: 'train', day: 'B', daysSinceLast: 2 },
+    streak: { weeks: 4, status: 'alive', label: '4 wk streak' },
+    workouts: [
+      {
+        date: '2026-08-01T00:00:00.000Z',
+        name: 'Day A 45m',
+        gym: null,
+        sets: [
+          { exercise: 'Leg Press', weight: 40, reps: 12, rpe: 2 },
+          { exercise: 'Leg Press', weight: 22.5, reps: 12, rpe: null, isWarmup: true },
+        ],
+      },
+    ],
+    bodyStats: [{ date: '2026-08-01T00:00:00.000Z', weight: 133, waist: null }],
+    recovery: [{ type: 'sleep_asleep_h', date: '2026-08-01T00:00:00.000Z', value: 7.2, unit: 'h' }],
+    holds: [],
+  });
+  assert(ctx.includes('Leg Press:40x12@2'), 'sets serialize compactly');
+  assert(!ctx.includes('22.5x12'), 'warm-ups never reach the coach as working sets');
+  assert(!ctx.includes('T00:00:00'), 'dates are bare days — no timestamps to bust the prompt cache');
+  const parsed = JSON.parse(ctx);
+  assert(parsed.workouts[0].gym === 'bfit', 'untagged history reads as the home gym');
+
+  // Context stays bounded no matter the history size.
+  const big = buildCoachContext({
+    profile: { weightKg: 133, startWeightKg: 135, goal: 'x' },
+    status: { mode: 'normal', week: 1, returnWeek: null },
+    plan: { mode: 'train', day: 'A', daysSinceLast: 1 },
+    streak: { weeks: 1, status: 'alive', label: '1' },
+    workouts: Array.from({ length: 200 }, (_, i) => ({
+      date: '2026-01-01T00:00:00.000Z', name: `W${i}`, gym: null, sets: [],
+    })),
+    bodyStats: Array.from({ length: 500 }, () => ({ date: '2026-01-01T00:00:00.000Z', weight: 130, waist: null })),
+    recovery: Array.from({ length: 900 }, () => ({ type: 'steps', date: '2026-01-01T00:00:00.000Z', value: 1, unit: 'count' })),
+    holds: [],
+  });
+  const bigParsed = JSON.parse(big);
+  assert(bigParsed.workouts.length === 40, `workout history caps at 40 (got ${bigParsed.workouts.length})`);
+  assert(bigParsed.bodyStats.length === 60, `body stats cap at 60 (got ${bigParsed.bodyStats.length})`);
+  assert(bigParsed.recoveryDaily.length === 120, `recovery caps at 120 (got ${bigParsed.recoveryDaily.length})`);
+
+  // parseCoachBrief: bounds and garbage tolerance.
+  const ok = parseCoachBrief({ brief: 'Train Day B tonight.', directives: [{ type: 'session', label: 'Day B · 45m' }] });
+  assert(ok !== null && ok.directives.length === 1, 'a valid brief parses');
+  const flood = parseCoachBrief({
+    brief: 'x'.repeat(5000),
+    directives: Array.from({ length: 10 }, () => ({ type: 'flag', label: 'y'.repeat(100) })),
+  });
+  assert(flood !== null && flood.brief.length <= 600, 'a verbose brief is hard-capped for the glance rule');
+  assert(flood !== null && flood.directives.length <= 3 && flood.directives[0].label.length <= 40,
+    'directives are bounded in count and label length');
+  assert(parseCoachBrief(null) === null, 'null → null');
+  assert(parseCoachBrief({ directives: [] }) === null, 'missing brief → null');
+  assert(parseCoachBrief({ brief: '   ' }) === null, 'blank brief → null');
+
+  // The constitution carries the load-bearing rules.
+  assert(COACH_SYSTEM.includes('never suggest exceeding'), 'ramp caps are in the constitution');
+  assert(COACH_SYSTEM.includes('NEVER comparable across gyms'), 'the cross-gym rule is in the constitution');
+  assert(COACH_SYSTEM.includes('Rescue walk'), 'walks-are-not-training is in the constitution');
+  assert(COACH_SYSTEM.includes('2-4 short sentences'), 'the glance rule bounds the brief');
 }
 
 // ── summary ──────────────────────────────────────────────────

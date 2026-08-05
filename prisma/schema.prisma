@@ -95,6 +95,19 @@ model Hold {
   @@index([endsAt])
 }
 
+// One generated coach note per calendar day — the real coach's morning
+// brief. Generated lazily on first request of the day, then served from
+// here; the app never blocks on the model. Additive.
+model CoachNote {
+  id         String   @id @default(cuid())
+  // Bare local calendar day ("2026-08-05") — one note per day.
+  day        String   @unique
+  brief      String
+  directives Json?
+  model      String
+  createdAt  DateTime @default(now())
+}
+
 model HealthSample {
   id        String   @id @default(cuid())
   type      String
