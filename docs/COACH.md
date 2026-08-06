@@ -1,5 +1,13 @@
 # The Coach — the model in the loop
 
+> **Status (owner decision, Aug 2026): running at $0 — no API key, on
+> purpose.** The coach layer is dormant, not misconfigured: every
+> deterministic feature works identically without it, which was the
+> design contract from day one. Do not re-raise the missing
+> `ANTHROPIC_API_KEY` as a to-do. If he ever wants it on, the setup
+> below takes two minutes; the cheap option is one code change
+> (swap the coach model to Haiku, ~5× cheaper).
+
 The app's intelligence layer used to be hand-coded rules. The Coach is the
 layer only a frontier model can be: it reads the **entire** history —
 every set, every RPE, sleep, resting HR, the streak, the holds — and
