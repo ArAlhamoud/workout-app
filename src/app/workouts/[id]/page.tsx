@@ -1,12 +1,12 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import prisma from '@/lib/prisma';
-import { getWorkout } from '../../actions';
+import { getPreviousSameDayWorkout, getWorkout } from '../../actions';
 import { calendarDaysBetween, getTrainingStatus, isTrainingSession } from '@/lib/program';
 import { lifetimeStats } from '@/lib/streak';
 import DeleteButton from '@/components/DeleteButton';
 import GapReasonInput from '@/components/GapReasonInput';
-import { CATEGORY_BADGE, formatDateLong, formatDuration, kgCompact, RPE_LABELS } from '@/lib/format';
+import { CATEGORY_BADGE, formatDateLong, formatDuration, formatRelative, kgCompact, RPE_LABELS } from '@/lib/format';
 import { gymLabel } from '@/lib/program';
 
 /* Effort spectrum — Easy teal-green, Med amber, Hard orange, Grind magenta */
@@ -24,7 +24,10 @@ export default async function WorkoutDetailPage({
   params: { id: string };
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  const workout = await getWorkout(params.id);
+  const [workout, previous] = await Promise.all([
+    getWorkout(params.id),
+    getPreviousSameDayWorkout(params.id),
+  ]);
   if (!workout) notFound();
 
   // The welcome-back moment — the highest-leverage screen in the app. The
@@ -141,25 +144,38 @@ export default async function WorkoutDetailPage({
         <DeleteButton workoutId={workout.id} />
       </div>
 
-      {/* Stats row */}
-      <div className={`grid gap-2 ${workout.duration ? 'grid-cols-4' : 'grid-cols-3'}`}>
-        {[
-          { value: exerciseOrder.length.toString(), label: 'Exercises', accent: 'glow-violet' },
-          { value: workout.sets.length.toString(), label: 'Sets', accent: 'glow-cyan' },
-          {
-            value: kgCompact(totalVolume),
-            label: 'kg Vol',
-            accent: 'glow-teal',
-          },
-          ...(workout.duration
-            ? [{ value: formatDuration(workout.duration), label: 'Duration', accent: 'text-app-tx1' }]
-            : []),
-        ].map((s) => (
-          <div key={s.label} className="card p-3 text-center">
-            <div className={`text-xl font-light font-round tabular-nums ${s.accent}`}>{s.value}</div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.11em] text-app-tx3 mt-0.5">{s.label}</div>
-          </div>
-        ))}
+      {/* One number you can act on, plus the rest on one uncaptioned line.
+          Four captioned tiles said how much was done; none said whether it
+          was more or less than last time, which is the only question a
+          finished session raises. Comparison is same-day-letter and
+          same-gym — weights are not comparable across buildings. */}
+      <div className="card-lg p-4">
+        <div className="flex items-baseline gap-2.5">
+          <span className="font-round text-3xl font-light tabular-nums glow-teal">
+            {kgCompact(totalVolume)} kg
+          </span>
+          {previous && previous.volume > 0 && (() => {
+            const pct = Math.round(((totalVolume - previous.volume) / previous.volume) * 100);
+            const up = pct > 0;
+            const flat = pct === 0;
+            return (
+              <span
+                className={`text-sm font-semibold tabular-nums ${
+                  flat ? 'text-app-tx3' : up ? 'text-rpe-easy' : 'text-rpe-hard'
+                }`}
+              >
+                {flat ? '=' : up ? '▲' : '▼'} {up ? '+' : ''}{pct}%
+                <span className="ml-1.5 font-normal text-app-tx3">
+                  vs {formatRelative(previous.date)}
+                </span>
+              </span>
+            );
+          })()}
+        </div>
+        <p className="mt-1.5 text-xs tabular-nums text-app-tx3">
+          {exerciseOrder.length} ex · {workout.sets.length} sets
+          {workout.duration ? ` · ${formatDuration(workout.duration)}` : ''}
+        </p>
       </div>
 
       {workout.notes && (

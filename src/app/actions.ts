@@ -51,6 +51,45 @@ export async function getWorkout(id: string) {
   });
 }
 
+/**
+ * The previous session of the same day letter at the same gym, for comparison
+ * on the detail screen.
+ *
+ * Gym-scoped on purpose: weights are not comparable across buildings — same
+ * exercise, different stack — so a Day B at Alrajhi must not be measured
+ * against a Day B at B_Fit. Day letter comes from the name because that is
+ * where it lives; a custom-named session simply has no comparison.
+ */
+export async function getPreviousSameDayWorkout(id: string) {
+  const current = await prisma.workout.findUnique({
+    where: { id },
+    select: { id: true, date: true, name: true, gym: true },
+  });
+  if (!current) return null;
+
+  const letter = current.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
+  if (!letter) return null;
+
+  const previous = await prisma.workout.findFirst({
+    where: {
+      id: { not: current.id },
+      date: { lt: current.date },
+      name: { contains: `Day ${letter}` },
+      ...gymScope(current.gym ?? DEFAULT_GYM_ID),
+    },
+    orderBy: { date: 'desc' },
+    include: { sets: { select: { reps: true, weight: true, isWarmup: true } } },
+  });
+  if (!previous) return null;
+
+  // Warm-ups are excluded from volume everywhere else; keep that consistent.
+  const volume = previous.sets.reduce(
+    (sum, s) => sum + (s.isWarmup ? 0 : s.reps * s.weight),
+    0,
+  );
+  return { id: previous.id, date: previous.date, volume };
+}
+
 export async function createWorkout(data: {
   name: string;
   date: string;
