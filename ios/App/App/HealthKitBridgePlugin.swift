@@ -1,3 +1,9 @@
+// SOURCE OF TRUTH. ios/App/App/HealthKitBridgePlugin.swift is a copy that the
+// Xcode target compiles; `npm run ios:deploy` overwrites it from this file on
+// every build. Edit here, never there — an edit to the copy is silently lost,
+// and a build from a stale copy once shipped a known-broken binary that looked
+// like a fresh one.
+
 import Foundation
 import Capacitor
 import HealthKit
