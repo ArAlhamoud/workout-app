@@ -62,10 +62,31 @@ if [ "$FRESH" = "1" ]; then
 fi
 
 echo "==> Installing to $DEVICE"
-xcrun devicectl device install app --device "$DEVICE" "$APP" \
-  | grep -iE "installed|bundleID|error" || true
+# A failed install used to be swallowed by `|| true`, and the verification
+# below reads the LOCAL bundle — so a dropped USB connection printed an error,
+# then "all plugin methods present", then "Done". Exactly the false success
+# this script exists to prevent. Install is now fatal, and retried once,
+# because "Connection interrupted" is usually transient.
+install_once() {
+  xcrun devicectl device install app --device "$DEVICE" "$APP" 2>&1 \
+    | tee /tmp/ios-deploy-install.log \
+    | grep -iE "installed|bundleID|error" || true
+  grep -q "App installed" /tmp/ios-deploy-install.log
+}
 
-echo "==> Verifying the installed build is the one we just made"
+if ! install_once; then
+  echo "   install failed — retrying once"
+  sleep 3
+  if ! install_once; then
+    echo "!! Install failed twice. The app on the device is NOT this build." >&2
+    echo "   Check the cable, unlock the phone, and re-run." >&2
+    exit 1
+  fi
+fi
+
+echo "==> Verifying the built bundle exports every plugin method"
+# Reads the local .app. Meaningful only because the install above is now
+# fatal — the bundle checked here is the bundle that reached the device.
 # Compares the plugin's method list in the binary against the Swift source, so
 # a stale install can't pass silently the way it did before.
 EXPECTED=$(grep -oE 'CAPPluginMethod\(name: "[a-zA-Z]+"' "$ROOT/native/HealthKitBridge/HealthKitBridgePlugin.swift" \
