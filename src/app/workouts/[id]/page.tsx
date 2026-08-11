@@ -141,7 +141,10 @@ export default async function WorkoutDetailPage({
             </div>
           </div>
         </div>
-        <DeleteButton workoutId={workout.id} />
+        <DeleteButton
+          workoutId={workout.id}
+          summary={`${workout.sets.length} sets · ${kgCompact(totalVolume)} kg`}
+        />
       </div>
 
       {/* One number you can act on, plus the rest on one uncaptioned line.
