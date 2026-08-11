@@ -19,6 +19,25 @@ followed the same shape. This skill is that shape, written down so it costs
 one command instead of a lucky prompt. The steps are ordered; each exists
 because skipping it has already burned this project at least once.
 
+The idea underneath every step: **make being wrong cheap.** Wrong plans
+should die on paper, bugs should die as tests, small work should stay
+small, and nothing should be believed until something independent of its
+author has looked at it.
+
+## 0. Right-size the ceremony
+
+Classify the ask before spending anything, and match the machinery to it:
+
+- **Small** (copy tweak, one-liner, config): build, run the tests, ship.
+  No panels — a 10-agent review of a label change is waste wearing rigor.
+- **Medium** (a component, a route, a bounded fix): build with the
+  verification loop, then the review roles relevant to the touched area.
+- **Large** (new subsystem, schema, anything touching money/data/safety):
+  everything below — plan gate, full review panel, device pass.
+
+When unsure, round up one size. The skill's steps below assume medium or
+large; for small work, steps 3 and 7 alone are enough.
+
 ## 1. Frame — goal and constraints before code
 
 Restate what he asked for as a goal plus the standing constraints, because
@@ -43,6 +62,14 @@ instead of accepting increments. If the ambitious version is clearly right
 and in scope, build it; if it changes scope or cost, ask him — that decision
 is his.
 
+## 2b. Plan gate (large work only) — review the plan, not the diff
+
+Before any code on a large wave, write the plan: files to touch, steps in
+order, schema impact, what could go wrong. Check it against the
+constraints and the CLAUDE.md rules, then build from it. A wrong plan
+costs one paragraph to fix; the same mistake discovered in a diff costs
+the afternoon. This is where being wrong is cheapest — spend the minute.
+
 ## 3. Build small, verify constantly — claims are not implementation
 
 Slice the work into steps that each end in a verifiable state. After every
@@ -61,6 +88,21 @@ meaningful chunk:
 Never report a step done on the strength of intention. Rule 5 of CLAUDE.md
 exists because a commit message once described CI that was never committed.
 
+**Every bug becomes a failing test first.** When a defect is found — by a
+reviewer, by CI, by the owner — write the assertion that FAILS on the
+current code before writing the fix, then make it pass. A test written
+after the fix often silently tests nothing; a test that was seen to fail
+proves it can catch the bug, and locks it closed forever. This is how the
+suite got to 300+ assertions that each guard a real, once-live mistake.
+
+**Use the app, don't just build it.** Once per wave, drive the real thing
+the way the owner would: start the dev server, open the changed screens at
+iPhone viewport, tap the flow, look at the screenshots. The
+invisible-reps bug survived 336 green tests, a clean build and lint — and
+died in the first ten seconds of actually looking at the screen. Tests
+measure what you thought to test; using the product measures what you
+didn't.
+
 ## 4. Adversarial review — assume the diff is wrong
 
 Before shipping, run the repo's review roles (.claude/agents/) over the
@@ -71,6 +113,12 @@ diff — in parallel where possible. Always the **adversary**; add by area:
   anything writing rows.
 - **device-tester** — layout, components, CSS.
 - **editor** — any user-facing words.
+
+**Keep the reviewers blind.** Give them the diff, the repo, and the task —
+never the builder's reasoning, summary, or defense. A reviewer who reads
+"here's why this is correct" inherits the author's blind spots; the cold
+reviewer found Wave 4's day-7 back-to-back-sessions blocker precisely
+because nobody told it why the code was fine.
 
 Fix every confirmed finding; say plainly which findings were rejected and
 why. The value is real: a Wave-4 diff with 336 green tests still yielded 26
