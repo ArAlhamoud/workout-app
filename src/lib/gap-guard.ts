@@ -166,14 +166,11 @@ export function armGapGuard(
 export async function refreshLadderCopy(
   lastSessionISO: string,
   queuedDay: DayId | null,
-  token: string,
   options: { now?: Date } = {},
 ): Promise<void> {
   if (!isNativeApp()) return;
   try {
-    const res = await fetch('/api/coach/ladder-copy', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch('/api/coach/ladder-copy');
     if (!res.ok) return;
     const data = (await res.json()) as {
       rungs: Array<{ day: number; title: string; body: string }> | null;

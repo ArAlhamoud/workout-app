@@ -1,11 +1,8 @@
 'use client';
 
-// Argue with the coach. A plain chat over his entire history — the same
-// token that guards health sync guards this (it costs real model tokens).
+// Argue with the coach. A plain chat over his entire history.
 
 import { useEffect, useRef, useState } from 'react';
-
-const TOKEN_KEY = 'health-sync-token';
 
 interface Turn {
   role: 'user' | 'assistant';
@@ -17,11 +14,9 @@ export default function CoachPage() {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [token, setToken] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setToken(localStorage.getItem(TOKEN_KEY));
     // ?q= preseeds the input (e.g. the work-gym "plan my first Alrajhi
     // session" chip). window.location, not useSearchParams — no Suspense
     // boundary needed for one optional read at mount.
@@ -46,16 +41,9 @@ export default function CoachPage() {
     try {
       const res = await fetch('/api/coach/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ turns: next }),
       });
-      if (res.status === 401) {
-        setError('Connect Apple Health first — the coach uses the same sync token.');
-        return;
-      }
       const data = await res.json();
       if (data?.reply) {
         setTurns((cur) => [...cur, { role: 'assistant', content: data.reply }]);

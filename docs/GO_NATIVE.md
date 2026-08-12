@@ -50,9 +50,9 @@ Then paste:
 
 1. If the app won't launch: Settings → General → VPN & Device Management → trust your developer certificate.
 2. Open the app (it loads https://workout-app-gamma-rouge.vercel.app — needs internet).
-3. Go to **Stats** → the "Apple Health" card appears (native shell only) → paste the sync token (same value as `HEALTH_SYNC_TOKEN` on Vercel) → Save.
+3. Go to **Stats** → the "Apple Health" card appears (native shell only). No token, no setup — sync runs through server actions.
 4. Tap **Connect Health** → allow all requested Health permissions.
-5. Tap **Sync now** → expect a terse status like `3 weights · 1 workout ↑`.
+5. Tap **Sync now** → expect a terse status like `3 weights · 1 workout ↑`, or "Everything already in sync".
 
 ## Watch out
 

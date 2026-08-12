@@ -42,11 +42,11 @@ import {
 import { armGapGuard, notifySickRest, notifyComeback, refreshLadderCopy } from '@/lib/gap-guard';
 import { scheduleLocalNotifications } from '@/lib/native-feedback';
 import { flushOutbox, retryDead } from '@/lib/outbox';
+import { importHealth, getWorkoutsToPush, markWorkoutsPushed } from '@/app/health-actions';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { lastNightSleepHours, readSickSignal } from '@/lib/health-metrics';
 import type { DayId } from '@/lib/program';
 
-const TOKEN_KEY = 'health-sync-token';
 const AUTOPILOT_STAMP_KEY = 'health-autopilot-last-run';
 const SICK_FLAG_KEY = 'gap-guard-sick-paused';
 const DEAD_RETRY_STAMP_KEY = 'outbox-dead-last-retry';
@@ -73,7 +73,8 @@ interface VerdictPayload {
   holdUntilISO?: string | null;
 }
 
-async function api(token: string, path: string, init?: RequestInit): Promise<unknown> {
+/** Only /api/verdict now — the health endpoints became server actions. */
+async function api(path: string, init?: RequestInit): Promise<unknown> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
   try {
@@ -82,7 +83,6 @@ async function api(token: string, path: string, init?: RequestInit): Promise<unk
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
         ...(init?.headers ?? {}),
       },
     });
@@ -144,10 +144,10 @@ function handleRestAction(actionId: 'plus30' | 'done'): void {
 }
 
 /** Gap Guard + sick-day state machine. Runs every open; all local. */
-async function runGapGuard(token: string): Promise<void> {
+async function runGapGuard(): Promise<void> {
   let verdict: VerdictPayload | null = null;
   try {
-    verdict = (await api(token, '/api/verdict')) as VerdictPayload;
+    verdict = (await api('/api/verdict')) as VerdictPayload;
   } catch {
     /* offline: re-arm from nothing is worse than leaving the ladder alone */
   }
@@ -176,12 +176,12 @@ async function runGapGuard(token: string): Promise<void> {
   // copy if the server has any — fire-and-forget, never blocks, never
   // downgrades (any failure leaves the static words standing).
   if (!paused && verdict.lastSessionISO) {
-    void refreshLadderCopy(verdict.lastSessionISO, verdict.queuedDay, token);
+    void refreshLadderCopy(verdict.lastSessionISO, verdict.queuedDay);
   }
 }
 
 /** The heavier, throttled half: weight, recovery metrics, workout push. */
-async function runSyncs(token: string): Promise<void> {
+async function runSyncs(): Promise<void> {
   const last = Number(await durableGet(AUTOPILOT_STAMP_KEY));
   if (Number.isFinite(last) && Date.now() - last < SYNC_THROTTLE_MIN * 60_000) return;
   // Stamp before running, not after: two rapid opens must not double-run.
@@ -192,12 +192,9 @@ async function runSyncs(token: string): Promise<void> {
   try {
     const samples = await queryWeight(windowStartISO(WEIGHT_WINDOW_DAYS));
     if (samples.length) {
-      await api(token, '/api/health/import', {
-        method: 'POST',
-        body: JSON.stringify(
-          samples.map((s) => ({ type: 'weight', value: s.value, unit: 'kg', date: s.dateISO })),
-        ),
-      });
+      await importHealth(
+        samples.map((s) => ({ type: 'weight', value: s.value, unit: 'kg', date: s.dateISO })),
+      );
     }
   } catch { /* next open retries */ }
 
@@ -225,14 +222,14 @@ async function runSyncs(token: string): Promise<void> {
       rows.push({ type: 'sleep_asleep_h', value: sleepH, unit: 'h', date: localDay(new Date()) });
     }
     if (rows.length) {
-      await api(token, '/api/health/import', { method: 'POST', body: JSON.stringify(rows) });
+      await importHealth(rows);
     }
   } catch { /* next open retries */ }
 
   // 3 — write-through of unsynced app workouts to HealthKit. Same contract
   // as the manual card: no energy passed (read-back energy double-counts).
   try {
-    const workouts = (await api(token, '/api/health/workouts')) as Array<{
+    const workouts = (await getWorkoutsToPush()) as Array<{
       id: string;
       name: string;
       start: string;
@@ -257,10 +254,10 @@ async function runSyncs(token: string): Promise<void> {
       } catch { /* stays unsynced; the card's manual sync can surface why */ }
     }
     if (enrichment.length) {
-      await api(token, '/api/health/import', { method: 'POST', body: JSON.stringify(enrichment) });
+      await importHealth(enrichment);
     }
     if (savedIds.length) {
-      await api(token, '/api/health/workouts', { method: 'POST', body: JSON.stringify({ ids: savedIds }) });
+      await markWorkoutsPushed(savedIds);
     }
   } catch { /* next open retries */ }
 }
@@ -294,11 +291,12 @@ export default function HealthAutoPilot() {
       });
     } catch { /* no Network plugin — app-open flushes still stand */ }
 
+    // No token gate any more: the server is reachable from the app by being
+    // the same origin, so autopilot runs on every open instead of waiting for
+    // a value the owner had to paste in by hand.
     const run = () => {
-      const token = localStorage.getItem(TOKEN_KEY);
-      if (!token) return; // Gap Guard needs the server; without a token, nothing to do.
-      void runGapGuard(token);
-      void runSyncs(token); // self-throttled to once per 30 min
+      void runGapGuard();
+      void runSyncs(); // self-throttled to once per 30 min
     };
     run();
 

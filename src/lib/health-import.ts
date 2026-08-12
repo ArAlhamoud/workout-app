@@ -1,16 +1,11 @@
-import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import {
-  checkHealthAuth,
   dayKey,
   matchSamplesToWorkout,
   parseHealthPayload,
   type ParsedSample,
 } from '@/lib/health';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
 
 const HEALTH_SOURCE = 'apple-health';
 
@@ -82,17 +77,11 @@ async function enrichWorkouts(samples: ParsedSample[]): Promise<number> {
   return enriched;
 }
 
-export async function POST(request: Request) {
-  const auth = checkHealthAuth(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
-
-  let payload: unknown;
-  try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
-
+/**
+ * Import Apple Health samples. Called by a server action, not over HTTP —
+ * there is no token because there is no public endpoint to guard.
+ */
+export async function importHealthSamples(payload: unknown) {
   const { samples, skipped } = parseHealthPayload(payload);
 
   let imported = 0;
@@ -125,5 +114,5 @@ export async function POST(request: Request) {
     revalidatePath('/stats');
   }
 
-  return NextResponse.json({ imported, skipped, bodyStatsUpserted, workoutsEnriched });
+  return { imported, skipped, bodyStatsUpserted, workoutsEnriched };
 }
