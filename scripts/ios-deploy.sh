@@ -20,8 +20,8 @@
 #                                         so the app comes up in first-run state)
 # Override the target with: WORKOUT_DEVICE_ID=<udid> npm run ios:deploy
 #
-# --fresh wipes the sync token too, and does NOT reset Health permissions —
-# iOS keys those to the bundle ID, not the install.
+# --fresh does NOT reset Health permissions — iOS keys those to the bundle ID,
+# not the install.
 
 set -euo pipefail
 

@@ -1,11 +1,11 @@
 // Full-history export — the data-ownership feature every serious logger
 // charges for. JSON by default; ?format=csv flattens sets for spreadsheets.
-// A monthly iOS Shortcut fetching this into iCloud Drive gives the history
-// its third copy with no native build (documented in MAC_NATIVE_TRIP.md).
+// Guarded by HEALTH_SYNC_TOKEN — the one place that token still lives, because
+// this route is reached by URL rather than by the app (see checkExportAuth).
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { checkHealthAuth } from '@/lib/health';
+import { checkExportAuth } from '@/lib/health';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ function csvEscape(v: unknown): string {
 }
 
 export async function GET(request: Request) {
-  const auth = checkHealthAuth(request);
+  const auth = checkExportAuth(request);
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
   const [workouts, bodyStats, exercises, healthSamples] = await Promise.all([

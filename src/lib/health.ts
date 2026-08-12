@@ -1,5 +1,5 @@
 // Pure helpers for the Apple Health bridge: payload parsing, sample→workout
-// matching, and the shared token guard used by /api/health/* routes.
+// matching, and the token guard on /api/export.
 
 export type HealthSampleType =
   | 'weight'
@@ -252,10 +252,15 @@ export type HealthAuthResult =
   | { ok: false; status: 401 | 500; message: string };
 
 /**
- * Token guard for /api/health/* routes. Not auth (single-user app) — a data
- * integrity check so only the owner's Shortcuts can write.
+ * Token guard for /api/export — now the only guarded route.
+ *
+ * Everything the app itself does goes through server actions, which are
+ * same-origin and need no token. Export is different: it is a plain GET that
+ * returns the entire history, it is reached by URL rather than by the app, and
+ * an unguarded one would be a public copy of every workout he has logged. The
+ * token costs nothing here because nothing has to paste it into the app.
  */
-export function checkHealthAuth(request: Request): HealthAuthResult {
+export function checkExportAuth(request: Request): HealthAuthResult {
   const token = process.env.HEALTH_SYNC_TOKEN;
   if (!token) {
     return { ok: false, status: 500, message: 'HEALTH_SYNC_TOKEN is not configured on the server' };

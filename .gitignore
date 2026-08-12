@@ -37,3 +37,10 @@ next-env.d.ts
 prisma/*.db
 prisma/*.db-journal
 .env.local
+
+# xcode / capacitor build output (the pinned DerivedData and SPM's own)
+ios/App/.derived/
+ios/App/CapApp-SPM/build/
+
+# per-machine claude permissions
+.claude/settings.local.json

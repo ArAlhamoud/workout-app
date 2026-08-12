@@ -8,7 +8,6 @@
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { checkHealthAuth } from '@/lib/health';
 import { homeVerdict } from '@/lib/coach';
 import { calendarDaysBetween, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay } from '@/lib/program';
 import { holdWeekKeys, weekStreak } from '@/lib/streak';
@@ -17,8 +16,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
-  const auth = checkHealthAuth(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
   const now = new Date();
   const [workouts, holds, activeHold] = await Promise.all([

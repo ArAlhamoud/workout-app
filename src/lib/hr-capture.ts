@@ -11,7 +11,6 @@
 
 import { isNativeApp, queryQuantity } from './native-health';
 
-const TOKEN_KEY = 'health-sync-token';
 /** One bin per 15 s — plenty for a strength session's between-sets shape. */
 const BIN_SECONDS = 15;
 /** Raw-sample ceiling; Watch cadence over 3 h stays well under this. */
@@ -43,8 +42,6 @@ export function binHeartRate(
 
 export function captureWorkoutHr(workoutId: string, startISO: string, endISO: string): void {
   if (!isNativeApp()) return;
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) return;
 
   void (async () => {
     try {
@@ -55,11 +52,11 @@ export function captureWorkoutHr(workoutId: string, startISO: string, endISO: st
       });
       const bins = binHeartRate(samples, startISO);
       if (!bins.length) return; // No Watch on the wrist — nothing to store.
-      await fetch('/api/health/hr-series', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ workoutId, bins }),
-      });
+      // Imported here, not at module scope: binHeartRate below is a pure
+      // function the assertion suite imports directly, and a top-level import
+      // of the server action drags prisma into that plain ts-node process.
+      const { saveHrSeries } = await import('@/app/health-actions');
+      await saveHrSeries({ workoutId, bins });
     } catch {
       /* silent by contract */
     }

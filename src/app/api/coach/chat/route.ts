@@ -2,7 +2,6 @@
 // chat turns cost real model tokens, and this is a single-user app.
 
 import { NextResponse } from 'next/server';
-import { checkHealthAuth } from '@/lib/health';
 import { coachChat, type ChatTurn } from '@/lib/coach-ai';
 import { assembleCoachContext } from '@/lib/coach-context';
 
@@ -12,8 +11,6 @@ export const dynamic = 'force-dynamic';
 const MAX_TURN_CHARS = 2000;
 
 export async function POST(request: Request) {
-  const auth = checkHealthAuth(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ reply: null, reason: 'no-key' });

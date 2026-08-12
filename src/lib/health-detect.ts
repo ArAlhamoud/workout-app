@@ -1,9 +1,5 @@
-import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { checkHealthAuth, dayKey, isBareDay, workoutWindow } from '@/lib/health';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+import { dayKey, isBareDay, workoutWindow } from '@/lib/health';
 
 // Which HealthKit workouts the app is willing to offer as "you trained this
 // and never logged it". Deliberately narrow. The Watch writes a workout for
@@ -141,19 +137,9 @@ const minutes = (sec: number) => Math.max(1, Math.round(sec / 60));
  * right way round: a duplicate offer nags on every visit, a missed second
  * session is one manual log.
  */
-export async function POST(request: Request) {
-  const auth = checkHealthAuth(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
-
-  let payload: unknown;
-  try {
-    payload = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
-
+export async function detectUnloggedWorkouts(payload: unknown) {
   const candidates = parseCandidates(payload);
-  if (!candidates.length) return NextResponse.json({ candidates: [] });
+  if (!candidates.length) return { candidates: [] };
 
   const earliest = Math.min(...candidates.map((c) => c.start.getTime()));
   const latest = Math.max(...candidates.map((c) => c.end.getTime()));
@@ -196,5 +182,5 @@ export async function POST(request: Request) {
       name: `Swim ${minutes(c.durationSec)}m`,
     }));
 
-  return NextResponse.json({ candidates: fresh });
+  return { candidates: fresh };
 }

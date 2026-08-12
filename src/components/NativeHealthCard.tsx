@@ -7,6 +7,12 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { importHealthWorkout } from '@/app/actions';
 import {
+  importHealth,
+  detectUnlogged as detectUnloggedAction,
+  getWorkoutsToPush,
+  markWorkoutsPushed,
+} from '@/app/health-actions';
+import {
   isNativeApp,
   requestHealthAuthorization,
   queryWeight,
@@ -18,12 +24,10 @@ import {
   HEALTH_APP_URL,
 } from '@/lib/native-health';
 
-const TOKEN_KEY = 'health-sync-token';
 const LAST_SYNC_KEY = 'health-native-last-sync';
 const CONNECTED_KEY = 'health-native-connected';
 /** UUIDs the user has already acted on — never offered again on this device. */
 const DISMISSED_KEY = 'health-detect-dismissed';
-const API_TIMEOUT_MS = 20_000;
 
 /** This app's own bundle id — sessions it wrote to Health are already logged. */
 const OWN_BUNDLE_ID = 'com.aralhamoud.workout';
@@ -36,19 +40,10 @@ const DISMISSED_MAX = 60;
  * Weight is always re-pulled over a fixed rolling window, never "since the last
  * sync". A weigh-in can be ENTERED on Wednesday but DATED Monday; a since-cursor
  * moves past Monday and drops that sample forever, silently. Re-sending overlap
- * is free: /api/health/import upserts on (type, date, source) and refuses to
+ * is free: importHealth upserts on (type, date, source) and refuses to
  * overwrite manually logged days, so this is idempotent.
  */
 const WEIGHT_WINDOW_DAYS = 30;
-
-interface ApiWorkout {
-  id: string;
-  name: string;
-  start: string;
-  durationMin: number;
-  /** App-side estimate. Deliberately NOT written to HealthKit — see sync(). */
-  estKcal: number;
-}
 
 interface ImportSample {
   type: 'weight' | 'heart_rate' | 'active_energy';
@@ -67,37 +62,6 @@ interface Detected {
   label: string;
   /** Ready-made workout name for the one-tap cardio import ("Swim 28m"). */
   name: string;
-}
-
-/**
- * Bounded fetch against /api/health/*. Module scope so the detect pass can use
- * it from an effect without depending on anything rebuilt each render — a
- * request that never comes back would otherwise strand the card with nothing
- * to report.
- */
-async function healthApi(token: string, path: string, init?: RequestInit): Promise<unknown> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
-  try {
-    const res = await fetch(path, {
-      ...init,
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-        ...(init?.headers ?? {}),
-      },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') {
-      throw new Error(`${path} timed out after ${API_TIMEOUT_MS / 1000}s`);
-    }
-    throw e;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 /** Device-local calendar day (YYYY-MM-DD) — the server can't derive this. */
@@ -125,7 +89,7 @@ function whenLabel(iso: string): string {
  * this is an offer, not a sync, and an error chip for "we couldn't check"
  * would be pure noise on a card that already reports real sync failures.
  */
-async function detectUnlogged(token: string): Promise<Detected[]> {
+async function detectUnlogged(): Promise<Detected[]> {
   try {
     const workouts = await queryWorkouts(windowStartISO(DETECT_WINDOW_DAYS));
     const candidates = workouts
@@ -140,10 +104,7 @@ async function detectUnlogged(token: string): Promise<Detected[]> {
       }));
     if (!candidates.length) return [];
 
-    const res = await healthApi(token, '/api/health/detect', {
-      method: 'POST',
-      body: JSON.stringify({ candidates }),
-    });
+    const res = await detectUnloggedAction({ candidates });
     const list = (res as { candidates?: unknown })?.candidates;
     return Array.isArray(list) ? (list as Detected[]) : [];
   } catch {
@@ -151,8 +112,6 @@ async function detectUnlogged(token: string): Promise<Detected[]> {
   }
 }
 
-const inputCls =
-  'w-full bg-app-surface2 border border-app-border rounded-card px-3 py-2.5 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-acc-teal/60 text-sm transition-colors';
 const btnCls =
   'px-3.5 py-2 text-xs font-bold rounded-card transition-all bg-gradient-to-r from-acc-teal to-acc-teal-deep text-[#062521] shadow-glow-teal hover:brightness-105 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none';
 const btnGhostCls =
@@ -181,9 +140,6 @@ function Chevron() {
 export default function NativeHealthCard() {
   const router = useRouter();
   const [native, setNative] = useState(false);
-  const [token, setToken] = useState('');
-  const [draft, setDraft] = useState('');
-  const [editingToken, setEditingToken] = useState(false);
   const [connected, setConnected] = useState(false);
   const [busy, setBusy] = useState<'connect' | 'sync' | null>(null);
   const [status, setStatus] = useState('');
@@ -198,7 +154,6 @@ export default function NativeHealthCard() {
   useEffect(() => {
     if (!isNativeApp()) return;
     setNative(true);
-    setToken(localStorage.getItem(TOKEN_KEY) ?? '');
     setConnected(localStorage.getItem(CONNECTED_KEY) === '1');
     setLastSync(localStorage.getItem(LAST_SYNC_KEY));
     try {
@@ -210,36 +165,24 @@ export default function NativeHealthCard() {
   }, []);
 
   // Auto-detect runs on its own, unprompted: the whole point is that he does
-  // NOT have to remember a session went unlogged. It needs the token (the
-  // overlap check lives behind the same guard as every other health route).
+  // NOT have to remember a session went unlogged.
   useEffect(() => {
-    if (!native || !token) return;
+    if (!native) return;
     let cancelled = false;
-    detectUnlogged(token).then((found) => {
+    detectUnlogged().then((found) => {
       if (!cancelled) setDetected(found);
     });
     return () => {
       cancelled = true;
     };
-  }, [native, token, detectNonce]);
+  }, [native, detectNonce]);
 
   if (!native) return null;
 
-  const api = (path: string, init?: RequestInit) => healthApi(token, path, init);
 
   /** Keep the stage name, but carry the real cause so a failure is debuggable. */
   const reason = (e: unknown, stage: string) =>
     e instanceof Error && e.message ? `${stage}: ${e.message}` : stage;
-
-  const saveToken = (e: React.FormEvent) => {
-    e.preventDefault();
-    const value = draft.trim();
-    if (!value) return;
-    localStorage.setItem(TOKEN_KEY, value);
-    setToken(value);
-    setDraft('');
-    setEditingToken(false);
-  };
 
   const connect = async () => {
     setBusy('connect');
@@ -280,7 +223,7 @@ export default function NativeHealthCard() {
           unit: 'kg',
           date: s.dateISO,
         }));
-        await api('/api/health/import', { method: 'POST', body: JSON.stringify(body) });
+        await importHealth(body);
         weightsUp = samples.length;
       }
       // Marker is now display-only ("synced 2h ago") — it is never a query bound.
@@ -293,7 +236,7 @@ export default function NativeHealthCard() {
 
     // 2 — un-synced app workouts → HealthKit (+ HR/energy enrichment back to app)
     try {
-      const workouts = (await api('/api/health/workouts')) as ApiWorkout[];
+      const workouts = await getWorkoutsToPush();
       const savedIds: string[] = [];
       const enrichment: ImportSample[] = [];
 
@@ -325,10 +268,7 @@ export default function NativeHealthCard() {
 
       if (enrichment.length > 0) {
         try {
-          const res = (await api('/api/health/import', {
-            method: 'POST',
-            body: JSON.stringify(enrichment),
-          })) as { workoutsEnriched?: number };
+          const res = (await importHealth(enrichment)) as { workoutsEnriched?: number };
           // Counts, not checkmarks: this pipeline once looked green for weeks
           // while delivering zero rows. The number is the honest signal.
           if (typeof res.workoutsEnriched === 'number') workoutsEnriched = res.workoutsEnriched;
@@ -337,7 +277,7 @@ export default function NativeHealthCard() {
         }
       }
       if (savedIds.length > 0) {
-        await api('/api/health/workouts', { method: 'POST', body: JSON.stringify({ ids: savedIds }) });
+        await markWorkoutsPushed(savedIds);
         workoutsUp = savedIds.length;
       }
     } catch (e) {
@@ -417,7 +357,6 @@ export default function NativeHealthCard() {
     }
   };
 
-  const needsToken = !token || editingToken;
   const syncAge = formatSyncAge(lastSync);
   // Silent when there is nothing to offer — no empty state, no placeholder.
   const offers = detected.filter((d) => !dismissed.includes(d.uuid));
@@ -434,62 +373,25 @@ export default function NativeHealthCard() {
               Linked
             </span>
           )}
-          {token && !editingToken && (
-            <button
-              onClick={() => {
-                setDraft(token);
-                setEditingToken(true);
-              }}
-              className="chip bg-app-surface2 border border-app-border text-app-tx3 hover:text-app-tx1 transition-colors"
-            >
-              Token
-            </button>
-          )}
         </div>
       </div>
 
-      {needsToken ? (
-        <form onSubmit={saveToken} className="flex gap-2">
-          <input
-            type="password"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Sync token"
-            autoCapitalize="off"
-            autoCorrect="off"
-            autoComplete="off"
-            className={inputCls}
-          />
-          <button type="submit" disabled={!draft.trim()} className={`flex-shrink-0 ${btnCls}`}>
-            Save
-          </button>
-        </form>
-      ) : (
-        <div className="flex gap-2">
-          {/*
-            Always available, even once connected. A native build that widens
-            the requested type set only takes effect when requestAuthorization
-            runs again — and hiding this button made that impossible without
-            deleting the app or reaching for Safari's Web Inspector. iOS shows
-            the sheet only for types you haven't answered, so re-tapping is
-            harmless when there's nothing new.
-          */}
-          <button
-            onClick={connect}
-            disabled={busy !== null}
-            className={connected ? btnGhostCls : btnCls}
-          >
-            {busy === 'connect' ? 'Connecting…' : connected ? 'Recheck access' : 'Connect Health'}
-          </button>
-          <button
-            onClick={sync}
-            disabled={busy !== null}
-            className={connected ? btnCls : btnGhostCls}
-          >
-            {busy === 'sync' ? 'Syncing…' : 'Sync now'}
-          </button>
-        </div>
-      )}
+      {/*
+        Two buttons, no setup step. Connect stays available even once linked: a
+        native build that widens the requested type set only takes effect when
+        requestAuthorization runs again — and hiding this button made that
+        impossible without deleting the app or reaching for Safari's Web
+        Inspector. iOS shows the sheet only for types you haven't answered, so
+        re-tapping is harmless when there's nothing new.
+      */}
+      <div className="flex gap-2">
+        <button onClick={connect} disabled={busy !== null} className={connected ? btnGhostCls : btnCls}>
+          {busy === 'connect' ? 'Connecting…' : connected ? 'Recheck access' : 'Connect Health'}
+        </button>
+        <button onClick={sync} disabled={busy !== null} className={connected ? btnCls : btnGhostCls}>
+          {busy === 'sync' ? 'Syncing…' : 'Sync now'}
+        </button>
+      </div>
 
       {status && <p className="text-app-tx2 text-xs tabular-nums mt-3">{status}</p>}
 

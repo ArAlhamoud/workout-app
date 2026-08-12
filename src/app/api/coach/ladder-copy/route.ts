@@ -22,7 +22,6 @@ import {
   type LadderRungCopy,
 } from '@/lib/coach-ladder';
 import { todayKey } from '@/lib/coach-context';
-import { checkHealthAuth } from '@/lib/health';
 import { getDynamicPlan, gymLabel, queuedDay } from '@/lib/program';
 
 export const runtime = 'nodejs';
@@ -33,8 +32,6 @@ export const maxDuration = 60;
 const MODEL = 'claude-opus-5';
 
 export async function GET(request: Request) {
-  const auth = checkHealthAuth(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
   try {
     const day = todayKey();

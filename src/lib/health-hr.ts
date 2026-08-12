@@ -8,13 +8,8 @@
 // - bounded: bins are capped server-side regardless of what the client sends
 // - avg/max fall out of the same bins, also fill-null-only
 
-import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
-import { checkHealthAuth } from '@/lib/health';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
 
 /** 15 s bins × 3 h is 720 — anything past this is not a strength session. */
 const MAX_BINS = 800;
@@ -25,21 +20,11 @@ interface Payload {
   bins?: unknown;
 }
 
-export async function POST(request: Request) {
-  const auth = checkHealthAuth(request);
-  if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
-
-  let payload: Payload;
-  try {
-    payload = (await request.json()) as Payload;
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
-
+export async function storeHrSeries(payload: Payload) {
   const workoutId = typeof payload.workoutId === 'string' ? payload.workoutId : null;
   const rawBins = Array.isArray(payload.bins) ? payload.bins : null;
   if (!workoutId || !rawBins) {
-    return NextResponse.json({ error: 'Expected { workoutId, bins: [[offsetSec, bpm], ...] }' }, { status: 400 });
+    return { stored: false, reason: 'expected { workoutId, bins }' };
   }
 
   const bins = rawBins
@@ -56,16 +41,16 @@ export async function POST(request: Request) {
     .slice(0, MAX_BINS)
     .map(([off, bpm]) => [Math.round(off), Math.round(bpm)]);
 
-  if (!bins.length) return NextResponse.json({ stored: false, reason: 'no valid bins' });
+  if (!bins.length) return { stored: false, reason: 'no valid bins' };
 
   const workout = await prisma.workout.findUnique({
     where: { id: workoutId },
     select: { id: true, hrSeries: true, avgHr: true, maxHr: true },
   });
-  if (!workout) return NextResponse.json({ error: 'Unknown workout' }, { status: 404 });
+  if (!workout) return { stored: false, reason: 'unknown workout' };
 
   // Fill-null-only — a re-run (outbox replay, double sync) changes nothing.
-  if (workout.hrSeries !== null) return NextResponse.json({ stored: false, reason: 'already present' });
+  if (workout.hrSeries !== null) return { stored: false, reason: 'already present' };
 
   const bpms = bins.map(([, bpm]) => bpm);
   const avg = Math.round(bpms.reduce((s, v) => s + v, 0) / bpms.length);
@@ -81,5 +66,5 @@ export async function POST(request: Request) {
   });
 
   revalidatePath('/stats');
-  return NextResponse.json({ stored: true, bins: bins.length, avgHr: avg, maxHr: max });
+  return { stored: true, bins: bins.length, avgHr: avg, maxHr: max };
 }

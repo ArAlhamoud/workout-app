@@ -60,11 +60,9 @@ opening `workout://start?...` — ten minutes, works today.
 New WidgetKit extension target ("WorkoutWidget"), Lock Screen accessory +
 small Home Screen family.
 
-- Data: `GET /api/verdict` with header `Authorization: Bearer <HEALTH_SYNC_TOKEN>`
-  (URLSession: `request.setValue("Bearer <token>", forHTTPHeaderField: "Authorization")`).
-  Already deployed. Fields: `lead`, `day`, `queuedDay`, `daysSince`, `updatedISO`.
-  The `?token=` query form exists for Shortcuts only — never bake it into the
-  widget, where it would sit in request logs on every timeline refresh.
+- Data: `GET /api/verdict`, no auth header — the token guard came off with the
+  rest of the health-sync token. Already deployed. Fields: `lead`, `day`,
+  `queuedDay`, `daysSince`, `updatedISO`.
 - Render: verdict lead + day letter, and the days-since counter. Nothing
   else — glance rule applies harder here than anywhere in the app.
 - Staleness: if `updatedISO` is older than 24 h at render time, show "—" for
