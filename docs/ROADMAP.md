@@ -1,5 +1,36 @@
 # Roadmap
 
+## Wave 5 — the paid team unlocks (BUILT)
+
+The Saudi developer-program membership (team 263G7A2Q2N) lifted the
+free-team restrictions; this wave shipped the three unlocks that fit one
+Mac trip, verified end to end on the simulator:
+
+- **Rest-timer Live Activity** — the countdown in the Dynamic Island and
+  on the Lock Screen, drawn by the OS so it survives app suspension.
+  Start-or-update on every deadline change; ends at 0:00, on skip/Done,
+  and on unmount; `staleDate` covers the app-killed case. Shipped under
+  the kill-list's own "reconsider as a rider" clause — the objection
+  (counting rest for skipped sets) is answered by ending on dismiss.
+- **Verdict widget** ("Today's Verdict") — /api/verdict on systemSmall +
+  Lock Screen accessories. No computation in the widget; >24 h stale
+  renders a dash, never a wrong instruction. Live production data
+  confirmed on the simulator Home Screen, Aurora dark.
+- **Universal links** — associated-domains + AASA (excludes /api/* so an
+  export link still downloads in Safari); https links route through the
+  same allowlist as workout:// (src/lib/deep-links.ts, 8 assertions).
+
+Two bugs found by USING the app, invisible to 344 green tests: the rest
+timer's 4 s auto-close never fired (inline onDismiss identity reset the
+timeout on every parent re-render), and an expired Live Activity rendered
+as a shattered Island (inverted `Text(timerInterval:)` range — clamped).
+
+Still gated on owner action, not code: TestFlight (App Store Connect app
+record), APNs (dormant with the coach), HealthKit background delivery
+(would resurrect a public HTTP route the token removal just deleted),
+Watch app (Trip 3, its own sitting).
+
+
 ## Wave 4 — the coach in the silence (BUILT)
 
 Product of a 10-agent panel (5 proposal lenses → synthesis → 3 judges →
@@ -137,9 +168,10 @@ are ranked by how hard they attack that, then by build lane.
 - **Siri voice logging** — split-brain with an open draft (double-logged
   sessions); exercise vocabulary compiles into the intent and goes stale
   against a web-deployed exercise list.
-- **Live Activity countdown** — mostly redundant beside feature 4; keeps
-  counting rest for sets that were skipped. Reconsider only as a rider on
-  the feature-9 Xcode session.
+- ~~**Live Activity countdown**~~ — shipped in Wave 5 under this entry's
+  own reconsider clause; the skipped-set objection is answered (the
+  activity ends on skip/Done/0:00, and staleDate reaps the app-killed
+  case).
 
 ## Standing rule for native work
 

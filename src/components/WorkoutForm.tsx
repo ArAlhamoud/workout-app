@@ -8,6 +8,7 @@ import RestTimer from './RestTimer';
 import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
+import { endRestActivity } from '@/lib/native-live-activity';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { enqueueSave, newClientSaveId } from '@/lib/outbox';
 import { armGapGuard, clearComeback } from '@/lib/gap-guard';
@@ -242,7 +243,11 @@ export default function WorkoutForm({
   const [compressed, setCompressed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [restTimer, setRestTimer] = useState<{ seconds: number; exerciseName: string } | null>(null);
+  // nonce keys the <RestTimer> so a set ticked mid-rest REMOUNTS it (fresh
+  // deadline, fresh Live Activity attributes) instead of reusing the old
+  // instance with a stale countdown — the adversary's back-to-back case.
+  const [restTimer, setRestTimer] = useState<{ seconds: number; exerciseName: string; nonce: number } | null>(null);
+  const restNonce = useRef(0);
   const [elapsed, setElapsed] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
@@ -309,7 +314,12 @@ export default function WorkoutForm({
   // to log every set. Released on unmount so it can never leak past the form.
   useEffect(() => {
     keepScreenAwake(true);
-    return () => keepScreenAwake(false);
+    // Leaving the logger with a rest up (saved and navigated, back button)
+    // is the one unmount the timer's own lifecycle can't see.
+    return () => {
+      keepScreenAwake(false);
+      endRestActivity();
+    };
   }, []);
 
   // Restore draft on mount. localStorage is the fast path; the durable vault
@@ -602,7 +612,8 @@ export default function WorkoutForm({
         const exName = exerciseById.get(block.exerciseId)?.name ?? 'exercise';
         if (autoTimer) {
           const restSecs = block.rest ? parseRestSeconds(block.rest) : 90;
-          setRestTimer({ seconds: restSecs, exerciseName: exName });
+          restNonce.current += 1;
+          setRestTimer({ seconds: restSecs, exerciseName: exName, nonce: restNonce.current });
         }
         // Two record ladders, checked in order of glory. All-time heaviest
         // first; else the per-rep-count record (Hevy's insight) — on a
@@ -1637,9 +1648,18 @@ export default function WorkoutForm({
 
       {restTimer && (
         <RestTimer
+          key={restTimer.nonce}
           totalSeconds={restTimer.seconds}
           exerciseName={restTimer.exerciseName}
-          onDismiss={() => setRestTimer(null)}
+          onDismiss={() => {
+            setRestTimer(null);
+            // The activity ends HERE, not in the timer's unmount: a keyed
+            // swap unmounts the old timer a breath before the new one
+            // starts, and an unmount-time endRest can land AFTER the new
+            // startRest and kill the fresh Island. Dismissal is the only
+            // unmount that truly means "the rest is over".
+            endRestActivity();
+          }}
         />
       )}
 

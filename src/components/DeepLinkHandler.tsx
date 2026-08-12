@@ -1,6 +1,7 @@
 'use client';
 
-// Turns `workout://…` links into in-app navigation. Renders nothing.
+// Turns `workout://…` links and universal links into in-app navigation.
+// Renders nothing.
 //
 // The scheme is registered in ios/App/App/Info.plist, which is what lets
 // Shortcuts, an NFC sticker, or a Home Screen shortcut launch straight into a
@@ -11,50 +12,18 @@
 //   workout://start                → /workouts/new
 //   workout://resume               → /workouts/new (picks the saved draft back up)
 //   workout://stats | history | program | home
+//   https://<the app's own domain>/<an app screen>  (universal links — the
+//     associated-domains entitlement + public/.well-known/apple-app-site-association
+//     make iOS hand these to the app instead of Safari)
 //
-// Anything else is ignored on purpose. A URL scheme is untrusted input — any
-// app or web page can fire one — so links map onto a fixed allowlist rather
-// than being treated as a path.
+// Anything else is ignored on purpose. Both a URL scheme and a universal link
+// are untrusted input — any app or web page can fire one — so links map onto
+// a fixed allowlist rather than being treated as a path.
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { isNativeApp } from '@/lib/native-health';
-
-const TABS: Record<string, string> = {
-  home: '/',
-  stats: '/stats',
-  history: '/workouts',
-  program: '/program',
-};
-
-export function routeForDeepLink(raw: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== 'workout:') return null;
-
-  const host = url.hostname.toLowerCase();
-
-  // /workouts/new restores the saved draft on mount, so resume needs no params.
-  if (host === 'resume') return '/workouts/new';
-
-  if (host === 'start') {
-    const day = url.searchParams.get('day')?.toUpperCase();
-    const dur = url.searchParams.get('dur');
-    const params = new URLSearchParams();
-    if (day === 'A' || day === 'B') params.set('day', day);
-    // Durations are a fixed set in the UI; anything else falls back to the
-    // plain new-workout screen rather than being passed through.
-    if (dur === '30' || dur === '45' || dur === '60') params.set('dur', dur);
-    const qs = params.toString();
-    return qs ? `/workouts/new?${qs}` : '/workouts/new';
-  }
-
-  return TABS[host] ?? null;
-}
+import { routeForDeepLink } from '@/lib/deep-links';
 
 interface UrlOpenEvent {
   url: string;

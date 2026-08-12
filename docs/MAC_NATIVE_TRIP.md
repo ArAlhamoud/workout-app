@@ -55,7 +55,7 @@ outbox; this fixes the *cold start*.)
 Owner setup, no code: an NFC sticker + Back Tap via the Shortcuts app, both
 opening `workout://start?...` — ten minutes, works today.
 
-## Trip 2 — Widget extension (one sitting)
+## Trip 2 — Widget extension (SHIPPED — Wave 5, with the Live Activity rider)
 
 New WidgetKit extension target ("WorkoutWidget"), Lock Screen accessory +
 small Home Screen family.
@@ -72,12 +72,11 @@ small Home Screen family.
 - Refresh: timeline `.atEnd` with ~4 h policy + reload on app background
   (`applicationDidEnterBackground` → `WidgetCenter.shared.reloadAllTimelines()`).
 - Tap → `workout://resume`.
-- Token storage: App Group `group.com.aralhamoud.workout`, written by a tiny
-  bridge method (or hardcode once — single-user app, owner's call).
+- Token storage: obsolete — /api/verdict needs no token, so the widget
+  fetches it plainly and no App Group is involved.
 
-Optional rider on the same trip: ActivityKit rest-timer Live Activity. Only
-worth it if the trip has spare time; the actionable notification covers the
-locked-screen case (ROADMAP.md rejected list has the reasoning).
+The ActivityKit rest-timer Live Activity shipped as the rider on this trip
+(RestActivityPlugin + RestActivityWidget); ROADMAP.md Wave 5 has the story.
 
 ## Trip 3 — Apple Watch v1 (own project, scope frozen)
 

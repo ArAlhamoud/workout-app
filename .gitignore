@@ -40,6 +40,7 @@ prisma/*.db-journal
 
 # xcode / capacitor build output (the pinned DerivedData and SPM's own)
 ios/App/.derived/
+ios/App/.derived-sim/
 ios/App/CapApp-SPM/build/
 
 # per-machine claude permissions
