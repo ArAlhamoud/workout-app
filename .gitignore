@@ -49,3 +49,6 @@ ios/App/CapApp-SPM/build/
 # App Store Connect API keys must never enter the repo
 AuthKey_*.p8
 *.p8
+
+# testflight archives
+ios/App/.archive/

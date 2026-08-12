@@ -25,10 +25,15 @@ timer's 4 s auto-close never fired (inline onDismiss identity reset the
 timeout on every parent re-render), and an expired Live Activity rendered
 as a shattered Island (inverted `Text(timerInterval:)` range — clamped).
 
-Still gated on owner action, not code: TestFlight (App Store Connect app
-record), APNs (dormant with the coach), HealthKit background delivery
-(would resurrect a public HTTP route the token removal just deleted),
-Watch app (Trip 3, its own sitting).
+Same-day follow-through: **TestFlight** is live (app record
+"Ar Workout personal", internal group with all-builds access, uploads via
+`npm run ios:testflight` with an ASC API key — no cable, 90-day signatures,
+no beta review for internal testing), and the **iCloud Drive backup** ships
+the third copy of the history (workout-backup.json, daily on app open,
+visible in Files.app). Still deliberately not built: APNs (nothing to push —
+the coach is dormant and gap notifications are local), HealthKit background
+delivery (would resurrect a public HTTP route the token removal just
+deleted), Watch app (Trip 3, its own sitting).
 
 
 ## Wave 4 — the coach in the silence (BUILT)
