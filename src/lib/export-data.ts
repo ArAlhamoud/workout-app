@@ -1,0 +1,26 @@
+// The full-history export payload, shared by /api/export (URL access, token
+// guard) and the iCloud backup action (same-origin, no token). One builder so
+// the two copies can never drift — an export that omits a table is not a
+// backup, and that mistake has already happened once (healthSamples).
+
+import prisma from '@/lib/prisma';
+
+export async function buildExportPayload() {
+  const [workouts, bodyStats, exercises, healthSamples] = await Promise.all([
+    prisma.workout.findMany({
+      orderBy: { date: 'asc' },
+      include: { sets: { include: { exercise: { select: { name: true } } }, orderBy: { setNumber: 'asc' } } },
+    }),
+    prisma.bodyStat.findMany({ orderBy: { date: 'asc' } }),
+    prisma.exercise.findMany({ orderBy: { name: 'asc' } }),
+    prisma.healthSample.findMany({ orderBy: { date: 'asc' } }),
+  ]);
+
+  return {
+    exportedAt: new Date().toISOString(),
+    exercises,
+    workouts,
+    bodyStats,
+    healthSamples,
+  };
+}

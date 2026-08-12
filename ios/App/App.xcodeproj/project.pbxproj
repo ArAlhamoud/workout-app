@@ -16,6 +16,7 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		8529606DE24CFA2A7E017C90 /* RestActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D320A77CFB73C9B5736C7FB3 /* RestActivityPlugin.swift */; };
+		92EE044015CEE77C2888FC39 /* CloudBackupPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40419EABB67F21087D713F50 /* CloudBackupPlugin.swift */; };
 		AA0100000000000000000002 /* HealthKitBridgePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0100000000000000000001 /* HealthKitBridgePlugin.swift */; };
 		AA0100000000000000000004 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0100000000000000000003 /* MainViewController.swift */; };
 		ACDD937A8A4AD6D0A407E7CB /* RestTimerAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB38ACD491EDA22FA6B6C95 /* RestTimerAttributes.swift */; };
@@ -55,6 +56,7 @@
 		00DF69B2CBBF18EAC0557160 /* RestActivityWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RestActivityWidget.swift; sourceTree = "<group>"; };
 		2621BF0FF1A58D66953843E9 /* WorkoutWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkoutWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
+		40419EABB67F21087D713F50 /* CloudBackupPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudBackupPlugin.swift; sourceTree = "<group>"; };
 		4D0303028D75E59FA90D613B /* WorkoutWidgetsBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutWidgetsBundle.swift; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -130,6 +132,7 @@
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
 				D320A77CFB73C9B5736C7FB3 /* RestActivityPlugin.swift */,
+				40419EABB67F21087D713F50 /* CloudBackupPlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -292,6 +295,7 @@
 				AA0100000000000000000002 /* HealthKitBridgePlugin.swift in Sources */,
 				D2F865A19A6C63DDEFCBC10E /* RestTimerAttributes.swift in Sources */,
 				8529606DE24CFA2A7E017C90 /* RestActivityPlugin.swift in Sources */,
+				92EE044015CEE77C2888FC39 /* CloudBackupPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -37,7 +37,7 @@ DERIVED="$ROOT/ios/App/.derived"
 APP="$DERIVED/Build/Products/Debug-iphoneos/App.app"
 
 echo "==> Syncing native sources into the Xcode target"
-for f in HealthKitBridgePlugin RestActivityPlugin MainViewController; do
+for f in HealthKitBridgePlugin RestActivityPlugin CloudBackupPlugin MainViewController; do
   cp "$ROOT/native/HealthKitBridge/$f.swift" "$ROOT/ios/App/App/$f.swift"
 done
 
@@ -104,6 +104,7 @@ echo "==> Verifying the built bundle exports every plugin method"
 # a stale install can't pass silently the way it did before.
 EXPECTED=$(cat "$ROOT/native/HealthKitBridge/HealthKitBridgePlugin.swift" \
                "$ROOT/native/HealthKitBridge/RestActivityPlugin.swift" \
+               "$ROOT/native/HealthKitBridge/CloudBackupPlugin.swift" \
   | grep -oE 'CAPPluginMethod\(name: "[a-zA-Z]+"' \
   | sed -E 's/.*"([a-zA-Z]+)"/\1/' | sort)
 FOUND=$(strings "$APP/App.debug.dylib" 2>/dev/null | grep -oE "$(echo "$EXPECTED" | paste -sd'|' -)" | sort -u)

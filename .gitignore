@@ -45,3 +45,7 @@ ios/App/CapApp-SPM/build/
 
 # per-machine claude permissions
 .claude/settings.local.json
+
+# App Store Connect API keys must never enter the repo
+AuthKey_*.p8
+*.p8
