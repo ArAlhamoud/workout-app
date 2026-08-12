@@ -4,7 +4,7 @@
 // this route is reached by URL rather than by the app (see checkExportAuth).
 
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { buildExportPayload } from '@/lib/export-data';
 import { checkExportAuth } from '@/lib/health';
 
 export const runtime = 'nodejs';
@@ -19,17 +19,9 @@ export async function GET(request: Request) {
   const auth = checkExportAuth(request);
   if (!auth.ok) return NextResponse.json({ error: auth.message }, { status: auth.status });
 
-  const [workouts, bodyStats, exercises, healthSamples] = await Promise.all([
-    prisma.workout.findMany({
-      orderBy: { date: 'asc' },
-      include: { sets: { include: { exercise: { select: { name: true } } }, orderBy: { setNumber: 'asc' } } },
-    }),
-    prisma.bodyStat.findMany({ orderBy: { date: 'asc' } }),
-    prisma.exercise.findMany({ orderBy: { name: 'asc' } }),
-    // Imported from Apple Health, but the app is the only place they are
-    // stored in this shape — an export that omits them is not a backup.
-    prisma.healthSample.findMany({ orderBy: { date: 'asc' } }),
-  ]);
+  // Shared with the iCloud backup action — see src/lib/export-data.ts.
+  const payload = await buildExportPayload();
+  const { workouts } = payload;
 
   const format = new URL(request.url).searchParams.get('format');
   if (format === 'csv') {
@@ -58,11 +50,5 @@ export async function GET(request: Request) {
     });
   }
 
-  return NextResponse.json({
-    exportedAt: new Date().toISOString(),
-    exercises,
-    workouts,
-    bodyStats,
-    healthSamples,
-  });
+  return NextResponse.json(payload);
 }

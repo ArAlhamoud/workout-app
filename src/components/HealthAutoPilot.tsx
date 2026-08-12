@@ -44,6 +44,7 @@ import { scheduleLocalNotifications } from '@/lib/native-feedback';
 import { flushOutbox, retryDead } from '@/lib/outbox';
 import { importHealth, getWorkoutsToPush, markWorkoutsPushed } from '@/app/health-actions';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
+import { runCloudBackup } from '@/lib/native-cloud-backup';
 import { lastNightSleepHours, readSickSignal } from '@/lib/health-metrics';
 import type { DayId } from '@/lib/program';
 
@@ -297,6 +298,7 @@ export default function HealthAutoPilot() {
     const run = () => {
       void runGapGuard();
       void runSyncs(); // self-throttled to once per 30 min
+      void runCloudBackup(); // self-throttled to once per day
     };
     run();
 
