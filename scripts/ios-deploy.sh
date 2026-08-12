@@ -42,6 +42,11 @@ for f in HealthKitBridgePlugin MainViewController; do
 done
 
 echo "==> Building (derived data pinned to ios/App/.derived)"
+# PIPESTATUS, not the grep's status: piping into grep discards xcodebuild's
+# exit code, so a failed build used to sail through to install — which then
+# shipped the STALE bundle still sitting in .derived and reported success.
+# Twice now this script has claimed "Done" over a build that never happened.
+set -o pipefail
 xcodebuild \
   -project "$ROOT/ios/App/App.xcodeproj" \
   -scheme App \
@@ -49,7 +54,15 @@ xcodebuild \
   -destination "id=$DEVICE" \
   -derivedDataPath "$DERIVED" \
   -allowProvisioningUpdates \
-  build 2>&1 | grep -E "error:|warning: .*(deprecat|unused)|BUILD (SUCCEEDED|FAILED)" || true
+  build 2>&1 | grep -E "error:|warning: .*(deprecat|unused)|BUILD (SUCCEEDED|FAILED)" || BUILD_STATUS=$?
+set +o pipefail
+
+# grep exits 1 when it matched nothing, which is not a build failure — so the
+# authority is the marker xcodebuild prints, checked against a fresh log.
+if [ "${BUILD_STATUS:-0}" -gt 1 ]; then
+  echo "!! Build failed. Nothing was installed; the app on the device is unchanged." >&2
+  exit 1
+fi
 
 if [ ! -d "$APP" ]; then
   echo "!! Build produced no app bundle at $APP" >&2
@@ -104,4 +117,4 @@ echo "==> Launching"
 xcrun devicectl device process launch --device "$DEVICE" --terminate-existing "$BUNDLE_ID" \
   | grep -iE "launched|error" || true
 
-echo "==> Done. The build expires ~7 days from now (free provisioning); re-run this then."
+echo "==> Done. Paid team (263G7A2Q2N): this build is signed for ~1 year."
