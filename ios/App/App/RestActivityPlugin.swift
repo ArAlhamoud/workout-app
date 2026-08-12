@@ -55,11 +55,23 @@ public class RestActivityPlugin: CAPPlugin, CAPBridgedPlugin {
         )
 
         Task {
-            // Adjust taps land here with an activity already up: update it.
-            // The attributes (exercise name) are fixed per rest, and a new set
-            // always ends the previous timer first, so first-match is THE one.
-            if let existing = Activity<RestTimerAttributes>.activities.first {
-                await existing.update(content)
+            // ActivityKit freezes attributes at creation, so an activity for a
+            // DIFFERENT exercise can never be updated into this one — it has
+            // to die. That covers the two ways a mismatch really happens: a
+            // set ticked mid-rest (new exercise replaces the old rest), and an
+            // orphan surviving from a run that was killed mid-rest. Adjust
+            // taps land on the matching activity and update it in place.
+            var current: Activity<RestTimerAttributes>? = nil
+            for activity in Activity<RestTimerAttributes>.activities {
+                if current == nil && activity.attributes.exerciseName == exerciseName {
+                    current = activity
+                } else {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+
+            if let current {
+                await current.update(content)
                 call.resolve(["started": true, "mode": "updated"])
                 return
             }

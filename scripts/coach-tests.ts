@@ -1107,6 +1107,10 @@ console.log('coach-ladder');
     'universal link reaches nested screens');
   assert(routeForDeepLink(`${app}/api/export?token=x`) === null,
     'an export link is NOT swallowed into the app');
+  assert(routeForDeepLink(`${app}/workouts/..%2fapi%2fexport`) === null,
+    'percent-encoded traversal cannot sneak past the /api exclusion');
+  assert(routeForDeepLink(`${app}/workouts/%2e%2e%2fapi/export`) === null,
+    'encoded dot-dot segments are rejected, not routed verbatim');
   assert(routeForDeepLink('https://evil.example.com/stats') === null,
     'a foreign host never routes');
   assert(routeForDeepLink(`${app}/statsish`) === null,

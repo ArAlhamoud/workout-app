@@ -25,6 +25,13 @@ const LINKABLE_PREFIXES = ['/', '/workouts', '/stats', '/program', '/coach', '/e
 function routeForUniversalLink(url: URL): string | null {
   if (url.hostname.toLowerCase() !== APP_HOST) return null;
   const path = url.pathname === '' ? '/' : url.pathname;
+  // Percent-escapes never occur in this app's own routes (ids are plain
+  // cuids), but they DO slip through a prefix check as literal text:
+  // "/workouts/..%2fapi%2fexport" starts with "/workouts/" and would be
+  // routed verbatim — encoded traversal past the /api exclusion below.
+  // Unusual input is rejected, not normalised; same philosophy as the
+  // workout:// allowlist.
+  if (path.includes('%') || path.includes('..')) return null;
   const ok = LINKABLE_PREFIXES.some(
     (p) => path === p || (p !== '/' && path.startsWith(`${p}/`)),
   );

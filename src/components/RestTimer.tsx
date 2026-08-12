@@ -202,16 +202,19 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
     return cancelRestAlert;
   }, [endsAt, exerciseName]);
 
-  // Live Activity (Dynamic Island / Lock Screen countdown). Two effects, not
-  // one: start-or-update tracks the deadline, but end fires ONLY on unmount —
-  // if end lived in the first effect's cleanup, every +15 s tap would tear the
-  // Island down and rebuild it.
+  // Live Activity (Dynamic Island / Lock Screen countdown). Start-or-update
+  // tracks the deadline; if it lived with end in one effect, every +15 s tap
+  // would tear the Island down and rebuild it.
+  //
+  // Deliberately NO end-on-unmount here: this component remounts (keyed on
+  // the parent's nonce) when a set is ticked mid-rest, and an unmount-time
+  // endRest races the replacement's startRest across the bridge — whichever
+  // lands second wins, and if that's the end, it kills the fresh Island.
+  // Ending lives where "the rest is over" is a fact: at 0:00 below, in the
+  // parent's onDismiss, and in the parent's own unmount.
   useEffect(() => {
     startOrUpdateRestActivity(endsAt, totalSeconds, exerciseName);
   }, [endsAt, totalSeconds, exerciseName]);
-  useEffect(() => {
-    return () => endRestActivity();
-  }, []);
 
   const finished = remaining <= 0;
   const imminent = !finished && remaining <= IMMINENT_SECONDS;
