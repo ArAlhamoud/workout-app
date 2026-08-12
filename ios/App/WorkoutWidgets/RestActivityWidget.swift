@@ -32,7 +32,7 @@ struct RestActivityWidget: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Next set — \(context.attributes.exerciseName)")
+                        Text("Next: \(context.attributes.exerciseName)")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
                             .lineLimit(1)
@@ -84,11 +84,11 @@ private struct LockRestView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("RESTING")
+                Text("REST")
                     .font(.system(size: 10, weight: .heavy))
                     .tracking(1.2)
                     .foregroundStyle(Aurora.teal)
-                Text("Next set — \(context.attributes.exerciseName)")
+                Text("Next: \(context.attributes.exerciseName)")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
                     .lineLimit(1)

@@ -20,6 +20,6 @@ struct RestTimerAttributes: ActivityAttributes {
         var totalSeconds: Int
     }
 
-    /// "Next set — Leg Press". Fixed for the life of one rest.
+    /// Rendered as "Next: <name>". Fixed for the life of one rest.
     var exerciseName: String
 }
