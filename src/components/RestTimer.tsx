@@ -9,6 +9,7 @@ import {
   REST_DEADLINE_KEY,
   REST_EXERCISE_KEY,
 } from '@/lib/native-feedback';
+import { endRestActivity, startOrUpdateRestActivity } from '@/lib/native-live-activity';
 
 interface RestTimerProps {
   totalSeconds: number;
@@ -201,14 +202,37 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
     return cancelRestAlert;
   }, [endsAt, exerciseName]);
 
+  // Live Activity (Dynamic Island / Lock Screen countdown). Two effects, not
+  // one: start-or-update tracks the deadline, but end fires ONLY on unmount —
+  // if end lived in the first effect's cleanup, every +15 s tap would tear the
+  // Island down and rebuild it.
+  useEffect(() => {
+    startOrUpdateRestActivity(endsAt, totalSeconds, exerciseName);
+  }, [endsAt, totalSeconds, exerciseName]);
+  useEffect(() => {
+    return () => endRestActivity();
+  }, []);
+
   const finished = remaining <= 0;
   const imminent = !finished && remaining <= IMMINENT_SECONDS;
 
+  // Through the ref, NOT the prop: the parent re-renders every second (the
+  // session clock), and an inline onDismiss gets a new identity each time. As
+  // a dependency it reset this timeout on every render, so the 4 s auto-close
+  // NEVER fired — "Rest complete!" sat there until it was tapped away. Watched
+  // on the simulator, invisible in every test.
   useEffect(() => {
     if (!finished) return;
-    const autoClose = setTimeout(onDismiss, 4000);
+    const autoClose = setTimeout(() => onDismissRef.current(), 4000);
     return () => clearTimeout(autoClose);
-  }, [finished, onDismiss]);
+  }, [finished]);
+
+  // The Island's job ends at 0:00 — take it down with the countdown, not 4 s
+  // later with the pill. If a lock-screen "+30 s" un-finishes the timer, the
+  // start-or-update effect above simply creates a fresh activity.
+  useEffect(() => {
+    if (finished) endRestActivity();
+  }, [finished]);
 
   function adjust(deltaSeconds: number) {
     primeRestAlertAudio(); // Real user gesture — cheapest place to unlock audio.

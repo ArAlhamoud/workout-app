@@ -43,6 +43,7 @@ import {
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { computeGapLadder } from '../src/lib/gap-guard';
 import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
+import { routeForDeepLink } from '../src/lib/deep-links';
 import { binHeartRate } from '../src/lib/hr-capture';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
 import { lastMonthRecap, yearRecap } from '../src/lib/recap';
@@ -1093,6 +1094,24 @@ console.log('coach-ladder');
   const static7 = rungs.find((r) => r.day === 7);
   const static19 = rungs.find((r) => r.day === 19);
   assert(!!static7 && !!static19, 'static rungs 7 and 19 exist to fall back to');
+}
+
+// ── deep links: universal links map onto the same allowlist ──
+{
+  const app = 'https://workout-app-gamma-rouge.vercel.app';
+  assert(routeForDeepLink(`${app}/stats`) === '/stats', 'universal link opens an app screen');
+  assert(routeForDeepLink(`${app}/`) === '/', 'universal link to the root opens Home');
+  assert(routeForDeepLink(`${app}/workouts/new?day=B&dur=30`) === '/workouts/new?day=B&dur=30',
+    'universal link keeps the query string');
+  assert(routeForDeepLink(`${app}/progress/abc123`) === '/progress/abc123',
+    'universal link reaches nested screens');
+  assert(routeForDeepLink(`${app}/api/export?token=x`) === null,
+    'an export link is NOT swallowed into the app');
+  assert(routeForDeepLink('https://evil.example.com/stats') === null,
+    'a foreign host never routes');
+  assert(routeForDeepLink(`${app}/statsish`) === null,
+    'prefix match is per segment, not per string');
+  assert(routeForDeepLink('workout://stats') === '/stats', 'the workout:// scheme still works');
 }
 
 // ── summary ──────────────────────────────────────────────────

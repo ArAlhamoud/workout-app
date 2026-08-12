@@ -15,12 +15,47 @@
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
+		8529606DE24CFA2A7E017C90 /* RestActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D320A77CFB73C9B5736C7FB3 /* RestActivityPlugin.swift */; };
 		AA0100000000000000000002 /* HealthKitBridgePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0100000000000000000001 /* HealthKitBridgePlugin.swift */; };
 		AA0100000000000000000004 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0100000000000000000003 /* MainViewController.swift */; };
+		ACDD937A8A4AD6D0A407E7CB /* RestTimerAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB38ACD491EDA22FA6B6C95 /* RestTimerAttributes.swift */; };
+		AD56B2BE256406326507D73C /* RestActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00DF69B2CBBF18EAC0557160 /* RestActivityWidget.swift */; };
+		B7B6917D018AAAEB144CC5CE /* VerdictWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD24A8AD5A4D48DB65B49B25 /* VerdictWidget.swift */; };
+		BF3EE47CFDA66AA9ED9F2144 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 731098EFA29918C3AFEDE702 /* Foundation.framework */; };
+		D2F865A19A6C63DDEFCBC10E /* RestTimerAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB38ACD491EDA22FA6B6C95 /* RestTimerAttributes.swift */; };
+		E3597042338DC48C6AB21DE3 /* WorkoutWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0303028D75E59FA90D613B /* WorkoutWidgetsBundle.swift */; };
+		EDB91D434DE720A7D5AF9F5C /* WorkoutWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2621BF0FF1A58D66953843E9 /* WorkoutWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		078ECDF7AABABA1C1EC3FAE0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 504EC2FC1FED79650016851F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 462DB02DE0D6508B111747A7;
+			remoteInfo = WorkoutWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		EE486FF0FDBAE18A49625DAC /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				EDB91D434DE720A7D5AF9F5C /* WorkoutWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		00DF69B2CBBF18EAC0557160 /* RestActivityWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RestActivityWidget.swift; sourceTree = "<group>"; };
+		2621BF0FF1A58D66953843E9 /* WorkoutWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkoutWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
+		4D0303028D75E59FA90D613B /* WorkoutWidgetsBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutWidgetsBundle.swift; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -29,10 +64,15 @@
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		504EC3131FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		50B271D01FEDC1A000F3C39B /* public */ = {isa = PBXFileReference; lastKnownFileType = folder; path = public; sourceTree = "<group>"; };
+		5CB38ACD491EDA22FA6B6C95 /* RestTimerAttributes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RestTimerAttributes.swift; sourceTree = "<group>"; };
+		731098EFA29918C3AFEDE702 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		9472C2BD99ACEE55845BE028 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
 		AA0100000000000000000001 /* HealthKitBridgePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitBridgePlugin.swift; sourceTree = "<group>"; };
 		AA0100000000000000000003 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		AA0100000000000000000005 /* App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = App.entitlements; sourceTree = "<group>"; };
+		D320A77CFB73C9B5736C7FB3 /* RestActivityPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RestActivityPlugin.swift; sourceTree = "<group>"; };
+		FD24A8AD5A4D48DB65B49B25 /* VerdictWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VerdictWidget.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -41,6 +81,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				4D22ABE92AF431CB00220026 /* CapApp-SPM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		66DFBE364DC4E87AF3D546D4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BF3EE47CFDA66AA9ED9F2144 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -53,6 +101,8 @@
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				504EC3051FED79650016851F /* Products */,
+				A4EB35D536E6FBD4EECBCFC2 /* Frameworks */,
+				CBC46CE1A6889486C8CF7840 /* WorkoutWidgets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -60,6 +110,7 @@
 			isa = PBXGroup;
 			children = (
 				504EC3041FED79650016851F /* App.app */,
+				2621BF0FF1A58D66953843E9 /* WorkoutWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -78,13 +129,60 @@
 				504EC3131FED79650016851F /* Info.plist */,
 				2FAD9762203C412B000D30F8 /* config.xml */,
 				50B271D01FEDC1A000F3C39B /* public */,
+				D320A77CFB73C9B5736C7FB3 /* RestActivityPlugin.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		9473A7FABBCD0F3BC0B2FB4E /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				731098EFA29918C3AFEDE702 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		A4EB35D536E6FBD4EECBCFC2 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				9473A7FABBCD0F3BC0B2FB4E /* iOS */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		CBC46CE1A6889486C8CF7840 /* WorkoutWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				4D0303028D75E59FA90D613B /* WorkoutWidgetsBundle.swift */,
+				FD24A8AD5A4D48DB65B49B25 /* VerdictWidget.swift */,
+				5CB38ACD491EDA22FA6B6C95 /* RestTimerAttributes.swift */,
+				00DF69B2CBBF18EAC0557160 /* RestActivityWidget.swift */,
+				9472C2BD99ACEE55845BE028 /* Info.plist */,
+			);
+			name = WorkoutWidgets;
+			path = WorkoutWidgets;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		462DB02DE0D6508B111747A7 /* WorkoutWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0E0F95BE85FC3CF8DE57AD9 /* Build configuration list for PBXNativeTarget "WorkoutWidgets" */;
+			buildPhases = (
+				211E4268EDD5472AE4A89950 /* Sources */,
+				66DFBE364DC4E87AF3D546D4 /* Frameworks */,
+				413C98730E15EB12A8C9C2D3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WorkoutWidgets;
+			productName = WorkoutWidgets;
+			productReference = 2621BF0FF1A58D66953843E9 /* WorkoutWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		504EC3031FED79650016851F /* App */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 504EC3161FED79650016851F /* Build configuration list for PBXNativeTarget "App" */;
@@ -92,10 +190,12 @@
 				504EC3001FED79650016851F /* Sources */,
 				504EC3011FED79650016851F /* Frameworks */,
 				504EC3021FED79650016851F /* Resources */,
+				EE486FF0FDBAE18A49625DAC /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				83F35221B4FDA268C69600DD /* PBXTargetDependency */,
 			);
 			name = App;
 			packageProductDependencies = (
@@ -143,11 +243,19 @@
 			projectRoot = "";
 			targets = (
 				504EC3031FED79650016851F /* App */,
+				462DB02DE0D6508B111747A7 /* WorkoutWidgets */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		413C98730E15EB12A8C9C2D3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3021FED79650016851F /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -164,6 +272,17 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		211E4268EDD5472AE4A89950 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E3597042338DC48C6AB21DE3 /* WorkoutWidgetsBundle.swift in Sources */,
+				B7B6917D018AAAEB144CC5CE /* VerdictWidget.swift in Sources */,
+				ACDD937A8A4AD6D0A407E7CB /* RestTimerAttributes.swift in Sources */,
+				AD56B2BE256406326507D73C /* RestActivityWidget.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		504EC3001FED79650016851F /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -171,10 +290,21 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				AA0100000000000000000004 /* MainViewController.swift in Sources */,
 				AA0100000000000000000002 /* HealthKitBridgePlugin.swift in Sources */,
+				D2F865A19A6C63DDEFCBC10E /* RestTimerAttributes.swift in Sources */,
+				8529606DE24CFA2A7E017C90 /* RestActivityPlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		83F35221B4FDA268C69600DD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = WorkoutWidgets;
+			target = 462DB02DE0D6508B111747A7 /* WorkoutWidgets */;
+			targetProxy = 078ECDF7AABABA1C1EC3FAE0 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		504EC30B1FED79650016851F /* Main.storyboard */ = {
@@ -196,6 +326,28 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
+		16F8C04AE31E006A555CD017 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = "";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 263G7A2Q2N;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WorkoutWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aralhamoud.workout.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		504EC3141FED79650016851F /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 958DCC722DB07C7200EA8C5F /* debug.xcconfig */;
@@ -353,6 +505,29 @@
 			};
 			name = Release;
 		};
+		C472F809316754F339AAC3D1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = "";
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = "";
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 263G7A2Q2N;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WorkoutWidgets/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aralhamoud.workout.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -370,6 +545,15 @@
 			buildConfigurations = (
 				504EC3171FED79650016851F /* Debug */,
 				504EC3181FED79650016851F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0E0F95BE85FC3CF8DE57AD9 /* Build configuration list for PBXNativeTarget "WorkoutWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C472F809316754F339AAC3D1 /* Release */,
+				16F8C04AE31E006A555CD017 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

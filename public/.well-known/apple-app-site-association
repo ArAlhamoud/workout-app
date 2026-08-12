@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appIDs": ["263G7A2Q2N.com.aralhamoud.workout"],
+        "components": [
+          { "/": "/api/*", "exclude": true },
+          { "/": "/*" }
+        ]
+      }
+    ]
+  }
+}

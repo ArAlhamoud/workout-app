@@ -13,5 +13,6 @@ import Capacitor
 class MainViewController: CAPBridgeViewController {
     override open func capacitorDidLoad() {
         bridge?.registerPluginInstance(HealthKitBridgePlugin())
+        bridge?.registerPluginInstance(RestActivityPlugin())
     }
 }
