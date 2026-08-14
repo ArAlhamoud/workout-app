@@ -15,6 +15,11 @@ export async function buildExportPayload() {
     prisma.exercise.findMany({ orderBy: { name: 'asc' } }),
     prisma.healthSample.findMany({ orderBy: { date: 'asc' } }),
   ]);
+  // Holds shape the verdict and the streak; a restore without them silently
+  // un-declares every pause he ever named. The snapshot/restore pair already
+  // carries them — this builder lagged behind (found by the feature panel's
+  // constitution judge, of all things).
+  const holds = await prisma.hold.findMany({ orderBy: { startsAt: 'asc' } });
 
   return {
     exportedAt: new Date().toISOString(),
@@ -22,5 +27,6 @@ export async function buildExportPayload() {
     workouts,
     bodyStats,
     healthSamples,
+    holds,
   };
 }
