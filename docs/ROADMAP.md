@@ -1,5 +1,35 @@
 # Roadmap
 
+## Wave 6 — measure, then optimize (BUILT)
+
+A five-lens audit workflow (28 findings → 7 confirmed ship-now) plus two
+blind reviewers over the diff. Shipped: the dormant coach no longer costs
+Home a round trip or a daily junk row (brief AND ladder-copy); the session
+clock is its own component (the 1 Hz tick re-rendered the entire logger
+every second for a whole session); draft autosave is debounced with
+kill-proof flushes (was: full stringify + sync write per keystroke); the
+mid-workout gym switch is one round trip; rep records fold in SQL; the
+logger and post-save pages lost their serial fetch waves; holds ride every
+copy of the record.
+
+Review catches worth remembering: the debounce nearly shipped a
+ghost-draft-resurrection race that could duplicate a saved workout
+(adversary, fixed + probe-proven), and an exerciseIds bound on rep records
+nearly re-shipped the fake-PR class (steward veto, removed).
+
+Deliberately deferred, recorded for the next wave: App-Bound Domains + a
+precaching service worker as one pair (the only finding about a failure —
+dead-signal gym = white screen); the getWorkouts split by consumer
+(medium risk, needs the assertion suite as guard); React.memo card
+boundaries (only if taps still lag after this wave — measure first).
+
+The feature panel (16 proposals, 3 killed in judging) produced a top-5
+awaiting the owner's pick: Comeback Contract, Earned Ramp, Overload by
+default, effort pills in the rest capsule, capsule-knows-next. Panel's
+recommendation: Earned Ramp first — it makes the Comeback Contract's
+promise true.
+
+
 ## Wave 5 — the paid team unlocks (BUILT)
 
 The Saudi developer-program membership (team 263G7A2Q2N) lifted the
