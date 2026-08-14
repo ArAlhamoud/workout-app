@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createWorkout, getLastSessionForExercises, getPersonalRecords, getRepRecords, getRecentExerciseSessions } from '@/app/actions';
+import { createWorkout, getGymMemory, getRecentExerciseSessions } from '@/app/actions';
 import RestTimer from './RestTimer';
+import SessionClock from './SessionClock';
 import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
@@ -248,7 +249,6 @@ export default function WorkoutForm({
   // instance with a stale countdown — the adversary's back-to-back case.
   const [restTimer, setRestTimer] = useState<{ seconds: number; exerciseName: string; nonce: number } | null>(null);
   const restNonce = useRef(0);
-  const [elapsed, setElapsed] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   /** Restored draft is >24 h old — worth an explicit look before continuing. */
@@ -388,17 +388,45 @@ export default function WorkoutForm({
     dirtyRef.current = true;
   }, [name, date, gym, notes, blocks]);
 
-  // Auto-save draft on every change (skips until draft check is done).
-  // durableSet writes localStorage AND the native vault.
+  // Auto-save draft, debounced. The old per-keystroke version did a full
+  // JSON.stringify of every block plus a synchronous localStorage write and
+  // an awaited bridge hop ON EVERY DIGIT — the "keyboard lags the thumb"
+  // path. The pending draft sits in a ref as an object (no stringify until
+  // flush); worst-case loss on a hard crash is ≤500 ms of typing, and the
+  // pagehide/hidden flush below covers backgrounding, which is how sessions
+  // actually end on a phone.
+  const pendingDraftRef = useRef<Record<string, unknown> | null>(null);
   useEffect(() => {
     if (!initialized) return;
     // Rescue sessions are draft-free: merely opening the rescue screen from
     // a notification and backing out must not leave a 60% "Rescue" draft
     // that tomorrow's normal logger restores (adversary).
     if (rescueMode) return;
-    const draft = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current };
-    void durableSet(DRAFT_KEY, JSON.stringify(draft));
+    pendingDraftRef.current = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current };
+    const t = setTimeout(() => {
+      const draft = pendingDraftRef.current;
+      pendingDraftRef.current = null;
+      if (draft) void durableSet(DRAFT_KEY, JSON.stringify(draft));
+    }, 500);
+    return () => clearTimeout(t);
   }, [initialized, rescueMode, name, date, gym, notes, blocks]);
+  // Declared AFTER the debounce effect on purpose: cleanups run in reverse,
+  // so on unmount this flush fires BEFORE the pending timer is cleared.
+  useEffect(() => {
+    const flush = () => {
+      const draft = pendingDraftRef.current;
+      pendingDraftRef.current = null;
+      if (draft) void durableSet(DRAFT_KEY, JSON.stringify(draft));
+    };
+    const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
+    window.addEventListener('pagehide', flush);
+    document.addEventListener('visibilitychange', onHide);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      document.removeEventListener('visibilitychange', onHide);
+      flush();
+    };
+  }, []);
 
   // Switching gyms mid-setup invalidates every prefilled number: the machine
   // is different, and at Alrajhi Tower the stack is labelled in pounds. Pull
@@ -415,15 +443,13 @@ export default function WorkoutForm({
     const ids = Array.from(new Set(blocksRef.current.map((b) => b.exerciseId)));
     if (!ids.length) return;
     let cancelled = false;
-    getPersonalRecords(gym)
-      .then((recs) => { if (!cancelled) setGymRecords(recs); })
-      .catch(() => { /* PR badge is decoration; a stale one is not worth a crash */ });
-    getRepRecords(gym)
-      .then((recs) => { if (!cancelled) setRepRecordsState(recs); })
-      .catch(() => { /* same: decoration */ });
-    getLastSessionForExercises(ids, gym)
-      .then((next) => {
+    // ONE round trip for all three memories — three separate POSTs used to
+    // race from gym LTE to us-east-1, and the prefill waited on the slowest.
+    getGymMemory(ids, gym)
+      .then(({ lastSession: next, personalRecords, repRecords }) => {
         if (cancelled) return;
+        setGymRecords(personalRecords);
+        setRepRecordsState(repRecords);
         setSessionMemory(next);
         setBlocks((prev) =>
           prev.map((b) => {
@@ -451,7 +477,7 @@ export default function WorkoutForm({
         // 6: the ⓘ drawer cache is B_Fit numbers — poison at another gym.
         setRecentSessions({});
       })
-      .catch(() => { /* keep the current numbers rather than blanking the form */ });
+      .catch(() => { /* keep the current numbers (and badges) rather than blanking the form */ });
     return () => { cancelled = true; };
   }, [gym, initialized, returnLoadPct, pinIncrements]);
 
@@ -468,14 +494,6 @@ export default function WorkoutForm({
     const t = setTimeout(() => setPrToast(null), 3000);
     return () => clearTimeout(t);
   }, [prToast]);
-
-  // Elapsed timer
-  useEffect(() => {
-    const tick = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startRef.current) / 1000));
-    }, 1000);
-    return () => clearInterval(tick);
-  }, []);
 
   /**
    * "I have 25 minutes." Keeps every machine but only its first not-yet-done
@@ -517,12 +535,18 @@ export default function WorkoutForm({
     setDraftIsStale(false);
   }
 
-  const exerciseGroups = exercises.reduce<Record<string, Exercise[]>>((acc, ex) => {
-    if (!acc[ex.category]) acc[ex.category] = [];
-    acc[ex.category].push(ex);
-    return acc;
-  }, {});
-  const exerciseById = new Map(exercises.map((e) => [e.id, e]));
+  // Stable across renders — these rebuilt on every render of a form that,
+  // until tonight, re-rendered every second.
+  const exerciseGroups = useMemo(
+    () =>
+      exercises.reduce<Record<string, Exercise[]>>((acc, ex) => {
+        if (!acc[ex.category]) acc[ex.category] = [];
+        acc[ex.category].push(ex);
+        return acc;
+      }, {}),
+    [exercises],
+  );
+  const exerciseById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises]);
 
   function addExercise() {
     if (!exercises.length) return;
@@ -771,7 +795,7 @@ export default function WorkoutForm({
       .map(({ block: b }) => exerciseById.get(b.exerciseId)?.name ?? '')
       .filter(Boolean);
 
-    setShowSummary({ sets: setsToSave.length, vol, prs, time: formatElapsed(elapsed) });
+    setShowSummary({ sets: setsToSave.length, vol, prs, time: formatElapsed(Math.floor((Date.now() - startRef.current) / 1000)) });
     setSubmitting(true);
 
     const fullNotes = [mood ? `Feeling ${mood}` : '', notes.trim()].filter(Boolean).join(' · ');
@@ -956,11 +980,10 @@ export default function WorkoutForm({
                 ⏱ rest
               </button>
               {/* Labelled because it sits next to the "rest" toggle and was
-                  being read as rest time — it is the whole session's clock. */}
-              <span className="text-xs text-app-tx3 tabular-nums font-round">
-                <span className="text-[9px] uppercase tracking-wider opacity-70 mr-1">session</span>
-                {formatElapsed(elapsed)}
-              </span>
+                  being read as rest time — it is the whole session's clock.
+                  A child on purpose: its 1 Hz tick must not re-render the
+                  form (see SessionClock.tsx). */}
+              <SessionClock startedAt={startRef.current} />
             </div>
           </div>
           {detailsOpen && (

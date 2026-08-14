@@ -24,11 +24,22 @@ export default async function WorkoutDetailPage({
   params: { id: string };
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  const [workout, previous] = await Promise.all([
+  // Two waves instead of four: allDates depends on nothing, so it rides the
+  // first wave; previous starts from the loaded row instead of re-fetching it.
+  const [workout, allDates] = await Promise.all([
     getWorkout(params.id),
-    getPreviousSameDayWorkout(params.id),
+    prisma.workout.findMany({
+      where: { NOT: { name: { startsWith: 'Rescue walk' } } },
+      select: { date: true },
+    }),
   ]);
   if (!workout) notFound();
+  const previous = await getPreviousSameDayWorkout({
+    id: workout.id,
+    date: workout.date,
+    name: workout.name,
+    gym: workout.gym,
+  });
 
   // The welcome-back moment — the highest-leverage screen in the app. The
   // ladder gets him to open the app; what he sees after the first session
@@ -66,10 +77,6 @@ export default async function WorkoutDetailPage({
   // on a return-ramp day it says "Easy — add 5 kg" to deliberately deloaded
   // lifts, directly under the comeback card (trainer). Hidden while ramping —
   // the logger's pre-scaled prefill is the only voice then.
-  const allDates = await prisma.workout.findMany({
-    where: { NOT: { name: { startsWith: 'Rescue walk' } } },
-    select: { date: true },
-  });
   const inReturnRamp = getTrainingStatus(allDates.map((w) => w.date)).mode === 'return';
 
   const exerciseOrder: string[] = [];

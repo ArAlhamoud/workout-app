@@ -37,7 +37,16 @@ export default async function NewWorkoutPage({
   const rawDur = searchParams.dur;
   const durStr = Array.isArray(rawDur) ? rawDur[0] : rawDur;
 
-  const [exercises, allWorkouts] = await Promise.all([getExercises(), getWorkouts()]);
+  // One wave, not three: personalRecords and repRecords depend only on the
+  // constant default gym, so making them wait behind the template math was
+  // pure serial latency — worst exactly on the Neon-cold-resume open at the
+  // gym. Only lastSession genuinely needs exerciseIds (below).
+  const [exercises, allWorkouts, personalRecords, repRecords] = await Promise.all([
+    getExercises(),
+    getWorkouts(),
+    getPersonalRecords(DEFAULT_GYM_ID),
+    getRepRecords(DEFAULT_GYM_ID),
+  ]);
 
   // No ?dur= (the tab bar's +, a bare deep link): during a return ramp the
   // default is 45, not 60 — Home's CTA already says 45 then, and entering
@@ -96,12 +105,8 @@ export default async function NewWorkoutPage({
   })();
 
   const exerciseIds = initialExercises.map((e) => e.exerciseId);
-  const [lastSession, personalRecords] = await Promise.all([
-    // Seeded for the default gym; the form refetches if he tags Alrajhi Tower.
-    getLastSessionForExercises(exerciseIds, DEFAULT_GYM_ID),
-    getPersonalRecords(DEFAULT_GYM_ID),
-  ]);
-  const repRecords = await getRepRecords(DEFAULT_GYM_ID);
+  // Seeded for the default gym; the form refetches if he tags Alrajhi Tower.
+  const lastSession = await getLastSessionForExercises(exerciseIds, DEFAULT_GYM_ID);
 
   // Compute progression hints: exerciseId → true if same weight 2+ sessions with Easy/Med RPE
   const last2ByExercise: Record<string, { weight: number; rpe: number | null }[]> = {};
