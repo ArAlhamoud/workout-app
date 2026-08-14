@@ -3,10 +3,9 @@
 // row-as-lock cost bound as /api/coach/brief — whoever wins the create
 // generates, everyone else reads, a failed attempt stands until tomorrow.
 //
-// Token-gated (data-steward): the response embeds his last session, top set
-// and gap facts, and a request can be the day's one paid generation. The
-// only caller (refreshLadderCopy via HealthAutoPilot) already holds the
-// health-sync bearer, so the gate costs one header.
+// No token: the guard came off with the health-sync token (the app is the
+// only caller and is same-origin). The keyless early-return below is the
+// cost bound now — a dormant coach means no row claim and no generation.
 //
 // The client arms the STATIC ladder first, then calls this and overwrites
 // rungs 7/19 only when copy comes back — and only when the anchor here
@@ -52,6 +51,11 @@ export async function GET(request: Request) {
     if (!last) return NextResponse.json({ rungs: null });
     const anchor = last.date.toISOString().slice(0, 10);
 
+    // Dormant coach = no work AND no writes — checked BEFORE the row claim,
+    // or every keyless day INSERTs one junk CoachLadderCopy row (the same
+    // bug /api/coach/brief had; adversary F5).
+    if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ rungs: null });
+
     // Claim today (or discover someone already did).
     let claimed = false;
     try {
@@ -81,7 +85,6 @@ export async function GET(request: Request) {
       claimed = true;
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ rungs: null });
 
     // Top set carries its gym tag (rule 2): a pin at Alrajhi is not a pin
     // at B_Fit, and copy that fires weeks later must say which it means.

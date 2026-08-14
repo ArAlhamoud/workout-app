@@ -6,7 +6,9 @@
 import prisma from '@/lib/prisma';
 
 export async function buildExportPayload() {
-  const [workouts, bodyStats, exercises, healthSamples] = await Promise.all([
+  // Holds ride the same wave: they shape the verdict and the streak, and a
+  // restore without them silently un-declares every pause he ever named.
+  const [workouts, bodyStats, exercises, healthSamples, holds] = await Promise.all([
     prisma.workout.findMany({
       orderBy: { date: 'asc' },
       include: { sets: { include: { exercise: { select: { name: true } } }, orderBy: { setNumber: 'asc' } } },
@@ -14,12 +16,8 @@ export async function buildExportPayload() {
     prisma.bodyStat.findMany({ orderBy: { date: 'asc' } }),
     prisma.exercise.findMany({ orderBy: { name: 'asc' } }),
     prisma.healthSample.findMany({ orderBy: { date: 'asc' } }),
+    prisma.hold.findMany({ orderBy: { startsAt: 'asc' } }),
   ]);
-  // Holds shape the verdict and the streak; a restore without them silently
-  // un-declares every pause he ever named. The snapshot/restore pair already
-  // carries them — this builder lagged behind (found by the feature panel's
-  // constitution judge, of all things).
-  const holds = await prisma.hold.findMany({ orderBy: { startsAt: 'asc' } });
 
   return {
     exportedAt: new Date().toISOString(),

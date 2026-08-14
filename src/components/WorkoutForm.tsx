@@ -410,8 +410,11 @@ export default function WorkoutForm({
     }, 500);
     return () => clearTimeout(t);
   }, [initialized, rescueMode, name, date, gym, notes, blocks]);
-  // Declared AFTER the debounce effect on purpose: cleanups run in reverse,
-  // so on unmount this flush fires BEFORE the pending timer is cleared.
+  // NOTE the real contract here: React runs unmount cleanups in DECLARATION
+  // order, so the debounce effect's clearTimeout runs FIRST. The flush below
+  // still works because clearTimeout never nulls pendingDraftRef — which
+  // means the debounce cleanup MUST NEVER null the ref, or flush-on-unmount
+  // dies silently. (An earlier comment claimed reverse order; adversary F4.)
   useEffect(() => {
     const flush = () => {
       const draft = pendingDraftRef.current;
@@ -523,6 +526,10 @@ export default function WorkoutForm({
   }
 
   function clearDraft() {
+    // Disarm the debounced writer too: with a pending draft still in the
+    // ref, the 500 ms timer or the unmount flush would write the draft BACK
+    // after this removal (adversary F1 — the resurrected-ghost-draft race).
+    pendingDraftRef.current = null;
     void durableRemove(DRAFT_KEY);
     setName(initialName);
     setDate(today);
@@ -831,7 +838,12 @@ export default function WorkoutForm({
         setError('This session already uploaded in the background. Tap Save again to log what’s on screen as a new workout.');
         return;
       }
-      // Only clear the draft once the save has actually succeeded.
+      // Only clear the draft once the save has actually succeeded — and
+      // disarm the debounced writer, or a save landing inside the 500 ms
+      // window gets resurrected as a ghost draft by the still-armed flush;
+      // re-saving that ghost would mint a DUPLICATE workout under a fresh
+      // clientSaveId (adversary F1, corrupts-data class).
+      pendingDraftRef.current = null;
       void durableRemove(DRAFT_KEY);
       // Fire-and-forget: pull the session's real HR curve off the Watch data
       // and re-arm Gap Guard from today. Neither may delay navigation.

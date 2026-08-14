@@ -154,7 +154,10 @@ function handleRestAction(actionId: 'plus30' | 'done'): void {
 async function runGapGuard(): Promise<void> {
   const last = Number(await durableGet(GAP_GUARD_STAMP_KEY));
   if (Number.isFinite(last) && Date.now() - last < GAP_GUARD_THROTTLE_MIN * 60_000) return;
-  await durableSet(GAP_GUARD_STAMP_KEY, String(Date.now()));
+  // Stamp AFTER the fetch succeeds, unlike runSyncs: this work is idempotent
+  // re-arming, so the risk isn't double-writes — it's an offline open in the
+  // gym basement burning the whole window and skipping the re-arm for 15
+  // minutes after signal returns (adversary F3).
 
   let verdict: VerdictPayload | null = null;
   try {
@@ -178,6 +181,7 @@ async function runGapGuard(): Promise<void> {
   // 'unknown' (or a failed read) changes nothing — the flag keeps its state.
 
   if (!verdict) return;
+  await durableSet(GAP_GUARD_STAMP_KEY, String(Date.now()));
   // Paused while sick AND while a declared hold runs — a bounded break he
   // asked for must not be nagged through.
   const holdActive = !!verdict.holdUntilISO && new Date(verdict.holdUntilISO).getTime() > Date.now();

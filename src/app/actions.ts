@@ -353,17 +353,20 @@ export async function getHealthOverview(): Promise<{
  */
 export async function getRepRecords(
   gym?: string | null,
-  exerciseIds?: string[],
 ): Promise<Record<string, Record<number, number>>> {
   // groupBy pushes the max() into SQL — the old version pulled EVERY
   // non-warmup set ever logged into JS to fold it by hand, a cost that grew
   // with every session forever. Same result shape, same gymScope semantics.
+  //
+  // Deliberately UNBOUNDED by exercise: records must cover exercises added
+  // to the form AFTER a gym switch, or the first done set on one mints a
+  // fake "best N-rep set" toast (data-steward, this wave — the same class
+  // as the shipped fake-PR bug CLAUDE.md rule 2 records).
   const grouped = await prisma.workoutSet.groupBy({
     by: ['exerciseId', 'reps'],
     where: {
       isWarmup: false,
       weight: { gt: 0 },
-      ...(exerciseIds?.length ? { exerciseId: { in: exerciseIds } } : {}),
       ...(gym ? { workout: gymScope(gym) } : {}),
     },
     _max: { weight: true },
@@ -385,7 +388,7 @@ export async function getGymMemory(exerciseIds: string[], gym: string) {
   const [lastSession, personalRecords, repRecords] = await Promise.all([
     getLastSessionForExercises(exerciseIds, gym),
     getPersonalRecords(gym),
-    getRepRecords(gym, exerciseIds),
+    getRepRecords(gym),
   ]);
   return { lastSession, personalRecords, repRecords };
 }
