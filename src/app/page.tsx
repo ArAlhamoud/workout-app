@@ -279,7 +279,11 @@ export default async function Home() {
       />
 
       {/* The coach's voice — renders nothing until a note exists */}
-      <CoachCard />
+      {/* Dormant coach: render nothing and — more important on gym LTE —
+          FETCH nothing. The card's mount fetch contended with Home's own RSC
+          request on every open, for a guaranteed-empty answer. Env is only
+          readable server-side, which this component is. */}
+      {process.env.ANTHROPIC_API_KEY ? <CoachCard /> : null}
 
       {/* ── Hero: answer first — ring + tonight's plan ──── */}
       <section className="card-lg relative overflow-hidden p-4">

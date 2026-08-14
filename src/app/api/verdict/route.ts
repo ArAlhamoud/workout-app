@@ -48,6 +48,9 @@ export async function GET(request: Request) {
   const daysSince = trainingOnly.length ? Math.max(0, calendarDaysBetween(now, trainingOnly[0].date)) : null;
 
   return NextResponse.json({
+    // Lets the app skip the ladder-copy fetch entirely while the coach is
+    // dormant, instead of paying a round trip to be told { rungs: null }.
+    coachEnabled: !!process.env.ANTHROPIC_API_KEY,
     lead: verdict.lead,
     parts: verdict.parts,
     sub: verdict.sub,

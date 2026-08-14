@@ -29,6 +29,11 @@ export async function GET() {
   try {
     const day = todayKey();
 
+    // Dormant coach = no work AND no writes. This check used to sit below the
+    // row claim, so a keyless deploy still INSERTed one junk CoachNote per
+    // day just to mark "attempted nothing".
+    if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ note: null });
+
     // Try to claim today. An empty brief marks "attempted" — it is the lock
     // AND the failure marker.
     let claimed = false;
@@ -56,8 +61,6 @@ export async function GET() {
       // Either way: not our turn, and no retry storm.
       return NextResponse.json({ note: null });
     }
-
-    if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ note: null });
 
     const { context, todayLine } = await assembleCoachContext();
     const brief = await generateCoachBrief(context, todayLine);

@@ -49,6 +49,9 @@ import { lastNightSleepHours, readSickSignal } from '@/lib/health-metrics';
 import type { DayId } from '@/lib/program';
 
 const AUTOPILOT_STAMP_KEY = 'health-autopilot-last-run';
+const GAP_GUARD_STAMP_KEY = 'gap-guard-last-run';
+/** Ladder rungs are day-granularity; re-arming per unlock bought nothing. */
+const GAP_GUARD_THROTTLE_MIN = 15;
 const SICK_FLAG_KEY = 'gap-guard-sick-paused';
 const DEAD_RETRY_STAMP_KEY = 'outbox-dead-last-retry';
 const DEAD_NOTIFICATION_ID = 2007;
@@ -72,6 +75,7 @@ interface VerdictPayload {
   queuedDay: DayId | null;
   lastSessionISO: string | null;
   holdUntilISO?: string | null;
+  coachEnabled?: boolean;
 }
 
 /** Only /api/verdict now — the health endpoints became server actions. */
@@ -144,8 +148,17 @@ function handleRestAction(actionId: 'plus30' | 'done'): void {
   }
 }
 
-/** Gap Guard + sick-day state machine. Runs every open; all local. */
+/** Gap Guard + sick-day state machine. Throttled like runSyncs — every
+ *  unlock during a session used to cost two background round trips for an
+ *  answer that changes at day granularity. */
 async function runGapGuard(): Promise<void> {
+  const last = Number(await durableGet(GAP_GUARD_STAMP_KEY));
+  if (Number.isFinite(last) && Date.now() - last < GAP_GUARD_THROTTLE_MIN * 60_000) return;
+  // Stamp AFTER the fetch succeeds, unlike runSyncs: this work is idempotent
+  // re-arming, so the risk isn't double-writes — it's an offline open in the
+  // gym basement burning the whole window and skipping the re-arm for 15
+  // minutes after signal returns (adversary F3).
+
   let verdict: VerdictPayload | null = null;
   try {
     verdict = (await api('/api/verdict')) as VerdictPayload;
@@ -168,6 +181,7 @@ async function runGapGuard(): Promise<void> {
   // 'unknown' (or a failed read) changes nothing — the flag keeps its state.
 
   if (!verdict) return;
+  await durableSet(GAP_GUARD_STAMP_KEY, String(Date.now()));
   // Paused while sick AND while a declared hold runs — a bounded break he
   // asked for must not be nagged through.
   const holdActive = !!verdict.holdUntilISO && new Date(verdict.holdUntilISO).getTime() > Date.now();
@@ -176,7 +190,9 @@ async function runGapGuard(): Promise<void> {
   // The static ladder is now armed. Upgrade rungs 7/19 to coach-written
   // copy if the server has any — fire-and-forget, never blocks, never
   // downgrades (any failure leaves the static words standing).
-  if (!paused && verdict.lastSessionISO) {
+  // coachEnabled === false is a fact; undefined (older server) keeps the
+  // old behavior of asking and being told null.
+  if (!paused && verdict.lastSessionISO && verdict.coachEnabled !== false) {
     void refreshLadderCopy(verdict.lastSessionISO, verdict.queuedDay);
   }
 }

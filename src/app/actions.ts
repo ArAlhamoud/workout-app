@@ -60,12 +60,15 @@ export async function getWorkout(id: string) {
  * against a Day B at B_Fit. Day letter comes from the name because that is
  * where it lives; a custom-named session simply has no comparison.
  */
-export async function getPreviousSameDayWorkout(id: string) {
-  const current = await prisma.workout.findUnique({
-    where: { id },
-    select: { id: true, date: true, name: true, gym: true },
-  });
-  if (!current) return null;
+export async function getPreviousSameDayWorkout(current: {
+  id: string;
+  date: Date;
+  name: string;
+  gym: string | null;
+}) {
+  // Takes the already-loaded row, not an id: the only caller (the detail
+  // page) has the workout in hand, and re-fetching it here made the
+  // save-confirmation spinner wait on a duplicate query.
 
   const letter = current.name.match(/Day ([AB])/i)?.[1]?.toUpperCase();
   if (!letter) return null;
@@ -351,16 +354,43 @@ export async function getHealthOverview(): Promise<{
 export async function getRepRecords(
   gym?: string | null,
 ): Promise<Record<string, Record<number, number>>> {
-  const sets = await prisma.workoutSet.findMany({
-    where: { isWarmup: false, weight: { gt: 0 }, workout: gym ? gymScope(gym) : {} },
-    select: { exerciseId: true, reps: true, weight: true },
+  // groupBy pushes the max() into SQL — the old version pulled EVERY
+  // non-warmup set ever logged into JS to fold it by hand, a cost that grew
+  // with every session forever. Same result shape, same gymScope semantics.
+  //
+  // Deliberately UNBOUNDED by exercise: records must cover exercises added
+  // to the form AFTER a gym switch, or the first done set on one mints a
+  // fake "best N-rep set" toast (data-steward, this wave — the same class
+  // as the shipped fake-PR bug CLAUDE.md rule 2 records).
+  const grouped = await prisma.workoutSet.groupBy({
+    by: ['exerciseId', 'reps'],
+    where: {
+      isWarmup: false,
+      weight: { gt: 0 },
+      ...(gym ? { workout: gymScope(gym) } : {}),
+    },
+    _max: { weight: true },
   });
   const records: Record<string, Record<number, number>> = {};
-  for (const s of sets) {
-    const byReps = (records[s.exerciseId] ??= {});
-    if (!byReps[s.reps] || s.weight > byReps[s.reps]) byReps[s.reps] = s.weight;
+  for (const g of grouped) {
+    if (g._max.weight === null) continue;
+    (records[g.exerciseId] ??= {})[g.reps] = g._max.weight;
   }
   return records;
+}
+
+/**
+ * The mid-workout gym switch in ONE round trip. Three separate POSTs used to
+ * race from gym LTE to us-east-1 and the prefill waited on the slowest;
+ * the parallelism belongs next to the database, not on the radio.
+ */
+export async function getGymMemory(exerciseIds: string[], gym: string) {
+  const [lastSession, personalRecords, repRecords] = await Promise.all([
+    getLastSessionForExercises(exerciseIds, gym),
+    getPersonalRecords(gym),
+    getRepRecords(gym),
+  ]);
+  return { lastSession, personalRecords, repRecords };
 }
 
 /**
