@@ -64,7 +64,9 @@ interface ExerciseBlock {
   unit?: 'reps' | 'seconds';
   showCues: boolean;
   expandedNoteIdx: number | null;
-  lastSession?: { weight: number; reps: number; rpe: number | null };
+  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean };
+  /** Overload by default took one learned pin at seed time; tap undoes it. */
+  overloadApplied?: { from: number; to: number };
 }
 
 const DRAFT_KEY = 'workout-draft';
@@ -74,14 +76,7 @@ const DEFAULT_PIN_INCREMENT = 2.5;
 const inputCls =
   'w-full bg-app-surface2 border border-app-border rounded-card px-4 py-3 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-acc-teal/60 text-sm transition-colors';
 
-// Effort spectrum — Easy teal-green, Med amber, Hard orange, Grind magenta.
-// Each lit pill carries its own soft glow (light IS the information system).
-const rpeOptions = [
-  { v: 1, l: 'Easy',  c: 'bg-rpe-easy/15 border-rpe-easy/60 text-rpe-easy shadow-[0_0_14px_-2px_rgba(52,211,153,0.55)]' },
-  { v: 2, l: 'Med',   c: 'bg-rpe-med/15 border-rpe-med/60 text-rpe-med shadow-[0_0_14px_-2px_rgba(251,191,36,0.55)]' },
-  { v: 3, l: 'Hard',  c: 'bg-rpe-hard/15 border-rpe-hard/60 text-rpe-hard shadow-[0_0_14px_-2px_rgba(251,146,60,0.55)]' },
-  { v: 4, l: 'Grind', c: 'bg-rpe-grind/15 border-rpe-grind/60 text-rpe-grind shadow-[0_0_14px_-2px_rgba(244,63,94,0.55)]' },
-];
+import { rpeOptions } from '@/lib/effort-tokens';
 
 function parseRestSeconds(rest: string): number {
   const m = rest.match(/(\d+)/);
@@ -114,7 +109,7 @@ function formatElapsed(seconds: number): string {
 
 function buildBlocks(
   initialExercises: InitialExercise[],
-  lastSession: Record<string, { weight: number; reps: number; rpe: number | null }>,
+  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean }>,
   returnLoadPct?: number,
   pinIncrements: Record<string, number> = {},
   deloadHints: Record<string, { weight: number; note: string }> = {},
@@ -122,11 +117,21 @@ function buildBlocks(
   return initialExercises.map((ie, blockIdx) => {
     const prev = lastSession[ie.exerciseId];
     const isTimed = ie.unit === 'seconds';
+    // Overload by default: two straight all-Easy sessions at this weight
+    // already proved it light — the prefill takes one learned pin, and the
+    // chip beside the exercise undoes it in a tap. Never during a ramp
+    // (pre-scaled loads win) and never on top of a deload.
+    const inc = pinIncrements[ie.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+    const overloadTo =
+      !returnLoadPct && !isTimed && prev?.overload && prev.weight > 0
+        ? +(prev.weight + inc).toFixed(1)
+        : null;
     // The prefill IS the instruction (that is why ramp weights pre-scale).
     // A deload rendered only as a chip beside a full-weight prefill loses to
     // the prefill every time — so a plateaued machine opens AT the deload
     // weight with half the sets, and building back is the explicit act.
     const deload = !returnLoadPct && !isTimed ? deloadHints[ie.exerciseId] : undefined;
+    const seededWeight = deload ? null : overloadTo;
     const setCount = deload ? Math.max(1, Math.ceil(ie.sets / 2)) : ie.sets;
     return {
       uid: Math.random().toString(36).slice(2),
@@ -141,6 +146,7 @@ function buildBlocks(
       showCues: false,
       expandedNoteIdx: null,
       lastSession: prev,
+      overloadApplied: seededWeight && prev?.weight ? { from: prev.weight, to: seededWeight } : undefined,
       // One auto warm-up set on the first two machines of the session, at
       // ~55% of the working weight rounded DOWN to a real pin. Cold joints
       // meet the day's two heaviest compound movements first; later machines
@@ -148,8 +154,9 @@ function buildBlocks(
       sets: [
         ...(blockIdx < 2 && !isTimed && prev?.weight
           ? (() => {
-              const inc = pinIncrements[ie.exerciseId] ?? DEFAULT_PIN_INCREMENT;
-              const working = returnLoadPct ? scaleReturnWeight(prev.weight, returnLoadPct) : prev.weight;
+              const working = returnLoadPct
+                ? scaleReturnWeight(prev.weight, returnLoadPct)
+                : seededWeight ?? prev.weight;
               const warm = Math.max(inc, Math.floor((working * 0.55) / inc) * inc);
               return [{
                 exerciseId: ie.exerciseId,
@@ -176,7 +183,9 @@ function buildBlocks(
           : deload
             ? deload.weight
             : prev?.weight
-              ? (returnLoadPct ? scaleReturnWeight(prev.weight, returnLoadPct) : prev.weight)
+              ? (returnLoadPct
+                  ? scaleReturnWeight(prev.weight, returnLoadPct)
+                  : seededWeight ?? prev.weight)
               : 0,
         done: false,
         notes: '',
@@ -192,7 +201,7 @@ export default function WorkoutForm({
   exercises,
   initialName = '',
   initialExercises = [],
-  lastSession = {} as Record<string, { weight: number; reps: number; rpe: number | null }>,
+  lastSession = {} as Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean }>,
   personalRecords = {},
   progressionHints = {},
   returnLoadPct,
@@ -206,7 +215,7 @@ export default function WorkoutForm({
   exercises: Exercise[];
   initialName?: string;
   initialExercises?: InitialExercise[];
-  lastSession?: Record<string, { weight: number; reps: number; rpe: number | null }>;
+  lastSession?: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean }>;
   personalRecords?: Record<string, number>;
   progressionHints?: Record<string, boolean>;
   returnLoadPct?: number;
@@ -247,7 +256,16 @@ export default function WorkoutForm({
   // nonce keys the <RestTimer> so a set ticked mid-rest REMOUNTS it (fresh
   // deadline, fresh Live Activity attributes) instead of reusing the old
   // instance with a stale countdown — the adversary's back-to-back case.
-  const [restTimer, setRestTimer] = useState<{ seconds: number; exerciseName: string; nonce: number } | null>(null);
+  const [restTimer, setRestTimer] = useState<{
+    seconds: number;
+    exerciseName: string;
+    nonce: number;
+    /** The set the capsule's effort pills rate — the one just ticked. */
+    ratedUid: string;
+    ratedIdx: number;
+    /** The true next set, so 'Rest complete' names where you're going. */
+    next: { blockUid: string; name: string; setLabel: string; weight: number; isTimed: boolean } | null;
+  } | null>(null);
   const restNonce = useRef(0);
   const [initialized, setInitialized] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
@@ -555,6 +573,27 @@ export default function WorkoutForm({
   );
   const exerciseById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises]);
 
+  /** Overload by default, reverted: working sets go back to the proven
+   *  weight, the warm-up recomputes from it, the chip disappears. Sets
+   *  already ticked are logged facts and stay exactly as logged. */
+  function undoOverload(uid: string) {
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (b.uid !== uid || !b.overloadApplied) return b;
+        const from = b.overloadApplied.from;
+        const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+        const warm = Math.max(inc, Math.floor((from * 0.55) / inc) * inc);
+        return {
+          ...b,
+          overloadApplied: undefined,
+          sets: b.sets.map((st) =>
+            st.done ? st : { ...st, weight: st.isWarmup ? warm : from },
+          ),
+        };
+      }),
+    );
+  }
+
   function addExercise() {
     if (!exercises.length) return;
     setBlocks((prev) => [
@@ -643,8 +682,36 @@ export default function WorkoutForm({
         const exName = exerciseById.get(block.exerciseId)?.name ?? 'exercise';
         if (autoTimer) {
           const restSecs = block.rest ? parseRestSeconds(block.rest) : 90;
+          // The true next set: the rest of THIS block first, then the first
+          // undone set of any later block. Computed from the just-updated
+          // state, so "Next" never names the set that was just ticked —
+          // the wrong-copy defect the old "Next set of X" line shipped.
+          const here = updated.findIndex((b) => b.uid === uid);
+          let next: { blockUid: string; name: string; setLabel: string; weight: number; isTimed: boolean } | null = null;
+          outer: for (let bi = here; bi < updated.length; bi++) {
+            const cand = updated[bi];
+            for (let si = bi === here ? idx + 1 : 0; si < cand.sets.length; si++) {
+              const st = cand.sets[si];
+              if (st.done) continue;
+              next = {
+                blockUid: cand.uid,
+                name: exerciseById.get(cand.exerciseId)?.name ?? 'exercise',
+                setLabel: st.isWarmup ? 'warm-up' : `set ${st.setNumber}`,
+                weight: st.weight,
+                isTimed: cand.unit === 'seconds',
+              };
+              break outer;
+            }
+          }
           restNonce.current += 1;
-          setRestTimer({ seconds: restSecs, exerciseName: exName, nonce: restNonce.current });
+          setRestTimer({
+            seconds: restSecs,
+            exerciseName: exName,
+            nonce: restNonce.current,
+            ratedUid: uid,
+            ratedIdx: idx,
+            next,
+          });
         }
         // Two record ladders, checked in order of glory. All-time heaviest
         // first; else the per-rep-count record (Hevy's insight) — on a
@@ -1200,7 +1267,8 @@ export default function WorkoutForm({
             (!returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3) ||
             readinessHold;
           const suggestWeight =
-            !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload
+            !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload &&
+            !block.overloadApplied
               ? +(block.lastSession.weight + (lastRpe === 1 ? 5 : 2.5)).toFixed(1)
               : null;
 
@@ -1219,7 +1287,8 @@ export default function WorkoutForm({
           return (
             <div
               key={block.uid}
-              className={`card-lg transition-all duration-300 ${
+              id={`block-${block.uid}`}
+              className={`card-lg scroll-mt-24 transition-all duration-300 ${
                 allDone
                   ? 'bg-acc-teal/[0.05] border-acc-teal/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_0_44px_-14px_rgba(45,212,191,0.45)]'
                   : ''
@@ -1276,6 +1345,16 @@ export default function WorkoutForm({
                   <span className="text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium tabular-nums">
                     &#8594; Try {suggestWeight} kg
                   </span>
+                )}
+                {block.overloadApplied && !allDone && (
+                  <button
+                    type="button"
+                    onClick={() => undoOverload(block.uid)}
+                    aria-label={`Undo the increase, back to ${block.overloadApplied.from} kg`}
+                    className="pressable text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium tabular-nums"
+                  >
+                    &#8593; {block.overloadApplied.to} kg &#183; 2&#215; easy &#183; undo
+                  </button>
                 )}
                 {deload && gym === DEFAULT_GYM_ID && !returnTarget && !allDone && (
                   <span className="text-xs bg-acc-ember/10 text-acc-ember px-2.5 py-1 rounded-full border border-acc-ember/40 font-medium">
@@ -1686,7 +1765,22 @@ export default function WorkoutForm({
           key={restTimer.nonce}
           totalSeconds={restTimer.seconds}
           exerciseName={restTimer.exerciseName}
+          nextUp={restTimer.next}
+          rpeCap={returnRpeCap}
+          currentRpe={
+            blocks.find((b) => b.uid === restTimer.ratedUid)?.sets[restTimer.ratedIdx]?.rpe ?? 0
+          }
+          onRate={(v) => {
+            const cur = blocks.find((b) => b.uid === restTimer.ratedUid)?.sets[restTimer.ratedIdx]?.rpe;
+            updateSetRpe(restTimer.ratedUid, restTimer.ratedIdx, cur === v ? 0 : v);
+          }}
           onDismiss={() => {
+            // Done knows where you're going: if the next set lives in a
+            // different exercise, bring its card to the thumb.
+            const next = restTimer.next;
+            if (next && next.blockUid !== restTimer.ratedUid) {
+              document.getElementById(`block-${next.blockUid}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
             setRestTimer(null);
             // The activity ends HERE, not in the timer's unmount: a keyed
             // swap unmounts the old timer a breath before the new one

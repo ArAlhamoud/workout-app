@@ -337,7 +337,7 @@ export const RETURN_PROGRAM: ReturnWeek[] = [
 
 export type TrainingStatus =
   | { mode: 'fresh';  week: number }
-  | { mode: 'return'; week: number; returnWeek: ReturnWeek; daysOff: number }
+  | { mode: 'return'; week: number; returnWeek: ReturnWeek; daysOff: number; sessionsInBlock: number }
   | { mode: 'normal'; week: number };
 
 /**
@@ -345,7 +345,28 @@ export type TrainingStatus =
  * after a layoff, or mid-program. Counting weeks from the very first
  * workout would put someone who took two months off in week 12.
  */
-export function getTrainingStatus(dates: Date[], now: Date = new Date()): TrainingStatus {
+/**
+ * A ramp session that EARNS acceleration: at least two rated working sets,
+ * none harder than Med. One stray tap can't earn a week (the 2-set floor),
+ * and a Hard or Grind anywhere means the load is not as light as the ramp
+ * assumes — the calendar keeps the wheel then.
+ */
+export function cleanRampSessionDates(
+  sessions: Array<{ date: Date; sets?: Array<{ rpe: number | null; isWarmup: boolean }> }>,
+): Date[] {
+  return sessions
+    .filter((s) => {
+      const rated = (s.sets ?? []).filter((x) => !x.isWarmup && x.rpe !== null);
+      return rated.length >= 2 && rated.every((x) => (x.rpe as number) <= 2);
+    })
+    .map((s) => new Date(s.date));
+}
+
+export function getTrainingStatus(
+  dates: Date[],
+  now: Date = new Date(),
+  cleanDates: Date[] = [],
+): TrainingStatus {
   if (!dates.length) return { mode: 'fresh', week: 1 };
 
   const desc = dates.map((d) => new Date(d)).sort((a, b) => b.getTime() - a.getTime());
@@ -354,7 +375,7 @@ export function getTrainingStatus(dates: Date[], now: Date = new Date()): Traini
   // Still inside the layoff — today is day 1 of the return block.
   const daysSinceLast = daysBetween(now, desc[0]);
   if (daysSinceLast >= BREAK_THRESHOLD_DAYS) {
-    return { mode: 'return', week: 1, returnWeek: RETURN_PROGRAM[0], daysOff: daysSinceLast };
+    return { mode: 'return', week: 1, returnWeek: RETURN_PROGRAM[0], daysOff: daysSinceLast, sessionsInBlock: 0 };
   }
 
   // Walk back to the start of the current unbroken training block,
@@ -373,13 +394,21 @@ export function getTrainingStatus(dates: Date[], now: Date = new Date()): Traini
 
   if (daysOff > 0) {
     // Session-based ramp pacing: every 2 completed sessions advance a ramp
-    // week, but never faster than the calendar — a triple session day
-    // doesn't skip ahead, and a slow week doesn't skip either.
+    // week, but never faster than the calendar — UNLESS the sessions were
+    // clean (Earned Ramp). Clean rated sessions substitute for calendar
+    // weeks, so a disciplined comeback reaches full load in ~2 weeks while
+    // an unrated or grindy one keeps exactly the old calendar floor. The
+    // 2-sessions-per-phase pacing clamp never lifts: nothing skips a phase.
+    const cleanInBlock = cleanDates.filter((d) => {
+      const t = new Date(d).getTime();
+      return t >= blockStart.getTime() && t <= now.getTime();
+    }).length;
+    const effectiveWeeks = Math.max(weeksElapsed, Math.floor(cleanInBlock / 2));
     const rampSessionsComplete = sessionsInBlock >= 2 * RETURN_PROGRAM.length;
-    if (!(rampSessionsComplete && weeksElapsed >= RETURN_PROGRAM.length)) {
+    if (!(rampSessionsComplete && effectiveWeeks >= RETURN_PROGRAM.length)) {
       const week =
-        Math.min(Math.floor(sessionsInBlock / 2), weeksElapsed, RETURN_PROGRAM.length - 1) + 1;
-      return { mode: 'return', week, returnWeek: RETURN_PROGRAM[week - 1], daysOff };
+        Math.min(Math.floor(sessionsInBlock / 2), effectiveWeeks, RETURN_PROGRAM.length - 1) + 1;
+      return { mode: 'return', week, returnWeek: RETURN_PROGRAM[week - 1], daysOff, sessionsInBlock };
     }
     // Ramp sessions done AND 4+ calendar weeks back — rejoin the main
     // program at BUILD and progress weekly from there.

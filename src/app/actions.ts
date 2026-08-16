@@ -162,10 +162,20 @@ export async function deleteWorkout(id: string) {
   redirect('/workouts');
 }
 
+export type ExerciseMemory = {
+  weight: number;
+  reps: number;
+  rpe: number | null;
+  /** Two straight all-Easy sessions at the same top weight — the prefill
+   *  takes one learned pin (Overload by default). Never set during a ramp
+   *  (the client guards that; the flag only reports history). */
+  overload?: boolean;
+};
+
 export async function getLastSessionForExercises(
   exerciseIds: string[],
   gym?: string | null,
-): Promise<Record<string, { weight: number; reps: number; rpe: number | null }>> {
+): Promise<Record<string, ExerciseMemory>> {
   if (!exerciseIds.length) return {};
   // Weight memory is per building. The same exercise sits on a different
   // machine with a different stack — and at Alrajhi Tower a stack labelled in
@@ -173,16 +183,54 @@ export async function getLastSessionForExercises(
   // "Try N kg" suggestion and every plateau/1RM read that follows it.
   // Sessions logged before gym tagging existed are untagged; they are all
   // B_Fit, so the home gym claims them.
-  const lastSets = await prisma.workoutSet.findMany({
+  //
+  // Last TWO sessions per exercise now ride the one query: Overload by
+  // default needs to see whether the previous two visits to a machine were
+  // both all-Easy at the same top weight. The take is generous at today's
+  // scale; the fold below only ever reads the first two sessions it meets.
+  const rows = await prisma.workoutSet.findMany({
     where: { exerciseId: { in: exerciseIds }, isWarmup: false, workout: gym ? gymScope(gym) : {} },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
-    distinct: ['exerciseId'],
-    select: { exerciseId: true, weight: true, reps: true, rpe: true },
+    select: { exerciseId: true, weight: true, reps: true, rpe: true, workoutId: true },
+    take: Math.min(2000, exerciseIds.length * 40),
   });
-  return lastSets.reduce<Record<string, { weight: number; reps: number; rpe: number | null }>>((acc, s) => {
-    acc[s.exerciseId] = { weight: s.weight, reps: s.reps, rpe: s.rpe };
-    return acc;
-  }, {});
+
+  const out: Record<string, ExerciseMemory> = {};
+  const byExercise = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const list = byExercise.get(r.exerciseId);
+    if (list) list.push(r);
+    else byExercise.set(r.exerciseId, [r]);
+  }
+  for (const [exId, sets] of byExercise) {
+    // First row = last set of the latest session — byte-identical to what
+    // the old `distinct` query returned as the prefill memory.
+    const first = sets[0];
+    const sessions: Array<typeof rows> = [];
+    const order = new Map<string, number>();
+    for (const x of sets) {
+      let i = order.get(x.workoutId);
+      if (i === undefined) {
+        i = sessions.length;
+        order.set(x.workoutId, i);
+        sessions.push([]);
+      }
+      sessions[i].push(x);
+    }
+    const allEasy = (sess: typeof rows) => {
+      const rated = sess.filter((x) => x.rpe !== null && x.rpe > 0);
+      return rated.length >= 1 && rated.every((x) => x.rpe === 1);
+    };
+    const top = (sess: typeof rows) => Math.max(...sess.map((x) => x.weight));
+    const overload =
+      sessions.length >= 2 &&
+      allEasy(sessions[0]) &&
+      allEasy(sessions[1]) &&
+      top(sessions[0]) === top(sessions[1]) &&
+      top(sessions[0]) > 0;
+    out[exId] = { weight: first.weight, reps: first.reps, rpe: first.rpe, overload };
+  }
+  return out;
 }
 
 export async function getPersonalRecords(gym?: string | null): Promise<Record<string, number>> {

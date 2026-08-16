@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { homeVerdict } from '@/lib/coach';
-import { calendarDaysBetween, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay } from '@/lib/program';
+import { RETURN_PROGRAM, calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay } from '@/lib/program';
 import { holdWeekKeys, weekStreak } from '@/lib/streak';
 
 export const runtime = 'nodejs';
@@ -21,7 +21,8 @@ export async function GET(request: Request) {
   const [workouts, holds, activeHold] = await Promise.all([
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
-      select: { date: true, name: true },
+      // sets feed cleanRampSessionDates — the Earned Ramp needs effort data.
+      select: { date: true, name: true, sets: { select: { rpe: true, isWarmup: true } } },
       take: 400,
     }),
     prisma.hold.findMany({ select: { startsAt: true, endsAt: true } }),
@@ -33,7 +34,26 @@ export async function GET(request: Request) {
   ]);
 
   const trainingOnly = workouts.filter(isTrainingSession);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly));
+
+  // The Comeback Contract's payoff line: what the NEXT clean session (or
+  // two) actually buys. Named numbers, zero shame — the notification that
+  // carries this fires on day 2 of silence, when both past collapses began.
+  let contract: string | null = null;
+  if (status.mode === 'return') {
+    const done = status.sessionsInBlock;
+    if (status.week < RETURN_PROGRAM.length) {
+      const toNext = 2 - (done % 2);
+      const nextPct = RETURN_PROGRAM[status.week].loadPct;
+      contract =
+        toNext === 1
+          ? `1 clean session unlocks ${nextPct}%`
+          : `${toNext} clean sessions unlock ${nextPct}%`;
+    } else {
+      const toExit = Math.max(1, 2 * RETURN_PROGRAM.length - done);
+      contract = toExit === 1 ? '1 session finishes the ramp' : `${toExit} sessions finish the ramp`;
+    }
+  }
   const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })), now);
   const verdict = homeVerdict(status, plan, now);
   const streak = weekStreak({
@@ -57,6 +77,7 @@ export async function GET(request: Request) {
     tone: verdict.tone,
     day: verdict.day,
     queuedDay: queuedDay(plan),
+    contract,
     daysSince,
     lastSessionISO,
     streak: { weeks: streak.weeks, status: streak.status, label: streak.label },

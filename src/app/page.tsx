@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getBodyStats, getWorkouts } from './actions';
 import {
   getDynamicPlan,
+  cleanRampSessionDates,
   getTrainingStatus,
   getExerciseCountForDuration,
   getExercisesForDuration,
@@ -244,7 +245,8 @@ export default async function Home() {
   })();
 
   // Where the lifter actually is: fresh, ramping back after a layoff, or mid-program
-  const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
+  const trainingOnly = workouts.filter(isTrainingSession);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
   const programWeek = status.week;
   const currentPhase = phaseForWeek(programWeek);
 

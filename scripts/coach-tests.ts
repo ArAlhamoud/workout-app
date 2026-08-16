@@ -33,6 +33,7 @@ import {
   cardioForGym,
   getDayTemplate,
   getTrainingStatus,
+  cleanRampSessionDates,
   parseDayLetter,
   projectPlan,
   queuedDay,
@@ -212,6 +213,55 @@ const rampDone = [
 ];
 const s5 = getTrainingStatus(rampDone, day('2026-08-31T12:00:00Z'));
 assert(s5.mode === 'normal' && s5.week === 3, `8 sessions + 4 weeks → normal at week 3 (got ${s5.mode} w${s5.week})`);
+
+// ── Earned Ramp: clean rated sessions substitute for calendar weeks ─────────
+// Clean = ≥2 rated working sets, none above Med. Unrated sessions keep the
+// calendar clamp exactly as before (s4 above must keep passing untouched).
+const rampSession = (iso: string, rpes: Array<number | null>) => ({
+  date: day(iso),
+  sets: rpes.map((rpe) => ({ rpe, isWarmup: false })),
+});
+const fourCleanSessions = ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30'].map((d) =>
+  rampSession(`${d}T00:00:00Z`, [1, 1, 2]),
+);
+const e1 = getTrainingStatus(fourFast, day('2026-07-31T12:00:00Z'), cleanRampSessionDates(fourCleanSessions));
+assert(e1.mode === 'return' && e1.week === 3,
+  `4 CLEAN sessions in 5 days → earned week 3 (got ${e1.mode} w${e1.week})`);
+
+// Pacing still holds under earned advancement: 3 clean sessions = week 2.
+const e2 = getTrainingStatus(
+  [...preBreak, ...['2026-07-27', '2026-07-28', '2026-07-29'].map((d) => day(`${d}T00:00:00Z`))],
+  day('2026-07-31T12:00:00Z'),
+  cleanRampSessionDates(fourCleanSessions.slice(0, 3)),
+);
+assert(e2.mode === 'return' && e2.week === 2,
+  `3 clean sessions → week 2, pacing is still 2 per phase (got ${e2.mode} w${e2.week})`);
+
+// A Grind anywhere disqualifies the session — no acceleration earned.
+const grindy = ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30'].map((d) =>
+  rampSession(`${d}T00:00:00Z`, [1, 1, 4]),
+);
+assert(cleanRampSessionDates(grindy).length === 0, 'a Grind set disqualifies a session from earning');
+
+// One rated set is an accidental tap, not evidence.
+assert(cleanRampSessionDates([rampSession('2026-07-27T00:00:00Z', [1])]).length === 0,
+  'a single rated set earns nothing');
+assert(cleanRampSessionDates([rampSession('2026-07-27T00:00:00Z', [null, null, null])]).length === 0,
+  'unrated sessions earn nothing');
+
+// 8 clean sessions finish the whole ramp early — full exit to normal mode.
+const eightFast = [
+  ...preBreak,
+  ...['2026-07-27', '2026-07-28', '2026-07-30', '2026-07-31', '2026-08-02', '2026-08-04', '2026-08-06', '2026-08-08'].map(
+    (d) => day(`${d}T00:00:00Z`),
+  ),
+];
+const eightClean = ['2026-07-27', '2026-07-28', '2026-07-30', '2026-07-31', '2026-08-02', '2026-08-04', '2026-08-06', '2026-08-08'].map(
+  (d) => rampSession(`${d}T00:00:00Z`, [1, 2, 1]),
+);
+const e3 = getTrainingStatus(eightFast, day('2026-08-09T12:00:00Z'), cleanRampSessionDates(eightClean));
+assert(e3.mode === 'normal',
+  `8 clean sessions in under 2 weeks → ramp complete, normal mode (got ${e3.mode} w${'week' in e3 ? e3.week : '?'})`);
 
 // Same calendar span with only 7 sessions → ramp not complete, week 4.
 const s6 = getTrainingStatus(rampDone.slice(0, -1), day('2026-08-31T12:00:00Z'));
@@ -577,6 +627,22 @@ console.log('computeGapLadder');
   assert(past21.length === 0, 'after day 19 the ladder is silent');
 
   assert(computeGapLadder('not-a-date', 'A', dayAfter).length === 0, 'garbage date → empty ladder, no throw');
+
+  // Comeback Contract: during a ramp the verdict supplies a payoff line and
+  // the ladder gains a day-2 rung that carries it verbatim — fired inside
+  // the 48-hour window where both real collapses began. No contract, no
+  // rung: outside a ramp the ladder is byte-for-byte what it always was.
+  const contracted = computeGapLadder(lastSession, 'B', dayAfter, { contract: '1 clean session unlocks 70%' });
+  assert(
+    contracted.map((r) => r.day).join() === '2,3,5,7,19',
+    `contract adds a day-2 rung (got ${contracted.map((r) => r.day).join()})`,
+  );
+  assert(contracted[0].body.includes('1 clean session unlocks 70%'),
+    'the day-2 rung carries the contract words verbatim');
+  assert(contracted[0].at.getHours() === 17, 'the contract rung keeps the 17:00 fire time');
+  const uncontracted = computeGapLadder(lastSession, 'B', dayAfter, { contract: null });
+  assert(uncontracted.map((r) => r.day).join() === '3,5,7,19',
+    'a null contract adds nothing — the ladder stays as it was');
 
   // Workout dates are stored as bare UTC days. The anchor must be that
   // calendar day LOCALLY — read as an instant it is 03:00 in Riyadh, and in

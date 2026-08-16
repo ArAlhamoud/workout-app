@@ -76,6 +76,8 @@ interface VerdictPayload {
   lastSessionISO: string | null;
   holdUntilISO?: string | null;
   coachEnabled?: boolean;
+  /** Comeback Contract line, present only during a return ramp. */
+  contract?: string | null;
 }
 
 /** Only /api/verdict now — the health endpoints became server actions. */
@@ -186,7 +188,7 @@ async function runGapGuard(): Promise<void> {
   // asked for must not be nagged through.
   const holdActive = !!verdict.holdUntilISO && new Date(verdict.holdUntilISO).getTime() > Date.now();
   const paused = (await durableGet(SICK_FLAG_KEY)) === '1' || holdActive;
-  armGapGuard(verdict.lastSessionISO, verdict.queuedDay, { paused });
+  armGapGuard(verdict.lastSessionISO, verdict.queuedDay, { paused, contract: verdict.contract ?? null });
   // The static ladder is now armed. Upgrade rungs 7/19 to coach-written
   // copy if the server has any — fire-and-forget, never blocks, never
   // downgrades (any failure leaves the static words standing).
