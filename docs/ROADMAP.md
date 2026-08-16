@@ -1,5 +1,32 @@
 # Roadmap
 
+## Wave 7 — the owner's five picks (BUILT)
+
+Earned Ramp (clean spaced sessions lift the calendar clamp; rest-day
+spacing + ~4-day phase floor keep time in the loop — fastest disciplined
+comeback ≈2.5 weeks, exit lands at BUILD), Comeback Contract (day-2 rung
+whose payoff line is computed by the same gates that pay it, projected to
+fire time; replaces day 3 while armed), Overload by default (+1 learned
+pin after 2× all-Easy-at-target-reps days, undo chip, dead on ramp/
+rescue/deload/gym-switch/exercise-swap/readiness-hold), effort pills in
+the rest capsule (capped pills stay tappable — the cap instructs, never
+censors), and the capsule's true next set + scroll-on-done (scan wraps;
+"All sets done" cannot lie).
+
+Panel catches worth remembering: capsule pills were born disabled above
+the cap while ratings buy acceleration (trainer blocker — the sensor must
+be able to say Hard); the earned ramp had no time axis (6 consecutive
+clean days → 100% at day 7 for a 133 kg lifter); the contract could
+promise what the math wouldn't pay; rung id 2007 collided with the
+stuck-save alert and killed that safety net on every open; the exercise
+swap kept an undo that wrote the old machine's weight into the new one.
+
+Accepted residuals: the 00:00–03:00 bare-UTC clean-session window
+(self-heals), the overload fold's global take-cap (revisit inside the
+getWorkouts redesign), the Live Activity's frozen exercise name (by
+design).
+
+
 ## Wave 6 — measure, then optimize (BUILT)
 
 A five-lens audit workflow (28 findings → 7 confirmed ship-now) plus two
