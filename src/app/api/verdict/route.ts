@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { homeVerdict } from '@/lib/coach';
-import { calendarDaysBetween, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay } from '@/lib/program';
+import { calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay, rampContract } from '@/lib/program';
 import { holdWeekKeys, weekStreak } from '@/lib/streak';
 
 export const runtime = 'nodejs';
@@ -21,7 +21,8 @@ export async function GET(request: Request) {
   const [workouts, holds, activeHold] = await Promise.all([
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
-      select: { date: true, name: true },
+      // sets feed cleanRampSessionDates — the Earned Ramp needs effort data.
+      select: { date: true, name: true, sets: { select: { rpe: true, isWarmup: true } } },
       take: 400,
     }),
     prisma.hold.findMany({ select: { startsAt: true, endsAt: true } }),
@@ -33,7 +34,18 @@ export async function GET(request: Request) {
   ]);
 
   const trainingOnly = workouts.filter(isTrainingSession);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly));
+
+  // The Comeback Contract's payoff line — computed by the SAME gates that
+  // pay it (spacing + day floor), PROJECTED to the rung's fire time (day 2
+  // after the last session, evening). Evaluated at verdict time the gates
+  // always failed right after a save — gapOk was 0 of 2 days — so the rung
+  // never armed on its primary path: train, pocket the phone, go silent
+  // (adversary). Null = no rung, generic ladder.
+  const fireAt = trainingOnly.length
+    ? new Date(trainingOnly[0].date.getTime() + 2 * 86400000)
+    : now;
+  const contract = rampContract(status, fireAt);
   const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })), now);
   const verdict = homeVerdict(status, plan, now);
   const streak = weekStreak({
@@ -57,6 +69,7 @@ export async function GET(request: Request) {
     tone: verdict.tone,
     day: verdict.day,
     queuedDay: queuedDay(plan),
+    contract,
     daysSince,
     lastSessionISO,
     streak: { weeks: streak.weeks, status: streak.status, label: streak.label },

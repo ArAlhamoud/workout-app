@@ -14,6 +14,7 @@ import {
   getTrainingStatus,
   queuedDay,
   type Duration,
+  cleanRampSessionDates,
 } from '@/lib/program';
 
 export const metadata: Metadata = { title: 'Log Workout' };
@@ -52,8 +53,14 @@ export default async function NewWorkoutPage({
   // default is 45, not 60 — Home's CTA already says 45 then, and entering
   // through a different door must not silently double the prescribed day
   // (device-tester, Aug 5). An explicit ?dur= always wins.
+  const trainingOnly = allWorkouts.filter(isTrainingSession);
+  // Earned Ramp: clean rated sessions can lift the calendar clamp, and the
+  // logger MUST agree with the unlock — this page's returnLoadPct is what
+  // pre-scales every prefit weight, so a stale calendar week here would
+  // keep the loads at 60% after the sessions earned 70.
+  const cleanDates = cleanRampSessionDates(trainingOnly);
   const inRamp =
-    getTrainingStatus(allWorkouts.filter(isTrainingSession).map((w) => w.date)).mode === 'return';
+    getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates).mode === 'return';
   const validDur: Duration =
     durStr === '30' ? 30 : durStr === '45' ? 45 : durStr === '60' ? 60 : inRamp ? 45 : 60;
 
@@ -123,7 +130,7 @@ export default async function NewWorkoutPage({
       }
     }
   }
-  const status = getTrainingStatus(allWorkouts.filter(isTrainingSession).map((w) => w.date));
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
   const isReturning = status.mode === 'return';
 
   // Per-machine pin spacing: learned from weight-jump history, with any

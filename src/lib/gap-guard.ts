@@ -24,7 +24,12 @@ import { isNativeApp } from './native-health';
 import type { DayId } from './program';
 
 /** Notification ids 2001–2004: the ladder. 2005: sick. 2006: comeback. */
-const LADDER_IDS = [2001, 2002, 2003, 2004];
+// 2009 is the Comeback Contract's day-2 rung — appended so the positional
+// ids above it never shift and the cancel sweep covers all five. NOT 2007
+// (DEAD_NOTIFICATION_ID, the stuck-save alert — the adversary caught the
+// ladder's cancel sweep silently killing that safety net on every open)
+// and NOT 2008 (HOLD_END_NOTIFICATION_ID).
+const LADDER_IDS = [2001, 2002, 2003, 2004, 2009];
 export const SICK_NOTIFICATION_ID = 2005;
 export const COMEBACK_NOTIFICATION_ID = 2006;
 
@@ -51,6 +56,7 @@ export function computeGapLadder(
   lastSessionISO: string,
   queuedDay: DayId | null,
   now: Date = new Date(),
+  options: { contract?: string | null } = {},
 ): GapRung[] {
   const parsed = new Date(lastSessionISO);
   if (Number.isNaN(parsed.getTime())) return [];
@@ -115,7 +121,49 @@ export function computeGapLadder(
     },
   ];
 
+  // The Comeback Contract: only during a ramp (the verdict computes the
+  // line), only on day 2 — inside the exact 48-hour window where both real
+  // collapses started, and early enough that the payoff is one session away.
+  // Pure payoff, zero shame: it names what the next session BUYS.
+  if (options.contract) {
+    // Day 2 replaces day 3 while a ramp is live: "Day B is ready" tonight
+    // AND "Day B is up" tomorrow is one message pretending to be two.
+    rungs.splice(0, 1);
+    rungs.unshift({
+      id: LADDER_IDS[4],
+      day: 2,
+      at: at(2),
+      title: `${day} is ready`,
+      body: `${options.contract}.`,
+      route: startRoute,
+    });
+  }
+
   return rungs.filter((r) => r.at.getTime() > now.getTime());
+}
+
+/**
+ * Re-arm from the server's verdict, so the ladder a SAVE arms carries the
+ * fresh Comeback Contract — the bare client-side re-arm knew neither the
+ * queued day nor the contract, which left the day-2 rung missing on the
+ * exact path it was built for (train, pocket the phone, 48 h of silence).
+ * Fire-and-forget; any failure falls back to the contract-less ladder.
+ */
+export async function rearmGapGuardFromServer(fallbackISO: string): Promise<void> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    const res = await fetch('/api/verdict', { signal: controller.signal });
+    clearTimeout(timer);
+    const v = (await res.json()) as {
+      lastSessionISO?: string | null;
+      queuedDay?: DayId | null;
+      contract?: string | null;
+    };
+    armGapGuard(v.lastSessionISO ?? fallbackISO, v.queuedDay ?? null, { contract: v.contract ?? null });
+  } catch {
+    armGapGuard(fallbackISO, null);
+  }
 }
 
 /**
@@ -130,7 +178,7 @@ export function computeGapLadder(
 export function armGapGuard(
   lastSessionISO: string | null,
   queuedDay: DayId | null,
-  options: { paused?: boolean; now?: Date } = {},
+  options: { paused?: boolean; now?: Date; contract?: string | null } = {},
 ): void {
   if (!isNativeApp()) return;
   // Ladder only. The comeback (2006) is NOT cancelled here: the app-open
@@ -140,7 +188,7 @@ export function armGapGuard(
   cancelLocalNotifications(LADDER_IDS);
   if (options.paused || !lastSessionISO) return;
 
-  const rungs = computeGapLadder(lastSessionISO, queuedDay, options.now);
+  const rungs = computeGapLadder(lastSessionISO, queuedDay, options.now, { contract: options.contract });
   const specs: LocalNotificationSpec[] = rungs.map((r) => ({
     id: r.id,
     title: r.title,

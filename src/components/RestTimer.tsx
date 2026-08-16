@@ -10,11 +10,19 @@ import {
   REST_EXERCISE_KEY,
 } from '@/lib/native-feedback';
 import { endRestActivity, startOrUpdateRestActivity } from '@/lib/native-live-activity';
+import { rpeOptions } from '@/lib/effort-tokens';
 
 interface RestTimerProps {
   totalSeconds: number;
   exerciseName: string;
   onDismiss: () => void;
+  /** The true next set — "Rest complete" names where you're going. */
+  nextUp?: { blockUid: string; name: string; setLabel: string; weight: number; isTimed: boolean } | null;
+  /** Rate the just-completed set without leaving the capsule. */
+  onRate?: (rpe: number) => void;
+  currentRpe?: number;
+  /** Return-ramp cap: harder pills render struck-through and inert. */
+  rpeCap?: number;
 }
 
 /** Last N seconds get the unmissable treatment. */
@@ -124,7 +132,7 @@ function remainingSeconds(endsAt: number): number {
   return Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
 }
 
-export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: RestTimerProps) {
+export default function RestTimer({ totalSeconds, exerciseName, onDismiss, nextUp, onRate, currentRpe = 0, rpeCap }: RestTimerProps) {
   // Timestamp-based countdown: remaining is always recomputed from Date.now(),
   // so the timer stays correct through iOS suspend/resume.
   const [endsAt, setEndsAt] = useState(() => Date.now() + totalSeconds * 1000);
@@ -155,9 +163,10 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
   useEffect(() => {
     try {
       localStorage.setItem(REST_DEADLINE_KEY, String(endsAt));
-      localStorage.setItem(REST_EXERCISE_KEY, exerciseName);
+      localStorage.setItem(REST_EXERCISE_KEY, nextUp?.name ?? exerciseName);
     } catch { /* a full quota only costs the lock-screen adjust */ }
-  }, [endsAt, exerciseName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endsAt, exerciseName, nextUp?.name]);
   useEffect(() => {
     return () => {
       try {
@@ -198,9 +207,13 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
   // Re-armed whenever the deadline moves; cancelled on unmount so a dismissed
   // timer can never beep.
   useEffect(() => {
-    scheduleRestAlert((endsAt - Date.now()) / 1000, exerciseName);
+    // The lock-screen notification carries the TRUE next exercise when the
+    // parent computed one — "Next set — Chest Press" after chest press's
+    // last set was the same wrong-copy defect the capsule fix killed.
+    scheduleRestAlert((endsAt - Date.now()) / 1000, nextUp?.name ?? exerciseName);
     return cancelRestAlert;
-  }, [endsAt, exerciseName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endsAt, exerciseName, nextUp?.name]);
 
   // Live Activity (Dynamic Island / Lock Screen countdown). Start-or-update
   // tracks the deadline; if it lived with end in one effect, every +15 s tap
@@ -276,7 +289,15 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
             {finished ? (
               <div>
                 <p className="glow-teal font-bold text-base">Rest complete! 💪</p>
-                <p className="text-app-tx2 text-xs mt-0.5">Next set of {exerciseName}</p>
+                {/* The old line said "Next set of {exerciseName}" even when
+                    that was the block's last set — wrong exactly when a
+                    glance mattered. Now it names the true next set, weight
+                    included, or celebrates the finish line. */}
+                <p className="text-app-tx2 text-xs mt-0.5 tabular-nums">
+                  {nextUp
+                    ? `Next: ${nextUp.name} · ${nextUp.setLabel}${nextUp.isTimed || !nextUp.weight ? '' : ` · ${nextUp.weight} kg`}`
+                    : 'All sets done 🎉'}
+                </p>
               </div>
             ) : (
               <div>
@@ -306,6 +327,34 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss }: Res
               {finished ? 'Done' : 'Skip'}
             </button>
           </div>
+          {onRate && (
+            <div className="px-4 pb-2.5 flex items-center gap-1.5">
+              <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-app-tx3 mr-0.5">effort</span>
+              {rpeOptions.map(({ v, l, c }) => {
+                const capped = rpeCap !== undefined && v > rpeCap;
+                const lit = currentRpe === v;
+                // Capped pills render locked but STAY TAPPABLE, mirroring the
+                // form's effort row on purpose: the cap is an instruction,
+                // not a censor. Ratings now buy ramp acceleration, and the
+                // one rating that must always be recordable is the honest
+                // "this was Hard" that slows it down (trainer blocker).
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => onRate(v)}
+                    className={`px-2.5 py-1 rounded-full border text-[11px] font-bold transition-all ${
+                      lit ? c : capped
+                        ? 'border-app-border text-app-tx3 line-through opacity-50'
+                        : 'border-app-border bg-white/[0.06] text-app-tx2'
+                    }`}
+                  >
+                    {l}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {!finished && (
             <div className="px-4 pb-3 flex items-center gap-2">
               <button

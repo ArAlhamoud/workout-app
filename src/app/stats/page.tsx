@@ -11,7 +11,7 @@ import { bodyweightMilestones, effortDistribution, momentumBank, weeklyReport, t
 import { holdWeekKeys, lifetimeStats, weekStreak } from '@/lib/streak';
 import { sleepDebtHours } from '@/lib/coach';
 import { lastMonthRecap, yearRecap } from '@/lib/recap';
-import { getTrainingStatus, isTrainingSession } from '@/lib/program';
+import { cleanRampSessionDates, getTrainingStatus, isTrainingSession } from '@/lib/program';
 import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -365,7 +365,8 @@ export default async function StatsPage() {
     .reduce((sum, w) => sum + workingVol(w), 0);
 
   // Coach intelligence
-  const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
+  const trainingOnly = workouts.filter(isTrainingSession);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
   const report = weeklyReport(workouts, stats, status);
   const streak = weekStreak({
     sessionDates: workouts.map((w) => w.date),

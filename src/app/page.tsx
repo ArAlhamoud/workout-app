@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getBodyStats, getWorkouts } from './actions';
 import {
   getDynamicPlan,
+  cleanRampSessionDates,
   getTrainingStatus,
   getExerciseCountForDuration,
   getExercisesForDuration,
@@ -244,7 +245,8 @@ export default async function Home() {
   })();
 
   // Where the lifter actually is: fresh, ramping back after a layoff, or mid-program
-  const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
+  const trainingOnly = workouts.filter(isTrainingSession);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
   const programWeek = status.week;
   const currentPhase = phaseForWeek(programWeek);
 
@@ -424,6 +426,12 @@ export default async function Home() {
                 <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
               </p>
               <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
+              {/* The Earned Ramp's key term, defined where the rules live —
+                  a contract whose word is undefined reads as a broken promise
+                  the first time a Grind session fails to unlock the week. */}
+              <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">
+                Clean sessions move you up early. Clean = 2+ rated sets, none past Med.
+              </p>
 
               {/* Effort-ceiling lockout ladder */}
               <div className="mt-4" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
