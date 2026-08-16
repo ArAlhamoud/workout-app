@@ -191,7 +191,7 @@ export async function getLastSessionForExercises(
   const rows = await prisma.workoutSet.findMany({
     where: { exerciseId: { in: exerciseIds }, isWarmup: false, workout: gym ? gymScope(gym) : {} },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
-    select: { exerciseId: true, weight: true, reps: true, rpe: true, workoutId: true },
+    select: { exerciseId: true, weight: true, reps: true, rpe: true, workout: { select: { date: true } } },
     take: Math.min(2000, exerciseIds.length * 40),
   });
 
@@ -206,13 +206,17 @@ export async function getLastSessionForExercises(
     // First row = last set of the latest session — byte-identical to what
     // the old `distinct` query returned as the prefill memory.
     const first = sets[0];
+    // Group by calendar DAY, not workout id: a session saved in two halves
+    // (compress-and-save, then finish) must count as ONE day's evidence,
+    // not "two straight sessions" earned in an afternoon (adversary).
     const sessions: Array<typeof rows> = [];
     const order = new Map<string, number>();
     for (const x of sets) {
-      let i = order.get(x.workoutId);
+      const dayKey = x.workout.date.toISOString().slice(0, 10);
+      let i = order.get(dayKey);
       if (i === undefined) {
         i = sessions.length;
-        order.set(x.workoutId, i);
+        order.set(dayKey, i);
         sessions.push([]);
       }
       sessions[i].push(x);

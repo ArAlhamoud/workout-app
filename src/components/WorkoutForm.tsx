@@ -12,7 +12,7 @@ import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback
 import { endRestActivity } from '@/lib/native-live-activity';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { enqueueSave, newClientSaveId } from '@/lib/outbox';
-import { armGapGuard, clearComeback } from '@/lib/gap-guard';
+import { armGapGuard, clearComeback, rearmGapGuardFromServer } from '@/lib/gap-guard';
 import { readReadiness } from '@/lib/health-metrics';
 import type { ReadinessSignal } from '@/lib/coach';
 import { captureWorkoutHr } from '@/lib/hr-capture';
@@ -113,6 +113,7 @@ function buildBlocks(
   returnLoadPct?: number,
   pinIncrements: Record<string, number> = {},
   deloadHints: Record<string, { weight: number; note: string }> = {},
+  isRescue = false,
 ): ExerciseBlock[] {
   return initialExercises.map((ie, blockIdx) => {
     const prev = lastSession[ie.exerciseId];
@@ -122,8 +123,11 @@ function buildBlocks(
     // chip beside the exercise undoes it in a tap. Never during a ramp
     // (pre-scaled loads win) and never on top of a deload.
     const inc = pinIncrements[ie.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+    // Rescue is excluded explicitly: mid-ramp it arrives with returnLoadPct
+    // deliberately unset, and the one day readiness says "shrink" must not
+    // open machines a pin heavier (adversary).
     const overloadTo =
-      !returnLoadPct && !isTimed && prev?.overload && prev.weight > 0 && prev.reps >= ie.defaultReps
+      !returnLoadPct && !isRescue && !isTimed && prev?.overload && prev.weight > 0 && prev.reps >= ie.defaultReps
         ? +(prev.weight + inc).toFixed(1)
         : null;
     // The prefill IS the instruction (that is why ramp weights pre-scale).
@@ -237,7 +241,7 @@ export default function WorkoutForm({
   const [gym, setGym] = useState(DEFAULT_GYM_ID);
   const [notes, setNotes] = useState('');
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
-    buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints),
+    buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints, rescueMode),
   );
   // Weight memory for the gym currently tagged. Seeded for the home gym by
   // the server; replaced wholesale when the tag changes.
@@ -549,6 +553,8 @@ export default function WorkoutForm({
    * mid-session would re-add sets whose rest you already banked.
    */
   function compressSession() {
+    setRestTimer(null); // block/set indices all change; a live capsule would rate blind
+    endRestActivity();
     hapticTap();
     setCompressed(true);
     setBlocks((prev) =>
@@ -579,7 +585,7 @@ export default function WorkoutForm({
     setDate(today);
     setGym(DEFAULT_GYM_ID);
     setNotes('');
-    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints));
+    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints, rescueMode));
     startRef.current = Date.now();
     saveIdRef.current = null;
     setDraftRestored(false);
@@ -653,6 +659,11 @@ export default function WorkoutForm({
               // the one replacing it. Left behind, a Chest Press → Pec Fly swap
               // would keep showing the chest press machine and, at Alrajhi,
               // apply the chest press swap instead of the cable-fly cues.
+              // The chip dies with the swap: its undo held the PREVIOUS
+              // machine's weight, and pressing it after a swap would write
+              // Chest Press kilos into Pec Fly rows — then a fake PR on save
+              // (adversary; same class as the gym-switch leak).
+              overloadApplied: undefined,
               programName: undefined,
               machine: undefined,
               cues: undefined,
@@ -794,6 +805,16 @@ export default function WorkoutForm({
   }
 
   function removeSet(uid: string, idx: number) {
+    // The capsule rates by position; removing a set below the rated one
+    // shifts every index. Re-point the address — or disarm the pills when
+    // the rated set itself goes — so a mid-rest delete can never land an
+    // "Easy" on a set that was never performed (adversary, corrupts-data).
+    setRestTimer((rt) => {
+      if (!rt || rt.ratedUid !== uid || rt.ratedIdx < 0) return rt;
+      if (idx === rt.ratedIdx) return { ...rt, ratedIdx: -1 };
+      if (idx < rt.ratedIdx) return { ...rt, ratedIdx: rt.ratedIdx - 1 };
+      return rt;
+    });
     setBlocks((prev) =>
       prev.map((b) =>
         b.uid === uid
@@ -952,7 +973,7 @@ export default function WorkoutForm({
       // Fire-and-forget: pull the session's real HR curve off the Watch data
       // and re-arm Gap Guard from today. Neither may delay navigation.
       captureWorkoutHr(id, startISO, new Date().toISOString());
-      armGapGuard(new Date().toISOString(), null);
+      void rearmGapGuardFromServer(new Date().toISOString());
       clearComeback();
       hapticSuccess();
       router.push(`/workouts/${id}?new=1`);
@@ -1805,12 +1826,18 @@ export default function WorkoutForm({
           nextUp={restTimer.next}
           rpeCap={returnRpeCap}
           currentRpe={
-            blocks.find((b) => b.uid === restTimer.ratedUid)?.sets[restTimer.ratedIdx]?.rpe ?? 0
+            restTimer.ratedIdx >= 0
+              ? blocks.find((b) => b.uid === restTimer.ratedUid)?.sets[restTimer.ratedIdx]?.rpe ?? 0
+              : 0
           }
-          onRate={(v) => {
-            const cur = blocks.find((b) => b.uid === restTimer.ratedUid)?.sets[restTimer.ratedIdx]?.rpe;
-            updateSetRpe(restTimer.ratedUid, restTimer.ratedIdx, cur === v ? 0 : v);
-          }}
+          onRate={
+            restTimer.ratedIdx >= 0
+              ? (v) => {
+                  const cur = blocks.find((b) => b.uid === restTimer.ratedUid)?.sets[restTimer.ratedIdx]?.rpe;
+                  updateSetRpe(restTimer.ratedUid, restTimer.ratedIdx, cur === v ? 0 : v);
+                }
+              : undefined
+          }
           onDismiss={() => {
             // Done knows where you're going: if the next set lives in a
             // different exercise, bring its card to the thumb.

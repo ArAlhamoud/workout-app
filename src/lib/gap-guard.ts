@@ -24,9 +24,12 @@ import { isNativeApp } from './native-health';
 import type { DayId } from './program';
 
 /** Notification ids 2001–2004: the ladder. 2005: sick. 2006: comeback. */
-// 2007 is the Comeback Contract's day-2 rung — appended so the positional
-// ids above it never shift and the cancel sweep covers all five.
-const LADDER_IDS = [2001, 2002, 2003, 2004, 2007];
+// 2009 is the Comeback Contract's day-2 rung — appended so the positional
+// ids above it never shift and the cancel sweep covers all five. NOT 2007
+// (DEAD_NOTIFICATION_ID, the stuck-save alert — the adversary caught the
+// ladder's cancel sweep silently killing that safety net on every open)
+// and NOT 2008 (HOLD_END_NOTIFICATION_ID).
+const LADDER_IDS = [2001, 2002, 2003, 2004, 2009];
 export const SICK_NOTIFICATION_ID = 2005;
 export const COMEBACK_NOTIFICATION_ID = 2006;
 
@@ -137,6 +140,30 @@ export function computeGapLadder(
   }
 
   return rungs.filter((r) => r.at.getTime() > now.getTime());
+}
+
+/**
+ * Re-arm from the server's verdict, so the ladder a SAVE arms carries the
+ * fresh Comeback Contract — the bare client-side re-arm knew neither the
+ * queued day nor the contract, which left the day-2 rung missing on the
+ * exact path it was built for (train, pocket the phone, 48 h of silence).
+ * Fire-and-forget; any failure falls back to the contract-less ladder.
+ */
+export async function rearmGapGuardFromServer(fallbackISO: string): Promise<void> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+    const res = await fetch('/api/verdict', { signal: controller.signal });
+    clearTimeout(timer);
+    const v = (await res.json()) as {
+      lastSessionISO?: string | null;
+      queuedDay?: DayId | null;
+      contract?: string | null;
+    };
+    armGapGuard(v.lastSessionISO ?? fallbackISO, v.queuedDay ?? null, { contract: v.contract ?? null });
+  } catch {
+    armGapGuard(fallbackISO, null);
+  }
 }
 
 /**

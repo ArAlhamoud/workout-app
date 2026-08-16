@@ -163,9 +163,10 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss, nextU
   useEffect(() => {
     try {
       localStorage.setItem(REST_DEADLINE_KEY, String(endsAt));
-      localStorage.setItem(REST_EXERCISE_KEY, exerciseName);
+      localStorage.setItem(REST_EXERCISE_KEY, nextUp?.name ?? exerciseName);
     } catch { /* a full quota only costs the lock-screen adjust */ }
-  }, [endsAt, exerciseName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endsAt, exerciseName, nextUp?.name]);
   useEffect(() => {
     return () => {
       try {
@@ -206,9 +207,13 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss, nextU
   // Re-armed whenever the deadline moves; cancelled on unmount so a dismissed
   // timer can never beep.
   useEffect(() => {
-    scheduleRestAlert((endsAt - Date.now()) / 1000, exerciseName);
+    // The lock-screen notification carries the TRUE next exercise when the
+    // parent computed one — "Next set — Chest Press" after chest press's
+    // last set was the same wrong-copy defect the capsule fix killed.
+    scheduleRestAlert((endsAt - Date.now()) / 1000, nextUp?.name ?? exerciseName);
     return cancelRestAlert;
-  }, [endsAt, exerciseName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endsAt, exerciseName, nextUp?.name]);
 
   // Live Activity (Dynamic Island / Lock Screen countdown). Start-or-update
   // tracks the deadline; if it lived with end in one effect, every +15 s tap

@@ -37,9 +37,15 @@ export async function GET(request: Request) {
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly));
 
   // The Comeback Contract's payoff line — computed by the SAME gates that
-  // pay it (spacing + day floor), so the day-2 notification never promises
-  // what Thursday's logger won't deliver. Null = no rung, generic ladder.
-  const contract = rampContract(status, now);
+  // pay it (spacing + day floor), PROJECTED to the rung's fire time (day 2
+  // after the last session, evening). Evaluated at verdict time the gates
+  // always failed right after a save — gapOk was 0 of 2 days — so the rung
+  // never armed on its primary path: train, pocket the phone, go silent
+  // (adversary). Null = no rung, generic ladder.
+  const fireAt = trainingOnly.length
+    ? new Date(trainingOnly[0].date.getTime() + 2 * 86400000)
+    : now;
+  const contract = rampContract(status, fireAt);
   const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })), now);
   const verdict = homeVerdict(status, plan, now);
   const streak = weekStreak({

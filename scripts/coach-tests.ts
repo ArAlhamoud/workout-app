@@ -278,8 +278,8 @@ const eoDates = everyOther.map((d) => day(`${d}T00:00:00Z`));
 const eoClean = everyOther.map((d) => rampSession(`${d}T00:00:00Z`, [1, 2, 1]));
 const e4 = getTrainingStatus([...preBreak, ...eoDates], day('2026-08-13T12:00:00Z'),
   cleanRampSessionDates(eoClean));
-assert(e4.mode === 'normal',
-  `9 spaced clean sessions across 17 days → ramp complete (got ${e4.mode} w${'week' in e4 ? e4.week : '?'})`);
+assert(e4.mode === 'normal' && e4.week === 3,
+  `9 spaced clean sessions across 17 days → ramp complete at BUILD week 3, not LEARN week 1 (got ${e4.mode} w${'week' in e4 ? e4.week : '?'})`);
 
 // ── rampContract: promises only what the gates will pay ─────────────────────
 // The trainer's broken-promise scenario: session 1 contained an honest Hard,

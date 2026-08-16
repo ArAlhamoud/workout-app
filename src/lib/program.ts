@@ -447,9 +447,11 @@ export function getTrainingStatus(
         sessionsInBlock, cleanSpacedInBlock, daysInBlock, lastCountedISO,
       };
     }
-    // Ramp sessions done AND 4+ calendar weeks back — rejoin the main
-    // program at BUILD and progress weekly from there.
-    const week = weeksElapsed - RETURN_PROGRAM.length + REJOIN_AT_WEEK;
+    // Ramp done — rejoin the main program at BUILD and progress from there.
+    // effectiveWeeks, not weeksElapsed: an EARNED exit at ~2.5 calendar
+    // weeks must not graduate into "normal week 1 — LEARN, lightest weight,
+    // chase technique" while he lifts 100% pre-break loads (adversary).
+    const week = effectiveWeeks - RETURN_PROGRAM.length + REJOIN_AT_WEEK;
     return { mode: 'normal', week: Math.min(12, Math.max(1, week)) };
   }
 
