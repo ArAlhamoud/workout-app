@@ -291,7 +291,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss, nextU
                 <p className="text-app-tx2 text-xs mt-0.5 tabular-nums">
                   {nextUp
                     ? `Next: ${nextUp.name} · ${nextUp.setLabel}${nextUp.isTimed || !nextUp.weight ? '' : ` · ${nextUp.weight} kg`}`
-                    : 'That was the last set 🎉'}
+                    : 'All sets done 🎉'}
                 </p>
               </div>
             ) : (
@@ -328,18 +328,20 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss, nextU
               {rpeOptions.map(({ v, l, c }) => {
                 const capped = rpeCap !== undefined && v > rpeCap;
                 const lit = currentRpe === v;
+                // Capped pills render locked but STAY TAPPABLE, mirroring the
+                // form's effort row on purpose: the cap is an instruction,
+                // not a censor. Ratings now buy ramp acceleration, and the
+                // one rating that must always be recordable is the honest
+                // "this was Hard" that slows it down (trainer blocker).
                 return (
                   <button
                     key={v}
                     type="button"
-                    disabled={capped}
                     onClick={() => onRate(v)}
                     className={`px-2.5 py-1 rounded-full border text-[11px] font-bold transition-all ${
-                      capped
+                      lit ? c : capped
                         ? 'border-app-border text-app-tx3 line-through opacity-50'
-                        : lit
-                          ? c
-                          : 'border-app-border bg-white/[0.06] text-app-tx2'
+                        : 'border-app-border bg-white/[0.06] text-app-tx2'
                     }`}
                   >
                     {l}

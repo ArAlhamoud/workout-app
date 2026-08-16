@@ -123,12 +123,15 @@ export function computeGapLadder(
   // collapses started, and early enough that the payoff is one session away.
   // Pure payoff, zero shame: it names what the next session BUYS.
   if (options.contract) {
+    // Day 2 replaces day 3 while a ramp is live: "Day B is ready" tonight
+    // AND "Day B is up" tomorrow is one message pretending to be two.
+    rungs.splice(0, 1);
     rungs.unshift({
       id: LADDER_IDS[4],
       day: 2,
       at: at(2),
       title: `${day} is ready`,
-      body: `${options.contract} — tap to start.`,
+      body: `${options.contract}.`,
       route: startRoute,
     });
   }

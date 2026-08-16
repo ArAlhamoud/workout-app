@@ -123,7 +123,7 @@ function buildBlocks(
     // (pre-scaled loads win) and never on top of a deload.
     const inc = pinIncrements[ie.exerciseId] ?? DEFAULT_PIN_INCREMENT;
     const overloadTo =
-      !returnLoadPct && !isTimed && prev?.overload && prev.weight > 0
+      !returnLoadPct && !isTimed && prev?.overload && prev.weight > 0 && prev.reps >= ie.defaultReps
         ? +(prev.weight + inc).toFixed(1)
         : null;
     // The prefill IS the instruction (that is why ramp weights pre-scale).
@@ -322,6 +322,28 @@ export default function WorkoutForm({
     return () => { cancelled = true; };
   }, []);
 
+  // The readiness verdict lands AFTER the overload seeds were applied at
+  // build time. On a red-recovery morning the app that quiets try-more
+  // suggestions must not open machines a pin heavier — auto-revert every
+  // untouched seed (done sets are logged facts; undoOverload skips them).
+  useEffect(() => {
+    if (readiness?.verdict !== 'hold') return;
+    setBlocks((prev) =>
+      prev.map((b) => {
+        if (!b.overloadApplied) return b;
+        const from = b.overloadApplied.from;
+        const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+        const warm = Math.max(inc, Math.floor((from * 0.55) / inc) * inc);
+        return {
+          ...b,
+          overloadApplied: undefined,
+          sets: b.sets.map((st) => (st.done ? st : { ...st, weight: st.isWarmup ? warm : from })),
+        };
+      }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readiness?.verdict]);
+
   // Load per-exercise machine notes after mount (avoids hydration mismatch)
   useEffect(() => {
     try { setExerciseNotes(JSON.parse(localStorage.getItem(NOTES_KEY) ?? '{}')); } catch { /* ignore */ }
@@ -475,7 +497,10 @@ export default function WorkoutForm({
         setBlocks((prev) =>
           prev.map((b) => {
             const prevSession = next[b.exerciseId];
-            if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession };
+            // overloadApplied dies with the switch: its undo held the OTHER
+            // building's weight, and pressing it after a switch would write
+            // a B_Fit number into an Alrajhi machine (trainer, rule 2).
+            if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession, overloadApplied: undefined };
             const isTimed = b.unit === 'seconds';
             const working = prevSession?.weight
               ? (returnLoadPct ? scaleReturnWeight(prevSession.weight, returnLoadPct) : prevSession.weight)
@@ -488,6 +513,7 @@ export default function WorkoutForm({
             return {
               ...b,
               lastSession: prevSession,
+              overloadApplied: undefined,
               sets: b.sets.map((s) => ({
                 ...s,
                 weight: isTimed ? 0 : s.isWarmup ? warm : working,
@@ -688,20 +714,31 @@ export default function WorkoutForm({
           // the wrong-copy defect the old "Next set of X" line shipped.
           const here = updated.findIndex((b) => b.uid === uid);
           let next: { blockUid: string; name: string; setLabel: string; weight: number; isTimed: boolean } | null = null;
-          outer: for (let bi = here; bi < updated.length; bi++) {
+          // Full wrap, not a forward scan: he trains out of order (skips a
+          // busy machine, comes back), and a forward-only scan would call
+          // "all done" with sets still waiting ABOVE the current block —
+          // the editor caught that lie before it shipped. Scan order:
+          // rest of this block, later blocks, earlier blocks, then the
+          // skipped-over earlier sets of this block.
+          const scanOrder: Array<[number, number]> = [];
+          for (let si = idx + 1; si < updated[here].sets.length; si++) scanOrder.push([here, si]);
+          for (let bi = here + 1; bi < updated.length; bi++)
+            for (let si = 0; si < updated[bi].sets.length; si++) scanOrder.push([bi, si]);
+          for (let bi = 0; bi < here; bi++)
+            for (let si = 0; si < updated[bi].sets.length; si++) scanOrder.push([bi, si]);
+          for (let si = 0; si < idx; si++) scanOrder.push([here, si]);
+          for (const [bi, si] of scanOrder) {
             const cand = updated[bi];
-            for (let si = bi === here ? idx + 1 : 0; si < cand.sets.length; si++) {
-              const st = cand.sets[si];
-              if (st.done) continue;
-              next = {
-                blockUid: cand.uid,
-                name: exerciseById.get(cand.exerciseId)?.name ?? 'exercise',
-                setLabel: st.isWarmup ? 'warm-up' : `set ${st.setNumber}`,
-                weight: st.weight,
-                isTimed: cand.unit === 'seconds',
-              };
-              break outer;
-            }
+            const st = cand.sets[si];
+            if (st.done) continue;
+            next = {
+              blockUid: cand.uid,
+              name: exerciseById.get(cand.exerciseId)?.name ?? 'exercise',
+              setLabel: st.isWarmup ? 'warm-up' : `set ${st.setNumber}`,
+              weight: st.weight,
+              isTimed: cand.unit === 'seconds',
+            };
+            break;
           }
           restNonce.current += 1;
           setRestTimer({
@@ -1353,7 +1390,7 @@ export default function WorkoutForm({
                     aria-label={`Undo the increase, back to ${block.overloadApplied.from} kg`}
                     className="pressable text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium tabular-nums"
                   >
-                    &#8593; {block.overloadApplied.to} kg &#183; 2&#215; easy &#183; undo
+                    +{+(block.overloadApplied.to - block.overloadApplied.from).toFixed(1)} kg &#183; 2&#215; Easy &#183; undo
                   </button>
                 )}
                 {deload && gym === DEFAULT_GYM_ID && !returnTarget && !allDone && (

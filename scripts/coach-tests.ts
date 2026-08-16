@@ -34,6 +34,7 @@ import {
   getDayTemplate,
   getTrainingStatus,
   cleanRampSessionDates,
+  rampContract,
   parseDayLetter,
   projectPlan,
   queuedDay,
@@ -224,18 +225,24 @@ const rampSession = (iso: string, rpes: Array<number | null>) => ({
 const fourCleanSessions = ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30'].map((d) =>
   rampSession(`${d}T00:00:00Z`, [1, 1, 2]),
 );
+// TIME stays in the earned ramp (trainer blocker): a counted clean session
+// needs a rest day since the last counted one, and each phase has a ~4-day
+// floor — consecutive-day training earns NOTHING extra, because muscular
+// "Easy" at 60% cannot see tendon readiness at 133 kg bodyweight.
 const e1 = getTrainingStatus(fourFast, day('2026-07-31T12:00:00Z'), cleanRampSessionDates(fourCleanSessions));
-assert(e1.mode === 'return' && e1.week === 3,
-  `4 CLEAN sessions in 5 days → earned week 3 (got ${e1.mode} w${e1.week})`);
+assert(e1.mode === 'return' && e1.week === 2,
+  `4 clean sessions on CONSECUTIVE days → only 2 count as spaced → week 2, not 3 (got ${e1.mode} w${e1.week})`);
 
-// Pacing still holds under earned advancement: 3 clean sessions = week 2.
-const e2 = getTrainingStatus(
-  [...preBreak, ...['2026-07-27', '2026-07-28', '2026-07-29'].map((d) => day(`${d}T00:00:00Z`))],
-  day('2026-07-31T12:00:00Z'),
-  cleanRampSessionDates(fourCleanSessions.slice(0, 3)),
+// Properly spaced clean sessions on the program's own cadence: earned
+// advancement caps at one phase per ~4 days even when the count allows more.
+const spacedDates = ['2026-07-27', '2026-07-29', '2026-07-31', '2026-08-02'].map((d) => day(`${d}T00:00:00Z`));
+const spacedClean = ['2026-07-27', '2026-07-29', '2026-07-31', '2026-08-02'].map((d) =>
+  rampSession(`${d}T00:00:00Z`, [1, 1, 2]),
 );
+const e2 = getTrainingStatus([...preBreak, ...spacedDates], day('2026-08-03T12:00:00Z'),
+  cleanRampSessionDates(spacedClean));
 assert(e2.mode === 'return' && e2.week === 2,
-  `3 clean sessions → week 2, pacing is still 2 per phase (got ${e2.mode} w${e2.week})`);
+  `4 spaced clean sessions in 7 days → week 2 (day floor holds phase 3 back) (got ${e2.mode} w${e2.week})`);
 
 // A Grind anywhere disqualifies the session — no acceleration earned.
 const grindy = ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30'].map((d) =>
@@ -260,8 +267,63 @@ const eightClean = ['2026-07-27', '2026-07-28', '2026-07-30', '2026-07-31', '202
   (d) => rampSession(`${d}T00:00:00Z`, [1, 2, 1]),
 );
 const e3 = getTrainingStatus(eightFast, day('2026-08-09T12:00:00Z'), cleanRampSessionDates(eightClean));
-assert(e3.mode === 'normal',
-  `8 clean sessions in under 2 weeks → ramp complete, normal mode (got ${e3.mode} w${'week' in e3 ? e3.week : '?'})`);
+assert(e3.mode === 'return' && e3.week === 4,
+  `8 clean sessions in 13 days → RESTORE (week 4, cap alive), NOT early exit — 100% needs ~16 spaced days (got ${e3.mode} w${'week' in e3 ? e3.week : '?'})`);
+
+// The fastest legitimate comeback: clean sessions every other day exit the
+// ramp at ~day 17 — roughly 2.5 weeks, the trainer's floor — vs 4 calendar
+// weeks for an unrated one.
+const everyOther = ['2026-07-27','2026-07-29','2026-07-31','2026-08-02','2026-08-04','2026-08-06','2026-08-08','2026-08-10','2026-08-12'];
+const eoDates = everyOther.map((d) => day(`${d}T00:00:00Z`));
+const eoClean = everyOther.map((d) => rampSession(`${d}T00:00:00Z`, [1, 2, 1]));
+const e4 = getTrainingStatus([...preBreak, ...eoDates], day('2026-08-13T12:00:00Z'),
+  cleanRampSessionDates(eoClean));
+assert(e4.mode === 'normal',
+  `9 spaced clean sessions across 17 days → ramp complete (got ${e4.mode} w${'week' in e4 ? e4.week : '?'})`);
+
+// ── rampContract: promises only what the gates will pay ─────────────────────
+// The trainer's broken-promise scenario: session 1 contained an honest Hard,
+// so clean=0. The old inline math said "1 clean session unlocks 70%" — a lie
+// the logger exposed 48 hours later. The helper must offer the two-session
+// truth instead.
+{
+  const dirtyFirst = getTrainingStatus(
+    [...preBreak, day('2026-07-27T00:00:00Z')],
+    day('2026-07-29T12:00:00Z'),
+    cleanRampSessionDates([rampSession('2026-07-27T00:00:00Z', [1, 3, 1])]),
+  );
+  const line = dirtyFirst.mode === 'return' ? rampContract(dirtyFirst, day('2026-07-29T12:00:00Z')) : 'wrong-mode';
+  assert(line === '2 clean sessions unlock 70%',
+    `a dirty session 1 must NOT yield a 1-session promise (got "${line}")`);
+
+  // One spaced clean session banked, gap satisfied → the 1-session promise
+  // is real: spaced becomes 2, day floor (4 days in block) is met.
+  const oneClean = getTrainingStatus(
+    [...preBreak, day('2026-07-27T00:00:00Z')],
+    day('2026-07-31T12:00:00Z'),
+    cleanRampSessionDates([rampSession('2026-07-27T00:00:00Z', [1, 1, 2])]),
+  );
+  const line2 = oneClean.mode === 'return' ? rampContract(oneClean, day('2026-07-31T12:00:00Z')) : 'wrong-mode';
+  assert(line2 === '1 clean session unlocks 70%',
+    `one banked clean session + gap → the 1-session promise is keepable (got "${line2}")`);
+
+  // Trained clean YESTERDAY: tonight's session wouldn't count as spaced —
+  // no promise at all beats a promise that can't be kept.
+  const justTrained = getTrainingStatus(
+    [...preBreak, day('2026-07-27T00:00:00Z'), day('2026-07-29T00:00:00Z')],
+    day('2026-07-30T12:00:00Z'),
+    cleanRampSessionDates([
+      rampSession('2026-07-27T00:00:00Z', [1, 1]),
+      rampSession('2026-07-29T00:00:00Z', [1, 1]),
+    ]),
+  );
+  const line3 = justTrained.mode === 'return' ? rampContract(justTrained, day('2026-07-30T12:00:00Z')) : 'wrong-mode';
+  assert(line3 === null,
+    `a session tonight would violate spacing → silence, not a false promise (got "${line3}")`);
+
+  assert(rampContract({ mode: 'normal', week: 5 }, day('2026-07-30T12:00:00Z')) === null,
+    'no ramp, no contract');
+}
 
 // Same calendar span with only 7 sessions → ramp not complete, week 4.
 const s6 = getTrainingStatus(rampDone.slice(0, -1), day('2026-08-31T12:00:00Z'));
@@ -634,8 +696,8 @@ console.log('computeGapLadder');
   // rung: outside a ramp the ladder is byte-for-byte what it always was.
   const contracted = computeGapLadder(lastSession, 'B', dayAfter, { contract: '1 clean session unlocks 70%' });
   assert(
-    contracted.map((r) => r.day).join() === '2,3,5,7,19',
-    `contract adds a day-2 rung (got ${contracted.map((r) => r.day).join()})`,
+    contracted.map((r) => r.day).join() === '2,5,7,19',
+    `contract rung REPLACES day 3 — near-identical pings must not stack (got ${contracted.map((r) => r.day).join()})`,
   );
   assert(contracted[0].body.includes('1 clean session unlocks 70%'),
     'the day-2 rung carries the contract words verbatim');

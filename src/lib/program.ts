@@ -337,7 +337,19 @@ export const RETURN_PROGRAM: ReturnWeek[] = [
 
 export type TrainingStatus =
   | { mode: 'fresh';  week: number }
-  | { mode: 'return'; week: number; returnWeek: ReturnWeek; daysOff: number; sessionsInBlock: number }
+  | {
+      mode: 'return';
+      week: number;
+      returnWeek: ReturnWeek;
+      daysOff: number;
+      sessionsInBlock: number;
+      /** Clean sessions that also satisfied the rest-day spacing rule. */
+      cleanSpacedInBlock: number;
+      daysInBlock: number;
+      /** When the last SPACED clean session happened — the next one only
+       *  counts once a rest day has passed after this. */
+      lastCountedISO: string | null;
+    }
   | { mode: 'normal'; week: number };
 
 /**
@@ -375,7 +387,10 @@ export function getTrainingStatus(
   // Still inside the layoff — today is day 1 of the return block.
   const daysSinceLast = daysBetween(now, desc[0]);
   if (daysSinceLast >= BREAK_THRESHOLD_DAYS) {
-    return { mode: 'return', week: 1, returnWeek: RETURN_PROGRAM[0], daysOff: daysSinceLast, sessionsInBlock: 0 };
+    return {
+      mode: 'return', week: 1, returnWeek: RETURN_PROGRAM[0], daysOff: daysSinceLast,
+      sessionsInBlock: 0, cleanSpacedInBlock: 0, daysInBlock: 0, lastCountedISO: null,
+    };
   }
 
   // Walk back to the start of the current unbroken training block,
@@ -399,16 +414,38 @@ export function getTrainingStatus(
     // weeks, so a disciplined comeback reaches full load in ~2 weeks while
     // an unrated or grindy one keeps exactly the old calendar floor. The
     // 2-sessions-per-phase pacing clamp never lifts: nothing skips a phase.
-    const cleanInBlock = cleanDates.filter((d) => {
-      const t = new Date(d).getTime();
-      return t >= blockStart.getTime() && t <= now.getTime();
-    }).length;
-    const effectiveWeeks = Math.max(weeksElapsed, Math.floor(cleanInBlock / 2));
+    // TIME never leaves the earned ramp (trainer blocker). Two gates on top
+    // of the clean-session count:
+    //   - SPACING: a clean session only counts if a rest day passed since
+    //     the last counted one. Muscular "Easy" at 60% load cannot see
+    //     tendon readiness at this bodyweight, and daily training is the
+    //     exact pattern the program forbids — it must never be the fast lane.
+    //   - DAY FLOOR: each earned phase needs ~4 days of block time, so the
+    //     fastest disciplined comeback reaches 100% in ~2.5 weeks, never 8 days.
+    const cleanTs = cleanDates
+      .map((d) => new Date(d).getTime())
+      .filter((t) => t >= blockStart.getTime() && t <= now.getTime())
+      .sort((a, b) => a - b);
+    let cleanSpacedInBlock = 0;
+    let lastCounted = Number.NEGATIVE_INFINITY;
+    for (const t of cleanTs) {
+      if (daysBetween(new Date(t), new Date(lastCounted)) >= 2 || lastCounted === Number.NEGATIVE_INFINITY) {
+        cleanSpacedInBlock++;
+        lastCounted = t;
+      }
+    }
+    const daysInBlock = daysBetween(now, blockStart);
+    const earnedWeeks = Math.min(Math.floor(cleanSpacedInBlock / 2), Math.floor(daysInBlock / 4));
+    const effectiveWeeks = Math.max(weeksElapsed, earnedWeeks);
+    const lastCountedISO = Number.isFinite(lastCounted) ? new Date(lastCounted).toISOString() : null;
     const rampSessionsComplete = sessionsInBlock >= 2 * RETURN_PROGRAM.length;
     if (!(rampSessionsComplete && effectiveWeeks >= RETURN_PROGRAM.length)) {
       const week =
         Math.min(Math.floor(sessionsInBlock / 2), effectiveWeeks, RETURN_PROGRAM.length - 1) + 1;
-      return { mode: 'return', week, returnWeek: RETURN_PROGRAM[week - 1], daysOff, sessionsInBlock };
+      return {
+        mode: 'return', week, returnWeek: RETURN_PROGRAM[week - 1], daysOff,
+        sessionsInBlock, cleanSpacedInBlock, daysInBlock, lastCountedISO,
+      };
     }
     // Ramp sessions done AND 4+ calendar weeks back — rejoin the main
     // program at BUILD and progress weekly from there.
@@ -417,6 +454,47 @@ export function getTrainingStatus(
   }
 
   return { mode: 'normal', week: Math.min(12, Math.max(1, weeksElapsed + 1)) };
+}
+
+/**
+ * The Comeback Contract's payoff line — or null when no promise can be
+ * kept. The rung this feeds fires on day 2 of silence; a promise the math
+ * won't pay ("1 clean session unlocks 70%", then the logger opens at 60%)
+ * is worse than no rung at all for a lifter whose collapses start with
+ * discouragement (trainer). So: project tonight's clean session through
+ * the same spacing + day-floor gates the real advancement uses, and speak
+ * only when the unlock is real.
+ */
+export function rampContract(status: TrainingStatus, now: Date = new Date()): string | null {
+  if (status.mode !== 'return') return null;
+  const { week, cleanSpacedInBlock, daysInBlock, lastCountedISO, sessionsInBlock } = status;
+
+  // Would a clean session tonight even count as spaced?
+  const gapOk =
+    !lastCountedISO ||
+    Math.floor((now.getTime() - new Date(lastCountedISO).getTime()) / 86400000) >= 2;
+  if (!gapOk) return null;
+
+  const earnedAfter = (extraSessions: number, extraDays: number) =>
+    Math.min(
+      Math.floor((cleanSpacedInBlock + extraSessions) / 2),
+      Math.floor((daysInBlock + extraDays) / 4),
+    );
+
+  if (week < RETURN_PROGRAM.length) {
+    const nextPct = RETURN_PROGRAM[week].loadPct;
+    if (earnedAfter(1, 0) >= week) return `1 clean session unlocks ${nextPct}%`;
+    // Two sessions take at least two more days (spacing) — project both.
+    if (earnedAfter(2, 2) >= week) return `2 clean sessions unlock ${nextPct}%`;
+    return null;
+  }
+
+  // RESTORE: the exit needs the full session count AND the day floor.
+  const sessionsLeft = Math.max(1, 2 * RETURN_PROGRAM.length - sessionsInBlock);
+  if (sessionsLeft === 1 && earnedAfter(1, 0) >= RETURN_PROGRAM.length) {
+    return '1 session finishes the ramp';
+  }
+  return null;
 }
 
 /**

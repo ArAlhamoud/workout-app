@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { homeVerdict } from '@/lib/coach';
-import { RETURN_PROGRAM, calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay } from '@/lib/program';
+import { calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay, rampContract } from '@/lib/program';
 import { holdWeekKeys, weekStreak } from '@/lib/streak';
 
 export const runtime = 'nodejs';
@@ -36,24 +36,10 @@ export async function GET(request: Request) {
   const trainingOnly = workouts.filter(isTrainingSession);
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly));
 
-  // The Comeback Contract's payoff line: what the NEXT clean session (or
-  // two) actually buys. Named numbers, zero shame — the notification that
-  // carries this fires on day 2 of silence, when both past collapses began.
-  let contract: string | null = null;
-  if (status.mode === 'return') {
-    const done = status.sessionsInBlock;
-    if (status.week < RETURN_PROGRAM.length) {
-      const toNext = 2 - (done % 2);
-      const nextPct = RETURN_PROGRAM[status.week].loadPct;
-      contract =
-        toNext === 1
-          ? `1 clean session unlocks ${nextPct}%`
-          : `${toNext} clean sessions unlock ${nextPct}%`;
-    } else {
-      const toExit = Math.max(1, 2 * RETURN_PROGRAM.length - done);
-      contract = toExit === 1 ? '1 session finishes the ramp' : `${toExit} sessions finish the ramp`;
-    }
-  }
+  // The Comeback Contract's payoff line — computed by the SAME gates that
+  // pay it (spacing + day floor), so the day-2 notification never promises
+  // what Thursday's logger won't deliver. Null = no rung, generic ladder.
+  const contract = rampContract(status, now);
   const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })), now);
   const verdict = homeVerdict(status, plan, now);
   const streak = weekStreak({

@@ -219,7 +219,9 @@ export async function getLastSessionForExercises(
     }
     const allEasy = (sess: typeof rows) => {
       const rated = sess.filter((x) => x.rpe !== null && x.rpe > 0);
-      return rated.length >= 1 && rated.every((x) => x.rpe === 1);
+      // ≥2 rated sets, same bar as the ramp's "clean" — one stray Easy tap
+      // per session must not add pins to the prefill (trainer).
+      return rated.length >= 2 && rated.every((x) => x.rpe === 1);
     };
     const top = (sess: typeof rows) => Math.max(...sess.map((x) => x.weight));
     const overload =
