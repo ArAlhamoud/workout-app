@@ -92,18 +92,18 @@ export default async function InjectionDayPage() {
           </div>
         </div>
         {plannedStep && plannedStep.mg == null && (
-          <p className="mt-3 border-t border-white/10 pt-3 text-xs text-acc-ember">
+          <p className="mt-3 border-t border-ink/10 pt-3 text-xs text-acc-ember">
             {plannedStep.label ?? 'Doctor review'} — no dose is scheduled. Log what you and
             your doctor decide.
           </p>
         )}
         {clock && clock.planExhausted && plannedStep === null && (
-          <p className="mt-3 border-t border-white/10 pt-3 text-xs text-acc-ember">
+          <p className="mt-3 border-t border-ink/10 pt-3 text-xs text-acc-ember">
             The dose plan has no slot for this injection — extend it in Plan &amp; profile.
           </p>
         )}
         {bp && (
-          <p className="mt-3 border-t border-white/10 pt-3 text-xs text-app-tx3">
+          <p className="mt-3 border-t border-ink/10 pt-3 text-xs text-app-tx3">
             7-day BP average {bp.systolic}/{bp.diastolic}
           </p>
         )}

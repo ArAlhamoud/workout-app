@@ -64,7 +64,7 @@ export default function WorkoutComplete({
           </div>
           <Link
             href="/stats"
-            className="inline-block mt-2 text-xs text-acc-teal hover:text-[#99f6e4] transition-colors"
+            className="inline-block mt-2 text-xs text-acc-teal hover:text-acc-teal transition-colors"
           >
             Log your weight →
           </Link>

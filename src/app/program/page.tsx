@@ -25,7 +25,7 @@ export const metadata: Metadata = { title: 'Program' };
 
 const priorityBadge: Record<Priority, { label: string; cls: string }> = {
   1: { label: 'Always', cls: 'bg-acc-teal/10 text-acc-teal border-acc-teal/30' },
-  2: { label: '45+ min', cls: 'bg-acc-indigo/15 text-indigo-300 border-indigo-400/30' },
+  2: { label: '45+ min', cls: 'bg-acc-indigo/15 text-acc-indigo border-indigo-400/30' },
   3: { label: '60 min', cls: 'bg-app-surface2 text-app-tx2 border-app-border' },
 };
 
@@ -38,8 +38,8 @@ const badgeColors: Record<string, string> = {
 };
 
 const phaseColors: Record<string, string> = {
-  LEARN: 'bg-white/10 text-app-tx2',
-  BUILD: 'bg-acc-indigo/25 text-indigo-300',
+  LEARN: 'bg-ink/10 text-app-tx2',
+  BUILD: 'bg-acc-indigo/25 text-acc-indigo',
   PUSH: 'bg-acc-teal/15 text-acc-teal',
   DELOAD: 'bg-rpe-hard/15 text-rpe-hard',
   REBUILD: 'bg-acc-violet/15 text-acc-violet',
@@ -50,13 +50,13 @@ const phaseColors: Record<string, string> = {
 const dayAccent = {
   A: {
     start:
-      'bg-gradient-to-r from-acc-violet to-acc-violet-deep text-[#14082e] shadow-[0_0_20px_-4px_rgba(139,92,246,0.7)] hover:brightness-110',
+      'bg-gradient-to-r from-acc-violet to-acc-violet-deep text-white shadow-[0_0_20px_-4px_rgba(139,92,246,0.7)] hover:brightness-110',
     chip: 'bg-acc-violet-deep/15 text-acc-violet border border-acc-violet/30',
     linkHover: 'hover:text-acc-violet',
   },
   B: {
     start:
-      'bg-gradient-to-r from-acc-teal to-acc-cyan text-[#062521] shadow-[0_0_20px_-4px_rgba(45,212,191,0.7)] hover:brightness-110',
+      'bg-gradient-to-r from-acc-teal to-acc-cyan text-white shadow-[0_0_20px_-4px_rgba(45,212,191,0.7)] hover:brightness-110',
     chip: 'bg-acc-teal-deep/15 text-acc-teal border border-acc-teal/30',
     linkHover: 'hover:text-acc-teal',
   },
@@ -205,7 +205,7 @@ export default async function ProgramPage() {
                 <path d="M7 1.2c1.4 2 .3 3-.4 4.2C5.8 6.7 6 8.2 7.4 9c-.2-1 .2-1.8 1-2.5.9 1.1 2.1 2.5 2.1 4.1A3.9 3.9 0 0 1 6.6 14 4.6 4.6 0 0 1 2.5 9.4C2.5 5.6 6.4 4.4 7 1.2z" fill="#fcd34d" opacity=".9" />
               </svg>
               <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">This week · Return protocol</span>
-              <span className="chip ml-auto flex-none bg-gradient-to-r from-acc-ember to-acc-ember-deep text-[9px] uppercase tracking-[0.14em] text-[#1a1206] shadow-[0_0_18px_-4px_rgba(245,158,11,0.75)]">
+              <span className="chip ml-auto flex-none bg-gradient-to-r from-acc-ember to-acc-ember-deep text-[9px] uppercase tracking-[0.14em] text-white shadow-[0_0_18px_-4px_rgba(245,158,11,0.75)]">
                 {status.returnWeek.phase}
               </span>
             </div>
@@ -220,7 +220,7 @@ export default async function ProgramPage() {
                     className={`h-1.5 w-6 rounded-full ${
                       i <= status.week
                         ? 'bg-gradient-to-r from-acc-ember to-acc-ember-deep shadow-[0_0_12px_-1px_rgba(245,158,11,0.8)]'
-                        : 'bg-white/10'
+                        : 'bg-ink/10'
                     }`}
                   />
                 ))}
@@ -228,7 +228,7 @@ export default async function ProgramPage() {
             </div>
 
             {/* Coach voice — the directive keeps its single line; prose lives one tap away */}
-            <p className="mt-3 border-t border-white/10 pt-3 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
+            <p className="mt-3 border-t border-ink/10 pt-3 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
               <span className="glow-amber">We rebuild. We don&apos;t test.</span>
             </p>
             <Details label="More" className="mt-1">
@@ -239,16 +239,16 @@ export default async function ProgramPage() {
               <p className="mt-1 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
             </Details>
 
-            <div className="mt-3 flex border-t border-white/10 pt-3">
+            <div className="mt-3 flex border-t border-ink/10 pt-3">
               <div className="flex flex-1 flex-col gap-0.5">
                 <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.week}/4</b>
                 <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">ramp week</span>
               </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-white/10 pl-3.5">
+              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
                 <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.loadPct}%</b>
                 <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">load cap</span>
               </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-white/10 pl-3.5">
+              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
                 <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">
                   {sessionsThisWeek}/{status.returnWeek.sessions}
                 </b>
@@ -267,7 +267,7 @@ export default async function ProgramPage() {
                   const v = i + 1;
                   const cap = status.returnWeek.rpeCap;
                   const seg =
-                    v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-white/[0.02] text-app-tx3 line-through opacity-60';
+                    v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-ink/[0.02] text-app-tx3 line-through opacity-60';
                   return (
                     <span
                       key={label}

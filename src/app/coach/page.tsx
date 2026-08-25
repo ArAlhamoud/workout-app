@@ -73,7 +73,7 @@ export default function CoachPage() {
     <div className="flex min-h-[70vh] flex-col space-y-4">
       <div className="pt-1">
         <p className="section-label text-acc-teal/80">Your coach · knows the whole story</p>
-        <h1 className="mt-0.5 bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text font-round text-2xl font-bold tracking-tight text-transparent">
+        <h1 className="mt-0.5 font-round text-2xl font-bold tracking-tight text-app-tx1">
           Ask the Coach
         </h1>
       </div>
@@ -95,14 +95,14 @@ export default function CoachPage() {
             className={`max-w-[85%] rounded-card-lg border px-4 py-3 text-sm leading-relaxed ${
               t.role === 'user'
                 ? 'ml-auto border-acc-teal/30 bg-acc-teal/10 text-app-tx1'
-                : 'border-app-border bg-white/[0.04] text-app-tx1'
+                : 'border-app-border bg-ink/[0.04] text-app-tx1'
             }`}
           >
             {t.content}
           </div>
         ))}
         {busy && (
-          <div className="max-w-[85%] rounded-card-lg border border-app-border bg-white/[0.04] px-4 py-3">
+          <div className="max-w-[85%] rounded-card-lg border border-app-border bg-ink/[0.04] px-4 py-3">
             <span className="text-app-tx3 text-sm">thinking…</span>
           </div>
         )}
@@ -121,7 +121,7 @@ export default function CoachPage() {
         <button
           onClick={send}
           disabled={busy || !draft.trim()}
-          className="flex-shrink-0 rounded-card bg-gradient-to-r from-acc-teal to-acc-teal-deep px-4 py-3 text-sm font-bold text-[#062521] shadow-glow-teal transition-all hover:brightness-105 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none"
+          className="flex-shrink-0 rounded-card bg-gradient-to-r from-acc-teal to-acc-teal-deep px-4 py-3 text-sm font-bold text-white shadow-glow-teal transition-all hover:brightness-105 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none"
         >
           Send
         </button>

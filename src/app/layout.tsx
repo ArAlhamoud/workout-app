@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Archivo } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/Navbar';
 import InstallPrompt from '@/components/InstallPrompt';
@@ -7,10 +7,12 @@ import WorkoutDraftBanner from '@/components/WorkoutDraftBanner';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
 import HealthAutoPilot from '@/components/HealthAutoPilot';
 
-const inter = Inter({ subsets: ['latin'] });
+// Chroma's voice: Archivo, one variable family — 900 for display, 500-700
+// for body and labels.
+const archivo = Archivo({ subsets: ['latin'] });
 
 export const viewport: Viewport = {
-  themeColor: '#05060f',
+  themeColor: '#f2f0ea',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -31,7 +33,8 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    // Light ground wants dark status-bar text.
+    statusBarStyle: 'default',
     title: 'Aurora',
   },
 };
@@ -39,8 +42,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-app-bg text-app-tx1 min-h-screen`}>
-        {/* Aurora backdrop — single fixed layer behind the scrolling app */}
+      <body className={`${archivo.className} bg-app-bg text-app-tx1 min-h-screen`}>
+        {/* Chroma ground — flat bone, one fixed layer */}
         <div className="aurora-sky" aria-hidden="true" />
         <main className="mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-32 max-w-lg">
           {children}

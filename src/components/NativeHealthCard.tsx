@@ -154,12 +154,12 @@ async function detectUnlogged(token: string): Promise<Detected[]> {
 const inputCls =
   'w-full bg-app-surface2 border border-app-border rounded-card px-3 py-2.5 text-app-tx1 placeholder-app-tx3 focus:outline-none focus:border-acc-teal/60 text-sm transition-colors';
 const btnCls =
-  'px-3.5 py-2 text-xs font-bold rounded-card transition-all bg-gradient-to-r from-acc-teal to-acc-teal-deep text-[#062521] shadow-glow-teal hover:brightness-105 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none';
+  'px-3.5 py-2 text-xs font-bold rounded-card transition-all bg-gradient-to-r from-acc-teal to-acc-teal-deep text-white shadow-glow-teal hover:brightness-105 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none';
 const btnGhostCls =
   'px-3.5 py-2 text-xs font-bold rounded-card transition-colors bg-app-surface2 border border-app-border text-app-tx1 hover:border-app-border-hi disabled:text-app-tx3';
 /* Quiet aurora affordance for <details> — the sentence lives one tap away */
 const summaryCls =
-  'chip inline-flex w-fit cursor-pointer select-none list-none items-center gap-1.5 border border-app-border bg-white/5 text-[10px] uppercase tracking-[0.12em] text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx2 [&::-webkit-details-marker]:hidden';
+  'chip inline-flex w-fit cursor-pointer select-none list-none items-center gap-1.5 border border-app-border bg-ink/5 text-[10px] uppercase tracking-[0.12em] text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx2 [&::-webkit-details-marker]:hidden';
 const linkCls =
   'text-[11px] text-acc-teal/75 underline decoration-acc-teal/30 underline-offset-2 transition-colors hover:text-acc-teal';
 
@@ -518,7 +518,7 @@ export default function NativeHealthCard() {
                 <div
                   key={c.uuid}
                   className={`flex items-center gap-2 rounded-card border px-3 py-2 ${
-                    cardio ? 'border-acc-cyan/25 bg-acc-cyan/[0.05]' : 'border-app-border bg-white/[0.03]'
+                    cardio ? 'border-acc-cyan/25 bg-acc-cyan/[0.05]' : 'border-app-border bg-ink/[0.03]'
                   }`}
                 >
                   <span className="min-w-0 flex-1 truncate text-xs tabular-nums text-app-tx2">

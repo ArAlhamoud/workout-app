@@ -109,7 +109,7 @@ export default function InjectionForm({
             : 'Site rotation updated for next week.'}
         </p>
         {!afterSaved ? (
-          <div className="mt-3 space-y-2.5 border-t border-white/10 pt-3">
+          <div className="mt-3 space-y-2.5 border-t border-ink/10 pt-3">
             <p className="text-xs font-semibold text-app-tx2">
               How do you feel right now? (optional — you can also log tomorrow)
             </p>
@@ -145,7 +145,7 @@ export default function InjectionForm({
             </button>
           </div>
         ) : (
-          <p className="mt-3 border-t border-white/10 pt-3 text-sm text-acc-teal">
+          <p className="mt-3 border-t border-ink/10 pt-3 text-sm text-acc-teal">
             Symptoms saved. See you tomorrow for the day-1 check-in.
           </p>
         )}
@@ -230,7 +230,7 @@ export default function InjectionForm({
         type="button"
         disabled={busy || !Number.isFinite(effectiveDose) || effectiveDose <= 0}
         onClick={save}
-        className="w-full rounded-card-lg bg-gradient-to-r from-acc-cyan to-acc-teal py-3.5 text-sm font-bold text-[#04222a] shadow-glow-teal transition-all active:scale-[0.99] disabled:opacity-50"
+        className="w-full rounded-card-lg bg-gradient-to-r from-acc-cyan to-acc-teal py-3.5 text-sm font-bold text-white shadow-glow-teal transition-all active:scale-[0.99] disabled:opacity-50"
       >
         {busy ? 'Saving…' : `Save injection · ${Number.isFinite(effectiveDose) && effectiveDose > 0 ? effectiveDose : '—'} mg · ${siteLabel(site)}`}
       </button>

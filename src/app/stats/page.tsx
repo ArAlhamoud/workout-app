@@ -101,7 +101,7 @@ function EffortBalanceRow({ effort, rpeCap }: { effort: EffortDistribution; rpeC
               }`}
             >
               {isCap && (
-                <span className="absolute -top-2 right-1 text-[7.5px] font-extrabold tracking-[0.1em] px-1 py-px rounded-sm text-[#1a1206] bg-acc-ember shadow-glow-ember">
+                <span className="absolute -top-2 right-1 text-[7.5px] font-extrabold tracking-[0.1em] px-1 py-px rounded-sm text-white bg-acc-ember shadow-glow-ember">
                   CAP
                 </span>
               )}

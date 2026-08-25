@@ -48,7 +48,7 @@ function Tab({ href, label, icon, active }: { href: string; label: string; icon:
       href={href}
       aria-label={label}
       className={`flex flex-col items-center justify-center rounded-[20px] my-1.5 mx-1 transition-all duration-200 active:scale-95 ${
-        active ? 'text-[#99f6e4] bg-acc-teal/10' : 'text-app-tx3 hover:text-app-tx2'
+        active ? 'text-acc-teal bg-acc-teal/10' : 'text-app-tx3 hover:text-app-tx2'
       }`}
     >
       <div className={active ? '[filter:drop-shadow(0_0_6px_rgba(94,234,212,0.8))]' : ''}>
@@ -70,7 +70,7 @@ export default function Navbar() {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 print:hidden">
       {/* Fade into deep space behind the bar */}
-      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#05060f] via-[#05060f]/70 to-transparent pointer-events-none" />
+      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#f2f0ea] via-[#f2f0ea]/70 to-transparent pointer-events-none" />
       <div className="max-w-lg mx-auto relative px-3 pb-[max(env(safe-area-inset-bottom),0.625rem)]">
         {/* Frosted glass pill */}
         <div className="glass-overlay rounded-[28px] border border-app-border shadow-nav">
@@ -85,7 +85,7 @@ export default function Navbar() {
               <Link
                 href="/workouts/new"
                 aria-label="Start a workout"
-                className="flex h-12 w-12 items-center justify-center rounded-full transition-all active:scale-90 bg-[conic-gradient(from_200deg,#5eead4,#818cf8,#c084fc,#5eead4)] shadow-[0_0_26px_-4px_rgba(129,140,248,0.85),inset_0_1px_0_rgba(255,255,255,0.5)] hover:brightness-110"
+                className="flex h-12 w-12 items-center justify-center rounded-full transition-all active:scale-90 border-2 border-ink bg-acc-teal-deep shadow-[3px_3px_0_#0b0b0f] hover:brightness-105"
               >
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0b1120" strokeWidth="2.5" strokeLinecap="round">
                   <line x1="12" y1="5" x2="12" y2="19" />

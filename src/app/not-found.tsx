@@ -14,7 +14,7 @@ export default function NotFound() {
       <div className="relative">
         <div
           aria-hidden="true"
-          className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-card border border-app-border bg-white/[0.04]"
+          className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-card border border-app-border bg-ink/[0.04]"
         >
           <span className="glow-teal text-2xl leading-none">✧</span>
         </div>

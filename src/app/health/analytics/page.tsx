@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 /** 0-3 severity → cell background. */
 const heat = (v: number) =>
-  v >= 2.5 ? 'bg-rpe-hard/70' : v >= 1.5 ? 'bg-rpe-med/70' : v >= 0.5 ? 'bg-acc-cyan/40' : 'bg-white/5';
+  v >= 2.5 ? 'bg-rpe-hard/70' : v >= 1.5 ? 'bg-rpe-med/70' : v >= 0.5 ? 'bg-acc-cyan/40' : 'bg-ink/5';
 
 export default async function HealthAnalyticsPage() {
   const data = await getHealthData();
@@ -174,7 +174,7 @@ export default async function HealthAnalyticsPage() {
             </div>
           )}
         </div>
-        <div className="mt-3 border-t border-white/10 pt-3">
+        <div className="mt-3 border-t border-ink/10 pt-3">
           {correlates === null ? (
             <p className="text-sm text-app-tx3">
               Circumstance patterns appear after 5+ episodes have their flags answered
@@ -186,7 +186,7 @@ export default async function HealthAnalyticsPage() {
               {correlates.map((c) => (
                 <div key={c.label} className="flex items-center gap-2 text-sm">
                   <span className="w-32 flex-none text-xs text-app-tx2">{c.label}</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/10">
                     <div
                       className="h-full rounded-full bg-rpe-hard/70"
                       style={{ width: `${Math.round((c.hits / c.answered) * 100)}%` }}
@@ -226,7 +226,7 @@ export default async function HealthAnalyticsPage() {
           </div>
         )}
         {weight && (
-          <p className="mt-2 border-t border-white/10 pt-2 text-[11px] text-app-tx3">
+          <p className="mt-2 border-t border-ink/10 pt-2 text-[11px] text-app-tx3">
             Total so far: {weight.lostKg > 0 ? `−${weight.lostKg}` : weight.lostKg} kg
             ({weight.pctLost}%).
           </p>

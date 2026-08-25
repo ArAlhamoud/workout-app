@@ -250,7 +250,7 @@ export default async function DoctorReportPage({
         </section>
 
         {/* Arabic summary — same key numbers, right-to-left */}
-        <section dir="rtl" lang="ar" className="border-t border-white/10 pt-3 print:border-gray-300">
+        <section dir="rtl" lang="ar" className="border-t border-ink/10 pt-3 print:border-gray-300">
           <p className="section-label mb-1 print:font-bold print:text-black">الملخّص — {rangeLabelAr}</p>
           <div className="space-y-1 text-sm leading-relaxed text-app-tx1 print:text-black">
             <p>

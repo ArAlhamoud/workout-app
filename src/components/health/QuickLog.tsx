@@ -158,7 +158,7 @@ export default function QuickLog() {
             className={`rounded-card border py-2.5 text-xs font-bold transition-all ${
               open === sheet
                 ? 'border-acc-cyan/60 bg-acc-cyan/15 text-acc-cyan'
-                : 'border-app-border bg-app-surface2/60 text-app-tx2 active:bg-white/5'
+                : 'border-app-border bg-app-surface2/60 text-app-tx2 active:bg-ink/5'
             }`}
           >
             {label}

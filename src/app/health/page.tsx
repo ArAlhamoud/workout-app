@@ -62,7 +62,7 @@ export default async function HealthPage() {
     <div className="space-y-5 pb-8">
       <div className="pt-1">
         <p className="section-label text-acc-cyan/80">Health · Mounjaro</p>
-        <h1 className="mt-0.5 bg-gradient-to-r from-white via-[#c7d2fe] to-[#a5f3fc] bg-clip-text font-round text-2xl font-bold tracking-tight text-transparent">
+        <h1 className="mt-0.5 font-round text-2xl font-bold tracking-tight text-app-tx1">
           Treatment
         </h1>
       </div>
@@ -98,7 +98,7 @@ export default async function HealthPage() {
             </p>
           </div>
         </div>
-        <div className="mt-3 border-t border-white/10 pt-3">
+        <div className="mt-3 border-t border-ink/10 pt-3">
           {clock ? (
             <p className="text-sm text-app-tx2">
               Next injection <b className="text-app-tx1">{fmtDay(clock.nextDue)}</b>
@@ -119,7 +119,7 @@ export default async function HealthPage() {
         </div>
         <Link
           href="/health/injection"
-          className="mt-3 flex w-full items-center justify-center rounded-card-lg bg-gradient-to-r from-acc-cyan to-acc-teal py-3 text-sm font-bold text-[#04222a] shadow-glow-teal transition-all active:scale-[0.99]"
+          className="mt-3 flex w-full items-center justify-center rounded-card-lg bg-gradient-to-r from-acc-cyan to-acc-teal py-3 text-sm font-bold text-white shadow-glow-teal transition-all active:scale-[0.99]"
         >
           {clock ? 'Injection day →' : 'Log first injection →'}
         </Link>
@@ -155,7 +155,7 @@ export default async function HealthPage() {
                       </span>
                     )}
                   </div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/10">
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink/10">
                     <div
                       className={`h-full rounded-full ${m.achieved ? 'bg-acc-teal' : 'bg-acc-cyan/70'}`}
                       style={{ width: `${pct}%` }}

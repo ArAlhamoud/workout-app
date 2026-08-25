@@ -45,7 +45,7 @@ export default function ExerciseForm({ categories }: { categories: string[] }) {
         <button
           type="submit"
           disabled={submitting || !name.trim()}
-          className="px-4 py-2.5 bg-gradient-to-r from-acc-teal to-acc-cyan text-[#062521] shadow-[0_0_20px_-6px_rgba(45,212,191,0.7)] hover:brightness-110 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none text-sm font-bold rounded-card transition-all flex-shrink-0 pressable"
+          className="px-4 py-2.5 bg-gradient-to-r from-acc-teal to-acc-cyan text-white shadow-[0_0_20px_-6px_rgba(45,212,191,0.7)] hover:brightness-110 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none text-sm font-bold rounded-card transition-all flex-shrink-0 pressable"
         >
           {submitting ? '...' : 'Add'}
         </button>

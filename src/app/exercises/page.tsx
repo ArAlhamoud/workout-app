@@ -28,7 +28,7 @@ export default async function ExercisesPage() {
       {/* Header */}
       <div className="pt-1">
         <p className="section-label mb-1">Your movements</p>
-        <h1 className="bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text font-round text-2xl font-bold tracking-tight text-transparent">
+        <h1 className="font-round text-2xl font-bold tracking-tight text-app-tx1">
           Exercise Library
         </h1>
       </div>

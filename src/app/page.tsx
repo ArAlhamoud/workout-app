@@ -55,33 +55,33 @@ const DAY_ACCENT: Record<DayId, {
   A: {
     glowCard: 'border-acc-violet/30 shadow-glow-violet',
     nebula: 'radial-gradient(240px 120px at 100% 0%, rgba(139,92,246,0.13), transparent 70%)',
-    monogram: 'bg-gradient-to-br from-[#ddd6fe] to-acc-violet-deep text-[#14082e] shadow-[0_0_24px_-4px_rgba(139,92,246,0.8)]',
+    monogram: 'bg-gradient-to-br from-[#ddd6fe] to-acc-violet-deep text-white shadow-[0_0_24px_-4px_rgba(139,92,246,0.8)]',
     monogramQuiet: 'border border-acc-violet/35 bg-acc-violet-deep/15 text-acc-violet',
-    tag: 'bg-gradient-to-r from-acc-violet to-[#a78bfa] text-[#14082e] shadow-[0_0_14px_-2px_rgba(139,92,246,0.7)]',
-    chip: 'border-acc-violet/50 bg-gradient-to-br from-acc-violet/25 to-acc-violet-deep/10 text-violet-100 shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)]',
+    tag: 'bg-gradient-to-r from-acc-violet to-[#a78bfa] text-white shadow-[0_0_14px_-2px_rgba(139,92,246,0.7)]',
+    chip: 'border-acc-violet/50 bg-gradient-to-br from-acc-violet/25 to-acc-violet-deep/10 text-acc-violet shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)]',
     accentText: 'text-acc-violet',
     start:
-      'bg-gradient-to-r from-acc-violet to-acc-violet-deep text-[#14082e] shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_30px_-6px_rgba(139,92,246,0.8)]',
+      'bg-gradient-to-r from-acc-violet to-acc-violet-deep text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_30px_-6px_rgba(139,92,246,0.8)]',
   },
   B: {
     glowCard: 'border-acc-teal/30 shadow-glow-teal',
     nebula: 'radial-gradient(240px 120px at 100% 0%, rgba(94,234,212,0.13), transparent 70%)',
-    monogram: 'bg-gradient-to-br from-[#99f6e4] to-acc-teal-deep text-[#062521] shadow-[0_0_24px_-4px_rgba(45,212,191,0.8)]',
+    monogram: 'bg-gradient-to-br from-[#99f6e4] to-acc-teal-deep text-white shadow-[0_0_24px_-4px_rgba(45,212,191,0.8)]',
     monogramQuiet: 'border border-acc-teal/35 bg-acc-teal-deep/15 text-acc-teal',
-    tag: 'bg-gradient-to-r from-acc-teal to-acc-cyan text-[#062521] shadow-[0_0_14px_-2px_rgba(94,234,212,0.7)]',
-    chip: 'border-acc-teal/50 bg-gradient-to-br from-acc-teal/25 to-acc-teal-deep/10 text-teal-100 shadow-[0_0_18px_-4px_rgba(45,212,191,0.55)]',
+    tag: 'bg-gradient-to-r from-acc-teal to-acc-cyan text-white shadow-[0_0_14px_-2px_rgba(94,234,212,0.7)]',
+    chip: 'border-acc-teal/50 bg-gradient-to-br from-acc-teal/25 to-acc-teal-deep/10 text-acc-teal shadow-[0_0_18px_-4px_rgba(45,212,191,0.55)]',
     accentText: 'text-acc-teal',
     start:
-      'bg-gradient-to-r from-acc-teal to-acc-cyan text-[#062521] shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_30px_-6px_rgba(45,212,191,0.8)]',
+      'bg-gradient-to-r from-acc-teal to-acc-cyan text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_30px_-6px_rgba(45,212,191,0.8)]',
   },
 };
 
 /* Quiet duration chip — plain glass, only the 45-min default lights up */
-const CHIP_QUIET = 'border-app-border bg-white/[0.04] text-app-tx2 hover:border-app-border-hi';
+const CHIP_QUIET = 'border-app-border bg-ink/[0.04] text-app-tx2 hover:border-app-border-hi';
 
 /* Quiet aurora affordance for <details> summaries — full copy lives one tap away */
 const SUMMARY_CHIP =
-  'chip inline-flex w-fit cursor-pointer select-none list-none items-center gap-1.5 border border-app-border bg-white/5 text-[10px] uppercase tracking-[0.12em] text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx2 [&::-webkit-details-marker]:hidden';
+  'chip inline-flex w-fit cursor-pointer select-none list-none items-center gap-1.5 border border-app-border bg-ink/5 text-[10px] uppercase tracking-[0.12em] text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx2 [&::-webkit-details-marker]:hidden';
 
 function Chevron() {
   return (
@@ -135,7 +135,7 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
           <div className="min-w-0 flex-1">
             <h3 className="font-round text-sm font-bold text-app-tx1">Day {day}</h3>
           </div>
-          <span className="chip flex-none border border-app-border bg-white/5 text-[9px] uppercase tracking-[0.12em] text-app-tx3">
+          <span className="chip flex-none border border-app-border bg-ink/5 text-[9px] uppercase tracking-[0.12em] text-app-tx3">
             Done {doneWhen}
           </span>
         </div>
@@ -144,7 +144,7 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
             <Link
               key={d}
               href={`/workouts/new?day=${day}&dur=${d}`}
-              className="pressable rounded-lg border border-app-border bg-white/[0.03] py-1.5 text-center text-[11px] font-semibold tabular-nums text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx1"
+              className="pressable rounded-lg border border-app-border bg-ink/[0.03] py-1.5 text-center text-[11px] font-semibold tabular-nums text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx1"
             >
               {d}m
             </Link>
@@ -280,8 +280,8 @@ export default async function Home() {
   const currentPhase = phaseForWeek(programWeek);
 
   const phaseColor: Record<string, string> = {
-    LEARN:    'bg-white/10 text-app-tx2',
-    BUILD:    'bg-acc-indigo/25 text-indigo-300',
+    LEARN:    'bg-ink/10 text-app-tx2',
+    BUILD:    'bg-acc-indigo/25 text-acc-indigo',
     PUSH:     'bg-acc-teal/15 text-acc-teal',
     DELOAD:   'bg-rpe-hard/15 text-rpe-hard',
     REBUILD:  'bg-acc-violet/15 text-acc-violet',
@@ -365,7 +365,7 @@ export default async function Home() {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <div className="font-round text-lg font-light leading-none tabular-nums text-app-tx1">
-                <b className="font-bold text-[#99f6e4]">{sessionsThisWeek}</b>
+                <b className="font-bold text-acc-teal">{sessionsThisWeek}</b>
                 <span className="text-sm text-app-tx3">/3</span>
               </div>
             </div>
@@ -375,7 +375,7 @@ export default async function Home() {
           {sessionsThisWeek > 0 && (
             <div className="flex min-w-0 flex-col gap-1.5">
               <p className="text-xs tabular-nums text-app-tx2">
-                <b className="font-semibold text-[#99f6e4]">{kgCompact(weekVolume)} kg</b> this week
+                <b className="font-semibold text-acc-teal">{kgCompact(weekVolume)} kg</b> this week
               </p>
             </div>
           )}
@@ -386,7 +386,7 @@ export default async function Home() {
                 Return W{status.week} · {status.returnWeek.phase}
               </span>
             ) : (
-              <span className={`chip flex-none ${phaseColor[currentPhase.phase] ?? 'bg-white/10 text-app-tx2'}`}>
+              <span className={`chip flex-none ${phaseColor[currentPhase.phase] ?? 'bg-ink/10 text-app-tx2'}`}>
                 Wk {programWeek} · {currentPhase.phase}
               </span>
             )}
@@ -410,7 +410,7 @@ export default async function Home() {
                 <path d="M7 1.2c1.4 2 .3 3-.4 4.2C5.8 6.7 6 8.2 7.4 9c-.2-1 .2-1.8 1-2.5.9 1.1 2.1 2.5 2.1 4.1A3.9 3.9 0 0 1 6.6 14 4.6 4.6 0 0 1 2.5 9.4C2.5 5.6 6.4 4.4 7 1.2z" fill="#fcd34d" opacity=".9" />
               </svg>
               <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">Return protocol</span>
-              <span className="chip ml-auto flex-none bg-gradient-to-r from-acc-ember to-acc-ember-deep text-[9px] uppercase tracking-[0.14em] text-[#1a1206] shadow-[0_0_18px_-4px_rgba(245,158,11,0.75)]">
+              <span className="chip ml-auto flex-none bg-gradient-to-r from-acc-ember to-acc-ember-deep text-[9px] uppercase tracking-[0.14em] text-white shadow-[0_0_18px_-4px_rgba(245,158,11,0.75)]">
                 {status.returnWeek.phase}
               </span>
             </div>
@@ -425,7 +425,7 @@ export default async function Home() {
                     className={`h-1.5 w-6 rounded-full ${
                       i <= status.week
                         ? 'bg-gradient-to-r from-acc-ember to-acc-ember-deep shadow-[0_0_12px_-1px_rgba(245,158,11,0.8)]'
-                        : 'bg-white/10'
+                        : 'bg-ink/10'
                     }`}
                   />
                 ))}
@@ -433,20 +433,20 @@ export default async function Home() {
             </div>
 
             {/* Coach voice — one line of personality on the glance layer */}
-            <p className="mt-3 border-t border-white/10 pt-3 text-[11px] font-semibold uppercase tracking-[0.13em]">
+            <p className="mt-3 border-t border-ink/10 pt-3 text-[11px] font-semibold uppercase tracking-[0.13em]">
               <span className="glow-amber">We rebuild. We don&apos;t test.</span>
             </p>
 
-            <div className="mt-3 flex border-t border-white/10 pt-3">
+            <div className="mt-3 flex border-t border-ink/10 pt-3">
               <div className="flex flex-1 flex-col gap-0.5">
                 <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.loadPct}%</b>
                 <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">load</span>
               </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-white/10 pl-3.5">
+              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
                 <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.sessions}</b>
                 <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">sessions</span>
               </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-white/10 pl-3.5">
+              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
                 <b className="font-round text-[15px] font-semibold text-app-tx1">{RPE_LABELS[status.returnWeek.rpeCap]}</b>
                 <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">cap</span>
               </div>
@@ -476,7 +476,7 @@ export default async function Home() {
                     const v = i + 1;
                     const cap = status.returnWeek.rpeCap;
                     const seg =
-                      v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-white/[0.02] text-app-tx3 line-through opacity-60';
+                      v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-ink/[0.02] text-app-tx3 line-through opacity-60';
                     return (
                       <span
                         key={label}
@@ -572,7 +572,7 @@ export default async function Home() {
         <div className="mb-3 flex items-baseline justify-between px-1">
           <p className="section-label">Recent</p>
           {workouts.length > 4 && (
-            <Link href="/workouts" className="text-[11px] font-semibold text-acc-teal transition-colors hover:text-[#99f6e4]">
+            <Link href="/workouts" className="text-[11px] font-semibold text-acc-teal transition-colors hover:text-acc-teal">
               See all →
             </Link>
           )}
@@ -582,7 +582,7 @@ export default async function Home() {
           <div className="card-lg border-dashed p-8 text-center">
             <p className="mb-1 font-medium text-app-tx2">No workouts yet</p>
             <p className="mb-4 text-sm text-app-tx3">Tap a duration above to begin</p>
-            <Link href="/program" className="text-sm text-acc-teal transition-colors hover:text-[#99f6e4]">
+            <Link href="/program" className="text-sm text-acc-teal transition-colors hover:text-acc-teal">
               Read the program first →
             </Link>
           </div>
@@ -607,7 +607,7 @@ export default async function Home() {
                       {dayLetter}
                     </span>
                   ) : (
-                    <span className="mr-3 h-8 w-8 flex-shrink-0 rounded-xl border border-app-border bg-white/5" />
+                    <span className="mr-3 h-8 w-8 flex-shrink-0 rounded-xl border border-app-border bg-ink/5" />
                   )}
 
                   <div className="min-w-0 flex-1">

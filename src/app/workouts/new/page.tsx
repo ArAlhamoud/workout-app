@@ -174,8 +174,8 @@ export default async function NewWorkoutPage({
   const eyebrowAccent = validDay === 'A' ? 'text-acc-violet/80' : 'text-acc-teal/80';
   const titleGradient =
     validDay === 'A'
-      ? 'bg-gradient-to-r from-white via-[#ddd6fe] to-[#c4b5fd] bg-clip-text text-transparent'
-      : 'bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text text-transparent';
+      ? 'text-acc-violet'
+      : 'text-acc-teal';
   const durActive =
     validDay === 'A'
       ? 'bg-gradient-to-br from-acc-violet/25 to-acc-violet-deep/10 border-acc-violet/60 text-[#e9e4ff] shadow-glow-violet'

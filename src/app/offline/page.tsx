@@ -17,7 +17,7 @@ export default function OfflinePage() {
           }}
         />
         <div className="relative">
-          <div className="w-14 h-14 mx-auto rounded-card bg-white/[0.04] border border-app-border flex items-center justify-center shadow-[0_0_24px_-8px_rgba(45,212,191,0.5)]">
+          <div className="w-14 h-14 mx-auto rounded-card bg-ink/[0.04] border border-app-border flex items-center justify-center shadow-[0_0_24px_-8px_rgba(45,212,191,0.5)]">
             <svg
               viewBox="0 0 24 24"
               fill="none"
