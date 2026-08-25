@@ -60,7 +60,10 @@ export type QuantityIdentifier =
   | 'basalEnergyBurned'
   | 'sixMinuteWalkTestDistance'
   /** iOS 16+ only; absent on iOS 15 and rejected as unknown there. */
-  | 'appleSleepingWristTemperature';
+  | 'appleSleepingWristTemperature'
+  /** Requires a bridge deployed after the BP link (rejected as unknown before). */
+  | 'bloodPressureSystolic'
+  | 'bloodPressureDiastolic';
 
 export type CategoryIdentifier = 'sleepAnalysis';
 

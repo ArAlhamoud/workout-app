@@ -41,6 +41,14 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
 - Backup: all nine tables ride `scripts/export-data.js` /
   `restore-from-snapshot.js` under the `health` key, and the sectioned
   CSV at `/api/health/export`.
+- BP auto-import: the home monitor syncs to Apple Health; HealthAutoPilot
+  reads both halves (`bloodPressureSystolic/Diastolic`, 30-day rolling
+  window) and `/api/health/import` pairs them (`pairBpSamples`, ±60 s),
+  drops implausible pairs with the manual logger's bounds, and skips any
+  minute that already holds a reading — manual entries always win.
+  Imported rows carry `notes: 'Apple Health'`. Requires the bridge
+  deployed with the BP types (Mac: `npm run ios:deploy`, then re-grant
+  Health access; reinstall if iOS shows no new permission sheet).
 
 ## The one static safety line
 

@@ -63,7 +63,7 @@ import {
   DEFAULT_DOSE_PLAN,
   DEFAULT_ROTATION,
 } from '../src/lib/health-insights';
-import { normalizeSampleType } from '../src/lib/health';
+import { normalizeSampleType, pairBpSamples } from '../src/lib/health';
 
 interface HistoryFile {
   exercises: { id: string; name: string; category: string }[];
@@ -1311,6 +1311,63 @@ console.log('health-insights');
   );
 }
 
-// ── summary ──────────────────────────────────────────────────
+
+// ── blood-pressure pairing (Health-app import) ───────────────
+{
+  // A monitor reading is two samples sharing a timestamp — they pair.
+  const pairs = pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 131.4 }],
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 82.6 }],
+  );
+  assert(pairs.length === 1 && pairs[0].systolic === 131 && pairs[0].diastolic === 83,
+    'sys+dia at the same instant pair into one rounded reading');
+
+  // Clock skew inside a minute still pairs; beyond it does not.
+  assert(pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 128 }],
+    [{ dateISO: '2026-08-25T08:00:45Z', value: 79 }],
+  ).length === 1, '45s of skew still pairs');
+  assert(pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 128 }],
+    [{ dateISO: '2026-08-25T08:02:00Z', value: 79 }],
+  ).length === 0, 'a lone half two minutes away is not a reading');
+
+  // Each half is used once — two readings a minute apart stay two, matched
+  // to their nearest partner, never crossed.
+  const twoReadings = pairBpSamples(
+    [
+      { dateISO: '2026-08-25T08:00:00Z', value: 140 },
+      { dateISO: '2026-08-25T08:01:00Z', value: 120 },
+    ],
+    [
+      { dateISO: '2026-08-25T08:00:02Z', value: 90 },
+      { dateISO: '2026-08-25T08:01:02Z', value: 70 },
+    ],
+  );
+  assert(
+    twoReadings.length === 2 &&
+      twoReadings[0].systolic === 140 && twoReadings[0].diastolic === 90 &&
+      twoReadings[1].systolic === 120 && twoReadings[1].diastolic === 70,
+    'back-to-back readings pair with their own halves, not each other',
+  );
+
+  // Device glitches never become history: bounds + sys>dia.
+  assert(pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 300 }],
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 80 }],
+  ).length === 0, 'systolic 300 is a glitch, dropped');
+  assert(pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 80 }],
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 120 }],
+  ).length === 0, 'systolic at or below diastolic is a glitch, dropped');
+
+  // Junk in the series (bad dates) is filtered, not fatal.
+  assert(pairBpSamples(
+    [{ dateISO: 'not-a-date', value: 128 }, { dateISO: '2026-08-25T08:00:00Z', value: 128 }],
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 79 }],
+  ).length === 1, 'an unparseable timestamp drops its sample only');
+}
+
+// ── summary ──────────────────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

@@ -24,6 +24,7 @@ import { useRouter } from 'next/navigation';
 import {
   isNativeApp,
   queryWeight,
+  queryQuantity,
   queryDailyStats,
   queryWorkoutStats,
   saveWorkout,
@@ -198,6 +199,26 @@ async function runSyncs(token: string): Promise<void> {
           samples.map((s) => ({ type: 'weight', value: s.value, unit: 'kg', date: s.dateISO })),
         ),
       });
+    }
+  } catch { /* next open retries */ }
+
+  // 1b — blood-pressure monitor readings, via the Health app. The two
+  // halves go over raw with their sample timestamps; the import route pairs
+  // them into BpReadings and skips anything already logged for that minute.
+  // Rolling window like weight (monitors sync late), idempotent on replay.
+  // On a bridge without the BP types (pre-link build) the query rejects and
+  // this whole step quietly skips until the Mac session redeploys.
+  try {
+    const [sys, dia] = await Promise.all([
+      queryQuantity('bloodPressureSystolic', { startISO: windowStartISO(WEIGHT_WINDOW_DAYS) }),
+      queryQuantity('bloodPressureDiastolic', { startISO: windowStartISO(WEIGHT_WINDOW_DAYS) }),
+    ]);
+    if (sys.samples.length && dia.samples.length) {
+      const rows = [
+        ...sys.samples.map((s) => ({ type: 'bp_systolic', value: s.value, unit: 'mmHg', date: s.dateISO })),
+        ...dia.samples.map((s) => ({ type: 'bp_diastolic', value: s.value, unit: 'mmHg', date: s.dateISO })),
+      ];
+      await api(token, '/api/health/import', { method: 'POST', body: JSON.stringify(rows) });
     }
   } catch { /* next open retries */ }
 
