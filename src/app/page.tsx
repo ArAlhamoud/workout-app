@@ -5,10 +5,10 @@ import { getWorkouts } from './actions';
 import { getDynamicPlan, isTrainingSession, queuedDay } from '@/lib/program';
 import {
   journeyDay,
-  journeyStations,
   journeyStory,
   ownPattern,
   afStats,
+  bpAverage,
   cpapStats,
   severeSymptomFlag,
   siteLabel,
@@ -17,18 +17,21 @@ import {
   weightSnapshot,
   DEFAULT_DOSE_PLAN,
   DEFAULT_ROTATION,
+  SYMPTOM_LABEL,
   type DosePlanStep,
 } from '@/lib/health-insights';
+import BodyMap, { type BodyData } from '@/components/health/BodyMap';
 import CheckIn from '@/components/health/CheckIn';
 import HealthReminders from '@/components/health/HealthReminders';
 
 export const metadata: Metadata = { title: 'Aurora Health' };
 export const dynamic = 'force-dynamic';
 
-// The journey Home (the owner's re-orientation, round 2): not a dashboard
-// of metric cards — a companion walking a treatment. One day, ONE action,
-// one conversation, the story so far in sentences, and the path ahead.
-// Tables live behind Timeline/Patterns for the day he wants them.
+// The landing is an OVERALL health dashboard — but the dashboard is his
+// BODY (owner's fourth push): every system shown where it lives, live
+// numbers on the anatomy, tap a region to see and log, the next injection
+// site glowing on the actual spot. Pages branch off from the rooms below
+// and from the body itself.
 export default async function HomePage() {
   const [data, workouts] = await Promise.all([getHealthData(), getWorkouts()]);
   const { profile } = data;
@@ -49,71 +52,94 @@ export default async function HomePage() {
   );
   const af = afStats(data.afEpisodes);
   const cpap = cpapStats(data.cpapNights);
+  const bp7 = bpAverage(data.bpReadings, 7);
+  const latestBp = data.bpReadings[0] ?? null;
+  const lastNight = data.cpapNights[0] ?? null;
+  const latestLdl = data.labs.find((l) => l.test === 'ldl') ?? null;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todaySymptoms = data.symptoms.filter((s) => new Date(s.at) >= todayStart);
+  const severe = severeSymptomFlag(
+    data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
+  );
   const story = journeyStory({
-    snapshot,
-    af,
-    cpap,
-    dosesTaken: data.injectionCount,
-    daysIn: day.day,
+    snapshot, af, cpap, dosesTaken: data.injectionCount, daysIn: day.day,
   });
   const pattern = ownPattern(
     data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
     data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })),
   );
-  const severe = severeSymptomFlag(
-    data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
-  );
-  const stations = journeyStations(
-    plan,
-    data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })),
-  );
-  const nextStations = stations.filter((s) => s.state !== 'done').slice(0, 2);
 
   const trainPlan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
   const trainDay = queuedDay(trainPlan);
-  const isTrainDayNow = trainPlan.mode === 'train';
-
-  // Local calendar "today" for the check-in skip logic.
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const cpapLoggedToday = data.cpapNights.some((n) => {
-    const created = new Date(n.createdAt);
-    return created >= todayStart;
-  });
-
-  // THE day's one action, in priority order: first dose > due dose >
-  // training day > nothing-due. Never a menu of equals.
-  const injectionDue = !!clock && (clock.daysSinceLast >= 7 || clock.overdue);
-  const workoutsToday = workouts.filter(
+  const trainedToday = workouts.some(
     (w) => isTrainingSession(w) && new Date(w.date) >= todayStart,
-  ).length;
+  );
+  const injectionDue = !clock || clock.daysSinceLast >= 7 || clock.overdue;
+  const cpapLoggedToday = data.cpapNights.some((n) => new Date(n.createdAt) >= todayStart);
+
+  const lastNightIsRecent =
+    lastNight && Date.now() - new Date(lastNight.night).getTime() < 3 * 86_400_000;
+
+  const body: BodyData = {
+    heart: { daysClear: af.daysSinceLast, thisMonth: af.thisMonth },
+    breath: {
+      lastHours: lastNightIsRecent ? lastNight.usageHours : null,
+      ahi: lastNightIsRecent ? lastNight.ahi : null,
+      streak: cpap.streak,
+    },
+    gut: {
+      today: [...new Set(todaySymptoms.map((s) => SYMPTOM_LABEL[s.kind] ?? s.kind))],
+    },
+    bp: {
+      latest: latestBp ? `${latestBp.systolic}/${latestBp.diastolic}` : null,
+      avg7: bp7 ? `${bp7.systolic}/${bp7.diastolic}` : null,
+    },
+    nextSite: site,
+    nextSiteLabel: siteLabel(site),
+    ldl: latestLdl
+      ? {
+          value: latestLdl.value,
+          when: new Date(latestLdl.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        }
+      : null,
+  };
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-4 pb-8">
       <HealthReminders
         nextDueISO={clock ? clock.nextDue.toISOString() : null}
         lastInjectionISO={clock ? clock.lastInjection.toISOString() : null}
         enabled={(profile.reminders as Record<string, boolean> | null) ?? {}}
       />
 
-      {/* The day, named */}
-      <div className="pt-1">
-        <p className="section-label text-acc-cyan/80">
-          Aurora Health{day.week ? ` · week ${day.week}` : ''}
-        </p>
-        <h1 className="mt-0.5 font-round text-[26px] font-extrabold leading-tight tracking-tight text-app-tx1">
-          {day.day
-            ? `Day ${day.day} of your journey.`
-            : 'It starts with the first dose.'}
-        </h1>
-        <p className="mt-1 text-sm text-app-tx2">
-          {snapshot ? `${snapshot.currentKg} kg` : '—'}
-          {clock && ` · ${clock.lastDoseMg} mg weekly`}
-          {day.dosesUntilCheckpoint != null &&
-            day.dosesUntilCheckpoint > 0 &&
-            ` · ${day.dosesUntilCheckpoint} dose${day.dosesUntilCheckpoint === 1 ? '' : 's'} to the doctor`}
-          {day.dosesUntilCheckpoint === 0 && ' · doctor review is next'}
-        </p>
+      {/* Header: him, in one line */}
+      <div className="flex items-end justify-between pt-1">
+        <div>
+          <p className="section-label text-acc-cyan/80">
+            Aurora Health{day.day ? ` · day ${day.day}` : ''}
+          </p>
+          <h1 className="mt-0.5 font-round text-3xl font-extrabold leading-none tracking-tight text-app-tx1">
+            {snapshot ? `${snapshot.currentKg}` : '—'}
+            <span className="text-base font-bold text-app-tx3"> kg</span>
+          </h1>
+          <p className="mt-1 text-xs font-semibold text-app-tx2">
+            {snapshot && snapshot.lostKg >= 0.5 && `−${snapshot.lostKg} kg since the start · `}
+            {clock ? `${clock.lastDoseMg} mg weekly` : 'first dose ahead'}
+            {day.dosesUntilCheckpoint != null && day.dosesUntilCheckpoint > 0 &&
+              ` · ${day.dosesUntilCheckpoint} to the doctor`}
+          </p>
+        </div>
+        {/* today's one thing, as a stamp */}
+        <Link
+          href={injectionDue ? '/health/injection' : trainPlan.mode === 'train' && !trainedToday ? `/workouts/new?day=${trainDay}&dur=45` : '/journey'}
+          className={`rounded-card border-2 border-ink px-3.5 py-2.5 text-xs font-extrabold text-white shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] ${
+            injectionDue ? 'bg-acc-teal-deep' : trainPlan.mode === 'train' && !trainedToday ? 'bg-acc-violet-deep' : 'bg-ink'
+          }`}
+        >
+          {!clock ? 'First dose →' : injectionDue ? 'Dose today →' : trainPlan.mode === 'train' && !trainedToday ? `Train ${trainDay} →` : 'On track →'}
+        </Link>
       </div>
 
       {severe && (
@@ -125,111 +151,34 @@ export default async function HomePage() {
         </div>
       )}
 
-      {/* THE one thing today asks of him */}
-      {!clock ? (
-        <Link href="/health/injection" className="card-lg block p-5">
-          <p className="section-label text-acc-cyan/80">Today&apos;s one thing</p>
-          <p className="mt-1.5 text-lg font-extrabold leading-snug text-app-tx1">
-            Take the first 2.5 mg dose — {siteLabel(site)} is up.
-          </p>
-          <div className="mt-3 rounded-card border-2 border-ink bg-acc-teal-deep py-3.5 text-center text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f]">
-            Begin the journey →
-          </div>
-        </Link>
-      ) : injectionDue ? (
-        <Link href="/health/injection" className="card-lg block p-5">
-          <p className="section-label text-acc-cyan/80">Today&apos;s one thing</p>
-          <p className="mt-1.5 text-lg font-extrabold leading-snug text-app-tx1">
-            Injection day — {clock.nextPlanned?.mg != null
-              ? `${clock.nextPlanned.mg} mg, ${siteLabel(site)}.`
-              : 'the plan says: talk to your doctor first.'}
-          </p>
-          <div className="mt-3 rounded-card border-2 border-ink bg-acc-teal-deep py-3.5 text-center text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f]">
-            Open injection day →
-          </div>
-        </Link>
-      ) : isTrainDayNow && workoutsToday === 0 ? (
-        <Link href={`/workouts/new?day=${trainDay}&dur=45`} className="card-lg block p-5">
-          <p className="section-label text-acc-cyan/80">Today&apos;s one thing</p>
-          <p className="mt-1.5 text-lg font-extrabold leading-snug text-app-tx1">
-            Move — Day {trainDay} is queued. Muscle protects the weight you&apos;re losing.
-          </p>
-          <div
-            className={`mt-3 rounded-card border-2 border-ink py-3.5 text-center text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f] ${
-              trainDay === 'A' ? 'bg-acc-violet-deep' : 'bg-acc-teal-deep'
-            }`}
-          >
-            Start Day {trainDay} · 45 min →
-          </div>
-        </Link>
-      ) : (
-        <div className="card-lg p-5">
-          <p className="section-label text-acc-cyan/80">Today&apos;s one thing</p>
-          <p className="mt-1.5 text-lg font-extrabold leading-snug text-app-tx1">
-            {workoutsToday > 0
-              ? 'Trained and dosed as planned — today asks nothing more of you.'
-              : 'Nothing is due today. The check-in below is the whole job.'}
-          </p>
-          <p className="mt-1 text-xs text-app-tx3">
-            Next dose {clock.nextDue.toLocaleDateString('en-US', { weekday: 'long' })} · {siteLabel(site)}
-          </p>
-        </div>
-      )}
+      {/* THE dashboard: his body, live */}
+      <BodyMap data={body} />
 
       {/* The conversation */}
       <CheckIn cpapLoggedToday={cpapLoggedToday} />
 
-      {/* What his own logs know about today */}
       {pattern && (
         <div className="card border-acc-cyan/40 px-4 py-3">
           <p className="text-sm leading-relaxed text-app-tx1">{pattern}</p>
         </div>
       )}
 
-      {/* The story so far */}
       {story.length > 0 && (
         <div className="card-lg p-4">
           <p className="section-label mb-2">The story so far</p>
           <div className="space-y-2">
             {story.map((s, i) => (
-              <p key={i} className="text-sm leading-relaxed text-app-tx1">
-                {s}
-              </p>
+              <p key={i} className="text-sm leading-relaxed text-app-tx1">{s}</p>
             ))}
           </div>
         </div>
       )}
 
-      {/* The path ahead — two stations, then the full journey */}
-      {nextStations.length > 0 && (
-        <Link href="/journey" className="card-lg block p-4">
-          <div className="mb-2 flex items-baseline justify-between">
-            <p className="section-label">The path ahead</p>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-app-tx3">
-              full journey →
-            </span>
-          </div>
-          <div className="space-y-2">
-            {nextStations.map((s, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <span
-                  className={`h-3 w-3 flex-none rounded-full border-2 border-ink ${
-                    s.state === 'next' ? 'bg-acc-teal-deep' : s.kind === 'checkpoint' ? 'bg-acc-ember-deep' : 'bg-app-surface2'
-                  }`}
-                />
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-app-tx1">{s.label}</p>
-                  {s.detail && <p className="text-[11px] text-app-tx3">{s.detail}</p>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Link>
-      )}
-
-      {/* Everything else is a room, not a widget */}
+      {/* The pages branch from here */}
       <div className="grid grid-cols-2 gap-2">
         {[
+          { href: '/journey', label: 'Journey' },
+          { href: '/train', label: 'Training' },
           { href: '/health/report', label: 'Doctor report' },
           { href: '/health/plan', label: 'Plan & profile' },
           { href: '/health/analytics', label: 'Patterns' },
