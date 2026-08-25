@@ -33,34 +33,59 @@ const GUT_KINDS = [
 
 // Viewer-relative marker positions for the next injection site, in the
 // figure's 320x360 coordinate space (his right = viewer left, facing you).
+// Abdomen spots sit on the flanks so the marker never hides the gut coil.
 const SITE_POS: Record<string, { left: string; top: string }> = {
-  'abdomen-right': { left: '42%', top: '51.7%' },
-  'abdomen-left': { left: '58%', top: '51.7%' },
-  'thigh-right': { left: '44%', top: '74.4%' },
-  'thigh-left': { left: '56%', top: '74.4%' },
-  'arm-right': { left: '31.5%', top: '32.8%' },
-  'arm-left': { left: '68.5%', top: '32.8%' },
+  'abdomen-right': { left: '40.5%', top: '51.7%' },
+  'abdomen-left': { left: '59.5%', top: '51.7%' },
+  'thigh-right': { left: '43.5%', top: '75%' },
+  'thigh-left': { left: '56.5%', top: '75%' },
+  'arm-right': { left: '31.5%', top: '33.3%' },
+  'arm-left': { left: '68.5%', top: '33.3%' },
 };
 
-// Anatomy anchors and their label rails (medical-diagram style: a dot on
-// the body, a thin leader line, a label in a clean column).
+// Label rails (medical-diagram style): each system's organ is the anchor;
+// a thin leader line runs from it to a label resting in a clean column.
 const ANATOMY = {
-  breath: { dot: { left: '53%', top: '22.2%' }, rail: 'r' as const, top: '22.2%' },
-  heart: { dot: { left: '55.5%', top: '34.4%' }, rail: 'r' as const, top: '34.4%' },
-  bp: { dot: { left: '28.5%', top: '41.7%' }, rail: 'l' as const, top: '41.7%' },
-  gut: { dot: { left: '50%', top: '54.4%' }, rail: 'l' as const, top: '54.4%' },
+  breath: { rail: 'r' as const, top: '27.8%' },
+  heart: { rail: 'r' as const, top: '37.2%' },
+  bp: { rail: 'l' as const, top: '41.7%' },
+  gut: { rail: 'l' as const, top: '52.2%' },
 };
 
-// The silhouette, drawn once as data so the ink pass and the white pass
-// can never drift apart (outline-union: every shape twice — inflated ink,
-// then exact white — so interior joins vanish and one outline remains).
-const TORSO =
-  'M160,78 C186,78 206,88 209,108 C212,132 215,160 211,184 C208,206 189,216 160,216 ' +
-  'C131,216 112,206 109,184 C105,160 108,132 111,108 C114,88 134,78 160,78 Z';
-const ARM_R = 'M118,94 C96,120 88,152 94,182';
-const ARM_L = 'M202,94 C224,120 232,152 226,182';
-const LEG_R = 'M142,215 L138,330';
-const LEG_L = 'M178,215 L182,330';
+// The body, one continuous closed contour (owner's pick — option D "Organs"
+// on the four-way canvas): head, neck, shoulders, hands, legs, feet — an
+// honest heavyset figure, drawn once as data.
+const BODY =
+  'M160,10 C146,10 137,21 137,36 C137,46 141,55 148,61 C148,66 147,70 145,73 ' +
+  'C130,77 115,82 107,93 C99,102 96,114 94,128 C92,146 90,166 88,184 ' +
+  'C84,196 88,208 98,209 C106,210 110,202 109,193 C111,176 112,158 110,142 ' +
+  'C109,130 112,122 120,114 C118,128 116,152 116,172 C116,190 118,204 120,214 ' +
+  'C118,238 122,262 124,278 C126,298 126,314 132,332 C124,336 120,342 122,348 ' +
+  'C124,352 148,352 152,348 C154,344 153,338 152,332 C150,310 152,290 154,272 ' +
+  'C156,258 157,246 160,236 C163,246 164,258 166,272 C168,290 170,310 168,332 ' +
+  'C167,338 166,344 168,348 C172,352 196,352 198,348 C200,342 196,336 188,332 ' +
+  'C194,314 194,298 196,278 C198,262 202,238 200,214 C202,204 204,190 204,172 ' +
+  'C204,152 202,128 200,114 C208,122 211,130 210,142 C208,158 209,176 211,193 ' +
+  'C210,202 214,210 222,209 C232,208 236,196 232,184 C230,166 228,146 226,128 ' +
+  'C224,114 221,102 213,93 C205,82 190,77 175,73 C173,70 172,66 172,61 ' +
+  'C179,55 183,46 183,36 C183,21 174,10 160,10 Z';
+
+// The organs, where they live.
+const LUNG_R =
+  'M154,96 C142,96 132,106 130,120 C128,134 132,146 142,148 C150,150 154,142 154,130 Z';
+const LUNG_L =
+  'M166,96 C178,96 188,106 190,120 C192,134 188,146 178,148 C170,150 166,142 166,130 Z';
+const HEART =
+  'M162,140 C154,134 148,128 148,120.5 C148,115 152.5,110.5 157.5,110.5 ' +
+  'C159.5,110.5 161.2,111.5 162,113.4 C162.8,111.5 164.5,110.5 166.5,110.5 ' +
+  'C171.5,110.5 176,115 176,120.5 C176,128 170,134 162,140 Z';
+const GUT =
+  'M138,166 C132,176 132,198 140,206 C150,214 172,214 180,206 ' +
+  'C188,198 188,176 182,166 C172,158 148,158 138,166 Z';
+const GUT_COILS =
+  'M138,176 C152,172 168,172 182,176 M136,188 C152,184 168,184 184,188 ' +
+  'M140,200 C152,196 168,196 180,200';
+const CUFF = 'M90,140 L114,138 L115,160 L90,162 Z';
 
 function nightKey(): string {
   const d = new Date();
@@ -73,17 +98,7 @@ const inputCls =
 const saveBtn =
   'w-full min-h-[48px] rounded-card border-2 border-ink bg-acc-teal-deep text-sm font-extrabold text-white shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] disabled:opacity-40';
 
-/** A dot ON the anatomy… */
-function AnatomyDot({ pos, color }: { pos: { left: string; top: string }; color: string }) {
-  return (
-    <span
-      className={`pointer-events-none absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ink ${color}`}
-      style={pos}
-    />
-  );
-}
-
-/** …a thin leader line, and a label resting in a clean rail column. */
+/** The organ anchors a thin leader line; the label rests in a rail column. */
 function RailLabel({
   rail, top, label, value, onTap,
 }: {
@@ -139,68 +154,57 @@ export default function BodyMap({ data }: { data: BodyData }) {
   };
 
   const sitePos = SITE_POS[data.nextSite] ?? SITE_POS['abdomen-right'];
-  const heartColor =
-    data.heart.daysClear === null ? 'bg-app-surface2'
-    : data.heart.daysClear <= 2 ? 'bg-acc-ember-deep'
-    : 'bg-rpe-grind/90';
-  const heartColorFinal = data.heart.daysClear !== null && data.heart.daysClear > 2 ? 'bg-acc-teal-deep' : heartColor;
+  // Organ tints carry state: teal when logged and calm, ember when today
+  // flagged something, faint grey before any data.
+  const breathOn = data.breath.lastHours != null;
+  const bpOn = data.bp.latest != null;
+  const gutFlagged = data.gut.today.length > 0;
+  const heartAlarm = data.heart.daysClear !== null && data.heart.daysClear <= 2;
+  const quiet = { fill: 'rgba(11,11,15,.05)', stroke: 'rgba(11,11,15,.30)' };
 
   return (
     <div className="card-lg relative overflow-hidden p-4">
-      {/* The figure — a proper silhouette, labelled like the medical
-          diagrams this card is quoting: dots on the anatomy, thin leader
-          lines, values resting in two clean rails. */}
+      {/* The figure — his body as an anatomy poster (owner's pick, option D):
+          flat organs drawn where they live, tinted by today's state, thin
+          leader lines out to values resting in two clean rails. */}
       <div className="relative mx-auto aspect-[8/9] w-full max-w-[320px]">
         <svg viewBox="0 0 320 360" className="h-full w-full" aria-hidden="true">
-          {/* pass 1 · everything in ink, inflated ~3.5px outward */}
-          <g fill="#0b0b0f" stroke="#0b0b0f">
-            <circle cx="160" cy="46" r="26" strokeWidth="7" />
-            <path d={TORSO} strokeWidth="7" />
-            <path d={ARM_R} fill="none" strokeWidth="20" strokeLinecap="round" />
-            <path d={ARM_L} fill="none" strokeWidth="20" strokeLinecap="round" />
-            <path d={LEG_R} fill="none" strokeWidth="34" strokeLinecap="round" />
-            <path d={LEG_L} fill="none" strokeWidth="34" strokeLinecap="round" />
-          </g>
-          {/* pass 2 · the same shapes in white, exact — interior joins vanish */}
-          <g fill="#ffffff" stroke="#ffffff">
-            <circle cx="160" cy="46" r="26" />
-            <path d={TORSO} />
-            <path d={ARM_R} fill="none" strokeWidth="13" strokeLinecap="round" />
-            <path d={ARM_L} fill="none" strokeWidth="13" strokeLinecap="round" />
-            <path d={LEG_R} fill="none" strokeWidth="27" strokeLinecap="round" />
-            <path d={LEG_L} fill="none" strokeWidth="27" strokeLinecap="round" />
-          </g>
-          {/* the heart, beating where it lives */}
+          <path d={BODY} fill="#ffffff" stroke="#0b0b0f" strokeWidth="2.5" strokeLinejoin="round" />
+          {/* trachea + lungs */}
+          <line
+            x1="160" y1="70" x2="160" y2="94"
+            stroke={breathOn ? '#0f766e' : quiet.stroke} strokeWidth="4" strokeLinecap="round"
+          />
+          <path d={LUNG_R} fill={breathOn ? 'rgba(20,184,166,.30)' : quiet.fill} stroke={breathOn ? '#0f766e' : quiet.stroke} strokeWidth="2" />
+          <path d={LUNG_L} fill={breathOn ? 'rgba(20,184,166,.30)' : quiet.fill} stroke={breathOn ? '#0f766e' : quiet.stroke} strokeWidth="2" />
+          {/* the heart, beating between them */}
           <path
             className="heartbeat"
-            fill="#d6336c"
-            d="M176,134 C169,128 163,122 163,115 C163,110 167,106 171.5,106 C173.5,106 175.3,107.2 176,109 C176.7,107.2 178.5,106 180.5,106 C185,106 189,110 189,115 C189,122 183,128 176,134 Z"
+            d={HEART}
+            fill={heartAlarm ? '#f59e0b' : '#d6336c'}
+            stroke="#0b0b0f" strokeWidth="2"
           />
-          {/* leader lines: anatomy → rail */}
+          {/* the gut coil */}
+          <path
+            d={GUT}
+            fill={gutFlagged ? 'rgba(245,158,11,.28)' : 'rgba(20,184,166,.22)'}
+            stroke={gutFlagged ? '#b45309' : '#0f766e'} strokeWidth="2" strokeLinecap="round"
+          />
+          <path d={GUT_COILS} fill="none" stroke={gutFlagged ? '#b45309' : '#0f766e'} strokeWidth="2" strokeLinecap="round" />
+          {/* the cuff on his right arm */}
+          <path d={CUFF} fill={bpOn ? 'rgba(34,211,238,.40)' : quiet.fill} stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="2" />
+          <line x1="94" y1="147" x2="111" y2="146" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
+          <line x1="94" y1="153" x2="111" y2="152" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
+          {/* leader lines: organ → rail */}
           <g stroke="#0b0b0f" strokeOpacity="0.28" strokeWidth="1.5">
-            <line x1="180" y1="80" x2="244" y2="80" />
-            <line x1="192" y1="124" x2="244" y2="124" />
+            <line x1="192" y1="108" x2="246" y2="100" />
+            <line x1="180" y1="128" x2="246" y2="134" />
             <line x1="86" y1="150" x2="66" y2="150" />
-            <line x1="152" y1="196" x2="66" y2="196" />
+            <line x1="144" y1="188" x2="66" y2="188" />
           </g>
         </svg>
 
-        {/* dots on the anatomy… */}
-        <AnatomyDot
-          pos={ANATOMY.breath.dot}
-          color={data.breath.lastHours != null ? 'bg-acc-teal-deep' : 'bg-app-surface2'}
-        />
-        <AnatomyDot pos={ANATOMY.heart.dot} color={heartColorFinal} />
-        <AnatomyDot
-          pos={ANATOMY.bp.dot}
-          color={data.bp.latest ? 'bg-acc-teal-deep' : 'bg-app-surface2'}
-        />
-        <AnatomyDot
-          pos={ANATOMY.gut.dot}
-          color={data.gut.today.length ? 'bg-acc-ember-deep' : 'bg-acc-teal-deep'}
-        />
-
-        {/* …their values in the rails */}
+        {/* the values in the rails */}
         <RailLabel
           rail={ANATOMY.breath.rail} top={ANATOMY.breath.top}
           label="Breath"
