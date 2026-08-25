@@ -81,7 +81,176 @@ model BodyStat {
   weight    Float?
   waist     Float?
   arms      Float?
+  // Body composition (health wave) — logged from the smart scale when he
+  // cares to; never invented, never required. All additive and nullable.
+  neckCm      Float?
+  bodyFatPct  Float?
+  muscleKg    Float?
+  visceralFat Float?
   source    String   @default("manual")
+  createdAt DateTime @default(now())
+}
+
+// ── Health wave: Mounjaro treatment as the spine ─────────────────────────
+// One user, tracker-not-diagnostic by design. Every insight computed from
+// these rows is deterministic arithmetic with "not enough data" guards;
+// correlation language only, never causation. All models additive.
+
+// Singleton profile (fixed id "profile"): baseline + editable dose plan.
+// dosePlan Json: [{week, mg|null, label?}] — null mg = checkpoint (doctor
+// review), nothing auto-escalates past what he and his doctor decide.
+model HealthProfile {
+  id            String   @id
+  heightCm      Float
+  startWeightKg Float
+  goalWeightKg  Float
+  milestonesKg  Json?
+  conditions    Json?
+  dosePlan      Json?
+  targets       Json?
+  reminders     Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// A Mounjaro injection. The FIRST row anchors the treatment clock: week 1
+// day 0 is the first logged injection, so "current week" and "next dose"
+// derive from real events, never from an assumed start date.
+model Injection {
+  id         String   @id @default(cuid())
+  at         DateTime @default(now())
+  doseMg     Float
+  penMg      Float?
+  clicks     Int?
+  // site: abdomen-left | abdomen-right | thigh-left | thigh-right |
+  //       arm-left | arm-right
+  site       String
+  onSchedule Boolean  @default(true)
+  needleInfo String?
+  penId      String?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  @@index([at])
+}
+
+// Side effects AND GI symptoms in one table — they are one timeline, and
+// the bloating↔AF question needs them joinable by day. kind is a fixed
+// vocabulary (nausea, bloating, gas, reflux, burping, constipation,
+// diarrhea, vomiting, abdominal-pain, fatigue, headache, dizziness,
+// appetite-suppression, fullness). severity 0-3 (None/Mild/Moderate/
+// Severe). context Json holds meal relation, minutes-after-meal, trigger
+// food, Bristol scale — optional detail, never required for a 2-tap log.
+model SymptomLog {
+  id        String   @id @default(cuid())
+  at        DateTime @default(now())
+  kind      String
+  severity  Int
+  context   Json?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([at, kind])
+}
+
+// An AF / palpitation episode. The boolean flags are the correlation
+// substrate (bloating? gas? after a meal?) — nullable means "not asked",
+// false means "asked and no", and analytics must respect the difference.
+model AfEpisode {
+  id            String    @id @default(cuid())
+  startedAt     DateTime
+  endedAt       DateTime?
+  durationMin   Int?
+  hrBpm         Int?
+  symptoms      String?
+  ecgRecorded   Boolean   @default(false)
+  bloating      Boolean?
+  gas           Boolean?
+  afterMeal     Boolean?
+  sleepRelated  Boolean?
+  exerciseRelated Boolean?
+  caffeine      Boolean?
+  dehydration   Boolean?
+  stress        Boolean?
+  notes         String?
+  createdAt     DateTime  @default(now())
+
+  @@index([startedAt])
+}
+
+model BpReading {
+  id        String   @id @default(cuid())
+  at        DateTime @default(now())
+  systolic  Int
+  diastolic Int
+  pulse     Int?
+  // context: morning | evening | before-med | after-med | clinic
+  context   String?
+  seated    Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([at])
+}
+
+// One row per night (unique bare date), numbers copied from the Löwenstein
+// prisma APP. The primary adherence metric is usageHours vs sleep, not a
+// pass/fail 4-hour line.
+model CpapNight {
+  id           String   @id @default(cuid())
+  night        DateTime @unique
+  usageHours   Float
+  ahi          Float?
+  leak         Float?
+  avgPressure  Float?
+  p95Pressure  Float?
+  maskComfort  Int?
+  sleepQuality Int?
+  notes        String?
+  createdAt    DateTime @default(now())
+}
+
+model LabResult {
+  id        String   @id @default(cuid())
+  date      DateTime
+  // test slug: ldl, hdl, total-chol, triglycerides, apob, lpa, hba1c,
+  // glucose, alt, ast, creatinine, egfr, potassium, magnesium, calcium,
+  // tsh, vitamin-d — free-form slugs allowed for anything else.
+  test      String
+  value     Float
+  unit      String
+  refLow    Float?
+  refHigh   Float?
+  lab       String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([test, date])
+}
+
+model Medication {
+  id         String    @id @default(cuid())
+  name       String
+  doseLabel  String
+  frequency  String
+  startedOn  DateTime?
+  stoppedOn  DateTime?
+  prescriber String?
+  notes      String?
+  createdAt  DateTime  @default(now())
+}
+
+// Lightweight by decision (the kill-list already executed calorie
+// counting): protein, water, fiber, meal flags. One row per bare day.
+model NutritionLog {
+  id        String   @id @default(cuid())
+  day       DateTime @unique
+  proteinG  Int?
+  waterMl   Int?
+  fiberG    Int?
+  meals     Int?
+  flags     Json?
+  notes     String?
   createdAt DateTime @default(now())
 }
 
