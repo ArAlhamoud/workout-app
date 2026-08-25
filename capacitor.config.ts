@@ -12,7 +12,7 @@ const serverUrl = process.env.CAP_SERVER_URL ?? 'https://workout-app-gamma-rouge
 
 const config: CapacitorConfig = {
   appId: 'com.aralhamoud.workout',
-  appName: 'Ar Workout',
+  appName: 'AR Health',
   webDir: 'public',
   server: {
     url: serverUrl,

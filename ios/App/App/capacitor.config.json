@@ -1,6 +1,6 @@
 {
 	"appId": "com.aralhamoud.workout",
-	"appName": "Ar Workout",
+	"appName": "AR Health",
 	"webDir": "public",
 	"server": {
 		"url": "https://workout-app-gamma-rouge.vercel.app",

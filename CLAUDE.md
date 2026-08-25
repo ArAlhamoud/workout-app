@@ -66,8 +66,8 @@ has the two-minute setup if he ever changes his mind.
 
 ## The health domain (Wave 5)
 
-The app is **Ar Workout** (the owner's name for it — 'Aurora' is only the
-design system): training AND a personal Mounjaro/health
+The app is **AR Health** (the owner's name, 2026-08-26 — 'Aurora' is only
+the design system): training AND a personal Mounjaro/health
 tracker (injections, GI, AF, CPAP, BP, labs — docs/HEALTH.md has the
 laws). Tracker, not diagnostic: correlation language only, "not enough
 data yet" over thin charts, nothing ever suggests a dose. The treatment

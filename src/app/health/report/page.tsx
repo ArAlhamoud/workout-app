@@ -140,7 +140,7 @@ export default async function DoctorReportPage({
             Health summary — {rangeLabel}
           </p>
           <p className="text-xs text-app-tx3 print:text-gray-600">
-            Self-reported data from Ar Workout · generated {fmt(new Date())} · not a
+            Self-reported data from AR Health · generated {fmt(new Date())} · not a
             medical record
           </p>
         </div>

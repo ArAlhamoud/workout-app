@@ -24,7 +24,7 @@ import BodyMap, { type BodyData } from '@/components/health/BodyMap';
 import CheckIn from '@/components/health/CheckIn';
 import HealthReminders from '@/components/health/HealthReminders';
 
-export const metadata: Metadata = { title: 'Ar Workout' };
+export const metadata: Metadata = { title: 'AR Health' };
 export const dynamic = 'force-dynamic';
 
 // The landing is an OVERALL health dashboard — but the dashboard is his
@@ -118,7 +118,7 @@ export default async function HomePage() {
       <div className="flex items-end justify-between pt-1">
         <div>
           <p className="section-label text-acc-cyan/80">
-            Ar Workout{day.day ? ` · day ${day.day}` : ''}
+            AR Health{day.day ? ` · day ${day.day}` : ''}
           </p>
           <h1 className="mt-0.5 font-round text-3xl font-extrabold leading-none tracking-tight text-app-tx1">
             {snapshot ? `${snapshot.currentKg}` : '—'}

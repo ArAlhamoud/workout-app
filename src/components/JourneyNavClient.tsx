@@ -23,7 +23,10 @@ export interface NavAction {
 
 const ROOMS: Array<{ href: string; label: string }> = [
   { href: '/train', label: 'Training' },
+  { href: '/workouts', label: 'History' },
   { href: '/stats', label: 'Stats' },
+  { href: '/program', label: 'Program' },
+  { href: '/exercises', label: 'Exercises' },
   { href: '/health/report', label: 'Doctor report' },
   { href: '/health/plan', label: 'Plan & profile' },
   { href: '/health/analytics', label: 'Patterns' },
