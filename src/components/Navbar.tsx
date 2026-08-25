@@ -12,7 +12,7 @@ function IconHome({ active }: { active: boolean }) {
   );
 }
 
-function IconHistory({ active }: { active: boolean }) {
+function IconTimeline({ active }: { active: boolean }) {
   return (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="9" />
@@ -21,13 +21,13 @@ function IconHistory({ active }: { active: boolean }) {
   );
 }
 
-function IconProgram({ active }: { active: boolean }) {
+function IconTrain({ active }: { active: boolean }) {
+  // A barbell: training is one section of the health app now.
   return (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-      <rect x="5" y="3" width="14" height="18" rx="2" />
-      <line x1="9" y1="8" x2="15" y2="8" />
-      <line x1="9" y1="12" x2="15" y2="12" />
-      <line x1="9" y1="16" x2="12" y2="16" />
+      <line x1="7" y1="12" x2="17" y2="12" />
+      <rect x="3" y="8" width="3" height="8" rx="1" />
+      <rect x="18" y="8" width="3" height="8" rx="1" />
     </svg>
   );
 }
@@ -61,11 +61,13 @@ function Tab({ href, label, icon, active }: { href: string; label: string; icon:
 export default function Navbar() {
   const pathname = usePathname();
 
-  const isHome    = pathname === '/';
-  const isHistory = pathname.startsWith('/workouts') && !pathname.startsWith('/workouts/new');
-  const isLog     = pathname.startsWith('/workouts/new');
-  const isProgram = pathname === '/program';
-  const isStats   = pathname === '/stats';
+  const isHome = pathname === '/' || (pathname.startsWith('/health') && !pathname.startsWith('/health/timeline'));
+  const isTrain =
+    pathname.startsWith('/train') ||
+    pathname === '/program' ||
+    (pathname.startsWith('/workouts') && !pathname.startsWith('/workouts/new'));
+  const isTimeline = pathname.startsWith('/health/timeline');
+  const isStats = pathname === '/stats';
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 print:hidden">
@@ -75,8 +77,8 @@ export default function Navbar() {
         {/* Frosted glass pill */}
         <div className="glass-overlay rounded-[28px] border border-app-border shadow-nav">
           <div className="grid grid-cols-5 h-[54px]">
-            <Tab href="/"        label="Home"    icon={<IconHome    active={isHome}    />} active={isHome}    />
-            <Tab href="/workouts" label="History" icon={<IconHistory active={isHistory} />} active={isHistory} />
+            <Tab href="/"      label="Home"  icon={<IconHome  active={isHome}  />} active={isHome}  />
+            <Tab href="/train" label="Train" icon={<IconTrain active={isTrain} />} active={isTrain} />
             {/* One entry point. The sheet this replaced offered a 2x3 grid of
                 day x duration, but /workouts/new already resolves the queued day
                 and its default length — so the grid asked a question the app had
@@ -87,14 +89,14 @@ export default function Navbar() {
                 aria-label="Start a workout"
                 className="flex h-12 w-12 items-center justify-center rounded-full transition-all active:scale-90 border-2 border-ink bg-acc-teal-deep shadow-[3px_3px_0_#0b0b0f] hover:brightness-105"
               >
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0b1120" strokeWidth="2.5" strokeLinecap="round">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round">
                   <line x1="12" y1="5" x2="12" y2="19" />
                   <line x1="5" y1="12" x2="19" y2="12" />
                 </svg>
               </Link>
             </div>
-            <Tab href="/program" label="Program"  icon={<IconProgram active={isProgram} />} active={isProgram} />
-            <Tab href="/stats"   label="Stats"    icon={<IconStats   active={isStats}   />} active={isStats}   />
+            <Tab href="/health/timeline" label="Timeline" icon={<IconTimeline active={isTimeline} />} active={isTimeline} />
+            <Tab href="/stats" label="Stats" icon={<IconStats active={isStats} />} active={isStats} />
           </div>
         </div>
       </div>

@@ -1,632 +1,303 @@
 import Link from 'next/link';
-import { getBodyStats, getWorkouts } from './actions';
+import type { Metadata } from 'next';
+import { getHealthData } from './health-actions';
+import { getWorkouts } from './actions';
+import { getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay } from '@/lib/program';
+import TrainingCard from '@/components/health/TrainingCard';
+import HealthReminders from '@/components/health/HealthReminders';
 import {
-  getDynamicPlan,
-  getTrainingStatus,
-  getExerciseCountForDuration,
-  getExercisesForDuration,
-  parseDayLetter,
-  queuedDay,
-  isTrainingSession,
-  recoveryActivity,
-} from '@/lib/program';
-import { phaseForWeek } from '@/lib/coach';
-import CoachCard from '@/components/CoachCard';
-import HomeVerdict from '@/components/HomeVerdict';
-import HealthHomeCard from '@/components/health/HealthHomeCard';
-import prisma from '@/lib/prisma';
-import {
-  treatmentClock,
+  afStats,
+  bpAverage,
+  cpapStats,
+  severeSymptomFlag,
+  siteLabel,
   nextSite,
+  treatmentClock,
+  weightSnapshot,
+  weightProjections,
   DEFAULT_DOSE_PLAN,
   DEFAULT_ROTATION,
+  SYMPTOM_LABEL,
   type DosePlanStep,
 } from '@/lib/health-insights';
-import StepsChipLabel from '@/components/StepsChipLabel';
-import { formatDuration, formatRelative, getMondayOfWeek, kgCompact, RPE_LABELS, weekKey } from '@/lib/format';
+import QuickLog from '@/components/health/QuickLog';
 
+export const metadata: Metadata = { title: 'Aurora Health' };
 export const dynamic = 'force-dynamic';
 
-const DURATIONS = [30, 45, 60] as const;
+const fmtDay = (d: Date) =>
+  d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 
-const RING_R = 46;
-const RING_C = 2 * Math.PI * RING_R;
+// The health-first Home: the app IS the health tracker, and training is
+// one room in it (the owner's re-orientation, Aug 25). The old training
+// home lives on at /train.
+export default async function HomePage() {
+  const [data, workouts] = await Promise.all([getHealthData(), getWorkouts()]);
+  const trainPlan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
+  const trainStatus = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
+  const { profile } = data;
+  const plan = ((profile.dosePlan as DosePlanStep[] | null) ?? DEFAULT_DOSE_PLAN);
+  const rotation =
+    ((profile.targets as { rotation?: string[] } | null)?.rotation ?? DEFAULT_ROTATION);
 
-/* ── Aurora day accents — light IS the information system ────
-   Day A glows violet · Day B glows teal. */
-type DayId = 'A' | 'B';
-type DayVariant = 'primary' | 'muted' | 'neutral' | 'done';
-
-const DAY_FOCUS: Record<DayId, string> = {
-  A: 'Chest · Quads · Shoulders',
-  B: 'Back · Hamstrings · Arms',
-};
-
-const DAY_ACCENT: Record<DayId, {
-  glowCard: string;
-  nebula: string;
-  monogram: string;
-  monogramQuiet: string;
-  tag: string;
-  chip: string;
-  accentText: string;
-  start: string;
-}> = {
-  A: {
-    glowCard: 'border-acc-violet/30 shadow-glow-violet',
-    nebula: 'radial-gradient(240px 120px at 100% 0%, rgba(139,92,246,0.13), transparent 70%)',
-    monogram: 'bg-gradient-to-br from-[#ddd6fe] to-acc-violet-deep text-white shadow-[0_0_24px_-4px_rgba(139,92,246,0.8)]',
-    monogramQuiet: 'border border-acc-violet/35 bg-acc-violet-deep/15 text-acc-violet',
-    tag: 'bg-gradient-to-r from-acc-violet to-[#a78bfa] text-white shadow-[0_0_14px_-2px_rgba(139,92,246,0.7)]',
-    chip: 'border-acc-violet/50 bg-gradient-to-br from-acc-violet/25 to-acc-violet-deep/10 text-acc-violet shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)]',
-    accentText: 'text-acc-violet',
-    start:
-      'bg-gradient-to-r from-acc-violet to-acc-violet-deep text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_30px_-6px_rgba(139,92,246,0.8)]',
-  },
-  B: {
-    glowCard: 'border-acc-teal/30 shadow-glow-teal',
-    nebula: 'radial-gradient(240px 120px at 100% 0%, rgba(94,234,212,0.13), transparent 70%)',
-    monogram: 'bg-gradient-to-br from-[#99f6e4] to-acc-teal-deep text-white shadow-[0_0_24px_-4px_rgba(45,212,191,0.8)]',
-    monogramQuiet: 'border border-acc-teal/35 bg-acc-teal-deep/15 text-acc-teal',
-    tag: 'bg-gradient-to-r from-acc-teal to-acc-cyan text-white shadow-[0_0_14px_-2px_rgba(94,234,212,0.7)]',
-    chip: 'border-acc-teal/50 bg-gradient-to-br from-acc-teal/25 to-acc-teal-deep/10 text-acc-teal shadow-[0_0_18px_-4px_rgba(45,212,191,0.55)]',
-    accentText: 'text-acc-teal',
-    start:
-      'bg-gradient-to-r from-acc-teal to-acc-cyan text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_30px_-6px_rgba(45,212,191,0.8)]',
-  },
-};
-
-/* Quiet duration chip — plain glass, only the 45-min default lights up */
-const CHIP_QUIET = 'border-app-border bg-ink/[0.04] text-app-tx2 hover:border-app-border-hi';
-
-/* Quiet aurora affordance for <details> summaries — full copy lives one tap away */
-const SUMMARY_CHIP =
-  'chip inline-flex w-fit cursor-pointer select-none list-none items-center gap-1.5 border border-app-border bg-ink/5 text-[10px] uppercase tracking-[0.12em] text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx2 [&::-webkit-details-marker]:hidden';
-
-function Chevron() {
-  return (
-    <svg
-      width="8"
-      height="8"
-      viewBox="0 0 10 10"
-      fill="none"
-      aria-hidden="true"
-      className="flex-none transition-transform duration-200 group-open:rotate-180"
-    >
-      <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+  const clock = treatmentClock(
+    data.injections, plan, new Date(),
+    data.firstInjectionAt ?? undefined, data.injectionCount,
   );
-}
-
-/* Effort spectrum segments for the lockout ladder (index by RPE 1–4) */
-const RPE_SEG_ON = [
-  '',
-  'border-rpe-easy/50 bg-rpe-easy/10 text-rpe-easy',
-  'border-rpe-med/50 bg-rpe-med/10 text-rpe-med',
-  'border-rpe-hard/50 bg-rpe-hard/10 text-rpe-hard',
-  'border-rpe-grind/50 bg-rpe-grind/10 text-rpe-grind',
-] as const;
-const RPE_SEG_CAP = [
-  '',
-  'border-rpe-easy/70 bg-rpe-easy/20 text-rpe-easy',
-  'border-rpe-med/70 bg-rpe-med/20 text-rpe-med',
-  'border-rpe-hard/70 bg-rpe-hard/20 text-rpe-hard',
-  'border-rpe-grind/70 bg-rpe-grind/20 text-rpe-grind',
-] as const;
-const RPE_CAP_FLAG = [
-  '',
-  'border-rpe-easy/70 text-rpe-easy',
-  'border-rpe-med/70 text-rpe-med',
-  'border-rpe-hard/70 text-rpe-hard',
-  'border-rpe-grind/70 text-rpe-grind',
-] as const;
-
-function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; doneWhen: string | null }) {
-  const accent = DAY_ACCENT[day];
-
-  /* Quiet done-row — this day was trained this block; links stay intact */
-  if (variant === 'done') {
-    return (
-      <section className="card p-3.5 opacity-80">
-        <div className="flex items-center gap-3">
-          <div className={`grid h-9 w-9 flex-none place-items-center rounded-xl font-round text-sm font-extrabold ${accent.monogramQuiet}`}>
-            {day}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-round text-sm font-bold text-app-tx1">Day {day}</h3>
-          </div>
-          <span className="chip flex-none border border-app-border bg-ink/5 text-[9px] uppercase tracking-[0.12em] text-app-tx3">
-            Done {doneWhen}
-          </span>
-        </div>
-        <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-          {DURATIONS.map((d) => (
-            <Link
-              key={d}
-              href={`/workouts/new?day=${day}&dur=${d}`}
-              className="pressable rounded-lg border border-app-border bg-ink/[0.03] py-1.5 text-center text-[11px] font-semibold tabular-nums text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx1"
-            >
-              {d}m
-            </Link>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  const primary = variant === 'primary';
-  return (
-    <section className={`card-lg relative overflow-hidden p-4 ${primary ? accent.glowCard : ''} ${variant === 'muted' ? 'opacity-60' : ''}`}>
-      {primary && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-card-lg" style={{ background: accent.nebula }} />
-      )}
-      <div className="relative">
-        <div className="flex items-center gap-3">
-          <div className={`grid h-11 w-11 flex-none place-items-center rounded-2xl font-round text-lg font-extrabold ${primary ? accent.monogram : accent.monogramQuiet}`}>
-            {day}
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-round text-base font-bold tracking-tight text-app-tx1">Day {day}</h3>
-            <p className="mt-0.5 text-xs text-app-tx2">{DAY_FOCUS[day]}</p>
-          </div>
-          {primary && (
-            <span className={`chip ml-auto flex-none text-[9px] uppercase tracking-[0.13em] ${accent.tag}`}>Up next</span>
-          )}
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {DURATIONS.map((d) => (
-            <Link
-              key={d}
-              href={`/workouts/new?day=${day}&dur=${d}`}
-              className={`pressable flex items-center justify-center rounded-xl border py-3 transition-colors ${
-                primary && d === 45 ? accent.chip : CHIP_QUIET
-              }`}
-            >
-              <span className="font-round text-[17px] font-semibold leading-none tabular-nums">
-                {d}
-                <span className="ml-0.5 text-[9px] font-bold uppercase tracking-[0.12em] opacity-70">min</span>
-              </span>
-            </Link>
-          ))}
-        </div>
-        {/* The boldest object on the page — full-width gradient Start */}
-        {primary && (
-          <Link
-            href={`/workouts/new?day=${day}&dur=45`}
-            className={`pressable mt-3 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-round text-[15px] font-bold tracking-tight transition-all hover:brightness-110 active:brightness-95 ${accent.start}`}
-          >
-            <svg width="13" height="14" viewBox="0 0 13 14" fill="none" aria-hidden="true" className="flex-none">
-              <path d="M1.5 1.6c0-.9 1-1.5 1.8-1L12 6a1.2 1.2 0 0 1 0 2.1L3.3 13.4c-.8.5-1.8-.1-1.8-1z" fill="currentColor" />
-            </svg>
-            Start Day {day} · 45 min
-          </Link>
-        )}
-      </div>
-    </section>
+  const site = nextSite(rotation, data.injections);
+  const weight = weightSnapshot(
+    profile,
+    ((profile.milestonesKg as number[] | null) ?? [120, 110, 103]),
+    data.bodyStats,
   );
-}
-
-export default async function Home() {
-  const [workouts, bodyStats, injections, healthProfile, firstInjection, injectionCount] = await Promise.all([
-    getWorkouts(),
-    getBodyStats(),
-    prisma.injection.findMany({ orderBy: { at: 'desc' }, take: 30, select: { at: true, doseMg: true, site: true } }),
-    // Read-only here: seeding belongs to the /health visit, not Home.
-    prisma.healthProfile.findUnique({ where: { id: 'profile' } }),
-    // True anchor + count — the clock must not drift when the take-30
-    // window outgrows history (adversary).
-    prisma.injection.findFirst({ orderBy: { at: 'asc' }, select: { at: true } }),
-    prisma.injection.count(),
-  ]);
-  const recentWorkouts = workouts.slice(0, 4);
-
-  const healthClock = treatmentClock(
-    injections,
-    ((healthProfile?.dosePlan as DosePlanStep[] | null) ?? DEFAULT_DOSE_PLAN),
-    new Date(),
-    firstInjection?.at ?? undefined,
-    injectionCount,
-  );
-  const healthSite = nextSite(
-    ((healthProfile?.targets as { rotation?: string[] } | null)?.rotation ?? DEFAULT_ROTATION),
-    injections,
-  );
-
-  // Weigh-in nudge: bodyStats come back date-ascending
-  const lastBodyStat = bodyStats[bodyStats.length - 1];
-  const daysSinceWeighIn = lastBodyStat
-    ? Math.floor((Date.now() - new Date(lastBodyStat.date).getTime()) / 86400000)
+  const projections = weight
+    ? weightProjections(data.bodyStats, ((profile.milestonesKg as number[] | null) ?? [120, 110, 103]))
     : null;
-
-  // Week stats (Monday-start weeks)
-  const weekStart = getMondayOfWeek(new Date());
-  const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
-
-  // Week volume
-  const weekVolume = workouts
-    .filter((w) => new Date(w.date) >= weekStart)
-    .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + (set.isWarmup ? 0 : set.weight * set.reps), 0), 0);
-
-  const isSunday = new Date().getDay() === 0;
-
-  // What his own log says to do today: train (alternating A/B), recover the
-  // day after a session, or nothing at all because it's already logged.
-  const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
-  const isTrainDay = plan.mode === 'train';
-  const isDoneToday = plan.mode === 'done-today';
-  // The glowing day. After a session logged today nothing glows — the day
-  // he did shows as done and the other stays neutral, both still startable.
-  const suggestedDay: DayId | null = isDoneToday ? null : plan.day;
-  const nextDay: DayId = queuedDay(plan);
-  const restActivity = recoveryActivity(plan.lastDay);
-
-  const lastWorkout = workouts[0] ?? null;
-
-  // Deload signal
-  const deloadWarning = (() => {
-    const cutoff = new Date(Date.now() - 14 * 86400000);
-    const recentSets = workouts
-      .filter((w) => new Date(w.date) >= cutoff)
-      .flatMap((w) => w.sets)
-      .filter((s) => s.rpe != null && s.rpe > 0);
-    if (recentSets.length < 6) return false;
-    const hardCount = recentSets.filter((s) => s.rpe! >= 3).length;
-    return hardCount / recentSets.length > 0.5;
-  })();
-
-  // Where the lifter actually is: fresh, ramping back after a layoff, or mid-program
-  const status = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
-  const programWeek = status.week;
-  const currentPhase = phaseForWeek(programWeek);
-
-  const phaseColor: Record<string, string> = {
-    LEARN:    'bg-ink/10 text-app-tx2',
-    BUILD:    'bg-acc-indigo/25 text-acc-indigo',
-    PUSH:     'bg-acc-teal/15 text-acc-teal',
-    DELOAD:   'bg-rpe-hard/15 text-rpe-hard',
-    REBUILD:  'bg-acc-violet/15 text-acc-violet',
-    EVALUATE: 'bg-acc-cyan/15 text-acc-cyan',
-  };
-
-  const hour = new Date().getHours();
-  const heroVerb = hour >= 17 ? 'Tonight' : 'Today';
-  const ringProgress = Math.min(1, sessionsThisWeek / 3);
-  const suggestedAccent = suggestedDay ? DAY_ACCENT[suggestedDay] : null;
-  // Whatever is next sits on top — after a logged session that's the alternate.
-  const dayOrder: DayId[] = nextDay === 'B' ? ['B', 'A'] : ['A', 'B'];
+  const af = afStats(data.afEpisodes);
+  const cpap = cpapStats(data.cpapNights);
+  const bp7 = bpAverage(data.bpReadings, 7);
+  const latestBp = data.bpReadings[0] ?? null;
+  const latestLdl = data.labs.find((l) => l.test === 'ldl') ?? null;
+  // "Today" is the local calendar day, not a rolling 24 hours — a symptom
+  // from yesterday evening is not "today" this afternoon.
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todaySymptoms = data.symptoms.filter((s) => new Date(s.at) >= todayStart);
+  const severe = severeSymptomFlag(
+    data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
+  );
 
   return (
-    <div className="space-y-4">
-
-      {/* ── The verdict — first thing on the screen ───────
-          Server-rendered from the plan + the training status. Inside the native
-          shell it upgrades itself with a HealthKit readiness read (and shows the
-          readiness banner above it); on the web that read never happens and this
-          is exactly the line the plan alone produces. */}
-      <HomeVerdict
-        status={status}
-        plan={plan}
-        lastSessionISO={lastWorkout?.date.toISOString() ?? null}
+    <div className="space-y-5 pb-8">
+      {/* Home owns the reminder arming too — /health/* pages arm via their
+          layout, and the most-visited screen must not be the one that
+          forgets (device-tester lesson from the hub-only mount). */}
+      <HealthReminders
+        nextDueISO={clock ? clock.nextDue.toISOString() : null}
+        lastInjectionISO={clock ? clock.lastInjection.toISOString() : null}
+        enabled={(profile.reminders as Record<string, boolean> | null) ?? {}}
       />
+      <div className="pt-1">
+        <p className="section-label text-acc-cyan/80">Aurora Health</p>
+        <h1 className="mt-0.5 font-round text-2xl font-bold tracking-tight text-app-tx1">
+          Today
+        </h1>
+      </div>
 
-      {/* The coach's voice — renders nothing until a note exists */}
-      <CoachCard />
-
-      {/* Health · Mounjaro — two lines, everything else behind the tap */}
-      <HealthHomeCard
-        started={!!healthClock}
-        weekLabel={healthClock ? `week ${healthClock.week}` : 'day 1'}
-        doseLine={healthClock ? `${healthClock.lastDoseMg} mg weekly` : ''}
-        nextLine={
-          healthClock
-            ? healthClock.nextDue.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-            : ''
-        }
-        site={healthClock ? healthSite : null}
-      />
-
-      {/* ── Hero: answer first — ring + tonight's plan ──── */}
-      <section className="card-lg relative overflow-hidden p-4">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 rounded-card-lg"
-          style={{
-            background:
-              'radial-gradient(220px 130px at 85% 0%, rgba(94,234,212,0.10), transparent 70%), radial-gradient(200px 140px at 0% 100%, rgba(139,92,246,0.10), transparent 70%)',
-          }}
-        />
-        <div className="relative flex items-center gap-4">
-          {/* Weekly activity ring */}
-          <div className="relative h-[72px] w-[72px] flex-none" role="img" aria-label={`${sessionsThisWeek} of 3 sessions this week`}>
-            <svg viewBox="0 0 112 112" fill="none" className="ring-svg h-full w-full" aria-hidden="true">
-              <defs>
-                <linearGradient id="weekRingGrad" x1="0" y1="0" x2="112" y2="112" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#5eead4" />
-                  <stop offset="0.6" stopColor="#22d3ee" />
-                  <stop offset="1" stopColor="#818cf8" />
-                </linearGradient>
-                <filter id="weekRingGlow" x="-40%" y="-40%" width="180%" height="180%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#2dd4bf" floodOpacity="0.8" />
-                </filter>
-              </defs>
-              <circle cx="56" cy="56" r={RING_R} stroke="rgba(255,255,255,0.09)" strokeWidth="10" />
-              {ringProgress > 0 && (
-                <circle
-                  cx="56"
-                  cy="56"
-                  r={RING_R}
-                  stroke="url(#weekRingGrad)"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(ringProgress * RING_C).toFixed(1)} ${RING_C.toFixed(1)}`}
-                  filter="url(#weekRingGlow)"
-                />
-              )}
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="font-round text-lg font-light leading-none tabular-nums text-app-tx1">
-                <b className="font-bold text-acc-teal">{sessionsThisWeek}</b>
-                <span className="text-sm text-app-tx3">/3</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Only fact here HomeVerdict does not already carry. */}
-          {sessionsThisWeek > 0 && (
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <p className="text-xs tabular-nums text-app-tx2">
-                <b className="font-semibold text-acc-teal">{kgCompact(weekVolume)} kg</b> this week
-              </p>
-            </div>
-          )}
-          <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
-            <span className="min-w-0 text-[11px] text-app-tx2"><StepsChipLabel /></span>
-            {status.mode === 'return' ? (
-              <span className="chip flex-none border border-acc-ember/40 bg-acc-ember/10 text-acc-ember">
-                Return W{status.week} · {status.returnWeek.phase}
-              </span>
-            ) : (
-              <span className={`chip flex-none ${phaseColor[currentPhase.phase] ?? 'bg-ink/10 text-app-tx2'}`}>
-                Wk {programWeek} · {currentPhase.phase}
-              </span>
-            )}
-        
-          </div>
-        </div>
-
-      </section>
-
-      {/* ── Return Protocol — exclusive ember, coach directive ── */}
-      {status.mode === 'return' && (
-        <section className="card-lg relative overflow-hidden border-acc-ember/25 p-4">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-card-lg"
-            style={{ background: 'radial-gradient(260px 130px at 12% 0%, rgba(245,158,11,0.14), transparent 70%)' }}
-          />
-          <div className="relative">
-            <div className="flex items-center gap-2">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" className="flex-none">
-                <path d="M7 1.2c1.4 2 .3 3-.4 4.2C5.8 6.7 6 8.2 7.4 9c-.2-1 .2-1.8 1-2.5.9 1.1 2.1 2.5 2.1 4.1A3.9 3.9 0 0 1 6.6 14 4.6 4.6 0 0 1 2.5 9.4C2.5 5.6 6.4 4.4 7 1.2z" fill="#fcd34d" opacity=".9" />
-              </svg>
-              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">Return protocol</span>
-              <span className="chip ml-auto flex-none bg-gradient-to-r from-acc-ember to-acc-ember-deep text-[9px] uppercase tracking-[0.14em] text-white shadow-[0_0_18px_-4px_rgba(245,158,11,0.75)]">
-                {status.returnWeek.phase}
-              </span>
-            </div>
-
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="glow-amber font-round text-3xl font-light tabular-nums tracking-tight">Week {status.week}</span>
-              <span className="text-sm text-app-tx2">of 4</span>
-              <span className="ml-auto flex items-center gap-1.5" aria-hidden="true">
-                {[1, 2, 3, 4].map((i) => (
-                  <span
-                    key={i}
-                    className={`h-1.5 w-6 rounded-full ${
-                      i <= status.week
-                        ? 'bg-gradient-to-r from-acc-ember to-acc-ember-deep shadow-[0_0_12px_-1px_rgba(245,158,11,0.8)]'
-                        : 'bg-ink/10'
-                    }`}
-                  />
-                ))}
-              </span>
-            </div>
-
-            {/* Coach voice — one line of personality on the glance layer */}
-            <p className="mt-3 border-t border-ink/10 pt-3 text-[11px] font-semibold uppercase tracking-[0.13em]">
-              <span className="glow-amber">We rebuild. We don&apos;t test.</span>
-            </p>
-
-            <div className="mt-3 flex border-t border-ink/10 pt-3">
-              <div className="flex flex-1 flex-col gap-0.5">
-                <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.loadPct}%</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">load</span>
-              </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
-                <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.sessions}</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">sessions</span>
-              </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
-                <b className="font-round text-[15px] font-semibold text-app-tx1">{RPE_LABELS[status.returnWeek.rpeCap]}</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">cap</span>
-              </div>
-            </div>
-
-            {/* Full directive + effort ladder — one tap away */}
-            <details className="group mt-3">
-              <summary className={`${SUMMARY_CHIP} border-acc-ember/30 bg-acc-ember/10 text-acc-ember hover:border-acc-ember/50 hover:text-acc-ember`}>
-                The rules
-                <Chevron />
-              </summary>
-
-              <p className="mt-3 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
-                {status.daysOff} days off. Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
-                <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
-              </p>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
-
-              {/* Effort-ceiling lockout ladder */}
-              <div className="mt-4" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
-                <div className="flex items-baseline justify-between text-[10px] font-bold uppercase tracking-[0.16em]">
-                  <span className="text-app-tx3">Effort ceiling</span>
-                  <span className="glow-amber">{RPE_LABELS[status.returnWeek.rpeCap]}</span>
-                </div>
-                <div className="mt-2 grid grid-cols-4 gap-1.5">
-                  {RPE_LABELS.slice(1).map((label, i) => {
-                    const v = i + 1;
-                    const cap = status.returnWeek.rpeCap;
-                    const seg =
-                      v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-ink/[0.02] text-app-tx3 line-through opacity-60';
-                    return (
-                      <span
-                        key={label}
-                        className={`relative rounded-lg border py-2 text-center text-[9.5px] font-extrabold uppercase tracking-[0.13em] ${seg}`}
-                      >
-                        {label}
-                        {v === cap && (
-                          <span className={`absolute -top-2 right-1 rounded border bg-[#140f03] px-1 py-px text-[7px] font-extrabold tracking-[0.1em] no-underline ${RPE_CAP_FLAG[v]}`}>
-                            CAP
-                          </span>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 flex items-baseline justify-between text-[11px]">
-                  <span className="text-app-tx3">Max effort this week</span>
-                  <b className="font-semibold text-acc-ember">Nothing past {RPE_LABELS[status.returnWeek.rpeCap]}</b>
-                </div>
-              </div>
-            </details>
-          </div>
-        </section>
-      )}
-
-      {/* ── Weigh-in nudge ──────────────────────────────── */}
-      {/* Widened from >7 days to also cover Sunday: this absorbed the weigh-in
-          chip that used to sit in the greeting header, so there is one weigh-in
-          affordance instead of two. */}
-      {daysSinceWeighIn !== null && (daysSinceWeighIn > 7 || isSunday) && (
-        <Link
-          href="/stats"
-          className="card-lg pressable flex items-center gap-3 border-acc-teal/30 bg-acc-teal/[0.06] px-4 py-3 shadow-[0_0_24px_-8px_rgba(45,212,191,0.45)] transition-colors hover:border-acc-teal/50"
-        >
-          <span className="chip flex-shrink-0 border border-acc-teal/40 bg-acc-teal/10 text-acc-teal">⚖ Weigh-in</span>
-          <span className="text-xs tabular-nums text-acc-teal/80">{daysSinceWeighIn}d ago · log →</span>
-        </Link>
-      )}
-
-      {/* ── Deload warning ──────────────────────────────── */}
-      {deloadWarning && status.mode !== 'return' && (
-        <div className="card-lg border-rpe-hard/30 bg-rpe-hard/[0.07] px-4 py-3.5">
-          <div className="flex items-center gap-3">
-            <span className="flex-shrink-0 text-xl leading-none">⚠️</span>
-            <p className="text-sm font-bold text-rpe-hard">Fatigue signal</p>
-            <span className="ml-auto flex-shrink-0 text-[11px] tabular-nums text-app-tx2">&gt;50% Hard+ · 14d</span>
-          </div>
-          <details className="group mt-2">
-            <summary className={`${SUMMARY_CHIP} border-rpe-hard/30 text-rpe-hard hover:border-rpe-hard/50 hover:text-rpe-hard`}>
-              More
-              <Chevron />
-            </summary>
-            <p className="mt-2 text-xs leading-relaxed text-app-tx2">
-              Over 50% of your sets in the last 2 weeks were Hard or Grind. Consider a lighter session — reduce weights by 40–50% and focus on form.
-            </p>
-          </details>
-        </div>
-      )}
-
-      {/* ── Training days ───────────────────────────────── */}
-      <div>
-        <div className="mb-3 flex items-baseline justify-between px-1">
-          <p className="section-label">
-            {isTrainDay ? (hour >= 17 ? 'Tonight’s session' : 'Today’s session') : 'Next session'}
+      {/* Static safety line — shown only on repeated severe red-flag logs.
+          The app never judges urgency; it only refuses to stay silent. */}
+      {severe && (
+        <div className="card border-rpe-hard/40 px-4 py-3">
+          <p className="text-sm text-app-tx1">
+            You&apos;ve logged repeated severe symptoms in the last two days. This app can&apos;t
+            judge how serious that is — a clinician can. Consider getting checked.
           </p>
         </div>
+      )}
 
-        {/* Both days stay startable, always — the plan suggests, it never blocks. */}
-        <div className="space-y-2.5">
-          {dayOrder.map((day) => {
-            const justLogged = isDoneToday && plan.day === day;
-            const variant: DayVariant = justLogged
-              ? 'done'
-              : suggestedDay === day
-                ? 'primary'
-                : suggestedDay
-                  ? 'muted'
-                  : 'neutral';
-            return (
-              <DayCard
-                key={day}
-                day={day}
-                variant={variant}
-                doneWhen={justLogged && lastWorkout ? formatRelative(lastWorkout.date) : null}
-              />
-            );
-          })}
+      {/* Hero */}
+      <div className="card-lg p-4">
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <div className="font-round text-3xl font-light tabular-nums glow-cyan">
+              {weight ? `${weight.currentKg} kg` : '— kg'}
+            </div>
+            <p className="metric-label mt-0.5">
+              {weight ? `${weight.lostKg >= 0 ? '−' : '+'}${Math.abs(weight.lostKg)} kg · ${weight.pctLost}% · BMI ${weight.bmi}` : 'no weigh-in yet'}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="font-round text-xl font-semibold tabular-nums text-app-tx1">
+              {clock ? `${clock.lastDoseMg} mg` : '2.5 mg'}
+            </div>
+            <p className="metric-label mt-0.5">
+              {clock ? `week ${clock.week}` : 'week 1 · not started'}
+            </p>
+          </div>
         </div>
-      </div>
-
-      {/* ── Recent workouts ─────────────────────────────── */}
-      <div>
-        <div className="mb-3 flex items-baseline justify-between px-1">
-          <p className="section-label">Recent</p>
-          {workouts.length > 4 && (
-            <Link href="/workouts" className="text-[11px] font-semibold text-acc-teal transition-colors hover:text-acc-teal">
-              See all →
-            </Link>
+        <div className="mt-3 border-t border-ink/10 pt-3">
+          {clock ? (
+            <p className="text-sm text-app-tx2">
+              Next injection <b className="text-app-tx1">{fmtDay(clock.nextDue)}</b>
+              {clock.nextPlanned?.mg != null ? (
+                <> · <b className="text-app-tx1">{clock.nextPlanned.mg} mg</b></>
+              ) : clock.nextPlanned ? (
+                <> · <b className="text-acc-ember">{clock.nextPlanned.label ?? 'Doctor review'} — no dose scheduled</b></>
+              ) : (
+                <> · <b className="text-acc-ember">plan ends here — extend it in Plan</b></>
+              )}
+              {' '}· {siteLabel(site)}
+            </p>
+          ) : (
+            <p className="text-sm text-app-tx2">
+              Log your first injection to start the treatment clock — week 1 begins there.
+            </p>
           )}
         </div>
+        <Link
+          href="/health/injection"
+          className="mt-3 flex w-full items-center justify-center rounded-card-lg bg-gradient-to-r from-acc-cyan to-acc-teal py-3 text-sm font-bold text-white shadow-glow-teal transition-all active:scale-[0.99]"
+        >
+          {clock ? 'Injection day →' : 'Log first injection →'}
+        </Link>
+      </div>
 
-        {recentWorkouts.length === 0 ? (
-          <div className="card-lg border-dashed p-8 text-center">
-            <p className="mb-1 font-medium text-app-tx2">No workouts yet</p>
-            <p className="mb-4 text-sm text-app-tx3">Tap a duration above to begin</p>
-            <Link href="/program" className="text-sm text-acc-teal transition-colors hover:text-acc-teal">
-              Read the program first →
-            </Link>
+      {/* Quick logs — the <10 second promise lives here */}
+      <QuickLog />
+
+      {/* Training — one room in the house now */}
+      <TrainingCard
+        plan={trainPlan}
+        nextDay={queuedDay(trainPlan)}
+        returnMode={trainStatus.mode === 'return'}
+      />
+
+      {/* Weight milestones */}
+      {weight && (
+        <div className="card-lg p-4">
+          <div className="mb-2 flex items-baseline justify-between">
+            <p className="section-label">Weight</p>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-app-tx3">
+              {weight.startKg} → {weight.currentKg} → {profile.goalWeightKg} kg
+            </span>
           </div>
-        ) : (
           <div className="space-y-2">
-            {recentWorkouts.map((workout) => {
-              const dayLetter = parseDayLetter(workout.name);
-              const vol = workout.sets.reduce((s, set) => s + set.weight * set.reps, 0);
+            {weight.kgMilestones.map((m) => {
+              const total = weight.startKg - m.kg;
+              const done = Math.min(total, Math.max(0, weight.startKg - weight.currentKg));
+              const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+              const proj = projections?.find((p) => p.targetKg === m.kg);
               return (
-                <Link
-                  key={workout.id}
-                  href={`/workouts/${workout.id}`}
-                  className="card pressable flex items-center px-4 py-3.5 transition-all hover:border-app-border-hi active:scale-[0.99]"
-                >
-                  {/* Day badge — A glows violet, B glows teal */}
-                  {dayLetter ? (
-                    <span className={`mr-3 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl font-round text-[13px] font-extrabold ${
-                      dayLetter === 'A'
-                        ? 'border border-acc-violet/30 bg-acc-violet-deep/15 text-acc-violet'
-                        : 'border border-acc-teal/30 bg-acc-teal-deep/15 text-acc-teal'
-                    }`}>
-                      {dayLetter}
+                <div key={m.kg}>
+                  <div className="flex items-baseline justify-between text-xs">
+                    <span className={m.achieved ? 'text-acc-teal font-semibold' : 'text-app-tx2'}>
+                      {m.kg} kg {m.achieved ? '· reached' : ''}
                     </span>
-                  ) : (
-                    <span className="mr-3 h-8 w-8 flex-shrink-0 rounded-xl border border-app-border bg-ink/5" />
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-app-tx1">{workout.name}</div>
+                    {!m.achieved && proj?.estimatedDate && (
+                      <span className="text-app-tx3">
+                        ~{proj.estimatedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                      </span>
+                    )}
                   </div>
-
-                  <div className="ml-4 flex-shrink-0 text-right">
-                    <div className="text-[11px] text-app-tx2">{formatRelative(workout.date)}</div>
-                    <div className="mt-0.5 text-[11px] tabular-nums text-app-tx3">
-                      {vol > 0 && `${kgCompact(vol)} kg`}
-                      {workout.duration ? ` · ${formatDuration(workout.duration)}` : ''}
-                    </div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink/10">
+                    <div
+                      className={`h-full rounded-full ${m.achieved ? 'bg-acc-teal' : 'bg-acc-cyan/70'}`}
+                      style={{ width: `${pct}%` }}
+                    />
                   </div>
-                </Link>
+                </div>
               );
             })}
           </div>
-        )}
+          {projections && (
+            <p className="mt-2 text-[10px] text-app-tx3">
+              Dates are projections from your recent trend — not a guarantee.
+            </p>
+          )}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {weight.pctMilestones.map((m) => (
+              <span
+                key={m.pct}
+                className={`chip border ${m.achieved ? 'border-acc-teal/40 bg-acc-teal/10 text-acc-teal' : 'border-app-border bg-app-surface2 text-app-tx3'}`}
+              >
+                {m.pct}%
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Glance cards */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className="card p-3.5">
+          <p className="metric-label">AF</p>
+          <div className="metric-value mt-1 text-app-tx1">
+            {af.daysSinceLast === null ? '—' : af.daysSinceLast}
+            <span className="ml-1 text-xs font-semibold text-app-tx3">
+              {af.daysSinceLast === null ? 'no episodes logged' : 'days since episode'}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-app-tx3">{af.thisMonth} this month</p>
+        </div>
+        <div className="card p-3.5">
+          <p className="metric-label">CPAP</p>
+          <div className="metric-value mt-1 text-app-tx1">
+            {cpap.avgHours30d ?? '—'}
+            <span className="ml-1 text-xs font-semibold text-app-tx3">h/night · 30d</span>
+          </div>
+          <p className="mt-1 text-[11px] text-app-tx3">
+            {cpap.avgAhi30d != null ? `AHI ${cpap.avgAhi30d} · ` : ''}
+            {cpap.streak > 1 ? `${cpap.streak}-night streak` : `${cpap.nights30d} nights logged`}
+          </p>
+        </div>
+        <div className="card p-3.5">
+          <p className="metric-label">Blood pressure</p>
+          <div className="metric-value mt-1 text-app-tx1">
+            {latestBp ? `${latestBp.systolic}/${latestBp.diastolic}` : '—'}
+          </div>
+          <p className="mt-1 text-[11px] text-app-tx3">
+            {bp7 ? `7-day avg ${bp7.systolic}/${bp7.diastolic} (${bp7.n})` : 'log 3+ readings for an average'}
+          </p>
+        </div>
+        <div className="card p-3.5">
+          <p className="metric-label">Labs</p>
+          <div className="metric-value mt-1 text-app-tx1">
+            {latestLdl ? latestLdl.value : '—'}
+            <span className="ml-1 text-xs font-semibold text-app-tx3">LDL mmol/L</span>
+          </div>
+          <p className="mt-1 text-[11px] text-app-tx3">
+            {latestLdl ? new Date(latestLdl.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'no labs yet'}
+          </p>
+        </div>
+        <div className="card p-3.5">
+          <p className="metric-label">GI today</p>
+          <div className="metric-value mt-1 text-app-tx1">
+            {todaySymptoms.length ? todaySymptoms.length : '—'}
+            <span className="ml-1 text-xs font-semibold text-app-tx3">
+              {todaySymptoms.length === 1 ? 'symptom logged' : 'symptoms logged'}
+            </span>
+          </div>
+          <p className="mt-1 text-[11px] text-app-tx3">
+            {todaySymptoms.length
+              ? todaySymptoms.slice(0, 2).map((s) => SYMPTOM_LABEL[s.kind] ?? s.kind).join(' · ')
+              : 'nothing logged today'}
+          </p>
+        </div>
+        <div className="card p-3.5">
+          <p className="metric-label">Medications</p>
+          <div className="metric-value mt-1 text-app-tx1">{data.meds.filter((m) => !m.stoppedOn).length}</div>
+          <p className="mt-1 text-[11px] text-app-tx3">
+            {data.meds.filter((m) => !m.stoppedOn).map((m) => m.name.split(' ')[0]).join(' · ') || 'none'}
+          </p>
+        </div>
       </div>
+
+      {/* Section links */}
+      <div className="space-y-2">
+        {[
+          { href: '/health/timeline', label: 'Timeline', sub: 'everything on one axis' },
+          { href: '/health/analytics', label: 'Patterns', sub: 'side effects · AF · CPAP vs weight' },
+          { href: '/health/report', label: 'Doctor report', sub: 'printable · English + العربية' },
+          { href: '/health/plan', label: 'Plan & profile', sub: 'dose plan · labs · reminders · edits' },
+        ].map((l) => (
+          <Link
+            key={l.href}
+            href={l.href}
+            className="card flex items-center justify-between px-4 py-3 transition-colors hover:border-app-border-hi"
+          >
+            <div>
+              <p className="text-sm font-semibold text-app-tx1">{l.label}</p>
+              <p className="text-[11px] text-app-tx3">{l.sub}</p>
+            </div>
+            <span className="text-app-tx3">→</span>
+          </Link>
+        ))}
+      </div>
+
+      <p className="text-[10px] leading-relaxed text-app-tx3">
+        This is a tracker, not a diagnostic tool. Patterns shown are observations from your own
+        logs — decisions about doses and medications belong to you and your doctor.
+      </p>
     </div>
   );
 }
