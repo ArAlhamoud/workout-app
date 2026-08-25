@@ -4,12 +4,18 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * Remote-mode shell: the native app loads the deployed Vercel PWA directly,
  * so `webDir` is unused (but must exist — `public/` satisfies the CLI).
  */
+// Simulator testing of an unmerged branch: point one build at its Vercel
+// preview with e.g. `CAP_SERVER_URL=https://<preview>.vercel.app npm run
+// ios:deploy`. Unset, the shell targets production — the phone's build must
+// only ever come from a deploy without the override.
+const serverUrl = process.env.CAP_SERVER_URL ?? 'https://workout-app-gamma-rouge.vercel.app';
+
 const config: CapacitorConfig = {
   appId: 'com.aralhamoud.workout',
   appName: 'Aurora',
   webDir: 'public',
   server: {
-    url: 'https://workout-app-gamma-rouge.vercel.app',
+    url: serverUrl,
     allowNavigation: [
       'workout-app-gamma-rouge.vercel.app',
       '*.vercel.app',
