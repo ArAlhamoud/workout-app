@@ -26,9 +26,11 @@ export default function HealthHomeCard({
     >
       <div className="mb-1.5 flex items-center justify-between">
         <p className="section-label">Health · Mounjaro</p>
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-acc-cyan/80">
-          {weekLabel}
-        </span>
+        {started && (
+          <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-acc-cyan/80">
+            {weekLabel}
+          </span>
+        )}
       </div>
       <p className="text-sm text-app-tx1">
         {started ? (
@@ -38,10 +40,9 @@ export default function HealthHomeCard({
             {site && <span className="text-app-tx3"> · {siteLabel(site)}</span>}
           </>
         ) : (
-          <>
-            <b>Starting today.</b>
-            <span className="text-app-tx2"> Log the first 2.5 mg dose to start the clock →</span>
-          </>
+          // No "day 1", no assumed dose: the clock starts at the first
+          // LOGGED injection and nowhere else (the module's anchor law).
+          <span className="text-app-tx2">Log your first dose to start the clock →</span>
         )}
       </p>
     </Link>

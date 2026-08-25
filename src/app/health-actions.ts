@@ -31,9 +31,12 @@ export async function ensureHealthProfile() {
   if (existing) return existing;
 
   // First visit: seed his baseline. Values are starting points, not truth —
-  // every one is editable in the UI.
-  const profile = await prisma.healthProfile.create({
-    data: {
+  // every one is editable on /health/plan. Upsert, not create: two racing
+  // first visits must not throw on the unique id (data-steward).
+  const profile = await prisma.healthProfile.upsert({
+    where: { id: PROFILE_ID },
+    update: {},
+    create: {
       id: PROFILE_ID,
       heightCm: 169,
       startWeightKg: 133,
@@ -51,16 +54,21 @@ export async function ensureHealthProfile() {
   });
 
   // Seed medications + the known baseline lab only alongside a fresh
-  // profile, so a deliberate delete stays deleted.
-  await prisma.medication.createMany({
-    data: [
-      { name: 'Mounjaro (tirzepatide)', doseLabel: 'per dose plan', frequency: 'weekly' },
-      { name: 'Nebilet (nebivolol)', doseLabel: '10 mg', frequency: 'daily' },
-    ],
-  });
-  await prisma.labResult.create({
-    data: { date: new Date(), test: 'ldl', value: 4.54, unit: 'mmol/L', refHigh: 3.4, notes: 'baseline (pre-app)' },
-  });
+  // profile, so a deliberate delete stays deleted. Best-effort: a failed
+  // seed row must not take the whole health hub down.
+  try {
+    await prisma.medication.createMany({
+      data: [
+        { name: 'Mounjaro (tirzepatide)', doseLabel: 'per dose plan', frequency: 'weekly' },
+        { name: 'Nebilet (nebivolol)', doseLabel: '10 mg', frequency: 'daily' },
+      ],
+    });
+    await prisma.labResult.create({
+      data: { date: new Date(), test: 'ldl', value: 4.54, unit: 'mmol/L', refHigh: 3.4, notes: 'baseline (pre-app)' },
+    });
+  } catch {
+    /* seeds are conveniences; the profile is the contract */
+  }
   return profile;
 }
 
@@ -239,21 +247,22 @@ export async function logCpapNight(data: {
   }
   const night = new Date(`${data.night}T00:00:00.000Z`);
   if (Number.isNaN(night.getTime())) throw new Error('Bad night date');
-  const fields = {
+  // PATCH semantics (adversary blocker class): only fields actually
+  // provided reach the update — re-entering corrected hours must never
+  // null out the AHI/leak/pressure that were saved earlier.
+  const patch: Record<string, number | string> = {
     usageHours: Math.round(data.usageHours * 10) / 10,
-    ahi: data.ahi != null && data.ahi >= 0 && data.ahi < 150 ? data.ahi : null,
-    leak: data.leak != null && data.leak >= 0 ? data.leak : null,
-    avgPressure: data.avgPressure != null && data.avgPressure > 0 && data.avgPressure < 30 ? data.avgPressure : null,
-    p95Pressure: data.p95Pressure != null && data.p95Pressure > 0 && data.p95Pressure < 30 ? data.p95Pressure : null,
-    maskComfort: data.maskComfort != null && data.maskComfort >= 0 && data.maskComfort <= 3 ? Math.round(data.maskComfort) : null,
-    notes: data.notes?.slice(0, 300) || null,
   };
-  // Re-entering a night corrects it — the prisma APP numbers sometimes
-  // update after sync, and one row per night must stay one row.
+  if (data.ahi != null && data.ahi >= 0 && data.ahi < 150) patch.ahi = data.ahi;
+  if (data.leak != null && data.leak >= 0) patch.leak = data.leak;
+  if (data.avgPressure != null && data.avgPressure > 0 && data.avgPressure < 30) patch.avgPressure = data.avgPressure;
+  if (data.p95Pressure != null && data.p95Pressure > 0 && data.p95Pressure < 30) patch.p95Pressure = data.p95Pressure;
+  if (data.maskComfort != null && data.maskComfort >= 0 && data.maskComfort <= 3) patch.maskComfort = Math.round(data.maskComfort);
+  if (data.notes) patch.notes = data.notes.slice(0, 300);
   await prisma.cpapNight.upsert({
     where: { night },
-    update: fields,
-    create: { night, ...fields },
+    update: patch,
+    create: { night, ...patch } as never,
   });
   revalidateHealth();
 }
@@ -303,16 +312,23 @@ export async function logNutrition(data: {
 }) {
   const day = new Date(`${data.day}T00:00:00.000Z`);
   if (Number.isNaN(day.getTime())) throw new Error('Bad day');
+  // PATCH semantics (adversary BLOCKER): protein in the morning, water in
+  // the evening is the NORMAL flow — the evening upsert must never null
+  // the morning's protein. Only provided fields reach the update.
+  const patch: Record<string, number | object> = {};
   const bounded = (v: number | undefined, max: number) =>
-    v != null && v >= 0 && v <= max ? Math.round(v) : null;
-  const fields = {
-    proteinG: bounded(data.proteinG, 400),
-    waterMl: bounded(data.waterMl, 10_000),
-    fiberG: bounded(data.fiberG, 150),
-    meals: bounded(data.meals, 12),
-    flags: data.flags ? (data.flags as object) : undefined,
-  };
-  await prisma.nutritionLog.upsert({ where: { day }, update: fields, create: { day, ...fields } });
+    v != null && v >= 0 && v <= max ? Math.round(v) : undefined;
+  const p = bounded(data.proteinG, 400);
+  const w = bounded(data.waterMl, 10_000);
+  const f = bounded(data.fiberG, 150);
+  const m = bounded(data.meals, 12);
+  if (p !== undefined) patch.proteinG = p;
+  if (w !== undefined) patch.waterMl = w;
+  if (f !== undefined) patch.fiberG = f;
+  if (m !== undefined) patch.meals = m;
+  if (data.flags) patch.flags = data.flags as object;
+  if (!Object.keys(patch).length) return;
+  await prisma.nutritionLog.upsert({ where: { day }, update: patch, create: { day, ...patch } as never });
   revalidateHealth();
 }
 
@@ -320,7 +336,7 @@ export async function logNutrition(data: {
 
 export async function getHealthData() {
   const profile = await ensureHealthProfile();
-  const [injections, symptoms, afEpisodes, bpReadings, cpapNights, labs, meds, bodyStats, nutrition] =
+  const [injections, symptoms, afEpisodes, bpReadings, cpapNights, labs, meds, bodyStats, nutrition, firstInjection, injectionCount] =
     await Promise.all([
       prisma.injection.findMany({ orderBy: { at: 'desc' }, take: 200 }),
       prisma.symptomLog.findMany({ orderBy: { at: 'desc' }, take: 1000 }),
@@ -331,6 +347,16 @@ export async function getHealthData() {
       prisma.medication.findMany({ orderBy: { createdAt: 'asc' } }),
       prisma.bodyStat.findMany({ orderBy: { date: 'asc' } }),
       prisma.nutritionLog.findMany({ orderBy: { day: 'desc' }, take: 120 }),
+      // The TRUE anchor and dose count, independent of any take-window:
+      // the treatment clock must never re-anchor because history outgrew
+      // a query limit (adversary).
+      prisma.injection.findFirst({ orderBy: { at: 'asc' }, select: { at: true } }),
+      prisma.injection.count(),
     ]);
-  return { profile, injections, symptoms, afEpisodes, bpReadings, cpapNights, labs, meds, bodyStats, nutrition };
+  return {
+    profile, injections, symptoms, afEpisodes, bpReadings, cpapNights, labs,
+    meds, bodyStats, nutrition,
+    firstInjectionAt: firstInjection?.at ?? null,
+    injectionCount,
+  };
 }

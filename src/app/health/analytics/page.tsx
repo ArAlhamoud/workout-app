@@ -7,18 +7,11 @@ import {
   dayRelativeSymptoms,
   severityByDose,
   weightSnapshot,
+  SYMPTOM_LABEL as KIND_LABEL,
 } from '@/lib/health-insights';
 
 export const metadata: Metadata = { title: 'Health Patterns' };
 export const dynamic = 'force-dynamic';
-
-const KIND_LABEL: Record<string, string> = {
-  nausea: 'Nausea', bloating: 'Bloating', gas: 'Gas', reflux: 'Reflux',
-  burping: 'Burping', constipation: 'Constipation', diarrhea: 'Diarrhea',
-  vomiting: 'Vomiting', 'abdominal-pain': 'Abdominal pain', fatigue: 'Fatigue',
-  headache: 'Headache', dizziness: 'Dizziness',
-  'appetite-suppression': 'Low appetite', fullness: 'Early fullness',
-};
 
 /** 0-3 severity → cell background. */
 const heat = (v: number) =>
@@ -111,11 +104,14 @@ export default async function HealthAnalyticsPage() {
                       {Array.from({ length: 8 }, (_, offset) => {
                         const cell = byOffset.get(offset);
                         return (
+                          // Value in the cell, not a title tooltip — there
+                          // is no hover on a phone (device-tester).
                           <div
                             key={offset}
-                            className={`h-6 flex-1 rounded ${heat(cell?.avgSeverity ?? 0)}`}
-                            title={cell ? `avg ${cell.avgSeverity} (${cell.count} logs)` : 'no logs'}
-                          />
+                            className={`flex h-6 flex-1 items-center justify-center rounded text-[8px] font-bold text-app-tx1/80 ${heat(cell?.avgSeverity ?? 0)}`}
+                          >
+                            {cell ? cell.avgSeverity : ''}
+                          </div>
                         );
                       })}
                     </div>
@@ -124,8 +120,7 @@ export default async function HealthAnalyticsPage() {
               })}
             </div>
             <p className="mt-2 text-[10px] text-app-tx3">
-              Cell shade = average logged severity on that day relative to your most recent
-              injection. Pattern, not diagnosis.
+              Cell = average logged severity on that day after an injection.
             </p>
           </>
         )}
@@ -166,14 +161,15 @@ export default async function HealthAnalyticsPage() {
             <div className="metric-label">last month</div>
           </div>
           {af.perMonth.length >= 2 && (
-            <div className="ml-auto flex items-end gap-1" aria-hidden="true">
+            <div className="ml-auto flex items-end gap-1">
               {af.perMonth.slice(-6).map((m) => (
-                <div
-                  key={m.month}
-                  className="w-3 rounded-t bg-rpe-hard/60"
-                  style={{ height: `${Math.min(40, 6 + m.count * 8)}px` }}
-                  title={`${m.month}: ${m.count}`}
-                />
+                <div key={m.month} className="flex flex-col items-center gap-0.5">
+                  <div
+                    className="w-4 rounded-t bg-rpe-hard/60"
+                    style={{ height: `${Math.min(40, 6 + m.count * 8)}px` }}
+                  />
+                  <span className="text-[8px] font-bold text-app-tx3">{m.count}</span>
+                </div>
               ))}
             </div>
           )}

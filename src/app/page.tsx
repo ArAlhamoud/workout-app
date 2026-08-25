@@ -207,18 +207,25 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
 }
 
 export default async function Home() {
-  const [workouts, bodyStats, injections, healthProfile] = await Promise.all([
+  const [workouts, bodyStats, injections, healthProfile, firstInjection, injectionCount] = await Promise.all([
     getWorkouts(),
     getBodyStats(),
     prisma.injection.findMany({ orderBy: { at: 'desc' }, take: 30, select: { at: true, doseMg: true, site: true } }),
     // Read-only here: seeding belongs to the /health visit, not Home.
     prisma.healthProfile.findUnique({ where: { id: 'profile' } }),
+    // True anchor + count — the clock must not drift when the take-30
+    // window outgrows history (adversary).
+    prisma.injection.findFirst({ orderBy: { at: 'asc' }, select: { at: true } }),
+    prisma.injection.count(),
   ]);
   const recentWorkouts = workouts.slice(0, 4);
 
   const healthClock = treatmentClock(
     injections,
     ((healthProfile?.dosePlan as DosePlanStep[] | null) ?? DEFAULT_DOSE_PLAN),
+    new Date(),
+    firstInjection?.at ?? undefined,
+    injectionCount,
   );
   const healthSite = nextSite(
     ((healthProfile?.targets as { rotation?: string[] } | null)?.rotation ?? DEFAULT_ROTATION),

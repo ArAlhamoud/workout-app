@@ -117,7 +117,7 @@ export default async function HealthTimelinePage() {
 
       {days.length === 0 && (
         <div className="card px-4 py-6 text-center text-sm text-app-tx3">
-          Nothing logged yet — the timeline builds itself as you log.
+          Nothing logged yet.
         </div>
       )}
 

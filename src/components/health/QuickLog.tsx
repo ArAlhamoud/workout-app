@@ -14,14 +14,19 @@ type Sheet = 'bp' | 'gi' | 'af' | 'cpap' | 'fuel' | null;
 
 const SEVERITIES = ['None', 'Mild', 'Moderate', 'Severe'];
 
+// Vomiting and dizziness are here because the severe-symptom notice
+// watches for them — a red-flag kind with no logging surface is a promise
+// the app cannot keep (clinical-safety blocker).
 const GI_KINDS = [
   ['bloating', 'Bloating'],
   ['gas', 'Gas'],
   ['nausea', 'Nausea'],
+  ['vomiting', 'Vomiting'],
   ['reflux', 'Reflux'],
   ['constipation', 'Constipation'],
   ['diarrhea', 'Diarrhea'],
   ['abdominal-pain', 'Abd. pain'],
+  ['dizziness', 'Dizziness'],
   ['fatigue', 'Fatigue'],
 ] as const;
 
@@ -34,10 +39,25 @@ const AF_FLAGS = [
   ['stress', 'Stress'],
 ] as const;
 
-function todayKeyLocal(): string {
+function dayKeyLocal(daysBack = 0): string {
   const d = new Date();
+  d.setDate(d.getDate() - daysBack);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+/** CPAP nights are keyed by the morning they ended. Logging just after
+ *  midnight is about the night that ended YESTERDAY morning unless he has
+ *  already slept — so before 06:00 the default flips back a day, and the
+ *  toggle makes the choice visible either way (adversary: a post-midnight
+ *  log filed under the wrong night, then got overwritten by the real one). */
+function defaultNightBack(): number {
+  return new Date().getHours() < 6 ? 1 : 0;
+}
+const nightLabel = (daysBack: number): string => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysBack);
+  return `ended ${d.toLocaleDateString('en-US', { weekday: 'short' })} morning`;
+};
 
 const remember = (k: string, v: string) => {
   try { localStorage.setItem(`health-last-${k}`, v); } catch { /* fine */ }
@@ -48,14 +68,15 @@ const recall = (k: string, fallback: string) => {
 
 const inputCls =
   'w-full rounded-card border border-app-border bg-app-surface2 px-3 py-2.5 text-base text-app-tx1 tabular-nums placeholder-app-tx3 focus:border-acc-cyan/60 focus:outline-none';
+// min-h 44px: the app's own touch-target floor (device-tester).
 const segBtn = (active: boolean) =>
-  `flex-1 rounded-card border px-1 py-2 text-xs font-semibold transition-all ${
+  `flex-1 rounded-card border px-1 min-h-[44px] text-xs font-semibold transition-all ${
     active
       ? 'border-acc-cyan/60 bg-acc-cyan/15 text-acc-cyan'
       : 'border-app-border bg-app-surface2/60 text-app-tx3'
   }`;
 const flagBtn = (state: boolean | undefined) =>
-  `rounded-full border px-2.5 py-1.5 text-[11px] font-semibold transition-all ${
+  `rounded-full border px-3 min-h-[44px] text-[11px] font-semibold transition-all ${
     state === true
       ? 'border-acc-cyan/60 bg-acc-cyan/15 text-acc-cyan'
       : state === false
@@ -85,6 +106,7 @@ export default function QuickLog() {
   const [afFlags, setAfFlags] = useState<Record<string, boolean | undefined>>({});
   const [afEcg, setAfEcg] = useState(false);
   // CPAP
+  const [cpapNightBack, setCpapNightBack] = useState(defaultNightBack());
   const [cpapHours, setCpapHours] = useState('');
   const [cpapAhi, setCpapAhi] = useState('');
   const [cpapLeak, setCpapLeak] = useState('');
@@ -232,9 +254,7 @@ export default function QuickLog() {
             <input className={inputCls} inputMode="numeric" placeholder="Duration (min)" value={afDuration} onChange={(e) => setAfDuration(e.target.value)} />
             <input className={inputCls} inputMode="numeric" placeholder="HR (bpm)" value={afHr} onChange={(e) => setAfHr(e.target.value)} />
           </div>
-          <p className="text-[10px] text-app-tx3">
-            Tap once = yes, twice = no, three times = skip. Answered flags power the pattern screen.
-          </p>
+          <p className="text-[10px] text-app-tx3">Tap cycles yes / no / skip.</p>
           <div className="flex flex-wrap gap-1.5">
             {AF_FLAGS.map(([key, label]) => (
               <button
@@ -257,12 +277,12 @@ export default function QuickLog() {
           </div>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || (afWhen === 'earlier' && !afStart)}
             onClick={() =>
               submit(async () => {
                 await logAfEpisode({
                   startedAt:
-                    afWhen === 'now' || !afStart ? new Date().toISOString() : new Date(afStart).toISOString(),
+                    afWhen === 'now' ? new Date().toISOString() : new Date(afStart).toISOString(),
                   durationMin: afDuration ? Number(afDuration) : undefined,
                   hrBpm: afHr ? Number(afHr) : undefined,
                   ecgRecorded: afEcg,
@@ -283,7 +303,13 @@ export default function QuickLog() {
 
       {open === 'cpap' && (
         <div className="mt-3 space-y-2">
-          <p className="text-[10px] text-app-tx3">Last night, from the prisma APP.</p>
+          <div className="flex gap-1.5">
+            {[defaultNightBack(), defaultNightBack() + 1].map((back) => (
+              <button key={back} type="button" onClick={() => setCpapNightBack(back)} className={segBtn(cpapNightBack === back)}>
+                {back === defaultNightBack() ? 'Last night' : 'Night before'} · {nightLabel(back)}
+              </button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <input className={inputCls} inputMode="decimal" placeholder={`Hours (${recall('cpap-h', 'e.g. 6.5')})`} value={cpapHours} onChange={(e) => setCpapHours(e.target.value)} autoFocus />
             <input className={inputCls} inputMode="decimal" placeholder="AHI" value={cpapAhi} onChange={(e) => setCpapAhi(e.target.value)} />
@@ -296,7 +322,7 @@ export default function QuickLog() {
             onClick={() =>
               submit(async () => {
                 await logCpapNight({
-                  night: todayKeyLocal(),
+                  night: dayKeyLocal(cpapNightBack),
                   usageHours: Number(cpapHours),
                   ahi: cpapAhi ? Number(cpapAhi) : undefined,
                   leak: cpapLeak ? Number(cpapLeak) : undefined,
@@ -325,7 +351,7 @@ export default function QuickLog() {
             onClick={() =>
               submit(async () => {
                 await logNutrition({
-                  day: todayKeyLocal(),
+                  day: dayKeyLocal(0),
                   proteinG: protein ? Number(protein) : undefined,
                   waterMl: water ? Number(water) : undefined,
                 });

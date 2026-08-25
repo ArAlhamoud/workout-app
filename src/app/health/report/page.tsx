@@ -6,7 +6,6 @@ import { getHealthData } from '../../health-actions';
 import {
   afStats,
   bpAverage,
-  cpapStats,
   siteLabel,
   treatmentClock,
   weightSnapshot,
@@ -52,6 +51,9 @@ export default async function DoctorReportPage({
   const clock = treatmentClock(
     data.injections,
     ((data.profile.dosePlan as DosePlanStep[] | null) ?? DEFAULT_DOSE_PLAN),
+    new Date(),
+    data.firstInjectionAt ?? undefined,
+    data.injectionCount,
   );
   const snapshot = weightSnapshot(
     data.profile,
@@ -59,13 +61,29 @@ export default async function DoctorReportPage({
     data.bodyStats,
   );
   const bpAvg = bpAverage(bp.map((r) => ({ at: r.at, systolic: r.systolic, diastolic: r.diastolic })), RANGES[range]);
-  const cpapAgg = cpapStats(cpap.map((n) => ({ night: n.night, usageHours: n.usageHours, ahi: n.ahi })));
   const af = afStats(data.afEpisodes);
 
-  const rangeStartW = weightsInRange[0]?.weight ?? null;
-  const rangeEndW = weightsInRange[weightsInRange.length - 1]?.weight ?? null;
+  // CPAP aggregates computed over the SELECTED RANGE — cpapStats' 30-day
+  // window under a "last 3 months" heading printed month-old compliance as
+  // if it covered the quarter (three reviewers, independently).
+  const cpapUsed = cpap.filter((n) => n.usageHours > 0);
+  const cpapAvgH = cpapUsed.length
+    ? Math.round((cpapUsed.reduce((s, n) => s + n.usageHours, 0) / cpapUsed.length) * 10) / 10
+    : null;
+  const cpapOver4 = cpapUsed.filter((n) => n.usageHours >= 4).length;
+  const cpapAhis = cpap.filter((n) => n.ahi != null) as Array<{ ahi: number }>;
+  const cpapAvgAhi = cpapAhis.length
+    ? Math.round((cpapAhis.reduce((s, n) => s + n.ahi, 0) / cpapAhis.length) * 10) / 10
+    : null;
+
+  // A range delta needs two weigh-ins — one row is a moment, not a change.
+  const rangeStartW = weightsInRange.length >= 2 ? weightsInRange[0].weight : null;
+  const rangeEndW = weightsInRange.length >= 2 ? weightsInRange[weightsInRange.length - 1].weight : null;
   const rangeDelta =
     rangeStartW != null && rangeEndW != null ? Math.round((rangeEndW - rangeStartW) * 10) / 10 : null;
+  // Honest sign everywhere: a regain prints as +N kg, never as an unsigned
+  // number sitting in a "lost" position (clinical-safety).
+  const signedKg = (lost: number) => (lost >= 0 ? `−${Math.abs(lost)}` : `+${Math.abs(lost)}`);
 
   // Symptom summary: max + average severity per kind in range.
   const symptomAgg = new Map<string, { total: number; n: number; max: number }>();
@@ -122,8 +140,8 @@ export default async function DoctorReportPage({
             Health summary — {rangeLabel}
           </p>
           <p className="text-xs text-app-tx3 print:text-gray-600">
-            Patient-logged data from Aurora Health · generated {fmt(new Date())} · not a
-            medical record; all entries self-reported
+            Self-reported data from Aurora Health · generated {fmt(new Date())} · not a
+            medical record
           </p>
         </div>
 
@@ -131,9 +149,9 @@ export default async function DoctorReportPage({
           <p className="section-label mb-1 print:font-bold print:text-black">Weight</p>
           <p className="text-sm text-app-tx1 print:text-black">
             {snapshot
-              ? `${snapshot.startKg} kg (start) → ${snapshot.currentKg} kg now · ${snapshot.lostKg > 0 ? '−' : ''}${Math.abs(snapshot.lostKg)} kg (${snapshot.pctLost}%) · BMI ${snapshot.startBmi} → ${snapshot.bmi}`
+              ? `${snapshot.startKg} kg (start) → ${snapshot.currentKg} kg now · ${signedKg(snapshot.lostKg)} kg (${snapshot.pctLost}%) · BMI ${snapshot.startBmi} → ${snapshot.bmi}`
               : 'No weigh-ins logged.'}
-            {rangeDelta != null && ` · ${rangeLabel.toLowerCase()}: ${rangeDelta > 0 ? '+' : ''}${rangeDelta} kg (${weightsInRange.length} weigh-in${weightsInRange.length === 1 ? '' : 's'})`}
+            {rangeDelta != null && ` · ${rangeLabel.toLowerCase()}: ${rangeDelta > 0 ? '+' : ''}${rangeDelta} kg (${weightsInRange.length} weigh-ins)`}
           </p>
         </section>
 
@@ -195,7 +213,6 @@ export default async function DoctorReportPage({
               : bp.length
               ? `${bp.length} reading${bp.length === 1 ? '' : 's'} (too few for an average)`
               : 'No readings in this range.'}
-            {' '}· on nebivolol 10 mg daily
           </p>
         </section>
 
@@ -203,7 +220,7 @@ export default async function DoctorReportPage({
           <p className="section-label mb-1 print:font-bold print:text-black">CPAP</p>
           <p className="text-sm text-app-tx1 print:text-black">
             {cpap.length
-              ? `${cpap.length} nights logged · avg ${cpapAgg.avgHours30d ?? '—'} h/night · ${cpapAgg.nightsOver4h30d} nights ≥4 h${cpapAgg.avgAhi30d != null ? ` · avg AHI ${cpapAgg.avgAhi30d}` : ''}`
+              ? `${cpap.length} nights logged · avg ${cpapAvgH ?? '—'} h/night · ${cpapOver4} nights ≥4 h${cpapAvgAhi != null ? ` · avg AHI ${cpapAvgAhi}` : ''}`
               : 'No CPAP nights logged in this range.'}
           </p>
         </section>
@@ -218,6 +235,7 @@ export default async function DoctorReportPage({
                 <p key={l.id}>
                   {fmt(l.date)} · {l.test.toUpperCase()} {l.value} {l.unit}
                   {l.refHigh != null && ` (ref ≤ ${l.refHigh})`}
+                  {l.notes && <span className="text-app-tx3 print:text-gray-600"> · {l.notes}</span>}
                 </p>
               ))}
             </div>
@@ -236,17 +254,17 @@ export default async function DoctorReportPage({
           <p className="section-label mb-1 print:font-bold print:text-black">الملخّص — {rangeLabelAr}</p>
           <div className="space-y-1 text-sm leading-relaxed text-app-tx1 print:text-black">
             <p>
-              الوزن: {snapshot ? `${snapshot.startKg} كجم ← ${snapshot.currentKg} كجم (نقص ${Math.abs(snapshot.lostKg)} كجم، ${snapshot.pctLost}٪)` : 'لا يوجد'}
+              الوزن: {snapshot ? `${snapshot.startKg} كجم ← ${snapshot.currentKg} كجم (${snapshot.lostKg >= 0 ? 'نقص' : 'زيادة'} ${Math.abs(snapshot.lostKg)} كجم، ${snapshot.pctLost}٪)` : 'لا يوجد'}
             </p>
             <p>
               مونجارو: {clock ? `الأسبوع ${clock.week} · الجرعة الحالية ${clock.lastDoseMg} ملغ أسبوعيًا` : 'لم يبدأ بعد'} · عدد الحقن في الفترة: {injections.length}
             </p>
-            <p>الرجفان الأذيني: {episodes.length} نوبة في الفترة</p>
+            <p>نوبات الرجفان الأذيني في الفترة: {episodes.length}</p>
             <p>
-              ضغط الدم: {bpAvg ? `المتوسط ${bpAvg.systolic}/${bpAvg.diastolic}` : 'قراءات غير كافية'} · مع نيبيفولول ١٠ ملغ يوميًا
+              ضغط الدم: {bpAvg ? `المتوسط ${bpAvg.systolic}/${bpAvg.diastolic}` : 'قراءات غير كافية'}
             </p>
             <p>
-              جهاز التنفس (CPAP): {cpap.length ? `متوسط الاستخدام ${cpapAgg.avgHours30d ?? '—'} ساعة/ليلة${cpapAgg.avgAhi30d != null ? ` · مؤشر AHI ${cpapAgg.avgAhi30d}` : ''}` : 'لا يوجد تسجيل'}
+              جهاز التنفس (CPAP): {cpap.length ? `متوسط الاستخدام ${cpapAvgH ?? '—'} ساعة/ليلة${cpapAvgAhi != null ? ` · مؤشر AHI ${cpapAvgAhi}` : ''}` : 'لا يوجد تسجيل'}
             </p>
             {labs.length > 0 && (
               <p>التحاليل: {labs.map((l) => `${l.test.toUpperCase()} ‏${l.value} ${l.unit}`).join(' · ')}</p>

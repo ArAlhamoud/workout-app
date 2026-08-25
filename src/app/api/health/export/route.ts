@@ -21,7 +21,10 @@ const rows = (header: string[], data: unknown[][]): string =>
 
 export async function GET(request: Request) {
   const range = new URL(request.url).searchParams.get('range') ?? 'all';
-  const since = new Date(Date.now() - (RANGES[range] ?? RANGES.all) * DAY_MS);
+  // Object.hasOwn: ?range=constructor must not walk the prototype chain
+  // into NaN dates and an unbounded query (data-steward).
+  const days = Object.hasOwn(RANGES, range) ? RANGES[range] : RANGES.all;
+  const since = new Date(Date.now() - days * DAY_MS);
 
   const [injections, symptoms, af, bp, cpap, labs, nutrition, stats] = await Promise.all([
     prisma.injection.findMany({ where: { at: { gte: since } }, orderBy: { at: 'asc' } }),

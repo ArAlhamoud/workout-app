@@ -160,16 +160,26 @@ async function main() {
   }
   if (holds.length) console.log(`  holds       ${holds.length}`);
 
-  // Health wave tables (absent in pre-health snapshots). Same id-upsert
-  // idempotency as everything else.
+  // Health wave tables (absent in pre-health snapshots). CpapNight and
+  // NutritionLog upsert by their UNIQUE natural key (night/day), not id —
+  // an id-keyed upsert against a table that already holds that night under
+  // a different id crashes the restore mid-run on the unique constraint
+  // (data-steward, reproduced).
   const healthTables = [
-    'healthProfile', 'injection', 'symptomLog', 'afEpisode', 'bpReading',
-    'cpapNight', 'labResult', 'medication', 'nutritionLog',
+    ['healthProfile', (r) => ({ id: r.id })],
+    ['injection', (r) => ({ id: r.id })],
+    ['symptomLog', (r) => ({ id: r.id })],
+    ['afEpisode', (r) => ({ id: r.id })],
+    ['bpReading', (r) => ({ id: r.id })],
+    ['cpapNight', (r) => ({ night: r.night })],
+    ['labResult', (r) => ({ id: r.id })],
+    ['medication', (r) => ({ id: r.id })],
+    ['nutritionLog', (r) => ({ day: r.day })],
   ];
-  for (const table of healthTables) {
+  for (const [table, whereOf] of healthTables) {
     const rowsForTable = (snap.health && snap.health[table]) || [];
     for (const r of rowsForTable) {
-      await prisma[table].upsert({ where: { id: r.id }, update: r, create: r });
+      await prisma[table].upsert({ where: whereOf(r), update: r, create: r });
     }
     if (rowsForTable.length) console.log(`  ${table.padEnd(12)}${rowsForTable.length}`);
   }

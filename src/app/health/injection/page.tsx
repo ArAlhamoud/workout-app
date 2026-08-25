@@ -4,6 +4,7 @@ import { getHealthData } from '../../health-actions';
 import {
   bpAverage,
   nextSite,
+  severeSymptomFlag,
   siteLabel,
   treatmentClock,
   DEFAULT_DOSE_PLAN,
@@ -21,10 +22,18 @@ export default async function InjectionDayPage() {
   const plan = ((profile.dosePlan as DosePlanStep[] | null) ?? DEFAULT_DOSE_PLAN);
   const rotation =
     ((profile.targets as { rotation?: string[] } | null)?.rotation ?? DEFAULT_ROTATION);
-  const clock = treatmentClock(data.injections, plan);
+  const clock = treatmentClock(
+    data.injections, plan, new Date(),
+    data.firstInjectionAt ?? undefined, data.injectionCount,
+  );
   const recommendedSite = nextSite(rotation, data.injections);
   const latestWeight = [...data.bodyStats].reverse().find((b) => b.weight != null)?.weight ?? null;
   const bp = bpAverage(data.bpReadings, 7);
+  // The after-dose symptom pass lives HERE — the severe notice must too
+  // (clinical-safety: it rendered only on the hub he might not revisit).
+  const severe = severeSymptomFlag(
+    data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
+  );
 
   // Dose to prefill: what the plan says for the NEXT injection's week —
   // before the first injection, week 1's dose. A checkpoint week prefills
@@ -47,6 +56,15 @@ export default async function InjectionDayPage() {
           Injection Day
         </h1>
       </div>
+
+      {severe && (
+        <div className="card border-rpe-hard/40 px-4 py-3">
+          <p className="text-sm text-app-tx1">
+            You&apos;ve logged repeated severe symptoms in the last two days. This app can&apos;t
+            judge how serious that is — a clinician can. Consider getting checked.
+          </p>
+        </div>
+      )}
 
       {/* Before-injection glance: the facts that matter at the pen */}
       <div className="card-lg p-4">
@@ -75,18 +93,18 @@ export default async function InjectionDayPage() {
         </div>
         {plannedStep && plannedStep.mg == null && (
           <p className="mt-3 border-t border-white/10 pt-3 text-xs text-acc-ember">
-            {plannedStep.label ?? 'Checkpoint week'} — no dose is scheduled. Log what you and
+            {plannedStep.label ?? 'Doctor review'} — no dose is scheduled. Log what you and
             your doctor decide.
+          </p>
+        )}
+        {clock && clock.planExhausted && plannedStep === null && (
+          <p className="mt-3 border-t border-white/10 pt-3 text-xs text-acc-ember">
+            The dose plan has no slot for this injection — extend it in Plan &amp; profile.
           </p>
         )}
         {bp && (
           <p className="mt-3 border-t border-white/10 pt-3 text-xs text-app-tx3">
-            7-day BP average {bp.systolic}/{bp.diastolic} · drink some water before injecting
-          </p>
-        )}
-        {!bp && (
-          <p className="mt-3 border-t border-white/10 pt-3 text-xs text-app-tx3">
-            Drink some water before injecting — hydration blunts the day-1 dip.
+            7-day BP average {bp.systolic}/{bp.diastolic}
           </p>
         )}
       </div>

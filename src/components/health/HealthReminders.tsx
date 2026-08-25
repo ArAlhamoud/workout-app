@@ -42,7 +42,7 @@ export default function HealthReminders({
         specs.push({
           id: INJECTION_DUE_ID,
           title: 'Injection day',
-          body: 'Your weekly dose is due today. The site assistant knows which spot is next.',
+          body: 'Weekly dose due today.',
           schedule: { at: due },
           sound: 'default',
           extra: { route: '/health/injection' },
@@ -68,7 +68,7 @@ export default function HealthReminders({
         specs.push({
           id: SYMPTOM_FOLLOWUP_ID,
           title: 'How was day 1?',
-          body: 'A 10-second symptom log today makes the dose-pattern chart honest.',
+          body: 'Ten seconds of symptom logging, if anything showed up.',
           schedule: { at: followUp },
           sound: 'default',
           extra: { route: '/health' },

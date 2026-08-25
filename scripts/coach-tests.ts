@@ -50,6 +50,7 @@ import { buildCoachContext, parseCoachBrief, COACH_SYSTEM } from '../src/lib/coa
 import { buildLadderFacts, validateLadderCopy } from '../src/lib/coach-ladder';
 import {
   afCorrelates,
+  afStats,
   bpAverage,
   cpapStats,
   dayRelativeSymptoms,
@@ -1125,16 +1126,47 @@ console.log('health-insights');
   assert(clock !== null && clock.week === 3, `Sept 10 from an Aug 25 anchor is treatment week 3 (got ${clock?.week})`);
   assert(clock !== null && clock.daysSinceLast === 2, 'days since last injection counts from the latest dose');
   assert(clock !== null && clock.nextDue.getDate() === 15, 'next due = last + 7 days');
-  assert(clock !== null && clock.nextPlanned?.mg === 2.5, 'week-4 injection still prescribes 2.5 mg');
+  assert(clock !== null && clock.nextPlanned?.mg === 2.5, 'the 4th dose still prescribes 2.5 mg');
   assert(clock !== null && !clock.overdue, 'not overdue two days after a dose');
 
-  // The checkpoint week prescribes NOTHING.
-  const week7 = treatmentClock(
-    [inj('2026-08-25T18:00:00', 2.5), inj('2026-10-06T18:00:00', 5)],
+  // BLOCKER regression (adversary probe): the plan is DOSE-indexed, not
+  // wall-clock-indexed. Injecting an hour earlier in the day must never
+  // shift the next dose into a different plan slot — and above all can
+  // never skip the doctor-review checkpoint.
+  const sixDoses = [
+    inj('2026-08-25T18:00:00', 2.5), inj('2026-09-01T18:00:00', 2.5),
+    inj('2026-09-08T18:00:00', 2.5), inj('2026-09-15T18:00:00', 2.5),
+    inj('2026-09-22T18:00:00', 5), inj('2026-09-29T17:00:00', 5), // 6th dose ONE HOUR early
+  ];
+  const afterSix = treatmentClock(sixDoses, DEFAULT_DOSE_PLAN, new Date('2026-10-01T12:00:00'));
+  assert(afterSix !== null && afterSix.nextPlanned !== null && afterSix.nextPlanned.mg === null,
+    'after 6 doses the 7th slot is the doctor-review checkpoint — an early injection cannot bypass it');
+  const fourDoses = sixDoses.slice(0, 3).concat([inj('2026-09-15T16:00:00', 2.5)]); // 4th dose 2h early
+  const afterFour = treatmentClock(fourDoses, DEFAULT_DOSE_PLAN, new Date('2026-09-16T12:00:00'));
+  assert(afterFour !== null && afterFour.nextPlanned?.mg === 5,
+    'the 5th dose prescribes 5 mg regardless of the 4th dose being hours early');
+  // Week display uses CALENDAR days — the morning of day 7 is week 2, and
+  // it can never disagree with daysSinceLast's calendar arithmetic.
+  const day7 = treatmentClock([inj('2026-08-25T18:00:00', 2.5)], DEFAULT_DOSE_PLAN, new Date('2026-09-01T08:00:00'));
+  assert(day7 !== null && day7.week === 2 && day7.daysSinceLast === 7,
+    'calendar day 7 is week 2 — week and daysSinceLast share one arithmetic');
+  // The anchor override survives a truncated recent-injections window.
+  const truncated = treatmentClock(
+    [inj('2026-09-08T18:00:00', 2.5)],
     DEFAULT_DOSE_PLAN,
-    new Date('2026-10-08T12:00:00'),
+    now,
+    new Date('2026-08-25T18:00:00'),
   );
-  assert(week7 !== null && week7.nextPlanned?.mg === null, 'the doctor-review week schedules no dose — nothing auto-escalates');
+  assert(truncated !== null && truncated.week === 3,
+    'an explicit anchor keeps the true week when the injection window is truncated');
+  // Past the end of the plan: say so, never loop the last step forever.
+  const pastPlan = treatmentClock(
+    Array.from({ length: 8 }, (_, i) => inj(new Date(Date.parse('2026-08-25T18:00:00') + i * 7 * 86_400_000).toISOString(), 2.5)),
+    DEFAULT_DOSE_PLAN,
+    new Date('2026-10-15T12:00:00'),
+  );
+  assert(pastPlan !== null && pastPlan.nextPlanned === null && pastPlan.planExhausted,
+    'a plan with no slot for the next dose reports exhausted — the UI asks for an edit, never invents');
 
   // Site rotation resumes after an off-rotation one-off.
   assert(nextSite(DEFAULT_ROTATION, []) === 'abdomen-right', 'rotation starts at its first site');
@@ -1185,24 +1217,41 @@ console.log('health-insights');
   assert(proj !== null && proj[0].estimatedDate !== null, 'a real downward trend yields a date for a near target');
   assert(proj !== null && proj[1].estimatedDate === null, 'a target beyond the 18-month horizon reports no date');
 
-  // Day-relative symptoms: only 0..7 after the nearest preceding injection.
+  // Day-relative symptoms: only 0..7 after the nearest preceding injection,
+  // in CALENDAR days — a morning-after symptom after an evening injection is
+  // day 1, never day 0 (adversary probe: every morning-after row shifted one
+  // column left for an evening injector).
   const rel = dayRelativeSymptoms(
     [
-      { at: '2026-08-26T20:00:00', kind: 'nausea', severity: 2 },
+      { at: '2026-08-26T08:00:00', kind: 'nausea', severity: 2 }, // next MORNING = day 1
       { at: '2026-08-24T20:00:00', kind: 'nausea', severity: 3 }, // before any injection
       { at: '2026-09-06T20:00:00', kind: 'nausea', severity: 1 }, // 12 days after → excluded
     ],
     [inj('2026-08-25T18:00:00', 2.5)],
   );
   assert(rel.nausea?.length === 1 && rel.nausea[0].offset === 1 && rel.nausea[0].avgSeverity === 2,
-    'only the day-1 log lands in the day-relative chart');
+    'the morning after an evening injection is day 1 (calendar days, not 24h blocks)');
 
-  // Dose comparison suppresses tiny samples.
+  // Dose comparison suppresses tiny samples, and never attributes a symptom
+  // logged weeks after the last dose to that dose.
   const byDoseNone = severityByDose(
     [{ at: '2026-08-26', kind: 'nausea', severity: 2 }],
     [inj('2026-08-25', 2.5)],
   );
   assert(!byDoseNone.nausea, 'fewer than 3 logs at a dose → no dose comparison');
+  const stale = severityByDose(
+    [
+      { at: '2026-10-01', kind: 'nausea', severity: 3 },
+      { at: '2026-10-02', kind: 'nausea', severity: 3 },
+      { at: '2026-10-03', kind: 'nausea', severity: 3 },
+    ],
+    [inj('2026-08-25', 2.5)],
+  );
+  assert(!stale.nausea, 'symptoms weeks after the last dose never count against that dose (7-day cap)');
+
+  // AF days-since uses calendar days, same law as everything else.
+  const afCal = afStats([{ startedAt: '2026-09-08T22:00:00' }], new Date('2026-09-10T08:00:00'));
+  assert(afCal.daysSinceLast === 2, 'AF days-since is calendar days (late-evening episode → 2 days on the 10th)');
 
   // AF correlates: unanswered flags are excluded from the denominator.
   const episodes = [

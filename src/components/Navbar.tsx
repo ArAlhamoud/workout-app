@@ -68,7 +68,7 @@ export default function Navbar() {
   const isStats   = pathname === '/stats';
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 print:hidden">
       {/* Fade into deep space behind the bar */}
       <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#05060f] via-[#05060f]/70 to-transparent pointer-events-none" />
       <div className="max-w-lg mx-auto relative px-3 pb-[max(env(safe-area-inset-bottom),0.625rem)]">

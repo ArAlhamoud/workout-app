@@ -13,10 +13,10 @@ import {
   weightProjections,
   DEFAULT_DOSE_PLAN,
   DEFAULT_ROTATION,
+  SYMPTOM_LABEL,
   type DosePlanStep,
 } from '@/lib/health-insights';
 import QuickLog from '@/components/health/QuickLog';
-import HealthReminders from '@/components/health/HealthReminders';
 
 export const metadata: Metadata = { title: 'Health' };
 export const dynamic = 'force-dynamic';
@@ -31,7 +31,10 @@ export default async function HealthPage() {
   const rotation =
     ((profile.targets as { rotation?: string[] } | null)?.rotation ?? DEFAULT_ROTATION);
 
-  const clock = treatmentClock(data.injections, plan);
+  const clock = treatmentClock(
+    data.injections, plan, new Date(),
+    data.firstInjectionAt ?? undefined, data.injectionCount,
+  );
   const site = nextSite(rotation, data.injections);
   const weight = weightSnapshot(
     profile,
@@ -46,22 +49,19 @@ export default async function HealthPage() {
   const bp7 = bpAverage(data.bpReadings, 7);
   const latestBp = data.bpReadings[0] ?? null;
   const latestLdl = data.labs.find((l) => l.test === 'ldl') ?? null;
-  const todaySymptoms = data.symptoms.filter(
-    (s) => Date.now() - new Date(s.at).getTime() < 86_400_000,
-  );
+  // "Today" is the local calendar day, not a rolling 24 hours — a symptom
+  // from yesterday evening is not "today" this afternoon.
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todaySymptoms = data.symptoms.filter((s) => new Date(s.at) >= todayStart);
   const severe = severeSymptomFlag(
     data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
   );
 
   return (
     <div className="space-y-5 pb-8">
-      <HealthReminders
-        nextDueISO={clock ? clock.nextDue.toISOString() : null}
-        lastInjectionISO={clock ? clock.lastInjection.toISOString() : null}
-        enabled={(profile.reminders as Record<string, boolean> | null) ?? {}}
-      />
       <div className="pt-1">
-        <p className="section-label text-acc-cyan/80">Health · Mounjaro treatment</p>
+        <p className="section-label text-acc-cyan/80">Health · Mounjaro</p>
         <h1 className="mt-0.5 bg-gradient-to-r from-white via-[#c7d2fe] to-[#a5f3fc] bg-clip-text font-round text-2xl font-bold tracking-tight text-transparent">
           Treatment
         </h1>
@@ -86,7 +86,7 @@ export default async function HealthPage() {
               {weight ? `${weight.currentKg} kg` : '— kg'}
             </div>
             <p className="metric-label mt-0.5">
-              {weight ? `${weight.lostKg > 0 ? '−' : ''}${Math.abs(weight.lostKg)} kg · ${weight.pctLost}% lost · BMI ${weight.bmi}` : 'no weigh-in yet'}
+              {weight ? `${weight.lostKg >= 0 ? '−' : '+'}${Math.abs(weight.lostKg)} kg · ${weight.pctLost}% · BMI ${weight.bmi}` : 'no weigh-in yet'}
             </p>
           </div>
           <div className="text-right">
@@ -105,8 +105,10 @@ export default async function HealthPage() {
               {clock.nextPlanned?.mg != null ? (
                 <> · <b className="text-app-tx1">{clock.nextPlanned.mg} mg</b></>
               ) : clock.nextPlanned ? (
-                <> · <b className="text-acc-ember">{clock.nextPlanned.label ?? 'checkpoint'}</b></>
-              ) : null}
+                <> · <b className="text-acc-ember">{clock.nextPlanned.label ?? 'Doctor review'} — no dose scheduled</b></>
+              ) : (
+                <> · <b className="text-acc-ember">plan ends here — extend it in Plan</b></>
+              )}
               {' '}· {siteLabel(site)}
             </p>
           ) : (
@@ -163,11 +165,11 @@ export default async function HealthPage() {
               );
             })}
           </div>
-          <p className="mt-2 text-[10px] text-app-tx3">
-            {projections
-              ? 'Dates are projections from your recent trend — not a guarantee.'
-              : 'Projections appear after a few weeks of weigh-ins show a downward trend.'}
-          </p>
+          {projections && (
+            <p className="mt-2 text-[10px] text-app-tx3">
+              Dates are projections from your recent trend — not a guarantee.
+            </p>
+          )}
           <div className="mt-2 flex flex-wrap gap-1.5">
             {weight.pctMilestones.map((m) => (
               <span
@@ -233,7 +235,7 @@ export default async function HealthPage() {
           </div>
           <p className="mt-1 text-[11px] text-app-tx3">
             {todaySymptoms.length
-              ? todaySymptoms.slice(0, 2).map((s) => s.kind).join(' · ')
+              ? todaySymptoms.slice(0, 2).map((s) => SYMPTOM_LABEL[s.kind] ?? s.kind).join(' · ')
               : 'nothing logged today'}
           </p>
         </div>
@@ -252,6 +254,7 @@ export default async function HealthPage() {
           { href: '/health/timeline', label: 'Timeline', sub: 'everything on one axis' },
           { href: '/health/analytics', label: 'Patterns', sub: 'side effects · AF · CPAP vs weight' },
           { href: '/health/report', label: 'Doctor report', sub: 'printable · English + العربية' },
+          { href: '/health/plan', label: 'Plan & profile', sub: 'dose plan · labs · reminders · edits' },
         ].map((l) => (
           <Link
             key={l.href}

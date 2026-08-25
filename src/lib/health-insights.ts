@@ -36,8 +36,18 @@ export const DEFAULT_DOSE_PLAN: DosePlanStep[] = [
   { week: 4, mg: 2.5 },
   { week: 5, mg: 5 },
   { week: 6, mg: 5 },
-  { week: 7, mg: null, label: 'Doctor review — no dose scheduled' },
+  { week: 7, mg: null, label: 'Doctor review' },
 ];
+
+/** Shared display names for symptom kinds — every surface must use these,
+ *  never raw slugs (device-tester: "abdominal-pain" leaked into a card). */
+export const SYMPTOM_LABEL: Record<string, string> = {
+  nausea: 'Nausea', bloating: 'Bloating', gas: 'Gas', reflux: 'Reflux',
+  burping: 'Burping', constipation: 'Constipation', diarrhea: 'Diarrhea',
+  vomiting: 'Vomiting', 'abdominal-pain': 'Abdominal pain', fatigue: 'Fatigue',
+  headache: 'Headache', dizziness: 'Dizziness',
+  'appetite-suppression': 'Low appetite', fullness: 'Early fullness',
+};
 
 export interface InjectionLite {
   at: Date | string;
@@ -46,16 +56,23 @@ export interface InjectionLite {
 }
 
 export interface TreatmentClock {
-  /** 1-based treatment week, anchored at the first logged injection. */
+  /** 1-based treatment week — CALENDAR days since the first logged
+   *  injection, floor(days/7)+1. Display only; never used to pick a dose. */
   week: number;
   anchor: Date;
   lastInjection: Date;
   lastDoseMg: number;
   daysSinceLast: number;
   nextDue: Date;
-  /** Dose the plan prescribes for the week the next injection falls in;
-   *  null when that week is a checkpoint. */
+  /** The plan slot for the NEXT dose — DOSE-indexed (slot n = the nth
+   *  injection), so a dose taken hours early or a delayed week can never
+   *  shift which slot applies, and the doctor-review checkpoint can never
+   *  be walked past by wall-clock drift (adversary blocker). null when the
+   *  plan has no slot for the next dose — see planExhausted. */
   nextPlanned: DosePlanStep | null;
+  /** True when the plan simply ends before the next dose: the UI asks for
+   *  a plan edit instead of looping the last step forever. */
+  planExhausted: boolean;
   overdue: boolean;
 }
 
@@ -70,30 +87,41 @@ const calendarDays = (later: Date, earlier: Date | string): number => {
   return Math.round((a.getTime() - b.getTime()) / DAY_MS);
 };
 
-/** Null before the first injection is logged — the app shows "log your
- *  first injection to start the clock" instead of inventing a schedule. */
+/**
+ * Null before the first injection is logged — the app shows "log your
+ * first injection to start the clock" instead of inventing a schedule.
+ *
+ * `trueAnchor`: callers that fetch only a recent window of injections MUST
+ * pass the real first-injection date (a one-row query) — otherwise the
+ * anchor silently becomes "the oldest row in the window" and the treatment
+ * week drifts (adversary). `doseCountOverride` likewise carries the true
+ * total when `injections` is a truncated window.
+ */
 export function treatmentClock(
   injections: InjectionLite[],
   plan: DosePlanStep[],
   now: Date = new Date(),
+  trueAnchor?: Date,
+  doseCountOverride?: number,
 ): TreatmentClock | null {
   if (!injections.length) return null;
   const sorted = [...injections].sort((a, b) => time(a.at) - time(b.at));
-  const anchor = new Date(sorted[0].at);
+  const anchor = trueAnchor ?? new Date(sorted[0].at);
   const last = sorted[sorted.length - 1];
-  const week = Math.floor((now.getTime() - anchor.getTime()) / WEEK_MS) + 1;
+  const week = Math.floor(Math.max(0, calendarDays(now, anchor)) / 7) + 1;
   const nextDue = new Date(time(last.at) + WEEK_MS);
-  const nextWeek = Math.floor((nextDue.getTime() - anchor.getTime()) / WEEK_MS) + 1;
-  const nextPlanned = plan.find((s) => s.week === nextWeek) ?? plan[plan.length - 1] ?? null;
+  const nextDoseNumber = (doseCountOverride ?? injections.length) + 1;
+  const nextPlanned = plan.find((s) => s.week === nextDoseNumber) ?? null;
   return {
-    week: Math.max(1, week),
+    week,
     anchor,
     lastInjection: new Date(last.at),
     lastDoseMg: last.doseMg,
     daysSinceLast: calendarDays(now, last.at),
     nextDue,
     nextPlanned,
-    overdue: now.getTime() > nextDue.getTime() + DAY_MS,
+    planExhausted: nextPlanned === null,
+    overdue: calendarDays(now, last.at) >= 8,
   };
 }
 
@@ -254,7 +282,10 @@ export function dayRelativeSymptoms(
       else break;
     }
     if (prev === null) continue;
-    const offset = Math.floor((st - prev) / DAY_MS);
+    // CALENDAR days (the module's one law): a morning-after symptom of an
+    // evening injection is day 1, never day 0 — elapsed-24h floors shifted
+    // an evening injector's whole matrix a column left (adversary probe).
+    const offset = calendarDays(new Date(st), new Date(prev));
     if (offset < 0 || offset > 7) continue;
     buckets[s.kind] ??= {};
     buckets[s.kind][offset] ??= { total: 0, n: 0 };
@@ -289,11 +320,15 @@ export function severityByDose(
   for (const s of symptoms) {
     const st = time(s.at);
     let dose: number | null = null;
+    let doseAt: number | null = null;
     for (const i of times) {
-      if (i.t <= st) dose = i.dose;
+      if (i.t <= st) { dose = i.dose; doseAt = i.t; }
       else break;
     }
-    if (dose === null) continue;
+    if (dose === null || doseAt === null) continue;
+    // A symptom weeks after the last dose says nothing about that dose —
+    // cap attribution at the weekly cadence, same window as day-relative.
+    if (calendarDays(new Date(st), new Date(doseAt)) > 7) continue;
     agg[s.kind] ??= {};
     agg[s.kind][dose] ??= { total: 0, n: 0 };
     agg[s.kind][dose].total += s.severity;
@@ -345,9 +380,7 @@ export function afStats(episodes: AfLite[], now: Date = new Date()): AfStats {
   const thisKey = monthKey(now);
   const lastKey = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 15));
   return {
-    daysSinceLast: sorted.length
-      ? Math.floor((now.getTime() - time(sorted[0].startedAt)) / DAY_MS)
-      : null,
+    daysSinceLast: sorted.length ? calendarDays(now, sorted[0].startedAt) : null,
     thisMonth: per.get(thisKey) ?? 0,
     lastMonth: per.get(lastKey) ?? 0,
     perMonth: [...per.entries()].sort().map(([month, count]) => ({ month, count })),
