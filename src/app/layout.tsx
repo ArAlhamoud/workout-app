@@ -24,7 +24,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Aurora Health',
+  title: 'Ar Workout',
   description: 'Track your 12-week fat loss program',
   manifest: '/manifest.webmanifest',
   icons: {
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     capable: true,
     // Light ground wants dark status-bar text.
     statusBarStyle: 'default',
-    title: 'Aurora',
+    title: 'Ar Workout',
   },
 };
 

@@ -2,8 +2,8 @@ import { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Aurora Health',
-    short_name: 'Aurora',
+    name: 'Ar Workout',
+    short_name: 'Ar Workout',
     description: 'Track your 12-week fat loss program',
     start_url: '/',
     display: 'standalone',

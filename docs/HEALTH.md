@@ -1,4 +1,4 @@
-# Aurora Health — the Mounjaro module
+# Ar Workout health — the Mounjaro module
 
 The app's second domain: a personal health tracker where the Mounjaro
 (tirzepatide) treatment timeline is the spine and weight, GI symptoms,
