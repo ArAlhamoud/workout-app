@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Archivo } from 'next/font/google';
 import './globals.css';
-import Navbar from '@/components/Navbar';
+import JourneyNav from '@/components/JourneyNav';
 import InstallPrompt from '@/components/InstallPrompt';
 import WorkoutDraftBanner from '@/components/WorkoutDraftBanner';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
@@ -51,7 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <DeepLinkHandler />
         <HealthAutoPilot />
         <WorkoutDraftBanner />
-        <Navbar />
+        <JourneyNav />
         <InstallPrompt />
       </body>
     </html>
