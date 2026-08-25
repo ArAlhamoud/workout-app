@@ -2,39 +2,35 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getHealthData } from './health-actions';
 import { getWorkouts } from './actions';
-import { getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay } from '@/lib/program';
-import TrainingCard from '@/components/health/TrainingCard';
-import HealthReminders from '@/components/health/HealthReminders';
+import { getDynamicPlan, isTrainingSession, queuedDay } from '@/lib/program';
 import {
+  journeyDay,
+  journeyStations,
+  journeyStory,
+  ownPattern,
   afStats,
-  bpAverage,
   cpapStats,
   severeSymptomFlag,
   siteLabel,
   nextSite,
   treatmentClock,
   weightSnapshot,
-  weightProjections,
   DEFAULT_DOSE_PLAN,
   DEFAULT_ROTATION,
-  SYMPTOM_LABEL,
   type DosePlanStep,
 } from '@/lib/health-insights';
-import QuickLog from '@/components/health/QuickLog';
+import CheckIn from '@/components/health/CheckIn';
+import HealthReminders from '@/components/health/HealthReminders';
 
 export const metadata: Metadata = { title: 'Aurora Health' };
 export const dynamic = 'force-dynamic';
 
-const fmtDay = (d: Date) =>
-  d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-
-// The health-first Home: the app IS the health tracker, and training is
-// one room in it (the owner's re-orientation, Aug 25). The old training
-// home lives on at /train.
+// The journey Home (the owner's re-orientation, round 2): not a dashboard
+// of metric cards — a companion walking a treatment. One day, ONE action,
+// one conversation, the story so far in sentences, and the path ahead.
+// Tables live behind Timeline/Patterns for the day he wants them.
 export default async function HomePage() {
   const [data, workouts] = await Promise.all([getHealthData(), getWorkouts()]);
-  const trainPlan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
-  const trainStatus = getTrainingStatus(workouts.filter(isTrainingSession).map((w) => w.date));
   const { profile } = data;
   const plan = ((profile.dosePlan as DosePlanStep[] | null) ?? DEFAULT_DOSE_PLAN);
   const rotation =
@@ -44,48 +40,82 @@ export default async function HomePage() {
     data.injections, plan, new Date(),
     data.firstInjectionAt ?? undefined, data.injectionCount,
   );
+  const day = journeyDay(clock, plan, data.injectionCount);
   const site = nextSite(rotation, data.injections);
-  const weight = weightSnapshot(
+  const snapshot = weightSnapshot(
     profile,
-    ((profile.milestonesKg as number[] | null) ?? [120, 110, 103]),
+    (profile.milestonesKg as number[] | null) ?? [120, 110, 103],
     data.bodyStats,
   );
-  const projections = weight
-    ? weightProjections(data.bodyStats, ((profile.milestonesKg as number[] | null) ?? [120, 110, 103]))
-    : null;
   const af = afStats(data.afEpisodes);
   const cpap = cpapStats(data.cpapNights);
-  const bp7 = bpAverage(data.bpReadings, 7);
-  const latestBp = data.bpReadings[0] ?? null;
-  const latestLdl = data.labs.find((l) => l.test === 'ldl') ?? null;
-  // "Today" is the local calendar day, not a rolling 24 hours — a symptom
-  // from yesterday evening is not "today" this afternoon.
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todaySymptoms = data.symptoms.filter((s) => new Date(s.at) >= todayStart);
+  const story = journeyStory({
+    snapshot,
+    af,
+    cpap,
+    dosesTaken: data.injectionCount,
+    daysIn: day.day,
+  });
+  const pattern = ownPattern(
+    data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
+    data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })),
+  );
   const severe = severeSymptomFlag(
     data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
   );
+  const stations = journeyStations(
+    plan,
+    data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })),
+  );
+  const nextStations = stations.filter((s) => s.state !== 'done').slice(0, 2);
+
+  const trainPlan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
+  const trainDay = queuedDay(trainPlan);
+  const isTrainDayNow = trainPlan.mode === 'train';
+
+  // Local calendar "today" for the check-in skip logic.
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const cpapLoggedToday = data.cpapNights.some((n) => {
+    const created = new Date(n.createdAt);
+    return created >= todayStart;
+  });
+
+  // THE day's one action, in priority order: first dose > due dose >
+  // training day > nothing-due. Never a menu of equals.
+  const injectionDue = !!clock && (clock.daysSinceLast >= 7 || clock.overdue);
+  const workoutsToday = workouts.filter(
+    (w) => isTrainingSession(w) && new Date(w.date) >= todayStart,
+  ).length;
 
   return (
     <div className="space-y-5 pb-8">
-      {/* Home owns the reminder arming too — /health/* pages arm via their
-          layout, and the most-visited screen must not be the one that
-          forgets (device-tester lesson from the hub-only mount). */}
       <HealthReminders
         nextDueISO={clock ? clock.nextDue.toISOString() : null}
         lastInjectionISO={clock ? clock.lastInjection.toISOString() : null}
         enabled={(profile.reminders as Record<string, boolean> | null) ?? {}}
       />
+
+      {/* The day, named */}
       <div className="pt-1">
-        <p className="section-label text-acc-cyan/80">Aurora Health</p>
-        <h1 className="mt-0.5 font-round text-2xl font-bold tracking-tight text-app-tx1">
-          Today
+        <p className="section-label text-acc-cyan/80">
+          Aurora Health{day.week ? ` · week ${day.week}` : ''}
+        </p>
+        <h1 className="mt-0.5 font-round text-[26px] font-extrabold leading-tight tracking-tight text-app-tx1">
+          {day.day
+            ? `Day ${day.day} of your journey.`
+            : 'It starts with the first dose.'}
         </h1>
+        <p className="mt-1 text-sm text-app-tx2">
+          {snapshot ? `${snapshot.currentKg} kg` : '—'}
+          {clock && ` · ${clock.lastDoseMg} mg weekly`}
+          {day.dosesUntilCheckpoint != null &&
+            day.dosesUntilCheckpoint > 0 &&
+            ` · ${day.dosesUntilCheckpoint} dose${day.dosesUntilCheckpoint === 1 ? '' : 's'} to the doctor`}
+          {day.dosesUntilCheckpoint === 0 && ' · doctor review is next'}
+        </p>
       </div>
 
-      {/* Static safety line — shown only on repeated severe red-flag logs.
-          The app never judges urgency; it only refuses to stay silent. */}
       {severe && (
         <div className="card border-rpe-hard/40 px-4 py-3">
           <p className="text-sm text-app-tx1">
@@ -95,208 +125,129 @@ export default async function HomePage() {
         </div>
       )}
 
-      {/* Hero */}
-      <div className="card-lg p-4">
-        <div className="flex items-baseline justify-between gap-3">
-          <div>
-            <div className="font-round text-3xl font-light tabular-nums glow-cyan">
-              {weight ? `${weight.currentKg} kg` : '— kg'}
-            </div>
-            <p className="metric-label mt-0.5">
-              {weight ? `${weight.lostKg >= 0 ? '−' : '+'}${Math.abs(weight.lostKg)} kg · ${weight.pctLost}% · BMI ${weight.bmi}` : 'no weigh-in yet'}
-            </p>
+      {/* THE one thing today asks of him */}
+      {!clock ? (
+        <Link href="/health/injection" className="card-lg block p-5">
+          <p className="section-label text-acc-cyan/80">Today&apos;s one thing</p>
+          <p className="mt-1.5 text-lg font-extrabold leading-snug text-app-tx1">
+            Take the first 2.5 mg dose — {siteLabel(site)} is up.
+          </p>
+          <div className="mt-3 rounded-card border-2 border-ink bg-acc-teal-deep py-3.5 text-center text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f]">
+            Begin the journey →
           </div>
-          <div className="text-right">
-            <div className="font-round text-xl font-semibold tabular-nums text-app-tx1">
-              {clock ? `${clock.lastDoseMg} mg` : '2.5 mg'}
-            </div>
-            <p className="metric-label mt-0.5">
-              {clock ? `week ${clock.week}` : 'week 1 · not started'}
-            </p>
-          </div>
-        </div>
-        <div className="mt-3 border-t border-ink/10 pt-3">
-          {clock ? (
-            <p className="text-sm text-app-tx2">
-              Next injection <b className="text-app-tx1">{fmtDay(clock.nextDue)}</b>
-              {clock.nextPlanned?.mg != null ? (
-                <> · <b className="text-app-tx1">{clock.nextPlanned.mg} mg</b></>
-              ) : clock.nextPlanned ? (
-                <> · <b className="text-acc-ember">{clock.nextPlanned.label ?? 'Doctor review'} — no dose scheduled</b></>
-              ) : (
-                <> · <b className="text-acc-ember">plan ends here — extend it in Plan</b></>
-              )}
-              {' '}· {siteLabel(site)}
-            </p>
-          ) : (
-            <p className="text-sm text-app-tx2">
-              Log your first injection to start the treatment clock — week 1 begins there.
-            </p>
-          )}
-        </div>
-        <Link
-          href="/health/injection"
-          className="mt-3 flex w-full items-center justify-center rounded-card-lg bg-gradient-to-r from-acc-cyan to-acc-teal py-3 text-sm font-bold text-white shadow-glow-teal transition-all active:scale-[0.99]"
-        >
-          {clock ? 'Injection day →' : 'Log first injection →'}
         </Link>
-      </div>
+      ) : injectionDue ? (
+        <Link href="/health/injection" className="card-lg block p-5">
+          <p className="section-label text-acc-cyan/80">Today&apos;s one thing</p>
+          <p className="mt-1.5 text-lg font-extrabold leading-snug text-app-tx1">
+            Injection day — {clock.nextPlanned?.mg != null
+              ? `${clock.nextPlanned.mg} mg, ${siteLabel(site)}.`
+              : 'the plan says: talk to your doctor first.'}
+          </p>
+          <div className="mt-3 rounded-card border-2 border-ink bg-acc-teal-deep py-3.5 text-center text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f]">
+            Open injection day →
+          </div>
+        </Link>
+      ) : isTrainDayNow && workoutsToday === 0 ? (
+        <Link href={`/workouts/new?day=${trainDay}&dur=45`} className="card-lg block p-5">
+          <p className="section-label text-acc-cyan/80">Today&apos;s one thing</p>
+          <p className="mt-1.5 text-lg font-extrabold leading-snug text-app-tx1">
+            Move — Day {trainDay} is queued. Muscle protects the weight you&apos;re losing.
+          </p>
+          <div
+            className={`mt-3 rounded-card border-2 border-ink py-3.5 text-center text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f] ${
+              trainDay === 'A' ? 'bg-acc-violet-deep' : 'bg-acc-teal-deep'
+            }`}
+          >
+            Start Day {trainDay} · 45 min →
+          </div>
+        </Link>
+      ) : (
+        <div className="card-lg p-5">
+          <p className="section-label text-acc-cyan/80">Today&apos;s one thing</p>
+          <p className="mt-1.5 text-lg font-extrabold leading-snug text-app-tx1">
+            {workoutsToday > 0
+              ? 'Trained and dosed as planned — today asks nothing more of you.'
+              : 'Nothing is due today. The check-in below is the whole job.'}
+          </p>
+          <p className="mt-1 text-xs text-app-tx3">
+            Next dose {clock.nextDue.toLocaleDateString('en-US', { weekday: 'long' })} · {siteLabel(site)}
+          </p>
+        </div>
+      )}
 
-      {/* Quick logs — the <10 second promise lives here */}
-      <QuickLog />
+      {/* The conversation */}
+      <CheckIn cpapLoggedToday={cpapLoggedToday} />
 
-      {/* Training — one room in the house now */}
-      <TrainingCard
-        plan={trainPlan}
-        nextDay={queuedDay(trainPlan)}
-        returnMode={trainStatus.mode === 'return'}
-      />
+      {/* What his own logs know about today */}
+      {pattern && (
+        <div className="card border-acc-cyan/40 px-4 py-3">
+          <p className="text-sm leading-relaxed text-app-tx1">{pattern}</p>
+        </div>
+      )}
 
-      {/* Weight milestones */}
-      {weight && (
+      {/* The story so far */}
+      {story.length > 0 && (
         <div className="card-lg p-4">
-          <div className="mb-2 flex items-baseline justify-between">
-            <p className="section-label">Weight</p>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-app-tx3">
-              {weight.startKg} → {weight.currentKg} → {profile.goalWeightKg} kg
-            </span>
-          </div>
+          <p className="section-label mb-2">The story so far</p>
           <div className="space-y-2">
-            {weight.kgMilestones.map((m) => {
-              const total = weight.startKg - m.kg;
-              const done = Math.min(total, Math.max(0, weight.startKg - weight.currentKg));
-              const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-              const proj = projections?.find((p) => p.targetKg === m.kg);
-              return (
-                <div key={m.kg}>
-                  <div className="flex items-baseline justify-between text-xs">
-                    <span className={m.achieved ? 'text-acc-teal font-semibold' : 'text-app-tx2'}>
-                      {m.kg} kg {m.achieved ? '· reached' : ''}
-                    </span>
-                    {!m.achieved && proj?.estimatedDate && (
-                      <span className="text-app-tx3">
-                        ~{proj.estimatedDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-ink/10">
-                    <div
-                      className={`h-full rounded-full ${m.achieved ? 'bg-acc-teal' : 'bg-acc-cyan/70'}`}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {projections && (
-            <p className="mt-2 text-[10px] text-app-tx3">
-              Dates are projections from your recent trend — not a guarantee.
-            </p>
-          )}
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {weight.pctMilestones.map((m) => (
-              <span
-                key={m.pct}
-                className={`chip border ${m.achieved ? 'border-acc-teal/40 bg-acc-teal/10 text-acc-teal' : 'border-app-border bg-app-surface2 text-app-tx3'}`}
-              >
-                {m.pct}%
-              </span>
+            {story.map((s, i) => (
+              <p key={i} className="text-sm leading-relaxed text-app-tx1">
+                {s}
+              </p>
             ))}
           </div>
         </div>
       )}
 
-      {/* Glance cards */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="card p-3.5">
-          <p className="metric-label">AF</p>
-          <div className="metric-value mt-1 text-app-tx1">
-            {af.daysSinceLast === null ? '—' : af.daysSinceLast}
-            <span className="ml-1 text-xs font-semibold text-app-tx3">
-              {af.daysSinceLast === null ? 'no episodes logged' : 'days since episode'}
+      {/* The path ahead — two stations, then the full journey */}
+      {nextStations.length > 0 && (
+        <Link href="/journey" className="card-lg block p-4">
+          <div className="mb-2 flex items-baseline justify-between">
+            <p className="section-label">The path ahead</p>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-app-tx3">
+              full journey →
             </span>
           </div>
-          <p className="mt-1 text-[11px] text-app-tx3">{af.thisMonth} this month</p>
-        </div>
-        <div className="card p-3.5">
-          <p className="metric-label">CPAP</p>
-          <div className="metric-value mt-1 text-app-tx1">
-            {cpap.avgHours30d ?? '—'}
-            <span className="ml-1 text-xs font-semibold text-app-tx3">h/night · 30d</span>
+          <div className="space-y-2">
+            {nextStations.map((s, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <span
+                  className={`h-3 w-3 flex-none rounded-full border-2 border-ink ${
+                    s.state === 'next' ? 'bg-acc-teal-deep' : s.kind === 'checkpoint' ? 'bg-acc-ember-deep' : 'bg-app-surface2'
+                  }`}
+                />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-app-tx1">{s.label}</p>
+                  {s.detail && <p className="text-[11px] text-app-tx3">{s.detail}</p>}
+                </div>
+              </div>
+            ))}
           </div>
-          <p className="mt-1 text-[11px] text-app-tx3">
-            {cpap.avgAhi30d != null ? `AHI ${cpap.avgAhi30d} · ` : ''}
-            {cpap.streak > 1 ? `${cpap.streak}-night streak` : `${cpap.nights30d} nights logged`}
-          </p>
-        </div>
-        <div className="card p-3.5">
-          <p className="metric-label">Blood pressure</p>
-          <div className="metric-value mt-1 text-app-tx1">
-            {latestBp ? `${latestBp.systolic}/${latestBp.diastolic}` : '—'}
-          </div>
-          <p className="mt-1 text-[11px] text-app-tx3">
-            {bp7 ? `7-day avg ${bp7.systolic}/${bp7.diastolic} (${bp7.n})` : 'log 3+ readings for an average'}
-          </p>
-        </div>
-        <div className="card p-3.5">
-          <p className="metric-label">Labs</p>
-          <div className="metric-value mt-1 text-app-tx1">
-            {latestLdl ? latestLdl.value : '—'}
-            <span className="ml-1 text-xs font-semibold text-app-tx3">LDL mmol/L</span>
-          </div>
-          <p className="mt-1 text-[11px] text-app-tx3">
-            {latestLdl ? new Date(latestLdl.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : 'no labs yet'}
-          </p>
-        </div>
-        <div className="card p-3.5">
-          <p className="metric-label">GI today</p>
-          <div className="metric-value mt-1 text-app-tx1">
-            {todaySymptoms.length ? todaySymptoms.length : '—'}
-            <span className="ml-1 text-xs font-semibold text-app-tx3">
-              {todaySymptoms.length === 1 ? 'symptom logged' : 'symptoms logged'}
-            </span>
-          </div>
-          <p className="mt-1 text-[11px] text-app-tx3">
-            {todaySymptoms.length
-              ? todaySymptoms.slice(0, 2).map((s) => SYMPTOM_LABEL[s.kind] ?? s.kind).join(' · ')
-              : 'nothing logged today'}
-          </p>
-        </div>
-        <div className="card p-3.5">
-          <p className="metric-label">Medications</p>
-          <div className="metric-value mt-1 text-app-tx1">{data.meds.filter((m) => !m.stoppedOn).length}</div>
-          <p className="mt-1 text-[11px] text-app-tx3">
-            {data.meds.filter((m) => !m.stoppedOn).map((m) => m.name.split(' ')[0]).join(' · ') || 'none'}
-          </p>
-        </div>
-      </div>
+        </Link>
+      )}
 
-      {/* Section links */}
-      <div className="space-y-2">
+      {/* Everything else is a room, not a widget */}
+      <div className="grid grid-cols-2 gap-2">
         {[
-          { href: '/health/timeline', label: 'Timeline', sub: 'everything on one axis' },
-          { href: '/health/analytics', label: 'Patterns', sub: 'side effects · AF · CPAP vs weight' },
-          { href: '/health/report', label: 'Doctor report', sub: 'printable · English + العربية' },
-          { href: '/health/plan', label: 'Plan & profile', sub: 'dose plan · labs · reminders · edits' },
+          { href: '/health/report', label: 'Doctor report' },
+          { href: '/health/plan', label: 'Plan & profile' },
+          { href: '/health/analytics', label: 'Patterns' },
+          { href: '/health/timeline', label: 'The full log' },
         ].map((l) => (
           <Link
             key={l.href}
             href={l.href}
-            className="card flex items-center justify-between px-4 py-3 transition-colors hover:border-app-border-hi"
+            className="card px-4 py-3 text-sm font-bold text-app-tx1 transition-colors hover:border-app-border-hi"
           >
-            <div>
-              <p className="text-sm font-semibold text-app-tx1">{l.label}</p>
-              <p className="text-[11px] text-app-tx3">{l.sub}</p>
-            </div>
-            <span className="text-app-tx3">→</span>
+            {l.label} <span className="text-app-tx3">→</span>
           </Link>
         ))}
       </div>
 
       <p className="text-[10px] leading-relaxed text-app-tx3">
-        This is a tracker, not a diagnostic tool. Patterns shown are observations from your own
-        logs — decisions about doses and medications belong to you and your doctor.
+        A tracker, not a diagnosis — patterns are observations from your own logs; decisions
+        belong to you and your doctor.
       </p>
     </div>
   );

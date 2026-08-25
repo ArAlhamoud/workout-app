@@ -505,3 +505,154 @@ export function severeSymptomFlag(symptoms: SymptomLite[], now: Date = new Date(
   );
   return recent.length >= 2;
 }
+
+// ── The journey layer — time and story, not tables ───────────
+// The re-orientation (owner, Aug 25): a companion narrates a treatment
+// journey; it does not hand over a grid of metrics. Everything below turns
+// the same logged rows into (a) the day's ONE headline, (b) sentences, and
+// (c) stations on a path. Deterministic, guarded, first-person-his-data.
+
+export interface JourneyDay {
+  /** 1-based day of the journey; null before the first dose. */
+  day: number | null;
+  week: number | null;
+  /** Doses taken and the total the plan holds before its first checkpoint. */
+  dosesTaken: number;
+  dosesUntilCheckpoint: number | null;
+}
+
+export function journeyDay(
+  clock: TreatmentClock | null,
+  plan: DosePlanStep[],
+  doseCount: number,
+  now: Date = new Date(),
+): JourneyDay {
+  const checkpointAt = plan.find((s) => s.mg === null)?.week ?? null;
+  return {
+    day: clock ? calendarDays(now, clock.anchor) + 1 : null,
+    week: clock ? clock.week : null,
+    dosesTaken: doseCount,
+    dosesUntilCheckpoint:
+      checkpointAt !== null ? Math.max(0, checkpointAt - 1 - doseCount) : null,
+  };
+}
+
+/** What the app knows about HIS day-after pattern — never a generic claim.
+ *  Null until two doses have day-relative symptom data to speak from. */
+export function ownPattern(
+  symptoms: SymptomLite[],
+  injections: InjectionLite[],
+  now: Date = new Date(),
+): string | null {
+  if (injections.length < 2) return null;
+  const rel = dayRelativeSymptoms(symptoms, injections);
+  let worst: { kind: string; offset: number; avg: number } | null = null;
+  for (const [kind, cells] of Object.entries(rel)) {
+    for (const c of cells) {
+      if (c.count >= 2 && (worst === null || c.avgSeverity > worst.avg)) {
+        worst = { kind, offset: c.offset, avg: c.avgSeverity };
+      }
+    }
+  }
+  if (!worst || worst.avg < 1) return null;
+  const last = [...injections].sort((a, b) => time(b.at) - time(a.at))[0];
+  const daysSince = calendarDays(now, last.at);
+  const label = (SYMPTOM_LABEL[worst.kind] ?? worst.kind).toLowerCase();
+  if (daysSince === worst.offset) {
+    return `In your logs, ${label} has been strongest on day ${worst.offset} after a dose — today is that day. It has passed each time.`;
+  }
+  if (daysSince === worst.offset - 1) {
+    return `Tomorrow is day ${worst.offset} after your dose — the day ${label} has usually been strongest in your logs.`;
+  }
+  return null;
+}
+
+/** The story so far, in sentences. Only what the data can back; an empty
+ *  array on day one is correct, not a failure. */
+export function journeyStory(input: {
+  snapshot: WeightSnapshot | null;
+  af: AfStats;
+  cpap: CpapStats;
+  dosesTaken: number;
+  daysIn: number | null;
+}): string[] {
+  const out: string[] = [];
+  const { snapshot, af, cpap, dosesTaken, daysIn } = input;
+  if (snapshot && snapshot.lostKg >= 0.5 && daysIn !== null) {
+    out.push(
+      `You started at ${snapshot.startKg} kg. ${daysIn} days in: ${snapshot.currentKg} kg — ${snapshot.lostKg} kg down, ${snapshot.pctLost}% of you.`,
+    );
+  } else if (snapshot && snapshot.lostKg <= -0.5) {
+    out.push(
+      `The scale is up ${Math.abs(snapshot.lostKg)} kg from your start — early weeks move for many reasons; the trend is what counts.`,
+    );
+  }
+  if (af.lastMonth >= 2 && af.thisMonth < af.lastMonth) {
+    out.push(
+      `Your heart has been quieter: ${af.thisMonth} episode${af.thisMonth === 1 ? '' : 's'} this month against ${af.lastMonth} last month.`,
+    );
+  } else if (af.daysSinceLast !== null && af.daysSinceLast >= 14) {
+    out.push(`${af.daysSinceLast} days since the last AF episode — your longest quiet stretch this treatment.`);
+  }
+  if (cpap.streak >= 5) {
+    out.push(`${cpap.streak} nights running on the mask${cpap.avgAhi30d != null ? ` at AHI ${cpap.avgAhi30d}` : ''}.`);
+  }
+  if (!out.length && dosesTaken >= 1) {
+    out.push(`Dose ${dosesTaken} is in. The story writes itself from here — log the small things and watch it build.`);
+  }
+  return out.slice(0, 3);
+}
+
+export type StationState = 'done' | 'next' | 'future' | 'gate';
+
+export interface JourneyStation {
+  kind: 'dose' | 'checkpoint';
+  label: string;
+  detail: string | null;
+  state: StationState;
+}
+
+/** The treatment as stations on a path — each plan slot becomes a station,
+ *  filled by what actually happened. The doctor review is a GATE, not a
+ *  list row: the path visibly stops there until the plan is extended. */
+export function journeyStations(
+  plan: DosePlanStep[],
+  injections: Array<InjectionLite & { site?: string }>,
+  now: Date = new Date(),
+): JourneyStation[] {
+  const sorted = [...injections].sort((a, b) => time(a.at) - time(b.at));
+  const out: JourneyStation[] = [];
+  let doseIndex = 0;
+  for (const step of plan) {
+    if (step.mg === null) {
+      out.push({
+        kind: 'checkpoint',
+        label: step.label ?? 'Doctor review',
+        detail: 'the plan beyond this is yours and your doctor’s to write',
+        state: doseIndex >= step.week - 1 ? 'next' : 'gate',
+      });
+      continue;
+    }
+    const taken = sorted[doseIndex];
+    if (taken) {
+      out.push({
+        kind: 'dose',
+        label: `Dose ${step.week} · ${taken.doseMg} mg`,
+        detail: `${new Date(taken.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${taken.site ? ` · ${siteLabel(taken.site)}` : ''}`,
+        state: 'done',
+      });
+      doseIndex += 1;
+    } else {
+      const isNext = doseIndex === sorted.length && out.every((s) => s.state !== 'next');
+      out.push({
+        kind: 'dose',
+        label: `Dose ${step.week} · ${step.mg} mg`,
+        detail: isNext && sorted.length
+          ? `due ${new Date(time(sorted[sorted.length - 1].at) + WEEK_MS).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+          : null,
+        state: isNext ? 'next' : 'future',
+      });
+    }
+  }
+  return out;
+}

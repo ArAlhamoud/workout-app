@@ -12,11 +12,13 @@ function IconHome({ active }: { active: boolean }) {
   );
 }
 
-function IconTimeline({ active }: { active: boolean }) {
+function IconJourney({ active }: { active: boolean }) {
+  // A winding path with stations — the treatment as a road, not a table.
   return (
     <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 1.8} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="9" />
-      <polyline points="12 7 12 12 15 15" />
+      <path d="M5 19c6 0 6-6 0-6s-6-8 4-8" />
+      <circle cx="18" cy="5" r="2.2" fill={active ? 'currentColor' : 'none'} />
+      <circle cx="5" cy="19" r="2.2" fill={active ? 'currentColor' : 'none'} />
     </svg>
   );
 }
@@ -66,7 +68,7 @@ export default function Navbar() {
     pathname.startsWith('/train') ||
     pathname === '/program' ||
     (pathname.startsWith('/workouts') && !pathname.startsWith('/workouts/new'));
-  const isTimeline = pathname.startsWith('/health/timeline');
+  const isJourney = pathname.startsWith('/journey') || pathname.startsWith('/health/timeline');
   const isStats = pathname === '/stats';
 
   return (
@@ -95,7 +97,7 @@ export default function Navbar() {
                 </svg>
               </Link>
             </div>
-            <Tab href="/health/timeline" label="Timeline" icon={<IconTimeline active={isTimeline} />} active={isTimeline} />
+            <Tab href="/journey" label="Journey" icon={<IconJourney active={isJourney} />} active={isJourney} />
             <Tab href="/stats" label="Stats" icon={<IconStats active={isStats} />} active={isStats} />
           </div>
         </div>
