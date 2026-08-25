@@ -63,6 +63,15 @@ has the two-minute setup if he ever changes his mind.
   ramp. RPE 1–4 = Easy/Med/Hard/Grind (`rpe-easy/med/hard/grind` tokens).
 - Dark glass cards (`.card`, `.card-lg`), accents `acc-teal/violet/ember/cyan`.
 
+## The health domain (Wave 5)
+
+The app is **Aurora Health**: training AND a personal Mounjaro/health
+tracker (injections, GI, AF, CPAP, BP, labs — docs/HEALTH.md has the
+laws). Tracker, not diagnostic: correlation language only, "not enough
+data yet" over thin charts, nothing ever suggests a dose. The treatment
+clock anchors at the first LOGGED injection; checkpoint weeks prescribe
+nothing. Weight stays ONE store (BodyStat) shared by both domains.
+
 ## The program, in one paragraph
 
 Two alternating machine days (A: legs/push+core, B: back/pull+posterior),
