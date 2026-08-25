@@ -63,7 +63,7 @@ export default function WorkoutDraftBanner() {
     'glass-overlay flex items-center gap-2.5 max-w-full rounded-full border shadow-glow-teal px-4 py-2.5 text-sm font-semibold text-app-tx1';
 
   return (
-    <div className="fixed bottom-[calc(88px+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex justify-center px-4">
+    <div className="fixed bottom-[calc(88px+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex justify-center px-4 print:hidden">
       {confirming ? (
         <div className={`${shell} border-rpe-grind/40`}>
           <span className="truncate text-app-tx2">Discard {draftName}?</span>

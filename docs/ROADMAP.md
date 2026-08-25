@@ -1,6 +1,21 @@
 # Roadmap
 
-## Wave 7 — the owner's five picks (BUILT)
+# Roadmap
+
+## Wave 5 — Aurora Health (BUILT)
+
+The second domain: Mounjaro treatment as the spine (clock anchored at
+the first logged injection; dose plan 2.5×4 → 5×2 → doctor-review
+checkpoint, editable, never auto-escalating), with weight goals
+(133 → 120 → 110 → 103), GI/side-effect logs on one stream, AF episodes
+with tri-state circumstance flags, CPAP nights (Löwenstein prisma APP
+numbers), BP, labs, medications, a unified timeline, a day-relative
+side-effect matrix, AF correlates with answered-only denominators, and
+a printable English + Arabic doctor report with CSV export. All
+deterministic, all guarded ("not enough data yet"), $0. The app is now
+**Aurora Health**. See docs/HEALTH.md for the laws.
+
+Wave 7 — the owner's five picks (BUILT)
 
 Earned Ramp (clean spaced sessions lift the calendar clamp; rest-day
 spacing + ~4-day phase floor keep time in the loop — fastest disciplined
@@ -91,7 +106,6 @@ visible in Files.app). Still deliberately not built: APNs (nothing to push —
 the coach is dormant and gap notifications are local), HealthKit background
 delivery (would resurrect a public HTTP route the token removal just
 deleted), Watch app (Trip 3, its own sitting).
-
 
 ## Wave 4 — the coach in the silence (BUILT)
 

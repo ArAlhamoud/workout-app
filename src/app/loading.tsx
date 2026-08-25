@@ -2,11 +2,11 @@
 function SkeletonCard({ className }: { className: string }) {
   return (
     <div className={`card motion-safe:animate-pulse p-4 ${className}`}>
-      <div className="h-2.5 w-24 rounded-full bg-white/[0.07]" />
-      <div className="mt-3 h-6 w-36 rounded-lg bg-white/[0.06]" />
+      <div className="h-2.5 w-24 rounded-full bg-ink/[0.07]" />
+      <div className="mt-3 h-6 w-36 rounded-lg bg-ink/[0.06]" />
       <div className="mt-3 space-y-2">
-        <div className="h-2.5 w-full rounded-full bg-white/[0.05]" />
-        <div className="h-2.5 w-3/4 rounded-full bg-white/[0.05]" />
+        <div className="h-2.5 w-full rounded-full bg-ink/[0.05]" />
+        <div className="h-2.5 w-3/4 rounded-full bg-ink/[0.05]" />
       </div>
     </div>
   );

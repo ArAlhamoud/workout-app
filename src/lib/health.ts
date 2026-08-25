@@ -15,7 +15,11 @@ export type HealthSampleType =
   | 'vo2max'
   | 'wrist_temp_c'
   | 'respiratory_rate'
-  | 'steps';
+  | 'steps'
+  // Blood-pressure halves as HealthKit reports them (paired into BpReading
+  // rows by the import route via pairBpSamples).
+  | 'bp_systolic'
+  | 'bp_diastolic';
 
 export interface ParsedSample {
   type: HealthSampleType;
@@ -43,6 +47,8 @@ const DEFAULT_UNITS: Record<HealthSampleType, string> = {
   wrist_temp_c: 'degC',
   respiratory_rate: 'count/min',
   steps: 'count',
+  bp_systolic: 'mmHg',
+  bp_diastolic: 'mmHg',
 };
 
 /** Liberal metric-name matching: maps any recognisable name to a canonical type. */
@@ -61,6 +67,8 @@ export function normalizeSampleType(name: string): HealthSampleType | null {
   if (n.includes('vo2')) return 'vo2max';
   if (n.includes('respiratory')) return 'respiratory_rate';
   if (n.includes('step_count') || n === 'steps') return 'steps';
+  if (n.includes('systolic')) return 'bp_systolic';
+  if (n.includes('diastolic')) return 'bp_diastolic';
   if (n.includes('body_mass') || n.includes('weight')) return 'weight';
   if (n.includes('heart_rate') || n.includes('heartrate')) return 'heart_rate';
   if (n.includes('active_energy') || n.includes('activeenergy')) return 'active_energy';
@@ -270,4 +278,62 @@ export function checkExportAuth(request: Request): HealthAuthResult {
   const queryToken = new URL(request.url).searchParams.get('token');
   if (queryToken === token) return { ok: true };
   return { ok: false, status: 401, message: 'Invalid or missing sync token' };
+}
+
+// ── Blood pressure pairing ────────────────────────────────────────────────
+// HealthKit stores a monitor reading as two quantity samples (systolic +
+// diastolic) that share the correlation's timestamp. The bridge reads them
+// as two series; this reunites them.
+
+export interface BpPair {
+  at: Date;
+  systolic: number;
+  diastolic: number;
+}
+
+/**
+ * Pairs systolic and diastolic series into readings. Each sample is used at
+ * most once; a half with no partner within `toleranceMs` is dropped (half a
+ * reading is not a reading). Pairs failing the same plausibility bounds the
+ * manual logger enforces — systolic 60–260, diastolic 30–160, systolic above
+ * diastolic — are dropped too, so a device glitch can't become history.
+ */
+export function pairBpSamples(
+  systolic: Array<{ dateISO: string; value: number }>,
+  diastolic: Array<{ dateISO: string; value: number }>,
+  toleranceMs = 60_000,
+): BpPair[] {
+  const sys = systolic
+    .map((s) => ({ t: new Date(s.dateISO).getTime(), v: s.value }))
+    .filter((s) => Number.isFinite(s.t) && Number.isFinite(s.v))
+    .sort((a, b) => a.t - b.t);
+  const dia = diastolic
+    .map((s) => ({ t: new Date(s.dateISO).getTime(), v: s.value, used: false }))
+    .filter((s) => Number.isFinite(s.t) && Number.isFinite(s.v))
+    .sort((a, b) => a.t - b.t);
+
+  const pairs: BpPair[] = [];
+  let start = 0;
+  for (const s of sys) {
+    // Advance past diastolic samples too old to ever match again.
+    while (start < dia.length && (dia[start].used || dia[start].t < s.t - toleranceMs)) start++;
+    let best = -1;
+    let bestGap = Infinity;
+    for (let i = start; i < dia.length && dia[i].t <= s.t + toleranceMs; i++) {
+      if (dia[i].used) continue;
+      const gap = Math.abs(dia[i].t - s.t);
+      if (gap < bestGap) {
+        best = i;
+        bestGap = gap;
+      }
+    }
+    if (best === -1) continue;
+    const systolicV = Math.round(s.v);
+    const diastolicV = Math.round(dia[best].v);
+    dia[best].used = true;
+    if (systolicV < 60 || systolicV > 260 || diastolicV < 30 || diastolicV > 160) continue;
+    if (systolicV <= diastolicV) continue;
+    pairs.push({ at: new Date(s.t), systolic: systolicV, diastolic: diastolicV });
+  }
+  return pairs;
 }

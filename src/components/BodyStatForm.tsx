@@ -63,7 +63,7 @@ export default function BodyStatForm() {
           <button
             type="submit"
             disabled={saving || (!weight && !waist && !arms)}
-            className="px-4 py-2.5 bg-gradient-to-r from-acc-teal to-acc-teal-deep text-[#062521] shadow-glow-teal hover:brightness-105 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none text-sm font-bold rounded-card transition-all flex-shrink-0"
+            className="px-4 py-2.5 bg-gradient-to-r from-acc-teal to-acc-teal-deep text-white shadow-glow-teal hover:brightness-105 disabled:bg-none disabled:bg-app-surface2 disabled:text-app-tx3 disabled:shadow-none text-sm font-bold rounded-card transition-all flex-shrink-0"
           >
             {saved ? '✓ Saved' : saving ? 'Saving…' : 'Save'}
           </button>

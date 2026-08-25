@@ -55,7 +55,7 @@ export default function StepsChipLabel() {
       </span>
       {/* Underline rather than a bar: this lives inside a chip, and the shape
           should read as progress on the number, not as a second component. */}
-      <span className="h-[2px] w-full overflow-hidden rounded-full bg-white/10">
+      <span className="h-[2px] w-full overflow-hidden rounded-full bg-ink/10">
         <span
           className="block h-full rounded-full bg-gradient-to-r from-acc-teal-deep to-acc-teal transition-[width] duration-500"
           style={{ width: `${pct}%` }}

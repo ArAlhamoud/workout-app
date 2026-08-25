@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import {
   dayKey,
   matchSamplesToWorkout,
+  pairBpSamples,
   parseHealthPayload,
   type ParsedSample,
 } from '@/lib/health';
@@ -78,8 +79,55 @@ async function enrichWorkouts(samples: ParsedSample[]): Promise<number> {
 }
 
 /**
+ * Pairs bp_systolic/bp_diastolic samples (the two halves HealthKit stores
+ * per monitor reading) into BpReading rows. Idempotent across the rolling
+ * sync window: any existing reading within a minute of a pair's timestamp —
+ * imported earlier, or logged by hand for the same measurement — wins, and
+ * the pair is skipped. Imports are marked by `notes` so provenance stays
+ * visible without a schema change.
+ */
+async function importBpReadings(samples: ParsedSample[]): Promise<number> {
+  const pairs = pairBpSamples(
+    samples.filter((s) => s.type === 'bp_systolic').map((s) => ({ dateISO: s.date.toISOString(), value: s.value })),
+    samples.filter((s) => s.type === 'bp_diastolic').map((s) => ({ dateISO: s.date.toISOString(), value: s.value })),
+  );
+  if (!pairs.length) return 0;
+
+  const DEDUPE_MS = 60_000;
+  const times = pairs.map((p) => p.at.getTime());
+  const existing = await prisma.bpReading.findMany({
+    where: {
+      at: {
+        gte: new Date(Math.min(...times) - DEDUPE_MS),
+        lte: new Date(Math.max(...times) + DEDUPE_MS),
+      },
+    },
+    select: { at: true },
+  });
+  const taken = existing.map((r) => r.at.getTime());
+
+  let created = 0;
+  for (const pair of pairs) {
+    const t = pair.at.getTime();
+    if (taken.some((e) => Math.abs(e - t) <= DEDUPE_MS)) continue;
+    await prisma.bpReading.create({
+      data: {
+        at: pair.at,
+        systolic: pair.systolic,
+        diastolic: pair.diastolic,
+        notes: 'Apple Health',
+      },
+    });
+    taken.push(t); // two pairs in one batch can't both land on the same minute
+    created++;
+  }
+  return created;
+}
+
+/**
  * Import Apple Health samples. Called by a server action, not over HTTP —
- * there is no token because there is no public endpoint to guard.
+ * there is no token because there is no public endpoint to guard (Wave 5).
+ * The revamp's BP pairing (importBpReadings above) rides the same entry.
  */
 export async function importHealthSamples(payload: unknown) {
   const { samples, skipped } = parseHealthPayload(payload);
@@ -108,11 +156,12 @@ export async function importHealthSamples(payload: unknown) {
 
   const bodyStatsUpserted = await upsertBodyStats(samples.filter((s) => s.type === 'weight'));
   const workoutsEnriched = await enrichWorkouts(samples);
+  const bpImported = await importBpReadings(samples);
 
-  if (imported || bodyStatsUpserted || workoutsEnriched) {
+  if (imported || bodyStatsUpserted || workoutsEnriched || bpImported) {
     revalidatePath('/');
     revalidatePath('/stats');
   }
 
-  return { imported, skipped, bodyStatsUpserted, workoutsEnriched };
+  return { imported, skipped, bodyStatsUpserted, workoutsEnriched, bpImported };
 }

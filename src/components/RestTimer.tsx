@@ -278,7 +278,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss, nextU
         <div
           className={`glass-overlay rounded-card-lg border overflow-hidden transition-colors duration-500 ${shellClass}`}
         >
-          <div className="h-1.5 bg-white/10">
+          <div className="h-1.5 bg-ink/10">
             <div
               className={`h-full transition-all duration-300 ease-linear ${barClass}`}
               style={{ width: `${pct}%` }}
@@ -322,7 +322,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss, nextU
             )}
             <button
               onClick={onDismiss}
-              className="text-app-tx2 hover:text-app-tx1 text-sm transition-colors px-3 py-2 rounded-card hover:bg-white/5 flex-shrink-0"
+              className="text-app-tx2 hover:text-app-tx1 text-sm transition-colors px-3 py-2 rounded-card hover:bg-ink/5 flex-shrink-0"
             >
               {finished ? 'Done' : 'Skip'}
             </button>
@@ -359,19 +359,19 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss, nextU
             <div className="px-4 pb-3 flex items-center gap-2">
               <button
                 onClick={() => adjust(-15)}
-                className="text-xs bg-white/[0.06] text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-app-border-hi transition-colors"
+                className="text-xs bg-ink/[0.06] text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-app-border-hi transition-colors"
               >
                 −15s
               </button>
               <button
                 onClick={() => adjust(15)}
-                className="text-xs bg-white/[0.06] text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-app-border-hi transition-colors"
+                className="text-xs bg-ink/[0.06] text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-app-border-hi transition-colors"
               >
                 +15s
               </button>
               <button
                 onClick={() => adjust(30)}
-                className="text-xs bg-white/[0.06] text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-app-border-hi transition-colors"
+                className="text-xs bg-ink/[0.06] text-app-tx2 hover:text-app-tx1 px-2.5 py-1 rounded-full border border-app-border hover:border-app-border-hi transition-colors"
               >
                 +30s
               </button>

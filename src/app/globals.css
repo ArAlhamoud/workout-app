@@ -2,59 +2,60 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── AURORA · design tokens ────────────────────────────────── */
+/* ── CHROMA · design tokens ────────────────────────────────────
+   The owner-picked direction (design canvas, Aug 2026): light bone
+   ground, solid white surfaces, ink borders with offset solid shadows,
+   flat saturated accents, heavy geometric numerals. Health data as pop
+   art — zero clinical gloom. The old Aurora glass/glow layer is gone;
+   the token NAMES survive so every component keeps working. */
 :root {
-  /* Deep-space ground */
-  --app-bg:     #05060f;
-  --app-bg-hi:  #0b0e26;
+  /* Bone ground */
+  --app-bg:     #f2f0ea;
+  --app-bg-hi:  #ffffff;
 
-  /* Frosted glass surfaces */
-  --app-surface:     rgba(255, 255, 255, 0.055);
-  --app-surface2:    rgba(255, 255, 255, 0.09);
-  /* 0.88, not 0.72: backdrop-filter carries the rest of the opacity, and it
-     silently no-ops in the Capacitor web view whenever the element sits inside
-     a transformed ancestor. At 0.72 those cases let page text bleed through.
-     Modals should use .sheet-surface instead of relying on this at all. */
-  --app-glass-solid: rgba(16, 18, 38, 0.88); /* overlays: nav, sheets, banners */
+  /* Solid surfaces — no glass, no blur */
+  --app-surface:     #ffffff;
+  --app-surface2:    #f6f4ee;
+  --app-glass-solid: #ffffff; /* overlays: nav, sheets, banners */
 
-  /* Luminous borders */
-  --app-border:    rgba(255, 255, 255, 0.11);
-  --app-border-hi: rgba(255, 255, 255, 0.22);
+  /* Ink lines */
+  --app-ink:       #0b0b0f;
+  --app-border:    rgba(11, 11, 15, 0.85);
+  --app-border-hi: #0b0b0f;
 
   /* Text */
-  --app-tx1: #f2f4ff;
-  --app-tx2: rgba(226, 231, 255, 0.72);
-  --app-tx3: rgba(206, 213, 248, 0.45);
+  --app-tx1: #0b0b0f;
+  --app-tx2: rgba(11, 11, 15, 0.64);
+  --app-tx3: rgba(11, 11, 15, 0.42);
 
-  /* Primary health accent — teal */
-  --app-primary:       #2dd4bf;
-  --app-primary-muted: rgba(45, 212, 191, 0.12);
+  /* Primary health accent — Chroma teal */
+  --app-primary:       #14b8a6;
+  --app-primary-muted: rgba(20, 184, 166, 0.14);
 
-  /* Light is the information system — per-data-type accents */
-  --acc-violet:      #c4b5fd; /* Day A */
-  --acc-violet-deep: #8b5cf6;
-  --acc-teal:        #5eead4; /* Day B · body weight */
-  --acc-teal-deep:   #14b8a6;
-  --acc-cyan:        #67e8f9;
+  /* Color is the information system — per-data-type accents.
+     Text-safe darks; fills use the -deep saturated versions. */
+  --acc-violet:      #6d28d9; /* Day A (text) */
+  --acc-violet-deep: #8b5cf6; /* Day A (fill) */
+  --acc-teal:        #0f766e; /* Day B · body weight (text) */
+  --acc-teal-deep:   #14b8a6; /* fill */
+  --acc-cyan:        #0e7490; /* health module (text) */
   --acc-indigo:      #4f46e5;
-  --acc-ember:       #fcd34d; /* Return Protocol ONLY */
-  --acc-ember-deep:  #f59e0b;
-  --acc-gold:        #fde047; /* PRs */
+  --acc-ember:       #b45309; /* Return Protocol ONLY (text) */
+  --acc-ember-deep:  #f59e0b; /* fill */
+  --acc-gold:        #a16207; /* PRs (text) */
 
-  /* Effort spectrum (RPE) */
-  --rpe-easy:  #34d399;
-  --rpe-med:   #fbbf24;
-  --rpe-hard:  #fb923c;
-  --rpe-grind: #f43f5e;
+  /* Effort spectrum (RPE) — darker for ink-on-bone legibility */
+  --rpe-easy:  #15803d;
+  --rpe-med:   #b45309;
+  --rpe-hard:  #c2410c;
+  --rpe-grind: #d6336c;
 
-  /* Type */
-  --font-round: ui-rounded, 'SF Pro Rounded', -apple-system, 'Helvetica Neue',
-    'Segoe UI', Roboto, sans-serif;
+  /* Type — Archivo carries the Chroma voice (loaded in layout) */
+  --font-round: 'Archivo', -apple-system, 'Helvetica Neue', 'Segoe UI',
+    Roboto, sans-serif;
 }
 
 /* ── Base styles ───────────────────────────────────────────── */
-/* body background (html left unset so it propagates to the canvas,
-   letting the fixed .aurora-sky layer paint above it) */
 body {
   background-color: var(--app-bg);
   color: var(--app-tx1);
@@ -62,139 +63,76 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Aurora backdrop — the ONE fixed layer ─────────────────── */
-/* Starfield + conic aurora ribbon + nebula blobs + deep-space ground,
-   all baked into a single composited background-image stack. */
+/* ── Ground layer ──────────────────────────────────────────────
+   Kept as an element (layout renders it) but Chroma's ground is flat
+   bone — the nebulas, starfield and breathing animation are retired. */
 .aurora-sky {
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  transform: translateZ(0);
-  background:
-    /* starfield */
-    radial-gradient(1.2px 1.2px at 18% 12%, rgba(255, 255, 255, 0.55), transparent 100%),
-    radial-gradient(1px 1px at 72% 8%, rgba(255, 255, 255, 0.4), transparent 100%),
-    radial-gradient(1.4px 1.4px at 88% 26%, rgba(190, 220, 255, 0.45), transparent 100%),
-    radial-gradient(1px 1px at 34% 31%, rgba(255, 255, 255, 0.3), transparent 100%),
-    radial-gradient(1px 1px at 55% 18%, rgba(255, 255, 255, 0.35), transparent 100%),
-    radial-gradient(1.3px 1.3px at 8% 44%, rgba(190, 220, 255, 0.35), transparent 100%),
-    radial-gradient(1px 1px at 63% 47%, rgba(255, 255, 255, 0.28), transparent 100%),
-    radial-gradient(1px 1px at 25% 62%, rgba(255, 255, 255, 0.22), transparent 100%),
-    radial-gradient(1.2px 1.2px at 82% 58%, rgba(255, 255, 255, 0.3), transparent 100%),
-    radial-gradient(1px 1px at 44% 76%, rgba(255, 255, 255, 0.2), transparent 100%),
-    radial-gradient(1px 1px at 12% 84%, rgba(190, 220, 255, 0.25), transparent 100%),
-    radial-gradient(1.2px 1.2px at 70% 88%, rgba(255, 255, 255, 0.24), transparent 100%),
-    /* aurora ribbon (conic curtain, soft stops in place of blur) */
-    conic-gradient(
-      from 214deg at 58% 4%,
-      transparent 0deg,
-      rgba(45, 212, 191, 0.16) 40deg,
-      rgba(99, 102, 241, 0.2) 95deg,
-      rgba(168, 85, 247, 0.15) 140deg,
-      transparent 200deg
-    ),
-    /* nebula blobs — indigo, violet, teal, deep indigo */
-    radial-gradient(56% 34% at 6% 0%, rgba(79, 70, 229, 0.34), transparent 72%),
-    radial-gradient(50% 30% at 100% 14%, rgba(139, 92, 246, 0.26), transparent 72%),
-    radial-gradient(62% 26% at 2% 36%, rgba(20, 184, 166, 0.18), transparent 70%),
-    radial-gradient(70% 42% at 44% 110%, rgba(67, 56, 202, 0.18), transparent 72%),
-    /* deep-space ground */
-    linear-gradient(180deg, var(--app-bg-hi) 0%, var(--app-bg) 46%, #04050c 100%);
-}
-@media (prefers-reduced-motion: no-preference) {
-  .aurora-sky {
-    animation: aurora-breathe 18s ease-in-out infinite alternate;
-  }
-}
-@keyframes aurora-breathe {
-  from { opacity: 0.84; }
-  to   { opacity: 1; }
+  background: var(--app-bg);
 }
 
 /* ── Reusable component utilities ──────────────────────────── */
 @layer components {
   .card {
-    @apply bg-app-surface rounded-card border border-app-border shadow-card;
-    -webkit-backdrop-filter: blur(20px) saturate(1.5);
-    backdrop-filter: blur(20px) saturate(1.5);
+    @apply bg-app-surface rounded-card border-2 border-ink shadow-card;
   }
   .card-lg {
-    @apply bg-app-surface rounded-card-lg border border-app-border shadow-card;
-    -webkit-backdrop-filter: blur(20px) saturate(1.5);
-    backdrop-filter: blur(20px) saturate(1.5);
+    @apply bg-app-surface rounded-card-lg border-2 border-ink shadow-card-lg;
   }
-  /* Heavier glass for elements floating over content (nav, sheets, banners) */
+  /* Elements floating over content (nav, sheets, banners): solid white
+     with an ink line — Chroma has no translucency anywhere. */
   .glass-overlay {
     background: var(--app-glass-solid);
-    -webkit-backdrop-filter: blur(24px) saturate(1.6);
-    backdrop-filter: blur(24px) saturate(1.6);
+    border-color: var(--app-ink);
   }
-  /* Modal sheets can't rely on .glass-overlay: backdrop-filter silently
-     no-ops inside the Capacitor web view when the element sits in a
-     transformed ancestor, so a 72%-opaque panel let the page behind show
-     straight through — sheet labels collided with page headings and the
-     whole thing was unreadable. Opaque by design, not by blur. */
   .sheet-surface {
-    background: #0b0e26;
+    background: #ffffff;
   }
   .section-label {
-    @apply text-[11px] font-bold uppercase tracking-[0.16em] text-app-tx3;
+    @apply text-[11px] font-black uppercase tracking-[0.14em] text-app-tx3;
   }
   .metric-value {
-    @apply text-2xl font-light tabular-nums text-app-tx1;
+    @apply text-2xl font-extrabold tabular-nums text-app-tx1;
     font-family: var(--font-round);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
   .metric-label {
-    @apply text-[11px] text-app-tx2 mt-0.5;
+    @apply text-[11px] font-semibold text-app-tx2 mt-0.5;
   }
   .chip {
     @apply text-[11px] font-bold px-2.5 py-1 rounded-full;
   }
   .btn-primary {
-    @apply font-bold py-4 rounded-card transition-all;
-    color: #062521;
-    background: linear-gradient(120deg, #5eead4 0%, #2dd4bf 55%, #22d3ee 100%);
-    box-shadow: 0 0 30px -6px rgba(45, 212, 191, 0.8),
-      inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    @apply font-extrabold py-4 rounded-card transition-all border-2 border-ink;
+    color: #ffffff;
+    background: #14b8a6;
+    box-shadow: 4px 4px 0 var(--app-ink);
   }
   .btn-primary:hover {
-    filter: brightness(1.07);
+    filter: brightness(1.05);
   }
   .btn-primary:active {
-    filter: brightness(0.93);
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--app-ink);
   }
   .btn-ghost {
-    @apply bg-app-surface2 border border-app-border text-app-tx1 font-semibold py-3 rounded-card transition-colors hover:border-app-border-hi;
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    @apply bg-app-surface border-2 border-ink text-app-tx1 font-bold py-3 rounded-card transition-colors;
+    box-shadow: 3px 3px 0 var(--app-ink);
   }
 }
 
-/* ── Aurora glow utilities ─────────────────────────────────── */
+/* ── Chroma accent text utilities ──────────────────────────────
+   The old glow-* names survive (dozens of call sites) but mean flat,
+   saturated, text-safe color now — Chroma shines with pigment, not light. */
 @layer utilities {
-  /* Soft text glows — light IS the information system */
-  .glow-violet {
-    color: #ddd6fe;
-    text-shadow: 0 0 18px rgba(139, 92, 246, 0.55);
-  }
-  .glow-teal {
-    color: #99f6e4;
-    text-shadow: 0 0 20px rgba(45, 212, 191, 0.5);
-  }
-  .glow-cyan {
-    color: #a5f3fc;
-    text-shadow: 0 0 18px rgba(34, 211, 238, 0.5);
-  }
-  .glow-amber {
-    color: var(--acc-ember);
-    text-shadow: 0 0 22px rgba(252, 211, 77, 0.45);
-  }
-  .glow-gold {
-    color: var(--acc-gold);
-    text-shadow: 0 0 20px rgba(250, 204, 21, 0.55);
-  }
+  .glow-violet { color: var(--acc-violet); text-shadow: none; }
+  .glow-teal   { color: var(--acc-teal);   text-shadow: none; }
+  .glow-cyan   { color: var(--acc-cyan);   text-shadow: none; }
+  .glow-amber  { color: var(--acc-ember);  text-shadow: none; }
+  .glow-gold   { color: var(--acc-gold);   text-shadow: none; }
   /* Start SVG progress arcs at 12 o'clock (activity rings) */
   .ring-svg {
     transform: rotate(-90deg);
@@ -202,20 +140,15 @@ body {
 }
 
 /* ── Form input theming ────────────────────────────────────── */
-/* Desktop only — see the iOS block below. */
+/* Light theme: the default dark picker glyphs are correct — no filter. */
 input[type='date']::-webkit-calendar-picker-indicator,
 input[type='time']::-webkit-calendar-picker-indicator {
-  filter: invert(0.55) brightness(1.1);
   cursor: pointer;
 }
 
-/* iOS / WKWebView renders date and time fields with its own internals: the
-   value is laid out by ::-webkit-date-and-time-value and the picker indicator
-   is not the desktop icon. Filtering that indicator there produced a pale
-   vertical blob that spilled past the field and sat over the neighbouring
-   Notes input — visible in the native app, never in a desktop browser, which
-   is why it survived every check until it was looked at on-device.
-   Suppress the indicator on iOS and lay the value out like every other input. */
+/* iOS / WKWebView renders date and time fields with its own internals —
+   the indicator suppression below predates Chroma and stays: the filtered
+   indicator painted a blob over the neighbouring input on-device. */
 @supports (-webkit-touch-callout: none) {
   input[type='date']::-webkit-calendar-picker-indicator,
   input[type='time']::-webkit-calendar-picker-indicator {
@@ -245,4 +178,21 @@ body.has-draft-banner main {
 /* ── Press feedback ────────────────────────────────────────── */
 .pressable {
   @apply active:scale-[0.98] transition-transform duration-100;
+}
+
+/* ── The living figure (BodyMap) ───────────────────────────── */
+.heartbeat {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: heartbeat 1.7s ease-in-out infinite;
+}
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  10% { transform: scale(1.14); }
+  20% { transform: scale(1); }
+  30% { transform: scale(1.08); }
+  40% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heartbeat { animation: none; }
 }

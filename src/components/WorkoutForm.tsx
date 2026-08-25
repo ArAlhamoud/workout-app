@@ -138,7 +138,12 @@ function buildBlocks(
     const seededWeight = deload ? null : overloadTo;
     const setCount = deload ? Math.max(1, Math.ceil(ie.sets / 2)) : ie.sets;
     return {
-      uid: Math.random().toString(36).slice(2),
+      // Deterministic, NOT Math.random(): buildBlocks runs during SSR and
+      // again at hydration, and the id={`block-${uid}`} attribute made a
+      // random uid a server/client mismatch — React recovers, but the
+      // reconciliation flashed blank cards under the revamp (seen in the
+      // merge audit). Client-only paths (add/swap) may stay random.
+      uid: `b${blockIdx}-${ie.exerciseId}`,
       exerciseId: ie.exerciseId,
       programName: ie.name,
       machine: ie.machine,
@@ -1160,8 +1165,8 @@ export default function WorkoutForm({
                   aria-pressed={active}
                   className={`pressable min-h-[44px] rounded-card border px-3 py-2 text-sm font-semibold transition-all ${
                     active
-                      ? 'border-acc-teal/60 bg-gradient-to-br from-acc-teal/20 to-acc-teal-deep/10 text-teal-100 shadow-[0_0_18px_-5px_rgba(45,212,191,0.6)]'
-                      : 'border-app-border bg-white/[0.04] text-app-tx2 hover:border-app-border-hi hover:text-app-tx1'
+                      ? 'border-acc-teal/60 bg-gradient-to-br from-acc-teal/20 to-acc-teal-deep/10 text-acc-teal shadow-[0_0_18px_-5px_rgba(45,212,191,0.6)]'
+                      : 'border-app-border bg-ink/[0.04] text-app-tx2 hover:border-app-border-hi hover:text-app-tx1'
                   }`}
                 >
                   {g.name}
@@ -1268,7 +1273,7 @@ export default function WorkoutForm({
                       key={v}
                       className={`relative text-[10px] font-bold uppercase tracking-[0.08em] px-3 py-1 rounded-full border ${
                         locked
-                          ? 'bg-transparent border-white/[0.07] text-[rgba(206,213,248,0.32)] line-through decoration-[rgba(206,213,248,0.4)]'
+                          ? 'bg-transparent border-ink/[0.07] text-[rgba(206,213,248,0.32)] line-through decoration-[rgba(206,213,248,0.4)]'
                           : c
                       }`}
                     >
@@ -1467,7 +1472,7 @@ export default function WorkoutForm({
 
               {/* Detail layer — relocated glance-row chips, one tap away */}
               {infoOpen[block.uid] && (
-                <div className="mx-4 mb-3 bg-white/[0.03] border border-app-border rounded-xl px-3 py-2.5 flex items-center gap-2 flex-wrap">
+                <div className="mx-4 mb-3 bg-ink/[0.03] border border-app-border rounded-xl px-3 py-2.5 flex items-center gap-2 flex-wrap">
                   <label className="w-full text-[10px] font-bold uppercase tracking-[0.12em] text-app-tx3">
                     Swap exercise
                     <select
@@ -1690,12 +1695,12 @@ export default function WorkoutForm({
                             onClick={() => toggleSetDone(block.uid, i)}
                             className={`w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-90 ${
                               set.done
-                                ? 'bg-gradient-to-br from-acc-teal to-acc-teal-deep text-[#062521] shadow-glow-teal'
+                                ? 'bg-gradient-to-br from-acc-teal to-acc-teal-deep text-white shadow-glow-teal'
                                 : set.isWarmup
-                                ? 'bg-app-surface2 text-app-tx3 border border-dashed border-app-border active:bg-white/5'
+                                ? 'bg-app-surface2 text-app-tx3 border border-dashed border-app-border active:bg-ink/5'
                                 : isCurrentSet
                                 ? currentSetRing
-                                : 'bg-app-surface2 text-app-tx2 active:bg-white/5'
+                                : 'bg-app-surface2 text-app-tx2 active:bg-ink/5'
                             }`}
                           >
                             {set.done ? '✓' : set.isWarmup ? 'W' : set.setNumber}
@@ -1722,7 +1727,7 @@ export default function WorkoutForm({
                                   set.rpe === v
                                     ? c
                                     : locked
-                                      ? 'bg-transparent border-white/[0.07] text-[rgba(206,213,248,0.32)] line-through decoration-[rgba(206,213,248,0.4)]'
+                                      ? 'bg-transparent border-ink/[0.07] text-[rgba(206,213,248,0.32)] line-through decoration-[rgba(206,213,248,0.4)]'
                                       : 'bg-app-surface2 border-app-border text-app-tx3'
                                 }`}
                               >
@@ -1879,20 +1884,20 @@ export default function WorkoutForm({
             />
             <div className="relative">
               <div className="text-5xl mb-3 leading-none">🎉</div>
-              <h2 className="text-2xl font-bold font-round tracking-tight mb-1 bg-gradient-to-r from-white via-[#c7d2fe] to-[#99f6e4] bg-clip-text text-transparent">
+              <h2 className="text-2xl font-bold font-round tracking-tight mb-1 text-app-tx1">
                 Session complete.
               </h2>
               <p className="text-app-tx2 text-sm mb-5 truncate">{name}</p>
               <div className="grid grid-cols-3 gap-2 mb-5">
-                <div className="bg-white/[0.04] border border-app-border rounded-card p-3">
+                <div className="bg-ink/[0.04] border border-app-border rounded-card p-3">
                   <div className="font-round text-2xl font-light tabular-nums glow-violet">{showSummary.sets}</div>
                 </div>
-                <div className="bg-white/[0.04] border border-app-border rounded-card p-3">
+                <div className="bg-ink/[0.04] border border-app-border rounded-card p-3">
                   <div className="font-round text-2xl font-light tabular-nums glow-teal">
                     {showSummary.vol >= 1000 ? `${(showSummary.vol / 1000).toFixed(1)}k` : showSummary.vol}
                   </div>
                 </div>
-                <div className="bg-white/[0.04] border border-app-border rounded-card p-3">
+                <div className="bg-ink/[0.04] border border-app-border rounded-card p-3">
                   <div className="font-round text-2xl font-light tabular-nums glow-cyan">{showSummary.time}</div>
                 </div>
               </div>

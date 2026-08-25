@@ -30,7 +30,7 @@ export default function GapReasonInput({ workoutId }: { workoutId: string }) {
   };
 
   return (
-    <div className="mt-3 flex items-center gap-2 border-t border-white/10 pt-3">
+    <div className="mt-3 flex items-center gap-2 border-t border-ink/10 pt-3">
       <input
         type="text"
         value={value}

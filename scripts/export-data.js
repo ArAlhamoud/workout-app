@@ -24,6 +24,30 @@ async function main() {
     console.warn('Hold table unavailable, skipping holds export:', e.message);
   }
 
+  // Health wave tables — the treatment record is the least replaceable
+  // data in the app (you cannot re-derive an injection date). Tolerant of
+  // the tables not existing yet.
+  const health = {};
+  const healthTables = [
+    ['healthProfile', 'findMany', {}],
+    ['injection', 'findMany', { orderBy: { at: 'asc' } }],
+    ['symptomLog', 'findMany', { orderBy: { at: 'asc' } }],
+    ['afEpisode', 'findMany', { orderBy: { startedAt: 'asc' } }],
+    ['bpReading', 'findMany', { orderBy: { at: 'asc' } }],
+    ['cpapNight', 'findMany', { orderBy: { night: 'asc' } }],
+    ['labResult', 'findMany', { orderBy: { date: 'asc' } }],
+    ['medication', 'findMany', {}],
+    ['nutritionLog', 'findMany', { orderBy: { day: 'asc' } }],
+  ];
+  for (const [table, method, args] of healthTables) {
+    try {
+      health[table] = await prisma[table][method](args);
+    } catch (e) {
+      console.warn(`${table} unavailable, skipping:`, e.message);
+      health[table] = [];
+    }
+  }
+
   // Apple Health samples — tolerate the table not existing yet (schema not applied).
   let healthSamplesTotal = 0;
   let latestWeightSample = null;
@@ -49,12 +73,14 @@ async function main() {
     totalExercises: exercises.length,
     totalHealthSamples: healthSamplesTotal,
     totalHolds: holds.length,
+    totalInjections: (health.injection ?? []).length,
     latestWeightSample,
     exercises,
     healthSamples,
     holds,
     workouts,
     bodyStats: stats,
+    health,
   };
 
   const outPath = path.join(__dirname, '../data/workout-history.json');

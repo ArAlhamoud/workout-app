@@ -51,7 +51,24 @@ import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
 import { lastMonthRecap, yearRecap } from '../src/lib/recap';
 import { buildCoachContext, parseCoachBrief, COACH_SYSTEM } from '../src/lib/coach-ai';
 import { buildLadderFacts, validateLadderCopy } from '../src/lib/coach-ladder';
-import { normalizeSampleType } from '../src/lib/health';
+import {
+  afCorrelates,
+  afStats,
+  bpAverage,
+  cpapStats,
+  dayRelativeSymptoms,
+  nextSite,
+  severeSymptomFlag,
+  severityByDose,
+  treatmentClock,
+  weightProjections,
+  weightSnapshot,
+  DEFAULT_DOSE_PLAN,
+  DEFAULT_ROTATION,
+  bpContextAverages,
+  bpWeeklyAverages,
+} from '../src/lib/health-insights';
+import { normalizeSampleType, pairBpSamples } from '../src/lib/health';
 
 interface HistoryFile {
   exercises: { id: string; name: string; category: string }[];
@@ -1247,5 +1264,304 @@ console.log('coach-ladder');
 }
 
 // ── summary ──────────────────────────────────────────────────
+
+// ── health-insights: the Mounjaro module's deterministic brain ─
+console.log('health-insights');
+{
+  const now = new Date('2026-09-10T12:00:00');
+  const inj = (iso: string, doseMg: number, site = 'abdomen-right') => ({ at: iso, doseMg, site });
+
+  // Treatment clock anchors at the FIRST injection.
+  assert(treatmentClock([], DEFAULT_DOSE_PLAN, now) === null, 'no injections → no clock (never invent a schedule)');
+  const clock = treatmentClock(
+    [inj('2026-08-25T18:00:00', 2.5), inj('2026-09-01T18:00:00', 2.5), inj('2026-09-08T18:00:00', 2.5)],
+    DEFAULT_DOSE_PLAN,
+    now,
+  );
+  assert(clock !== null && clock.week === 3, `Sept 10 from an Aug 25 anchor is treatment week 3 (got ${clock?.week})`);
+  assert(clock !== null && clock.daysSinceLast === 2, 'days since last injection counts from the latest dose');
+  assert(clock !== null && clock.nextDue.getDate() === 15, 'next due = last + 7 days');
+  assert(clock !== null && clock.nextPlanned?.mg === 2.5, 'the 4th dose still prescribes 2.5 mg');
+  assert(clock !== null && !clock.overdue, 'not overdue two days after a dose');
+
+  // BLOCKER regression (adversary probe): the plan is DOSE-indexed, not
+  // wall-clock-indexed. Injecting an hour earlier in the day must never
+  // shift the next dose into a different plan slot — and above all can
+  // never skip the doctor-review checkpoint.
+  const sixDoses = [
+    inj('2026-08-25T18:00:00', 2.5), inj('2026-09-01T18:00:00', 2.5),
+    inj('2026-09-08T18:00:00', 2.5), inj('2026-09-15T18:00:00', 2.5),
+    inj('2026-09-22T18:00:00', 5), inj('2026-09-29T17:00:00', 5), // 6th dose ONE HOUR early
+  ];
+  const afterSix = treatmentClock(sixDoses, DEFAULT_DOSE_PLAN, new Date('2026-10-01T12:00:00'));
+  assert(afterSix !== null && afterSix.nextPlanned !== null && afterSix.nextPlanned.mg === null,
+    'after 6 doses the 7th slot is the doctor-review checkpoint — an early injection cannot bypass it');
+  const fourDoses = sixDoses.slice(0, 3).concat([inj('2026-09-15T16:00:00', 2.5)]); // 4th dose 2h early
+  const afterFour = treatmentClock(fourDoses, DEFAULT_DOSE_PLAN, new Date('2026-09-16T12:00:00'));
+  assert(afterFour !== null && afterFour.nextPlanned?.mg === 5,
+    'the 5th dose prescribes 5 mg regardless of the 4th dose being hours early');
+  // Week display uses CALENDAR days — the morning of day 7 is week 2, and
+  // it can never disagree with daysSinceLast's calendar arithmetic.
+  const day7 = treatmentClock([inj('2026-08-25T18:00:00', 2.5)], DEFAULT_DOSE_PLAN, new Date('2026-09-01T08:00:00'));
+  assert(day7 !== null && day7.week === 2 && day7.daysSinceLast === 7,
+    'calendar day 7 is week 2 — week and daysSinceLast share one arithmetic');
+  // The anchor override survives a truncated recent-injections window.
+  const truncated = treatmentClock(
+    [inj('2026-09-08T18:00:00', 2.5)],
+    DEFAULT_DOSE_PLAN,
+    now,
+    new Date('2026-08-25T18:00:00'),
+  );
+  assert(truncated !== null && truncated.week === 3,
+    'an explicit anchor keeps the true week when the injection window is truncated');
+  // Past the end of the plan: say so, never loop the last step forever.
+  const pastPlan = treatmentClock(
+    Array.from({ length: 8 }, (_, i) => inj(new Date(Date.parse('2026-08-25T18:00:00') + i * 7 * 86_400_000).toISOString(), 2.5)),
+    DEFAULT_DOSE_PLAN,
+    new Date('2026-10-15T12:00:00'),
+  );
+  assert(pastPlan !== null && pastPlan.nextPlanned === null && pastPlan.planExhausted,
+    'a plan with no slot for the next dose reports exhausted — the UI asks for an edit, never invents');
+
+  // Site rotation resumes after an off-rotation one-off.
+  assert(nextSite(DEFAULT_ROTATION, []) === 'abdomen-right', 'rotation starts at its first site');
+  assert(
+    nextSite(DEFAULT_ROTATION, [inj('2026-08-25', 2.5, 'abdomen-right')]) === 'abdomen-left',
+    'rotation advances right abdomen → left abdomen',
+  );
+  assert(
+    nextSite(DEFAULT_ROTATION, [
+      inj('2026-08-25', 2.5, 'abdomen-left'),
+      inj('2026-09-01', 2.5, 'arm-right'),
+    ]) === 'thigh-right',
+    'an off-rotation arm shot does not derail the cycle',
+  );
+
+  // Weight snapshot and % milestones.
+  const snap = weightSnapshot(
+    { heightCm: 169, startWeightKg: 133, goalWeightKg: 103 },
+    [120, 110, 103],
+    [
+      { date: '2026-08-25', weight: 133 },
+      { date: '2026-09-08', weight: 126.4 },
+    ],
+  );
+  assert(snap !== null && snap.lostKg === 6.6 && snap.pctLost === 5, '133 → 126.4 is 6.6 kg and 5.0%');
+  assert(snap !== null && snap.pctMilestones[0].achieved && !snap.pctMilestones[1].achieved, '5% reached, 10% not yet');
+  assert(snap !== null && snap.bmi === 44.3 && snap.startBmi === 46.6, 'BMI at 169 cm: 46.6 start, 44.3 now');
+
+  // Projections refuse to guess.
+  assert(
+    weightProjections([{ date: '2026-09-01', weight: 130 }], [120], now) === null,
+    'fewer than 4 recent weigh-ins → no projection',
+  );
+  const upward = weightProjections(
+    Array.from({ length: 6 }, (_, i) => ({ date: `2026-09-0${i + 1}`, weight: 130 + i })),
+    [120],
+    now,
+  );
+  assert(upward === null, 'an upward trend projects nothing — no fantasy dates');
+  const proj = weightProjections(
+    Array.from({ length: 8 }, (_, i) => ({
+      date: new Date(now.getTime() - (8 - i) * 7 * 86_400_000).toISOString(),
+      weight: 133 - i * 0.8,
+    })),
+    [120, 60],
+    now,
+  );
+  assert(proj !== null && proj[0].estimatedDate !== null, 'a real downward trend yields a date for a near target');
+  assert(proj !== null && proj[1].estimatedDate === null, 'a target beyond the 18-month horizon reports no date');
+
+  // Day-relative symptoms: only 0..7 after the nearest preceding injection,
+  // in CALENDAR days — a morning-after symptom after an evening injection is
+  // day 1, never day 0 (adversary probe: every morning-after row shifted one
+  // column left for an evening injector).
+  const rel = dayRelativeSymptoms(
+    [
+      { at: '2026-08-26T08:00:00', kind: 'nausea', severity: 2 }, // next MORNING = day 1
+      { at: '2026-08-24T20:00:00', kind: 'nausea', severity: 3 }, // before any injection
+      { at: '2026-09-06T20:00:00', kind: 'nausea', severity: 1 }, // 12 days after → excluded
+    ],
+    [inj('2026-08-25T18:00:00', 2.5)],
+  );
+  assert(rel.nausea?.length === 1 && rel.nausea[0].offset === 1 && rel.nausea[0].avgSeverity === 2,
+    'the morning after an evening injection is day 1 (calendar days, not 24h blocks)');
+
+  // Dose comparison suppresses tiny samples, and never attributes a symptom
+  // logged weeks after the last dose to that dose.
+  const byDoseNone = severityByDose(
+    [{ at: '2026-08-26', kind: 'nausea', severity: 2 }],
+    [inj('2026-08-25', 2.5)],
+  );
+  assert(!byDoseNone.nausea, 'fewer than 3 logs at a dose → no dose comparison');
+  const stale = severityByDose(
+    [
+      { at: '2026-10-01', kind: 'nausea', severity: 3 },
+      { at: '2026-10-02', kind: 'nausea', severity: 3 },
+      { at: '2026-10-03', kind: 'nausea', severity: 3 },
+    ],
+    [inj('2026-08-25', 2.5)],
+  );
+  assert(!stale.nausea, 'symptoms weeks after the last dose never count against that dose (7-day cap)');
+
+  // AF days-since uses calendar days, same law as everything else.
+  const afCal = afStats([{ startedAt: '2026-09-08T22:00:00' }], new Date('2026-09-10T08:00:00'));
+  assert(afCal.daysSinceLast === 2, 'AF days-since is calendar days (late-evening episode → 2 days on the 10th)');
+
+  // AF correlates: unanswered flags are excluded from the denominator.
+  const episodes = [
+    { startedAt: '2026-08-26', bloating: true },
+    { startedAt: '2026-08-28', bloating: true },
+    { startedAt: '2026-09-01', bloating: false },
+    { startedAt: '2026-09-03', bloating: true },
+    { startedAt: '2026-09-05', bloating: null }, // not asked — proves nothing
+  ];
+  assert(afCorrelates(episodes, 5) === null, '4 answered of 5 episodes is under the 5-answered guard');
+  const withFive = afCorrelates([...episodes, { startedAt: '2026-09-07', bloating: true }], 5);
+  assert(
+    withFive !== null && withFive[0].hits === 4 && withFive[0].answered === 5,
+    'correlates count answered episodes only — 4 of 5, not 4 of 6',
+  );
+
+  // CPAP streak counts consecutive nights.
+  const cpap = cpapStats(
+    [
+      { night: '2026-09-08', usageHours: 6.5, ahi: 1.2 },
+      { night: '2026-09-07', usageHours: 7.1, ahi: 2.0 },
+      { night: '2026-09-05', usageHours: 6.0, ahi: 1.6 }, // gap on the 6th
+    ],
+    now,
+  );
+  assert(cpap.streak === 2, 'a missed night breaks the CPAP streak');
+  assert(cpap.avgAhi30d === 1.6, 'AHI averages over logged nights');
+
+  // BP refuses a "trend" from under 3 readings.
+  assert(bpAverage([{ at: '2026-09-09', systolic: 128, diastolic: 78 }], 7, now) === null,
+    'one BP reading is a moment, not an average');
+
+  // Safety flag: repeated severe red-flag symptoms only.
+  assert(
+    severeSymptomFlag(
+      [
+        { at: '2026-09-10T08:00:00', kind: 'vomiting', severity: 3 },
+        { at: '2026-09-09T20:00:00', kind: 'vomiting', severity: 3 },
+      ],
+      now,
+    ),
+    'two severe vomiting logs in 48h raise the notice',
+  );
+  assert(
+    !severeSymptomFlag([{ at: '2026-09-10T08:00:00', kind: 'vomiting', severity: 3 }], now),
+    'a single severe log does not',
+  );
+  assert(
+    !severeSymptomFlag(
+      [
+        { at: '2026-09-10T08:00:00', kind: 'bloating', severity: 3 },
+        { at: '2026-09-09T20:00:00', kind: 'bloating', severity: 3 },
+      ],
+      now,
+    ),
+    'severe bloating is uncomfortable, not a red flag — no alarm fatigue',
+  );
+}
+
+
+// ── blood-pressure pairing (Health-app import) ───────────────
+{
+  // A monitor reading is two samples sharing a timestamp — they pair.
+  const pairs = pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 131.4 }],
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 82.6 }],
+  );
+  assert(pairs.length === 1 && pairs[0].systolic === 131 && pairs[0].diastolic === 83,
+    'sys+dia at the same instant pair into one rounded reading');
+
+  // Clock skew inside a minute still pairs; beyond it does not.
+  assert(pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 128 }],
+    [{ dateISO: '2026-08-25T08:00:45Z', value: 79 }],
+  ).length === 1, '45s of skew still pairs');
+  assert(pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 128 }],
+    [{ dateISO: '2026-08-25T08:02:00Z', value: 79 }],
+  ).length === 0, 'a lone half two minutes away is not a reading');
+
+  // Each half is used once — two readings a minute apart stay two, matched
+  // to their nearest partner, never crossed.
+  const twoReadings = pairBpSamples(
+    [
+      { dateISO: '2026-08-25T08:00:00Z', value: 140 },
+      { dateISO: '2026-08-25T08:01:00Z', value: 120 },
+    ],
+    [
+      { dateISO: '2026-08-25T08:00:02Z', value: 90 },
+      { dateISO: '2026-08-25T08:01:02Z', value: 70 },
+    ],
+  );
+  assert(
+    twoReadings.length === 2 &&
+      twoReadings[0].systolic === 140 && twoReadings[0].diastolic === 90 &&
+      twoReadings[1].systolic === 120 && twoReadings[1].diastolic === 70,
+    'back-to-back readings pair with their own halves, not each other',
+  );
+
+  // Device glitches never become history: bounds + sys>dia.
+  assert(pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 300 }],
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 80 }],
+  ).length === 0, 'systolic 300 is a glitch, dropped');
+  assert(pairBpSamples(
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 80 }],
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 120 }],
+  ).length === 0, 'systolic at or below diastolic is a glitch, dropped');
+
+  // Junk in the series (bad dates) is filtered, not fatal.
+  assert(pairBpSamples(
+    [{ dateISO: 'not-a-date', value: 128 }, { dateISO: '2026-08-25T08:00:00Z', value: 128 }],
+    [{ dateISO: '2026-08-25T08:00:00Z', value: 79 }],
+  ).length === 1, 'an unparseable timestamp drops its sample only');
+}
+
+// ── BP tracker aggregates ────────────────────────────────────
+{
+  const now = new Date('2026-09-10T12:00:00');
+  const r = (daysAgo: number, sysV: number, diaV: number, context: string | null = null) => ({
+    at: new Date(now.getTime() - daysAgo * 86_400_000),
+    systolic: sysV, diastolic: diaV, context,
+  });
+
+  // Context averages: guarded per bucket; untagged rows enter nothing.
+  const byCtx = bpContextAverages(
+    [r(1,130,85,'morning'), r(2,126,81,'morning'), r(3,128,83,'morning'),
+     r(1,140,90,'evening'), r(2,142,92,'evening'),
+     r(1,120,80)],
+    30, now,
+  );
+  assert(byCtx.length === 1 && byCtx[0].context === 'morning'
+    && byCtx[0].systolic === 128 && byCtx[0].diastolic === 83 && byCtx[0].n === 3,
+    'morning clears the 3-reading guard; evening (2) and untagged stay out');
+
+  // Old readings fall outside the window.
+  assert(bpContextAverages(
+    [r(40,130,85,'morning'), r(41,130,85,'morning'), r(42,130,85,'morning')],
+    30, now,
+  ).length === 0, 'context averages respect the window');
+
+  // Weekly averages: a thin week keeps its count but refuses an average.
+  const weekly = bpWeeklyAverages(
+    [r(1,130,85), r(2,128,83), r(3,126,81), r(8,140,90)],
+    4, now,
+  );
+  const thin = weekly.find((w) => w.n === 1);
+  const full = weekly.find((w) => w.n === 3);
+  assert(!!thin && thin.systolic === null,
+    'a 1-reading week reports its count, not a fake average');
+  assert(!!full && full.systolic === 128 && full.diastolic === 83,
+    'a 3-reading week averages honestly');
+  assert(weekly.length === 2, 'weeks with zero readings are skipped');
+}
+
+// ── summary ──────────────────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
