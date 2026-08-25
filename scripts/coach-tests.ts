@@ -62,6 +62,8 @@ import {
   weightSnapshot,
   DEFAULT_DOSE_PLAN,
   DEFAULT_ROTATION,
+  bpContextAverages,
+  bpWeeklyAverages,
 } from '../src/lib/health-insights';
 import { normalizeSampleType, pairBpSamples } from '../src/lib/health';
 
@@ -1366,6 +1368,45 @@ console.log('health-insights');
     [{ dateISO: 'not-a-date', value: 128 }, { dateISO: '2026-08-25T08:00:00Z', value: 128 }],
     [{ dateISO: '2026-08-25T08:00:00Z', value: 79 }],
   ).length === 1, 'an unparseable timestamp drops its sample only');
+}
+
+// ── BP tracker aggregates ────────────────────────────────────
+{
+  const now = new Date('2026-09-10T12:00:00');
+  const r = (daysAgo: number, sysV: number, diaV: number, context: string | null = null) => ({
+    at: new Date(now.getTime() - daysAgo * 86_400_000),
+    systolic: sysV, diastolic: diaV, context,
+  });
+
+  // Context averages: guarded per bucket; untagged rows enter nothing.
+  const byCtx = bpContextAverages(
+    [r(1,130,85,'morning'), r(2,126,81,'morning'), r(3,128,83,'morning'),
+     r(1,140,90,'evening'), r(2,142,92,'evening'),
+     r(1,120,80)],
+    30, now,
+  );
+  assert(byCtx.length === 1 && byCtx[0].context === 'morning'
+    && byCtx[0].systolic === 128 && byCtx[0].diastolic === 83 && byCtx[0].n === 3,
+    'morning clears the 3-reading guard; evening (2) and untagged stay out');
+
+  // Old readings fall outside the window.
+  assert(bpContextAverages(
+    [r(40,130,85,'morning'), r(41,130,85,'morning'), r(42,130,85,'morning')],
+    30, now,
+  ).length === 0, 'context averages respect the window');
+
+  // Weekly averages: a thin week keeps its count but refuses an average.
+  const weekly = bpWeeklyAverages(
+    [r(1,130,85), r(2,128,83), r(3,126,81), r(8,140,90)],
+    4, now,
+  );
+  const thin = weekly.find((w) => w.n === 1);
+  const full = weekly.find((w) => w.n === 3);
+  assert(!!thin && thin.systolic === null,
+    'a 1-reading week reports its count, not a fake average');
+  assert(!!full && full.systolic === 128 && full.diastolic === 83,
+    'a 3-reading week averages honestly');
+  assert(weekly.length === 2, 'weeks with zero readings are skipped');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────

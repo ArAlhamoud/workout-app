@@ -230,6 +230,11 @@ export async function logBp(data: {
   revalidateHealth();
 }
 
+export async function deleteBpReading(id: string) {
+  await prisma.bpReading.delete({ where: { id } });
+  revalidateHealth();
+}
+
 // ── CPAP nights ──────────────────────────────────────────────
 
 export async function logCpapNight(data: {

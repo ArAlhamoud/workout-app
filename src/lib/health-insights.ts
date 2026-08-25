@@ -472,6 +472,14 @@ export interface BpLite {
   diastolic: number;
 }
 
+export const BP_CONTEXT_LABEL: Record<string, string> = {
+  morning: 'Morning',
+  evening: 'Evening',
+  'before-med': 'Before med',
+  'after-med': 'After med',
+  clinic: 'Clinic',
+};
+
 export function bpAverage(
   readings: BpLite[],
   days: number,
@@ -484,6 +492,80 @@ export function bpAverage(
     diastolic: Math.round(recent.reduce((s, r) => s + r.diastolic, 0) / recent.length),
     n: recent.length,
   };
+}
+
+/**
+ * Per-context averages (morning / evening / before-med / …) over a window.
+ * Only contexts that clear the 3-reading guard appear; untagged readings
+ * never enter any bucket. Ordered by count so the fullest story leads.
+ */
+export function bpContextAverages(
+  readings: Array<BpLite & { context?: string | null }>,
+  days: number,
+  now: Date = new Date(),
+): Array<{ context: string; systolic: number; diastolic: number; n: number }> {
+  const buckets = new Map<string, Array<BpLite>>();
+  for (const r of readings) {
+    if (!r.context) continue;
+    if (now.getTime() - time(r.at) > days * DAY_MS) continue;
+    const list = buckets.get(r.context) ?? [];
+    list.push(r);
+    buckets.set(r.context, list);
+  }
+  const out: Array<{ context: string; systolic: number; diastolic: number; n: number }> = [];
+  for (const [context, list] of buckets) {
+    if (list.length < 3) continue;
+    out.push({
+      context,
+      systolic: Math.round(list.reduce((s, r) => s + r.systolic, 0) / list.length),
+      diastolic: Math.round(list.reduce((s, r) => s + r.diastolic, 0) / list.length),
+      n: list.length,
+    });
+  }
+  return out.sort((a, b) => b.n - a.n);
+}
+
+/**
+ * Weekly averages over the last `weeks` calendar weeks (Monday-anchored,
+ * local time), oldest first. A week below the 3-reading guard reports null
+ * averages but keeps its count, so the page can say "2 readings — not
+ * enough" instead of drawing a lie. Weeks with zero readings are skipped
+ * entirely; the caller decides how much silence to show.
+ */
+export function bpWeeklyAverages(
+  readings: BpLite[],
+  weeks: number,
+  now: Date = new Date(),
+): Array<{ weekStart: Date; systolic: number | null; diastolic: number | null; n: number }> {
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const firstStart = new Date(monday);
+  firstStart.setDate(firstStart.getDate() - (weeks - 1) * 7);
+
+  const byWeek = new Map<number, BpLite[]>();
+  for (const r of readings) {
+    const t = time(r.at);
+    if (t < firstStart.getTime() || t >= monday.getTime() + 7 * DAY_MS) continue;
+    const index = Math.floor((t - firstStart.getTime()) / (7 * DAY_MS));
+    const list = byWeek.get(index) ?? [];
+    list.push(r);
+    byWeek.set(index, list);
+  }
+
+  const out: Array<{ weekStart: Date; systolic: number | null; diastolic: number | null; n: number }> = [];
+  for (const [index, list] of [...byWeek.entries()].sort((a, b) => a[0] - b[0])) {
+    const weekStart = new Date(firstStart);
+    weekStart.setDate(weekStart.getDate() + index * 7);
+    const enough = list.length >= 3;
+    out.push({
+      weekStart,
+      systolic: enough ? Math.round(list.reduce((s, r) => s + r.systolic, 0) / list.length) : null,
+      diastolic: enough ? Math.round(list.reduce((s, r) => s + r.diastolic, 0) / list.length) : null,
+      n: list.length,
+    });
+  }
+  return out;
 }
 
 // ── Safety notice (display gate only — never a judgment) ─────

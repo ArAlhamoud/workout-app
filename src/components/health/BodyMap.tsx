@@ -344,6 +344,9 @@ export default function BodyMap({ data }: { data: BodyData }) {
                 >
                   Save reading
                 </button>
+                <Link href="/health/bp" className="block text-center text-xs font-bold text-app-tx3">
+                  the full pressure story →
+                </Link>
               </div>
             )}
 
