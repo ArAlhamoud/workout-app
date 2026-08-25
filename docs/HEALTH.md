@@ -61,6 +61,11 @@ the failure mode on the other side.
 ## Deliberately not built
 
 Calorie counting (kill-list), ECG interpretation (validated-integration
-territory), automatic HealthKit BP/AFib import (needs new read types →
-reinstall + Mac trip — columns are ready when that day comes), medication
-adjustment suggestions of any kind.
+territory), AFib auto-import (still needs its own read type when that
+day comes), medication adjustment suggestions of any kind. BP import is
+now BUILT (see above — Aug 2026). CPAP auto-import is IMPOSSIBLE, not
+skipped: the Löwenstein prisma APP exports nothing to Apple Health (its
+data goes only to prisma CLOUD for clinicians); mask hours + AHI stay a
+manual answer in the check-in, anchored by the Watch's sleep count shown
+beside the input (reference only — never pre-filled, mask time ≠ sleep
+time).

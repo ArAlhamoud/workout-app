@@ -7,10 +7,11 @@
 // table. Data-domain buttons (BP! GI! CPAP!) are tracker thinking — a
 // companion asks "how are you?" (the owner's re-orientation, Aug 25).
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { logCpapNight, logSymptoms, logAfEpisode, logBp, logNutrition } from '@/app/health-actions';
 import { hapticSuccess } from '@/lib/native-feedback';
+import { lastNightSleepHours } from '@/lib/health-metrics';
 
 type Step = 'night' | 'night-hours' | 'body' | 'body-which' | 'heart' | 'heart-episode' | 'extras' | 'done';
 
@@ -55,6 +56,19 @@ export default function CheckIn({ cpapLoggedToday }: { cpapLoggedToday: boolean 
   const [protein, setProtein] = useState('');
   const [water, setWater] = useState('');
   const [busy, setBusy] = useState(false);
+  // The prisma APP keeps CPAP data to itself (no Health export), so mask
+  // hours stay a manual answer — but the Watch's sleep count anchors it.
+  // Native-only; null on the web and the hint simply doesn't render.
+  const [watchSleep, setWatchSleep] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!open || cpapLoggedToday) return;
+    let alive = true;
+    lastNightSleepHours()
+      .then((h) => { if (alive) setWatchSleep(h); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [open, cpapLoggedToday]);
 
   const go = (s: Step) => setStep(s);
   const finish = () => {
@@ -109,6 +123,11 @@ export default function CheckIn({ cpapLoggedToday }: { cpapLoggedToday: boolean 
       {step === 'night-hours' && (
         <>
           <p className="text-base font-extrabold text-app-tx1">Roughly how long, and the AHI if the app shows it?</p>
+          {watchSleep !== null && (
+            <p className="text-xs font-semibold text-app-tx2">
+              Your Watch counted {watchSleep} h asleep — mask time is usually a little less.
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <input className={inputCls} inputMode="decimal" placeholder="Hours" value={hours} onChange={(e) => setHours(e.target.value)} autoFocus />
             <input className={inputCls} inputMode="decimal" placeholder="AHI (optional)" value={ahi} onChange={(e) => setAhi(e.target.value)} />
