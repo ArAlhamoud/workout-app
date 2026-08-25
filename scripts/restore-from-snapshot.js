@@ -160,6 +160,20 @@ async function main() {
   }
   if (holds.length) console.log(`  holds       ${holds.length}`);
 
+  // Health wave tables (absent in pre-health snapshots). Same id-upsert
+  // idempotency as everything else.
+  const healthTables = [
+    'healthProfile', 'injection', 'symptomLog', 'afEpisode', 'bpReading',
+    'cpapNight', 'labResult', 'medication', 'nutritionLog',
+  ];
+  for (const table of healthTables) {
+    const rowsForTable = (snap.health && snap.health[table]) || [];
+    for (const r of rowsForTable) {
+      await prisma[table].upsert({ where: { id: r.id }, update: r, create: r });
+    }
+    if (rowsForTable.length) console.log(`  ${table.padEnd(12)}${rowsForTable.length}`);
+  }
+
   const after = await prisma.workout.count();
   console.log(`\ndone — target now holds ${after} workouts.`);
   await prisma.$disconnect();

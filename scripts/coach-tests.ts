@@ -48,6 +48,20 @@ import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
 import { lastMonthRecap, yearRecap } from '../src/lib/recap';
 import { buildCoachContext, parseCoachBrief, COACH_SYSTEM } from '../src/lib/coach-ai';
 import { buildLadderFacts, validateLadderCopy } from '../src/lib/coach-ladder';
+import {
+  afCorrelates,
+  bpAverage,
+  cpapStats,
+  dayRelativeSymptoms,
+  nextSite,
+  severeSymptomFlag,
+  severityByDose,
+  treatmentClock,
+  weightProjections,
+  weightSnapshot,
+  DEFAULT_DOSE_PLAN,
+  DEFAULT_ROTATION,
+} from '../src/lib/health-insights';
 import { normalizeSampleType } from '../src/lib/health';
 
 interface HistoryFile {
@@ -1093,6 +1107,159 @@ console.log('coach-ladder');
   const static7 = rungs.find((r) => r.day === 7);
   const static19 = rungs.find((r) => r.day === 19);
   assert(!!static7 && !!static19, 'static rungs 7 and 19 exist to fall back to');
+}
+
+// ── health-insights: the Mounjaro module's deterministic brain ─
+console.log('health-insights');
+{
+  const now = new Date('2026-09-10T12:00:00');
+  const inj = (iso: string, doseMg: number, site = 'abdomen-right') => ({ at: iso, doseMg, site });
+
+  // Treatment clock anchors at the FIRST injection.
+  assert(treatmentClock([], DEFAULT_DOSE_PLAN, now) === null, 'no injections → no clock (never invent a schedule)');
+  const clock = treatmentClock(
+    [inj('2026-08-25T18:00:00', 2.5), inj('2026-09-01T18:00:00', 2.5), inj('2026-09-08T18:00:00', 2.5)],
+    DEFAULT_DOSE_PLAN,
+    now,
+  );
+  assert(clock !== null && clock.week === 3, `Sept 10 from an Aug 25 anchor is treatment week 3 (got ${clock?.week})`);
+  assert(clock !== null && clock.daysSinceLast === 2, 'days since last injection counts from the latest dose');
+  assert(clock !== null && clock.nextDue.getDate() === 15, 'next due = last + 7 days');
+  assert(clock !== null && clock.nextPlanned?.mg === 2.5, 'week-4 injection still prescribes 2.5 mg');
+  assert(clock !== null && !clock.overdue, 'not overdue two days after a dose');
+
+  // The checkpoint week prescribes NOTHING.
+  const week7 = treatmentClock(
+    [inj('2026-08-25T18:00:00', 2.5), inj('2026-10-06T18:00:00', 5)],
+    DEFAULT_DOSE_PLAN,
+    new Date('2026-10-08T12:00:00'),
+  );
+  assert(week7 !== null && week7.nextPlanned?.mg === null, 'the doctor-review week schedules no dose — nothing auto-escalates');
+
+  // Site rotation resumes after an off-rotation one-off.
+  assert(nextSite(DEFAULT_ROTATION, []) === 'abdomen-right', 'rotation starts at its first site');
+  assert(
+    nextSite(DEFAULT_ROTATION, [inj('2026-08-25', 2.5, 'abdomen-right')]) === 'abdomen-left',
+    'rotation advances right abdomen → left abdomen',
+  );
+  assert(
+    nextSite(DEFAULT_ROTATION, [
+      inj('2026-08-25', 2.5, 'abdomen-left'),
+      inj('2026-09-01', 2.5, 'arm-right'),
+    ]) === 'thigh-right',
+    'an off-rotation arm shot does not derail the cycle',
+  );
+
+  // Weight snapshot and % milestones.
+  const snap = weightSnapshot(
+    { heightCm: 169, startWeightKg: 133, goalWeightKg: 103 },
+    [120, 110, 103],
+    [
+      { date: '2026-08-25', weight: 133 },
+      { date: '2026-09-08', weight: 126.4 },
+    ],
+  );
+  assert(snap !== null && snap.lostKg === 6.6 && snap.pctLost === 5, '133 → 126.4 is 6.6 kg and 5.0%');
+  assert(snap !== null && snap.pctMilestones[0].achieved && !snap.pctMilestones[1].achieved, '5% reached, 10% not yet');
+  assert(snap !== null && snap.bmi === 44.3 && snap.startBmi === 46.6, 'BMI at 169 cm: 46.6 start, 44.3 now');
+
+  // Projections refuse to guess.
+  assert(
+    weightProjections([{ date: '2026-09-01', weight: 130 }], [120], now) === null,
+    'fewer than 4 recent weigh-ins → no projection',
+  );
+  const upward = weightProjections(
+    Array.from({ length: 6 }, (_, i) => ({ date: `2026-09-0${i + 1}`, weight: 130 + i })),
+    [120],
+    now,
+  );
+  assert(upward === null, 'an upward trend projects nothing — no fantasy dates');
+  const proj = weightProjections(
+    Array.from({ length: 8 }, (_, i) => ({
+      date: new Date(now.getTime() - (8 - i) * 7 * 86_400_000).toISOString(),
+      weight: 133 - i * 0.8,
+    })),
+    [120, 60],
+    now,
+  );
+  assert(proj !== null && proj[0].estimatedDate !== null, 'a real downward trend yields a date for a near target');
+  assert(proj !== null && proj[1].estimatedDate === null, 'a target beyond the 18-month horizon reports no date');
+
+  // Day-relative symptoms: only 0..7 after the nearest preceding injection.
+  const rel = dayRelativeSymptoms(
+    [
+      { at: '2026-08-26T20:00:00', kind: 'nausea', severity: 2 },
+      { at: '2026-08-24T20:00:00', kind: 'nausea', severity: 3 }, // before any injection
+      { at: '2026-09-06T20:00:00', kind: 'nausea', severity: 1 }, // 12 days after → excluded
+    ],
+    [inj('2026-08-25T18:00:00', 2.5)],
+  );
+  assert(rel.nausea?.length === 1 && rel.nausea[0].offset === 1 && rel.nausea[0].avgSeverity === 2,
+    'only the day-1 log lands in the day-relative chart');
+
+  // Dose comparison suppresses tiny samples.
+  const byDoseNone = severityByDose(
+    [{ at: '2026-08-26', kind: 'nausea', severity: 2 }],
+    [inj('2026-08-25', 2.5)],
+  );
+  assert(!byDoseNone.nausea, 'fewer than 3 logs at a dose → no dose comparison');
+
+  // AF correlates: unanswered flags are excluded from the denominator.
+  const episodes = [
+    { startedAt: '2026-08-26', bloating: true },
+    { startedAt: '2026-08-28', bloating: true },
+    { startedAt: '2026-09-01', bloating: false },
+    { startedAt: '2026-09-03', bloating: true },
+    { startedAt: '2026-09-05', bloating: null }, // not asked — proves nothing
+  ];
+  assert(afCorrelates(episodes, 5) === null, '4 answered of 5 episodes is under the 5-answered guard');
+  const withFive = afCorrelates([...episodes, { startedAt: '2026-09-07', bloating: true }], 5);
+  assert(
+    withFive !== null && withFive[0].hits === 4 && withFive[0].answered === 5,
+    'correlates count answered episodes only — 4 of 5, not 4 of 6',
+  );
+
+  // CPAP streak counts consecutive nights.
+  const cpap = cpapStats(
+    [
+      { night: '2026-09-08', usageHours: 6.5, ahi: 1.2 },
+      { night: '2026-09-07', usageHours: 7.1, ahi: 2.0 },
+      { night: '2026-09-05', usageHours: 6.0, ahi: 1.6 }, // gap on the 6th
+    ],
+    now,
+  );
+  assert(cpap.streak === 2, 'a missed night breaks the CPAP streak');
+  assert(cpap.avgAhi30d === 1.6, 'AHI averages over logged nights');
+
+  // BP refuses a "trend" from under 3 readings.
+  assert(bpAverage([{ at: '2026-09-09', systolic: 128, diastolic: 78 }], 7, now) === null,
+    'one BP reading is a moment, not an average');
+
+  // Safety flag: repeated severe red-flag symptoms only.
+  assert(
+    severeSymptomFlag(
+      [
+        { at: '2026-09-10T08:00:00', kind: 'vomiting', severity: 3 },
+        { at: '2026-09-09T20:00:00', kind: 'vomiting', severity: 3 },
+      ],
+      now,
+    ),
+    'two severe vomiting logs in 48h raise the notice',
+  );
+  assert(
+    !severeSymptomFlag([{ at: '2026-09-10T08:00:00', kind: 'vomiting', severity: 3 }], now),
+    'a single severe log does not',
+  );
+  assert(
+    !severeSymptomFlag(
+      [
+        { at: '2026-09-10T08:00:00', kind: 'bloating', severity: 3 },
+        { at: '2026-09-09T20:00:00', kind: 'bloating', severity: 3 },
+      ],
+      now,
+    ),
+    'severe bloating is uncomfortable, not a red flag — no alarm fatigue',
+  );
 }
 
 // ── summary ──────────────────────────────────────────────────

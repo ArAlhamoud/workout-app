@@ -22,7 +22,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Workout Tracker',
+  title: 'Aurora Health',
   description: 'Track your 12-week fat loss program',
   manifest: '/manifest.webmanifest',
   icons: {
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Workout',
+    title: 'Aurora',
   },
 };
 

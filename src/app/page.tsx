@@ -13,6 +13,15 @@ import {
 import { phaseForWeek } from '@/lib/coach';
 import CoachCard from '@/components/CoachCard';
 import HomeVerdict from '@/components/HomeVerdict';
+import HealthHomeCard from '@/components/health/HealthHomeCard';
+import prisma from '@/lib/prisma';
+import {
+  treatmentClock,
+  nextSite,
+  DEFAULT_DOSE_PLAN,
+  DEFAULT_ROTATION,
+  type DosePlanStep,
+} from '@/lib/health-insights';
 import StepsChipLabel from '@/components/StepsChipLabel';
 import { formatDuration, formatRelative, getMondayOfWeek, kgCompact, RPE_LABELS, weekKey } from '@/lib/format';
 
@@ -198,8 +207,23 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
 }
 
 export default async function Home() {
-  const [workouts, bodyStats] = await Promise.all([getWorkouts(), getBodyStats()]);
+  const [workouts, bodyStats, injections, healthProfile] = await Promise.all([
+    getWorkouts(),
+    getBodyStats(),
+    prisma.injection.findMany({ orderBy: { at: 'desc' }, take: 30, select: { at: true, doseMg: true, site: true } }),
+    // Read-only here: seeding belongs to the /health visit, not Home.
+    prisma.healthProfile.findUnique({ where: { id: 'profile' } }),
+  ]);
   const recentWorkouts = workouts.slice(0, 4);
+
+  const healthClock = treatmentClock(
+    injections,
+    ((healthProfile?.dosePlan as DosePlanStep[] | null) ?? DEFAULT_DOSE_PLAN),
+  );
+  const healthSite = nextSite(
+    ((healthProfile?.targets as { rotation?: string[] } | null)?.rotation ?? DEFAULT_ROTATION),
+    injections,
+  );
 
   // Weigh-in nudge: bodyStats come back date-ascending
   const lastBodyStat = bodyStats[bodyStats.length - 1];
@@ -280,6 +304,19 @@ export default async function Home() {
 
       {/* The coach's voice — renders nothing until a note exists */}
       <CoachCard />
+
+      {/* Health · Mounjaro — two lines, everything else behind the tap */}
+      <HealthHomeCard
+        started={!!healthClock}
+        weekLabel={healthClock ? `week ${healthClock.week}` : 'day 1'}
+        doseLine={healthClock ? `${healthClock.lastDoseMg} mg weekly` : ''}
+        nextLine={
+          healthClock
+            ? healthClock.nextDue.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+            : ''
+        }
+        site={healthClock ? healthSite : null}
+      />
 
       {/* ── Hero: answer first — ring + tonight's plan ──── */}
       <section className="card-lg relative overflow-hidden p-4">

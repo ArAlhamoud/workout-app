@@ -6,7 +6,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
  */
 const config: CapacitorConfig = {
   appId: 'com.aralhamoud.workout',
-  appName: 'Workout',
+  appName: 'Aurora',
   webDir: 'public',
   server: {
     url: 'https://workout-app-gamma-rouge.vercel.app',
