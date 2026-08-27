@@ -106,6 +106,10 @@ public class HealthKitBridgePlugin: CAPPlugin, CAPBridgedPlugin {
 
             // Cardio / recovery
             "heartRate": QuantitySpec(identifier: .heartRate, unit: bpm, unitName: "count/min", aggregation: .discrete),
+            // Blood pressure arrives from the home monitor via the Health app
+            // as two samples per reading; the web side pairs them by timestamp.
+            "bloodPressureSystolic": QuantitySpec(identifier: .bloodPressureSystolic, unit: HKUnit.millimeterOfMercury(), unitName: "mmHg", aggregation: .discrete),
+            "bloodPressureDiastolic": QuantitySpec(identifier: .bloodPressureDiastolic, unit: HKUnit.millimeterOfMercury(), unitName: "mmHg", aggregation: .discrete),
             "restingHeartRate": QuantitySpec(identifier: .restingHeartRate, unit: bpm, unitName: "count/min", aggregation: .discrete),
             "heartRateVariabilitySDNN": QuantitySpec(identifier: .heartRateVariabilitySDNN, unit: ms, unitName: "ms", aggregation: .discrete),
             "respiratoryRate": QuantitySpec(identifier: .respiratoryRate, unit: bpm, unitName: "count/min", aggregation: .discrete),
