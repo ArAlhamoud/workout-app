@@ -249,6 +249,12 @@ model NutritionLog {
   waterMl   Int?
   fiberG    Int?
   meals     Int?
+  // Daily macro totals (Fuel tracker, Aug 2026 — owner reversed the
+  // calorie-counting kill-list once the meal subscription made the numbers
+  // free to copy). All nullable: a day with only protein logged stays valid.
+  kcal      Int?
+  carbsG    Int?
+  fatG      Int?
   flags     Json?
   notes     String?
   createdAt DateTime @default(now())
