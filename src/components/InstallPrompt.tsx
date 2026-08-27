@@ -28,7 +28,7 @@ export default function InstallPrompt() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-20 left-4 right-4 z-50 max-w-lg mx-auto animate-fade-in print:hidden">
+    <div className="fixed bottom-20 left-4 right-4 z-40 max-w-lg mx-auto animate-fade-in print:hidden">
       <div className="glass-overlay border border-app-border rounded-card-lg p-4 shadow-card-lg">
         <div className="flex items-start gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br from-[#99f6e4] to-[#a5b4fc] shadow-[0_0_20px_-6px_rgba(94,234,212,0.6)]">
