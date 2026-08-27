@@ -77,6 +77,17 @@ export default async function NewWorkoutPage({
   // Reached from Gap Guard notifications and the readiness-hold banner. Its
   // only job is keeping the chain alive on a day a full session won't happen.
   const isRescue = (Array.isArray(searchParams.rescue) ? searchParams.rescue[0] : searchParams.rescue) === '1';
+
+  // A detect/Watch confirmation arrives with the session's HealthKit
+  // identity: ?hk=<uuid>&mins=<real minutes>&date=<local day>. Storing the
+  // uuid is what stops the same session being offered again (the Stats
+  // card sent these for weeks to a page that ignored them).
+  const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+  const hkUuid = one(searchParams.hk) || undefined;
+  const rawMins = Number(one(searchParams.mins));
+  const detectedMins = Number.isFinite(rawMins) && rawMins > 0 && rawMins < 300 ? Math.round(rawMins) : undefined;
+  const rawDate = one(searchParams.date);
+  const initialDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
   const RESCUE_EXERCISES = ['Leg Press', 'Chest Press', 'Lat Pulldown', 'Mid Row'];
   const RESCUE_LOAD_PCT = 60;
 
@@ -246,6 +257,9 @@ export default async function NewWorkoutPage({
         initialName={initialName}
         initialExercises={finalExercises}
         lastSession={lastSession}
+        healthWorkoutUuid={hkUuid}
+        initialDate={initialDate}
+        detectedDurationMin={detectedMins}
         personalRecords={personalRecords}
         progressionHints={progressionHints}
         repRecords={repRecords}

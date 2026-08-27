@@ -30,6 +30,7 @@ import {
 import BodyMap, { type BodyData } from '@/components/health/BodyMap';
 import { slimProgress } from '@/lib/body-figure';
 import CheckIn from '@/components/health/CheckIn';
+import DetectedSessionBanner from '@/components/health/DetectedSessionBanner';
 import HealthReminders from '@/components/health/HealthReminders';
 
 export const metadata: Metadata = { title: 'AR Health' };
@@ -213,6 +214,9 @@ export default async function HomePage() {
           </p>
         </div>
       )}
+
+      {/* A Watch session waiting to be confirmed — native only, silent otherwise */}
+      <DetectedSessionBanner />
 
       {/* THE dashboard: his body, live */}
       <BodyMap data={body} />

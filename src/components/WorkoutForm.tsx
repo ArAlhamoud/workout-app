@@ -220,6 +220,9 @@ export default function WorkoutForm({
   deloadHints = {},
   rescueMode = false,
   dayAccent,
+  healthWorkoutUuid,
+  initialDate,
+  detectedDurationMin,
 }: {
   exercises: Exercise[];
   initialName?: string;
@@ -238,11 +241,19 @@ export default function WorkoutForm({
   rescueMode?: boolean;
   /** Presentation only — threads the Aurora day accent (A violet · B teal) through steppers. */
   dayAccent?: 'A' | 'B';
+  /** Set when this log confirms a Watch/Health-detected session: stored on
+   *  the workout so the detect list never offers the same HKWorkout again. */
+  healthWorkoutUuid?: string;
+  /** The detected session's local calendar day — seeds the date field. */
+  initialDate?: string;
+  /** The detected session's real length; overrides the form-open timer,
+   *  which measures typing time, not training time, on a retro log. */
+  detectedDurationMin?: number;
 }) {
   const router = useRouter();
   const today = localTodayStr();
   const [name, setName] = useState(initialName);
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(initialDate ?? today);
   const [gym, setGym] = useState(DEFAULT_GYM_ID);
   const [notes, setNotes] = useState('');
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
@@ -947,13 +958,16 @@ export default function WorkoutForm({
       notes: fullNotes || undefined,
       duration: Math.floor((Date.now() - startRef.current) / 1000),
       clientSaveId: saveIdRef.current,
+      healthWorkoutUuid,
       sets: setsToSave,
     };
     // A restored multi-day draft carries an ancient startRef; without a clamp
     // the HR capture would bin DAYS of background heart rate onto one workout
     // and the duration would read as 50 hours. 3 h matches the server's cap.
     const sessionStart = Math.max(startRef.current, Date.now() - 3 * 3_600_000);
-    payload.duration = Math.floor((Date.now() - sessionStart) / 1000);
+    payload.duration = detectedDurationMin
+      ? detectedDurationMin * 60
+      : Math.floor((Date.now() - sessionStart) / 1000);
     const startISO = new Date(sessionStart).toISOString();
     try {
       const { id, deduped } = await createWorkout(payload);
