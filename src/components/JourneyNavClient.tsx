@@ -114,16 +114,27 @@ export default function JourneyNavClient({
 }) {
   const pathname = usePathname();
   const [roomsOpen, setRoomsOpen] = useState(false);
-  // Glance lines arrive once per app session; the map never waits for them.
+  // Refetched on EVERY open: the webview process lives for days, and a
+  // once-per-mount cache showed yesterday's map — or, worse, cached one
+  // basement network failure as a permanently glance-less sheet
+  // (device-tester, HIGH). Stale lines still paint instantly; fresh ones
+  // swap in; a failure keeps the previous lines and retries next open.
   const [glances, setGlances] = useState<Record<string, string> | null>(null);
   useEffect(() => {
-    if (!roomsOpen || glances !== null) return;
+    if (!roomsOpen) return;
     let cancelled = false;
     getRoomGlances()
       .then((g) => { if (!cancelled) setGlances(g); })
-      .catch(() => { if (!cancelled) setGlances({}); });
+      .catch(() => { /* keep what we have; next open retries */ });
     return () => { cancelled = true; };
-  }, [roomsOpen, glances]);
+  }, [roomsOpen]);
+
+  // 2: the sheet must not outlive the screen it was opened on — the CTA,
+  // the journey pill, and the iOS back-swipe all navigate without touching
+  // the room links' own onClick close.
+  useEffect(() => {
+    setRoomsOpen(false);
+  }, [pathname]);
   const onHome = pathname === '/';
 
   return (
@@ -137,11 +148,11 @@ export default function JourneyNavClient({
             type="button"
             aria-label="Close rooms"
             onClick={() => setRoomsOpen(false)}
-            className="fixed inset-0 cursor-default bg-ink/20"
+            className="fixed inset-0 cursor-default touch-none bg-ink/20"
             tabIndex={-1}
           />
           <div className="relative mx-auto max-w-lg px-3 pb-2">
-            <div className="sheet-surface max-h-[72vh] overflow-y-auto rounded-card-lg border-2 border-ink p-3 shadow-[5px_5px_0_#0b0b0f]">
+            <div className="sheet-surface max-h-[72vh] overflow-y-auto overscroll-contain rounded-card-lg border-2 border-ink p-3 shadow-[5px_5px_0_#0b0b0f]">
               {ROOM_GROUPS.map((g, gi) => (
                 <div key={g.title} className={gi > 0 ? 'mt-3' : ''}>
                   <p className="px-1 pb-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-app-tx3">
@@ -183,7 +194,8 @@ export default function JourneyNavClient({
       )}
 
       <div className="relative mx-auto max-w-lg px-3 pb-[max(env(safe-area-inset-bottom),0.625rem)]">
-        <div className="flex items-center gap-2">
+        {/* Gap taps close the sheet — misses 3px off ROOMS must not no-op. */}
+        <div className="flex items-center gap-2" onClick={() => roomsOpen && setRoomsOpen(false)}>
           {/* The road — the bar IS the journey. Tap = the full path. */}
           <Link
             href={onHome ? '/journey' : '/'}
