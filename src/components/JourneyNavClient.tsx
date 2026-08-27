@@ -33,6 +33,7 @@ const ROOM_GROUPS: Array<{ title: string; rooms: Room[] }> = [
     rooms: [
       { href: '/health/injection', label: 'Injection day', icon: 'dose' },
       { href: '/health/bp', label: 'Pressure', icon: 'cuff' },
+      { href: '/health/fuel', label: 'Fuel', icon: 'bowl' },
       { href: '/health/plan', label: 'Plan & profile', icon: 'person' },
       { href: '/health/report', label: 'Doctor report', icon: 'doc' },
     ],
@@ -56,13 +57,14 @@ const ROOM_GROUPS: Array<{ title: string; rooms: Room[] }> = [
   },
 ];
 
-type RoomIconKind = 'dose' | 'cuff' | 'person' | 'doc' | 'train' | 'clock' | 'list' | 'grid' | 'lines' | 'zigzag' | 'bars';
+type RoomIconKind = 'dose' | 'cuff' | 'bowl' | 'person' | 'doc' | 'train' | 'clock' | 'list' | 'grid' | 'lines' | 'zigzag' | 'bars';
 
 /** Tiny stroke glyphs in the bar's own visual language — no emoji, no fills. */
 function RoomIcon({ kind }: { kind: RoomIconKind }) {
   const p: Record<RoomIconKind, React.ReactNode> = {
     dose: <path d="M14 4l6 6M12 6l6 6-7 7-6-6zM5 13l-2 2" />,
     cuff: <><circle cx="12" cy="12" r="6" /><path d="M12 9v3l2 2M12 2v2M12 20v2" /></>,
+    bowl: <><path d="M4 12h16a8 8 0 0 1-16 0z" /><path d="M9 8c0-2 6-2 6 0" /></>,
     person: <><circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></>,
     doc: <><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v4h4M10 12h5M10 16h5" /></>,
     train: <><line x1="7" y1="12" x2="17" y2="12" /><rect x="3" y="8" width="3" height="8" rx="1" /><rect x="18" y="8" width="3" height="8" rx="1" /></>,

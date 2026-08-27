@@ -738,3 +738,83 @@ export function journeyStations(
   }
   return out;
 }
+
+// ── Fuel (daily macros) ──────────────────────────────────────
+// Suggested targets, derived transparently from his profile (169 cm,
+// start 133 kg, goal 103, mid-40s, machine training 2x/week + walking):
+//   protein 130 g  — ~1.5 g/kg adjusted body weight (adjusted ≈ 87 kg:
+//                    ideal-at-BMI-25 71 kg + 25% of the excess), the
+//                    muscle-preservation floor that matters most on a
+//                    GLP-1 appetite. A floor, not a ceiling.
+//   kcal    2200   — Mifflin-St Jeor BMR ≈ 2170 × light activity ≈ 2900
+//                    TDEE, minus a ~700 deficit (≈ 0.7 kg/week early).
+//   fat     85 g   — ~1 g/kg adjusted (hormone floor), 765 kcal.
+//   carbs   230 g  — the remainder (920 kcal), fuels the training days.
+// Starting points, editable on the Fuel page — a dietitian outranks this
+// arithmetic, and the app never grades a day, it only counts it.
+
+export interface FuelTargets {
+  kcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+}
+
+export const FUEL_DEFAULTS: FuelTargets = { kcal: 2200, proteinG: 130, carbsG: 230, fatG: 85 };
+
+/** Merge stored profile targets over the suggested defaults. */
+export function fuelTargets(targets: Record<string, unknown> | null): FuelTargets {
+  const num = (v: unknown, lo: number, hi: number): number | null =>
+    typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? Math.round(v) : null;
+  return {
+    kcal: num(targets?.kcal, 800, 6000) ?? FUEL_DEFAULTS.kcal,
+    proteinG: num(targets?.fuelProteinG, 30, 400) ?? FUEL_DEFAULTS.proteinG,
+    carbsG: num(targets?.carbsG, 0, 800) ?? FUEL_DEFAULTS.carbsG,
+    fatG: num(targets?.fatG, 20, 400) ?? FUEL_DEFAULTS.fatG,
+  };
+}
+
+export interface FuelDayLite {
+  day: Date | string;
+  kcal?: number | null;
+  proteinG?: number | null;
+  carbsG?: number | null;
+  fatG?: number | null;
+}
+
+export interface FuelWeek {
+  daysLogged: number;
+  /** Averages over days that logged the field — null under the 3-day guard. */
+  avgKcal: number | null;
+  avgProteinG: number | null;
+  /** Days at or above the protein target, of the days that logged protein. */
+  proteinHitDays: number;
+  proteinLoggedDays: number;
+}
+
+/** The last `days` calendar days of macro logs, guarded like everything else. */
+export function fuelWeek(
+  logs: FuelDayLite[],
+  targets: FuelTargets,
+  days = 7,
+  now: Date = new Date(),
+): FuelWeek {
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (days - 1));
+  const recent = logs.filter((l) => {
+    const t = new Date(l.day).getTime();
+    return t >= start.getTime() && t <= now.getTime();
+  });
+  const kcals = recent.map((l) => l.kcal).filter((v): v is number => v != null);
+  const prots = recent.map((l) => l.proteinG).filter((v): v is number => v != null);
+  const avg = (xs: number[]) =>
+    xs.length >= 3 ? Math.round(xs.reduce((s, v) => s + v, 0) / xs.length) : null;
+  return {
+    daysLogged: recent.filter((l) => l.kcal != null || l.proteinG != null).length,
+    avgKcal: avg(kcals),
+    avgProteinG: avg(prots),
+    proteinHitDays: prots.filter((p) => p >= targets.proteinG).length,
+    proteinLoggedDays: prots.length,
+  };
+}

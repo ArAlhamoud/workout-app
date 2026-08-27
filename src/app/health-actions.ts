@@ -316,6 +316,9 @@ export async function logNutrition(data: {
   waterMl?: number;
   fiberG?: number;
   meals?: number;
+  kcal?: number;
+  carbsG?: number;
+  fatG?: number;
   flags?: { largeMeal?: boolean; highFat?: boolean; lateNight?: boolean };
 }) {
   const day = new Date(`${data.day}T00:00:00.000Z`);
@@ -330,13 +333,45 @@ export async function logNutrition(data: {
   const w = bounded(data.waterMl, 10_000);
   const f = bounded(data.fiberG, 150);
   const m = bounded(data.meals, 12);
+  const kc = bounded(data.kcal, 8000);
+  const cb = bounded(data.carbsG, 900);
+  const ft = bounded(data.fatG, 400);
   if (p !== undefined) patch.proteinG = p;
   if (w !== undefined) patch.waterMl = w;
   if (f !== undefined) patch.fiberG = f;
   if (m !== undefined) patch.meals = m;
+  if (kc !== undefined) patch.kcal = kc;
+  if (cb !== undefined) patch.carbsG = cb;
+  if (ft !== undefined) patch.fatG = ft;
   if (data.flags) patch.flags = data.flags as object;
   if (!Object.keys(patch).length) return;
   await prisma.nutritionLog.upsert({ where: { day }, update: patch, create: { day, ...patch } as never });
+  revalidateHealth();
+}
+
+/** Merge fuel targets into profile.targets without clobbering the other
+ *  keys that live there (rotation, waterMl, proteinG for the check-in). */
+export async function updateFuelTargets(next: {
+  kcal: number;
+  fuelProteinG: number;
+  carbsG: number;
+  fatG: number;
+}) {
+  const profile = await prisma.healthProfile.findUnique({
+    where: { id: PROFILE_ID },
+    select: { targets: true },
+  });
+  const current = (profile?.targets as Record<string, unknown> | null) ?? {};
+  const bounded = (v: number, lo: number, hi: number) =>
+    Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : null;
+  const merged = {
+    ...current,
+    ...(bounded(next.kcal, 800, 6000) != null ? { kcal: bounded(next.kcal, 800, 6000) } : {}),
+    ...(bounded(next.fuelProteinG, 30, 400) != null ? { fuelProteinG: bounded(next.fuelProteinG, 30, 400) } : {}),
+    ...(bounded(next.carbsG, 0, 800) != null ? { carbsG: bounded(next.carbsG, 0, 800) } : {}),
+    ...(bounded(next.fatG, 20, 400) != null ? { fatG: bounded(next.fatG, 20, 400) } : {}),
+  };
+  await prisma.healthProfile.update({ where: { id: PROFILE_ID }, data: { targets: merged } });
   revalidateHealth();
 }
 

@@ -67,6 +67,9 @@ import {
   DEFAULT_ROTATION,
   bpContextAverages,
   bpWeeklyAverages,
+  fuelTargets,
+  fuelWeek,
+  FUEL_DEFAULTS,
 } from '../src/lib/health-insights';
 import { normalizeSampleType, pairBpSamples } from '../src/lib/health';
 
@@ -1560,6 +1563,43 @@ console.log('health-insights');
   assert(!!full && full.systolic === 128 && full.diastolic === 83,
     'a 3-reading week averages honestly');
   assert(weekly.length === 2, 'weeks with zero readings are skipped');
+}
+
+
+// ── fuel (daily macros) ──────────────────────────────────────
+{
+  // Stored targets win; junk and absences fall back to the suggestions.
+  const t = fuelTargets({ kcal: 2400, fuelProteinG: 140, carbsG: 9999 });
+  assert(t.kcal === 2400 && t.proteinG === 140, 'stored fuel targets override the defaults');
+  assert(t.carbsG === FUEL_DEFAULTS.carbsG && t.fatG === FUEL_DEFAULTS.fatG,
+    'out-of-bounds and missing targets fall back to the suggested numbers');
+  // The check-in's proteinG key (100) must NOT leak into fuel targets.
+  assert(fuelTargets({ proteinG: 100 }).proteinG === FUEL_DEFAULTS.proteinG,
+    'fuel protein reads fuelProteinG, never the check-in proteinG key');
+
+  const now = new Date('2026-09-10T18:00:00');
+  const d = (daysAgo: number) => {
+    const x = new Date('2026-09-10T00:00:00Z');
+    x.setUTCDate(x.getUTCDate() - daysAgo);
+    return x;
+  };
+  const week = fuelWeek(
+    [
+      { day: d(0), kcal: 1900, proteinG: 135 },
+      { day: d(1), kcal: 2100, proteinG: 120 },
+      { day: d(2), kcal: 2000, proteinG: 131 },
+      { day: d(9), kcal: 5000, proteinG: 10 }, // outside the window
+    ],
+    FUEL_DEFAULTS, 7, now,
+  );
+  assert(week.daysLogged === 3, 'only days inside the window count');
+  assert(week.avgKcal === 2000, 'calorie average over logged days');
+  assert(week.proteinHitDays === 2 && week.proteinLoggedDays === 3,
+    'protein-hit counts days at or above the target');
+
+  const thin = fuelWeek([{ day: d(0), kcal: 1900 }], FUEL_DEFAULTS, 7, now);
+  assert(thin.avgKcal === null && thin.daysLogged === 1,
+    'one logged day reports a count, never an average');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────
