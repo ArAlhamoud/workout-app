@@ -15,12 +15,20 @@ import {
   nextSite,
   treatmentClock,
   weightSnapshot,
+  weightPace,
+  milestoneEta,
+  fastLossLowProtein,
+  fuelTargets,
+  fuelWeek,
+  afRecord,
+  recentMilestoneCross,
   DEFAULT_DOSE_PLAN,
   DEFAULT_ROTATION,
   SYMPTOM_LABEL,
   type DosePlanStep,
 } from '@/lib/health-insights';
 import BodyMap, { type BodyData } from '@/components/health/BodyMap';
+import { slimProgress } from '@/lib/body-figure';
 import CheckIn from '@/components/health/CheckIn';
 import HealthReminders from '@/components/health/HealthReminders';
 
@@ -71,6 +79,27 @@ export default async function HomePage() {
     data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })),
   );
 
+  // The pace layer: week-average vs week-average, and what it promises.
+  const pace = weightPace(data.bodyStats);
+  const milestoneKgs = [
+    ...(snapshot?.pctMilestones.map((m) => m.kg) ?? []),
+    ...((profile.milestonesKg as number[] | null) ?? [120, 110, 103]),
+  ];
+  const nextMilestoneKg = snapshot
+    ? milestoneKgs.filter((kg) => kg < snapshot.currentKg).sort((a, b) => b - a)[0] ?? null
+    : null;
+  const eta = snapshot && nextMilestoneKg != null
+    ? milestoneEta(snapshot.currentKg, nextMilestoneKg, pace)
+    : null;
+  const targets = fuelTargets((profile.targets as Record<string, unknown> | null) ?? null);
+  const week = fuelWeek(
+    data.nutrition.map((n) => ({ day: n.day, kcal: n.kcal, proteinG: n.proteinG })),
+    targets,
+  );
+  const muscleGuard = fastLossLowProtein(pace, week, targets);
+  const stamp = recentMilestoneCross(milestoneKgs, data.bodyStats);
+  const heartRecord = afRecord(data.afEpisodes.map((e) => ({ startedAt: e.startedAt })));
+
   const trainPlan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
   const trainDay = queuedDay(trainPlan);
   const trainedToday = workouts.some(
@@ -83,7 +112,7 @@ export default async function HomePage() {
     lastNight && Date.now() - new Date(lastNight.night).getTime() < 3 * 86_400_000;
 
   const body: BodyData = {
-    heart: { daysClear: af.daysSinceLast, thisMonth: af.thisMonth },
+    heart: { daysClear: af.daysSinceLast, thisMonth: af.thisMonth, longestDays: heartRecord?.longestDays ?? null },
     breath: {
       lastHours: lastNightIsRecent ? lastNight.usageHours : null,
       ahi: lastNightIsRecent ? lastNight.ahi : null,
@@ -104,6 +133,7 @@ export default async function HomePage() {
           when: new Date(latestLdl.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
         }
       : null,
+    slimT: slimProgress(profile.startWeightKg, profile.goalWeightKg, snapshot?.currentKg ?? null),
   };
 
   return (
@@ -130,6 +160,20 @@ export default async function HomePage() {
             {day.dosesUntilCheckpoint != null && day.dosesUntilCheckpoint > 0 &&
               ` · ${day.dosesUntilCheckpoint} to the doctor`}
           </p>
+          {pace && (
+            <p className="mt-0.5 text-xs font-semibold text-app-tx2">
+              <span className={pace.kgPerWeek < 0 ? 'text-acc-teal font-bold' : 'text-app-tx1 font-bold'}>
+                {pace.kgPerWeek > 0 ? '+' : ''}{pace.kgPerWeek} kg/week
+              </span>
+              {eta && nextMilestoneKg != null &&
+                ` · ${nextMilestoneKg} kg by ~${eta.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+            </p>
+          )}
+          {clock && clock.daysSinceLast === 6 && trainPlan.mode === 'train' && !trainedToday && (
+            <p className="mt-0.5 text-xs font-semibold text-acc-violet">
+              Dose tomorrow — a good day to train.
+            </p>
+          )}
         </div>
         {/* today's one thing, as a stamp */}
         <Link
@@ -147,6 +191,25 @@ export default async function HomePage() {
           <p className="text-sm text-app-tx1">
             You&apos;ve logged repeated severe symptoms in the last two days. This app can&apos;t
             judge how serious that is — a clinician can. Consider getting checked.
+          </p>
+        </div>
+      )}
+
+      {stamp && (
+        <div className="card border-acc-teal/50 px-4 py-3">
+          <p className="text-sm font-bold text-app-tx1">
+            {stamp.kg} kg — passed{' '}
+            {stamp.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
+            <span className="font-semibold text-app-tx2"> A milestone off the map.</span>
+          </p>
+        </div>
+      )}
+
+      {muscleGuard && (
+        <div className="card border-acc-ember-deep/50 px-4 py-3">
+          <p className="text-sm leading-relaxed text-app-tx1">
+            Fast loss this week with protein under the floor in your logs. The scale is fine —
+            the muscle is what needs defending: aim at {targets.proteinG} g today.
           </p>
         </div>
       )}

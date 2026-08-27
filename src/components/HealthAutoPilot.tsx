@@ -43,7 +43,7 @@ import {
 import { armGapGuard, notifySickRest, notifyComeback, refreshLadderCopy } from '@/lib/gap-guard';
 import { scheduleLocalNotifications } from '@/lib/native-feedback';
 import { flushOutbox, retryDead } from '@/lib/outbox';
-import { importHealth, getWorkoutsToPush, markWorkoutsPushed } from '@/app/health-actions';
+import { importHealth, getWeeklyDigest, getWorkoutsToPush, markWorkoutsPushed } from '@/app/health-actions';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { runCloudBackup } from '@/lib/native-cloud-backup';
 import { lastNightSleepHours, readSickSignal } from '@/lib/health-metrics';
@@ -56,6 +56,7 @@ const GAP_GUARD_THROTTLE_MIN = 15;
 const SICK_FLAG_KEY = 'gap-guard-sick-paused';
 const DEAD_RETRY_STAMP_KEY = 'outbox-dead-last-retry';
 const DEAD_NOTIFICATION_ID = 2007;
+const WEEKLY_DIGEST_ID = 3004;
 const SYNC_THROTTLE_MIN = 30;
 const WEIGHT_WINDOW_DAYS = 30;
 /** Recovery dailies re-pushed over a rolling week — upserts make this free. */
@@ -302,6 +303,24 @@ async function runSyncs(): Promise<void> {
       await markWorkoutsPushed(savedIds);
     }
   } catch { /* next open retries */ }
+
+  // 4 — the Sunday recap: one local notification, re-composed from fresh
+  // data every sync and re-armed at the same id (cancel-and-rearm, the Gap
+  // Guard pattern). Fires Sunday 20:00; a week with under two qualifying
+  // pieces schedules nothing.
+  try {
+    const digest = await getWeeklyDigest();
+    if (digest) {
+      const at = new Date();
+      at.setHours(20, 0, 0, 0);
+      const daysToSunday = (7 - at.getDay()) % 7;
+      at.setDate(at.getDate() + daysToSunday);
+      if (at.getTime() <= Date.now()) at.setDate(at.getDate() + 7);
+      scheduleLocalNotifications([
+        { id: WEEKLY_DIGEST_ID, title: 'Your week', body: digest, schedule: { at } },
+      ]);
+    }
+  } catch { /* a recap that fails to schedule is a recap skipped */ }
 }
 
 export default function HealthAutoPilot() {

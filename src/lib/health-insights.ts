@@ -818,3 +818,272 @@ export function fuelWeek(
     proteinLoggedDays: prots.length,
   };
 }
+
+// ── Pace, learned maintenance, and the cross-domain stories ──
+// (the "new information" wave: treatment live, weigh-ins flowing, macros
+// logged daily — everything below is guarded arithmetic over those logs)
+
+export interface WeightPace {
+  /** kg per week, negative when losing; week-average vs week-average. */
+  kgPerWeek: number;
+  nRecent: number;
+  nPrior: number;
+}
+
+/** Week-averaged pace: mean of the last 7 days' weigh-ins vs the mean of
+ *  the 7 days before. Two readings in each window or nothing — single-day
+ *  endpoints are water, not fat. */
+export function weightPace(
+  bodyStats: Array<{ date: Date | string; weight: number | null }>,
+  now: Date = new Date(),
+): WeightPace | null {
+  const t = now.getTime();
+  const recent: number[] = [];
+  const prior: number[] = [];
+  for (const b of bodyStats) {
+    if (b.weight == null) continue;
+    const age = t - new Date(b.date).getTime();
+    if (age < 0) continue;
+    if (age <= 7 * DAY_MS) recent.push(b.weight);
+    else if (age <= 14 * DAY_MS) prior.push(b.weight);
+  }
+  if (recent.length < 2 || prior.length < 2) return null;
+  const mean = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
+  return {
+    kgPerWeek: Math.round((mean(recent) - mean(prior)) * 10) / 10,
+    nRecent: recent.length,
+    nPrior: prior.length,
+  };
+}
+
+/** Projected date of reaching `milestoneKg` at the current pace; null when
+ *  not losing, already there, or further than half a year out (a date that
+ *  far is astrology, not arithmetic). */
+export function milestoneEta(
+  currentKg: number,
+  milestoneKg: number,
+  pace: WeightPace | null,
+  now: Date = new Date(),
+): Date | null {
+  if (!pace || pace.kgPerWeek >= -0.1 || currentKg <= milestoneKg) return null;
+  const weeks = (currentKg - milestoneKg) / -pace.kgPerWeek;
+  if (weeks > 26) return null;
+  return new Date(now.getTime() + weeks * WEEK_MS);
+}
+
+/** True when the scale is dropping fast while the protein floor is not
+ *  being met — the muscle-loss pattern. Correlation flag, never a verdict. */
+export function fastLossLowProtein(
+  pace: WeightPace | null,
+  week: FuelWeek,
+  targets: FuelTargets,
+): boolean {
+  if (!pace || pace.kgPerWeek > -1.0) return false;
+  // No protein data at all also trips the flag: fast loss unmeasured is
+  // fast loss undefended.
+  return week.avgProteinG === null || week.avgProteinG < targets.proteinG;
+}
+
+export interface LearnedMaintenance {
+  maintenanceKcal: number;
+  avgIntakeKcal: number;
+  deltaKg: number;
+  days: number;
+  loggedDays: number;
+}
+
+/**
+ * True maintenance from his own ledger: over the last 14 days, average
+ * logged intake plus the energy the scale says was drawn from (or added
+ * to) storage (7700 kcal/kg). Guards: 8+ kcal-logged days AND 4+ weigh-ins
+ * spanning 10+ days — below that the answer is "not enough data yet".
+ * Start/end weights are two-reading averages so one watery morning can't
+ * swing the estimate.
+ */
+export function learnedMaintenance(
+  nutrition: Array<{ day: Date | string; kcal?: number | null }>,
+  bodyStats: Array<{ date: Date | string; weight: number | null }>,
+  now: Date = new Date(),
+): LearnedMaintenance | null {
+  const t = now.getTime();
+  const windowMs = 14 * DAY_MS;
+  const kcals = nutrition
+    .filter((n) => {
+      const age = t - new Date(n.day).getTime();
+      return age >= 0 && age <= windowMs && n.kcal != null;
+    })
+    .map((n) => n.kcal as number);
+  if (kcals.length < 8) return null;
+
+  const weights = bodyStats
+    .filter((b) => {
+      const age = t - new Date(b.date).getTime();
+      return age >= 0 && age <= windowMs && b.weight != null;
+    })
+    .map((b) => ({ t: new Date(b.date).getTime(), w: b.weight as number }))
+    .sort((a, b) => a.t - b.t);
+  if (weights.length < 4) return null;
+  const spanDays = (weights[weights.length - 1].t - weights[0].t) / DAY_MS;
+  if (spanDays < 10) return null;
+
+  const startKg = (weights[0].w + weights[1].w) / 2;
+  const endKg = (weights[weights.length - 1].w + weights[weights.length - 2].w) / 2;
+  const deltaKg = endKg - startKg;
+  const avgIntake = kcals.reduce((s, v) => s + v, 0) / kcals.length;
+  const maintenance = avgIntake - (deltaKg * 7700) / spanDays;
+  return {
+    maintenanceKcal: Math.round(maintenance / 10) * 10,
+    avgIntakeKcal: Math.round(avgIntake),
+    deltaKg: Math.round(deltaKg * 10) / 10,
+    days: Math.round(spanDays),
+    loggedDays: kcals.length,
+  };
+}
+
+/** Delivery days (Sun–Thu, when the subscription cooks) vs his own days
+ *  (Fri–Sat). Needs 4 logged delivery days and 2 own days in the window. */
+export function deliveryDayPattern(
+  nutrition: Array<{ day: Date | string; kcal?: number | null }>,
+  now: Date = new Date(),
+  days = 28,
+): { deliveryAvg: number; ownAvg: number; nDelivery: number; nOwn: number } | null {
+  const t = now.getTime();
+  const delivery: number[] = [];
+  const own: number[] = [];
+  for (const n of nutrition) {
+    if (n.kcal == null) continue;
+    const d = new Date(n.day);
+    const age = t - d.getTime();
+    if (age < 0 || age > days * DAY_MS) continue;
+    // Days are stored at UTC midnight of the local calendar day.
+    const weekday = d.getUTCDay();
+    (weekday === 5 || weekday === 6 ? own : delivery).push(n.kcal);
+  }
+  if (delivery.length < 4 || own.length < 2) return null;
+  const mean = (xs: number[]) => Math.round(xs.reduce((s, v) => s + v, 0) / xs.length);
+  return {
+    deliveryAvg: mean(delivery),
+    ownAvg: mean(own),
+    nDelivery: delivery.length,
+    nOwn: own.length,
+  };
+}
+
+/** Longest calm stretch between AF episodes (and since the last one). */
+export function afRecord(
+  episodes: Array<{ startedAt: Date | string }>,
+  now: Date = new Date(),
+): { currentDays: number; longestDays: number } | null {
+  if (!episodes.length) return null;
+  const times = episodes.map((e) => new Date(e.startedAt).getTime()).sort((a, b) => a - b);
+  let longest = 0;
+  for (let i = 1; i < times.length; i++) {
+    longest = Math.max(longest, Math.floor((times[i] - times[i - 1]) / DAY_MS));
+  }
+  const current = Math.max(0, Math.floor((now.getTime() - times[times.length - 1]) / DAY_MS));
+  return { currentDays: current, longestDays: Math.max(longest, current) };
+}
+
+export interface CpapStrip {
+  monthLogged: number;
+  month4h: number;
+  /** Consecutive ≥4h nights ending at the most recent logged night. */
+  currentStreak: number;
+  bestStreak: number;
+}
+
+/** The compliance strip: this calendar month + streaks over all history. */
+export function cpapCompliance(
+  nights: Array<{ night: Date | string; usageHours: number | null }>,
+  now: Date = new Date(),
+): CpapStrip {
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const rows = nights
+    .filter((n) => n.usageHours != null)
+    .map((n) => ({ d: new Date(n.night), h: n.usageHours as number }))
+    .sort((a, b) => a.d.getTime() - b.d.getTime());
+
+  let monthLogged = 0;
+  let month4h = 0;
+  for (const r of rows) {
+    const key = `${r.d.getUTCFullYear()}-${String(r.d.getUTCMonth() + 1).padStart(2, '0')}`;
+    if (key !== monthKey) continue;
+    monthLogged++;
+    if (r.h >= 4) month4h++;
+  }
+
+  let best = 0;
+  let run = 0;
+  let prev: number | null = null;
+  for (const r of rows) {
+    const t = r.d.getTime();
+    if (r.h >= 4 && prev !== null && t - prev <= DAY_MS + 60_000) run += 1;
+    else run = r.h >= 4 ? 1 : 0;
+    prev = t;
+    best = Math.max(best, run);
+  }
+  return { monthLogged, month4h, currentStreak: run, bestStreak: best };
+}
+
+/** Month rows pairing BP averages with weight averages — the payoff story.
+ *  A month needs 3+ readings and 2+ weigh-ins; the story needs 2+ months. */
+export function bpWeightStory(
+  bp: Array<{ at: Date | string; systolic: number; diastolic: number }>,
+  bodyStats: Array<{ date: Date | string; weight: number | null }>,
+): Array<{ month: string; systolic: number; diastolic: number; kg: number }> | null {
+  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  const bpBy = new Map<string, { s: number; d: number; n: number }>();
+  for (const r of bp) {
+    const k = monthKey(new Date(r.at));
+    const cur = bpBy.get(k) ?? { s: 0, d: 0, n: 0 };
+    cur.s += r.systolic; cur.d += r.diastolic; cur.n += 1;
+    bpBy.set(k, cur);
+  }
+  const wBy = new Map<string, { w: number; n: number }>();
+  for (const b of bodyStats) {
+    if (b.weight == null) continue;
+    const k = monthKey(new Date(b.date));
+    const cur = wBy.get(k) ?? { w: 0, n: 0 };
+    cur.w += b.weight; cur.n += 1;
+    wBy.set(k, cur);
+  }
+  const rows = [...bpBy.entries()]
+    .filter(([k, v]) => v.n >= 3 && (wBy.get(k)?.n ?? 0) >= 2)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => ({
+      month: k,
+      systolic: Math.round(v.s / v.n),
+      diastolic: Math.round(v.d / v.n),
+      kg: Math.round(((wBy.get(k)!.w / wBy.get(k)!.n) * 10)) / 10,
+    }));
+  return rows.length >= 2 ? rows : null;
+}
+
+/** The most recent milestone crossed within `windowDays`: the first
+ *  weigh-in at or under the mark, with the weigh-in before it still above.
+ *  Returns the heaviest such crossing (the newest achievement). */
+export function recentMilestoneCross(
+  milestonesKg: number[],
+  bodyStats: Array<{ date: Date | string; weight: number | null }>,
+  now: Date = new Date(),
+  windowDays = 7,
+): { kg: number; at: Date } | null {
+  const weights = bodyStats
+    .filter((b) => b.weight != null)
+    .map((b) => ({ t: new Date(b.date).getTime(), w: b.weight as number }))
+    .sort((a, b) => a.t - b.t);
+  if (weights.length < 2) return null;
+  let best: { kg: number; at: Date } | null = null;
+  for (const kg of milestonesKg) {
+    for (let i = 1; i < weights.length; i++) {
+      if (weights[i].w <= kg && weights[i - 1].w > kg) {
+        const age = now.getTime() - weights[i].t;
+        if (age >= 0 && age <= windowDays * DAY_MS && (!best || kg > best.kg)) {
+          best = { kg, at: new Date(weights[i].t) };
+        }
+        break; // first crossing only — a re-cross after a bounce is not news
+      }
+    }
+  }
+  return best;
+}

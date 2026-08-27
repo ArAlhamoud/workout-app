@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import BackLink from '@/components/BackLink';
 import { getHealthData } from '../../health-actions';
-import { BP_CONTEXT_LABEL, bpAverage, bpContextAverages, bpWeeklyAverages } from '@/lib/health-insights';
+import { BP_CONTEXT_LABEL, bpAverage, bpContextAverages, bpWeeklyAverages, bpWeightStory } from '@/lib/health-insights';
 import BpTracker from '@/components/health/BpTracker';
 
 export const metadata: Metadata = { title: 'Pressure' };
@@ -24,6 +24,7 @@ export default async function BpPage() {
   const avg30 = bpAverage(readings, 30);
   const byContext = bpContextAverages(readings, 30);
   const weekly = bpWeeklyAverages(readings, 8);
+  const story = bpWeightStory(readings, data.bodyStats);
 
   const weekLabel = (d: Date) =>
     d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -99,6 +100,28 @@ export default async function BpPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {story && (
+        <div className="card-lg p-4">
+          <p className="section-label mb-2">Pressure as the weight moves</p>
+          <div className="space-y-1.5">
+            {story.map((m) => (
+              <div key={m.month} className="flex items-baseline justify-between">
+                <span className="text-sm font-semibold text-app-tx2">
+                  {new Date(`${m.month}-01T12:00:00`).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}
+                </span>
+                <span className="font-round text-base font-extrabold tabular-nums text-app-tx1">
+                  {m.systolic}/{m.diastolic}
+                  <span className="ml-2 text-[11px] font-semibold text-app-tx3">at {m.kg} kg</span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-app-tx3">
+            Observed together in your logs — the association your cardiologist will want to see.
+          </p>
         </div>
       )}
 

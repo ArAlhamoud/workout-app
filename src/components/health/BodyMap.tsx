@@ -12,15 +12,18 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logBp, logCpapNight, logSymptoms, logAfEpisode } from '@/app/health-actions';
 import { hapticSuccess } from '@/lib/native-feedback';
+import { bodyPathAt } from '@/lib/body-figure';
 
 export interface BodyData {
-  heart: { daysClear: number | null; thisMonth: number };
+  heart: { daysClear: number | null; thisMonth: number; longestDays: number | null };
   breath: { lastHours: number | null; ahi: number | null; streak: number };
   gut: { today: string[] };
   bp: { latest: string | null; avg7: string | null };
   nextSite: string; // slug like 'thigh-left'
   nextSiteLabel: string;
   ldl: { value: number; when: string } | null;
+  /** 0..1 progress from start weight to goal — the figure slims with him. */
+  slimT: number | null;
 }
 
 type Sheet = 'heart' | 'breath' | 'gut' | 'bp' | null;
@@ -52,23 +55,6 @@ const ANATOMY = {
   gut: { rail: 'l' as const, top: '52.2%' },
 };
 
-// The body, one continuous closed contour (owner's pick — option D "Organs"
-// on the four-way canvas): head, neck, shoulders, hands, legs, feet — an
-// honest heavyset figure, drawn once as data.
-const BODY =
-  'M160,10 C146,10 137,21 137,36 C137,46 141,55 148,61 C148,66 147,70 145,73 ' +
-  'C130,77 115,82 107,93 C99,102 96,114 94,128 C92,146 90,166 88,184 ' +
-  'C84,196 88,208 98,209 C106,210 110,202 109,193 C111,176 112,158 110,142 ' +
-  'C109,130 112,122 120,114 C118,128 116,152 116,172 C116,190 118,204 120,214 ' +
-  'C118,238 122,262 124,278 C126,298 126,314 132,332 C124,336 120,342 122,348 ' +
-  'C124,352 148,352 152,348 C154,344 153,338 152,332 C150,310 152,290 154,272 ' +
-  'C156,258 157,246 160,236 C163,246 164,258 166,272 C168,290 170,310 168,332 ' +
-  'C167,338 166,344 168,348 C172,352 196,352 198,348 C200,342 196,336 188,332 ' +
-  'C194,314 194,298 196,278 C198,262 202,238 200,214 C202,204 204,190 204,172 ' +
-  'C204,152 202,128 200,114 C208,122 211,130 210,142 C208,158 209,176 211,193 ' +
-  'C210,202 214,210 222,209 C232,208 236,196 232,184 C230,166 228,146 226,128 ' +
-  'C224,114 221,102 213,93 C205,82 190,77 175,73 C173,70 172,66 172,61 ' +
-  'C179,55 183,46 183,36 C183,21 174,10 160,10 Z';
 
 // The organs, where they live.
 const LUNG_R =
@@ -169,7 +155,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
           leader lines out to values resting in two clean rails. */}
       <div className="relative mx-auto aspect-[8/9] w-full max-w-[320px]">
         <svg viewBox="0 0 320 360" className="h-full w-full" aria-hidden="true">
-          <path d={BODY} fill="#ffffff" stroke="#0b0b0f" strokeWidth="2.5" strokeLinejoin="round" />
+          <path d={bodyPathAt(data.slimT ?? 0)} fill="#ffffff" stroke="#0b0b0f" strokeWidth="2.5" strokeLinejoin="round" />
           {/* trachea + lungs */}
           <line
             x1="160" y1="70" x2="160" y2="94"
@@ -268,6 +254,13 @@ export default function BodyMap({ data }: { data: BodyData }) {
                 <p className="text-base font-extrabold text-app-tx1">
                   Heart — {data.heart.daysClear === null ? 'no episodes logged yet' : `${data.heart.daysClear} days calm · ${data.heart.thisMonth} this month`}
                 </p>
+                {data.heart.longestDays !== null && data.heart.daysClear !== null && (
+                  <p className="text-xs font-semibold text-app-tx2">
+                    {data.heart.daysClear >= data.heart.longestDays
+                      ? 'This is your longest calm stretch on record.'
+                      : `Longest calm stretch: ${data.heart.longestDays} days.`}
+                  </p>
+                )}
                 <input className={inputCls} inputMode="numeric" placeholder="Episode now? Minutes (guess)" value={afMin} onChange={(e) => setAfMin(e.target.value)} />
                 <button
                   type="button" className={saveBtn} disabled={busy}

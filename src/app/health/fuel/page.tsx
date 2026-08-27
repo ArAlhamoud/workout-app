@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import BackLink from '@/components/BackLink';
 import { getHealthData } from '../../health-actions';
-import { fuelTargets, fuelWeek } from '@/lib/health-insights';
+import { deliveryDayPattern, fuelTargets, fuelWeek, learnedMaintenance } from '@/lib/health-insights';
 import FuelTracker from '@/components/health/FuelTracker';
 
 export const metadata: Metadata = { title: 'Fuel' };
@@ -31,6 +31,12 @@ export default async function FuelPage() {
     })),
     targets,
   );
+
+  const learned = learnedMaintenance(
+    data.nutrition.map((n) => ({ day: n.day, kcal: n.kcal })),
+    data.bodyStats,
+  );
+  const delivery = deliveryDayPattern(data.nutrition.map((n) => ({ day: n.day, kcal: n.kcal })));
 
   const recent = data.nutrition
     .filter((n) => n.kcal != null || n.proteinG != null || n.carbsG != null || n.fatG != null)
@@ -101,6 +107,46 @@ export default async function FuelPage() {
           </div>
         )}
       </div>
+
+      {/* What your own ledger says maintenance really is */}
+      <div className="card-lg p-4">
+        <p className="section-label mb-2">Your real maintenance</p>
+        {learned ? (
+          <p className="text-sm leading-relaxed text-app-tx1">
+            Over the last {learned.days} days you averaged{' '}
+            <span className="font-extrabold tabular-nums">{learned.avgIntakeKcal}</span> kcal and the
+            scale moved <span className="font-extrabold tabular-nums">{learned.deltaKg > 0 ? '+' : ''}{learned.deltaKg} kg</span> —
+            which puts your true maintenance near{' '}
+            <span className="font-extrabold tabular-nums text-acc-teal">{learned.maintenanceKcal}</span> kcal.
+            Your {targets.kcal} target is a real {learned.maintenanceKcal - targets.kcal > 0 ? `−${learned.maintenanceKcal - targets.kcal}` : 'surplus'}/day.
+          </p>
+        ) : (
+          <p className="text-sm text-app-tx2">
+            Not enough data yet — 8+ logged days and 4+ weigh-ins across two weeks, and this
+            card computes your true maintenance from your own ledger instead of a formula.
+          </p>
+        )}
+      </div>
+
+      {delivery && (
+        <div className="card-lg p-4">
+          <p className="section-label mb-2">Delivery days vs your own cooking</p>
+          <div className="space-y-1.5 text-sm text-app-tx1">
+            <div className="flex items-baseline justify-between">
+              <span className="font-semibold text-app-tx2">Sun–Thu (delivered)</span>
+              <span className="font-round font-extrabold tabular-nums">{delivery.deliveryAvg} kcal
+                <span className="ml-1.5 text-[11px] font-semibold text-app-tx3">× {delivery.nDelivery}</span>
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between">
+              <span className="font-semibold text-app-tx2">Fri–Sat (yours)</span>
+              <span className="font-round font-extrabold tabular-nums">{delivery.ownAvg} kcal
+                <span className="ml-1.5 text-[11px] font-semibold text-app-tx3">× {delivery.nOwn}</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* The recent days */}
       {recent.length > 0 && (

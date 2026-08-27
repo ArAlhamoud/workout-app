@@ -7,7 +7,7 @@ import NativeHealthCard from '@/components/NativeHealthCard';
 import StepsCard from '@/components/StepsCard';
 import HealthInsights from '@/components/HealthInsights';
 import DeleteBodyStatButton from '@/components/DeleteBodyStatButton';
-import { bodyweightMilestones, effortDistribution, momentumBank, weeklyReport, type EffortDistribution, type Rpe } from '@/lib/coach';
+import { bodyweightMilestones, effortDistribution, momentumBank, strengthHold, weeklyReport, type EffortDistribution, type Rpe } from '@/lib/coach';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '@/lib/streak';
 import { sleepDebtHours } from '@/lib/coach';
 import { lastMonthRecap, yearRecap } from '@/lib/recap';
@@ -334,6 +334,27 @@ export default async function StatsPage() {
   );
   const totalSets = workouts.reduce((n, w) => n + w.sets.filter((set) => !set.isWarmup).length, 0);
 
+  // The real scoreboard of the cut: strength held while the scale drops.
+  // Per gym (stacks never compare across gyms), working sets only.
+  const holdRows = strengthHold(
+    workouts.flatMap((w) =>
+      w.sets
+        .filter((st) => !st.isWarmup && st.weight > 0)
+        .map((st) => ({
+          name: st.exercise.name,
+          gym: w.gym ?? 'bfit',
+          date: w.date,
+          weight: st.weight,
+        })),
+    ),
+  );
+  const holdByGym = new Map<string, typeof holdRows>();
+  for (const r of holdRows) {
+    const list = holdByGym.get(r.gym) ?? [];
+    list.push(r);
+    holdByGym.set(r.gym, list);
+  }
+
   const prByExercise: Record<string, { name: string; weight: number; reps: number }> = {};
   for (const w of workouts) {
     for (const s of w.sets) {
@@ -535,6 +556,41 @@ export default async function StatsPage() {
           <div className="card p-3.5 text-center">
             <div className="text-xl font-light font-round tabular-nums text-app-tx1">{stats.length}</div>
             <div className="metric-label">Weigh-ins</div>
+          </div>
+        </div>
+      )}
+
+      {/* Strength held while losing — the win condition of the cut */}
+      {holdRows.length > 0 && (
+        <div className="card-lg p-4">
+          <p className="section-label mb-1.5">Strength through the cut · 3 wk vs prior 3</p>
+          {weightChange !== null && weightChange < 0 && (
+            <p className="mb-2 text-xs font-semibold text-app-tx2">
+              Body {weightChange} kg — the machines below tell the rest.
+            </p>
+          )}
+          <div className="space-y-2.5">
+            {[...holdByGym.entries()].map(([gym, rows]) => (
+              <div key={gym}>
+                {holdByGym.size > 1 && (
+                  <p className="text-[11px] font-black uppercase tracking-[0.12em] text-app-tx3">
+                    {gym === 'work' ? 'Alrajhi' : 'B_Fit'}
+                  </p>
+                )}
+                <div className="divide-y divide-ink/5">
+                  {rows.slice(0, 6).map((r) => (
+                    <div key={`${r.gym}-${r.name}`} className="flex min-h-[36px] items-baseline justify-between py-1">
+                      <span className="text-sm font-semibold text-app-tx1">{r.name}</span>
+                      <span className="font-round text-sm font-extrabold tabular-nums">
+                        {r.verdict === 'up' && <span className="text-acc-teal">{r.priorTopKg}→{r.recentTopKg} kg ↑</span>}
+                        {r.verdict === 'held' && <span className="text-app-tx1">{r.recentTopKg} kg held</span>}
+                        {r.verdict === 'down' && <span className="text-acc-ember">{r.priorTopKg}→{r.recentTopKg} kg</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

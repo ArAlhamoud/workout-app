@@ -97,3 +97,9 @@ is a manual step:
 
 Until that is set up, treat a push to `main` as a deploy to the phone you train
 with, and prefer pushing before a session rather than during one.
+
+
+## Mac backlog (owner-approved, cloud session cannot build these)
+
+- Home-screen widget: `day N · next dose · latest kg` without opening the app.
+- Apple Watch quick-log: water / protein / weight from the wrist.
