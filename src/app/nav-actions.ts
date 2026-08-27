@@ -12,7 +12,7 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
   try {
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 86400000);
-    const [lastWorkouts, sessionCount, exerciseCount, latestLab, latestDose, bpWeek, latestBp, latestInjection] =
+    const [lastWorkouts, sessionCount, exerciseCount, latestLab, latestDose, bpWeek, latestBp, latestInjection, latestFuel] =
       await Promise.all([
         prisma.workout.findMany({ orderBy: { date: 'desc' }, take: 12, select: { date: true, name: true } }),
         prisma.workout.count(),
@@ -22,6 +22,7 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
         prisma.bpReading.count({ where: { at: { gte: weekAgo } } }),
         prisma.bpReading.findFirst({ orderBy: { at: 'desc' }, select: { systolic: true, diastolic: true } }),
         prisma.injection.findFirst({ orderBy: { at: 'desc' }, select: { at: true, site: true } }),
+        prisma.nutritionLog.findFirst({ orderBy: { day: 'desc' }, select: { day: true, kcal: true, proteinG: true } }),
       ]);
 
     const lastTraining = lastWorkouts.filter(isTrainingSession)[0];
@@ -45,6 +46,14 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
       '/health/injection': latestInjection
         ? `last ${latestInjection.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
         : 'first dose ahead',
+      '/health/fuel': (() => {
+        // Nutrition days sit at UTC midnight of the local calendar day.
+        const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (latestFuel && latestFuel.day.toISOString().slice(0, 10) === key) {
+          return latestFuel.kcal != null ? `${latestFuel.kcal} kcal today` : `${latestFuel.proteinG ?? 0}g protein today`;
+        }
+        return 'not logged today';
+      })(),
     };
     return glances;
   } catch {

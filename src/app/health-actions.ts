@@ -7,7 +7,7 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES } from '@/lib/health-insights';
+import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, weightPace } from '@/lib/health-insights';
 import { importHealthSamples } from '@/lib/health-import';
 import { detectUnloggedWorkouts } from '@/lib/health-detect';
 import { storeHrSeries } from '@/lib/health-hr';
@@ -316,6 +316,9 @@ export async function logNutrition(data: {
   waterMl?: number;
   fiberG?: number;
   meals?: number;
+  kcal?: number;
+  carbsG?: number;
+  fatG?: number;
   flags?: { largeMeal?: boolean; highFat?: boolean; lateNight?: boolean };
 }) {
   const day = new Date(`${data.day}T00:00:00.000Z`);
@@ -330,14 +333,80 @@ export async function logNutrition(data: {
   const w = bounded(data.waterMl, 10_000);
   const f = bounded(data.fiberG, 150);
   const m = bounded(data.meals, 12);
+  const kc = bounded(data.kcal, 8000);
+  const cb = bounded(data.carbsG, 900);
+  const ft = bounded(data.fatG, 400);
   if (p !== undefined) patch.proteinG = p;
   if (w !== undefined) patch.waterMl = w;
   if (f !== undefined) patch.fiberG = f;
   if (m !== undefined) patch.meals = m;
+  if (kc !== undefined) patch.kcal = kc;
+  if (cb !== undefined) patch.carbsG = cb;
+  if (ft !== undefined) patch.fatG = ft;
   if (data.flags) patch.flags = data.flags as object;
   if (!Object.keys(patch).length) return;
   await prisma.nutritionLog.upsert({ where: { day }, update: patch, create: { day, ...patch } as never });
   revalidateHealth();
+}
+
+/** Merge fuel targets into profile.targets without clobbering the other
+ *  keys that live there (rotation, waterMl, proteinG for the check-in). */
+export async function updateFuelTargets(next: {
+  kcal: number;
+  fuelProteinG: number;
+  carbsG: number;
+  fatG: number;
+}) {
+  const profile = await prisma.healthProfile.findUnique({
+    where: { id: PROFILE_ID },
+    select: { targets: true },
+  });
+  const current = (profile?.targets as Record<string, unknown> | null) ?? {};
+  const bounded = (v: number, lo: number, hi: number) =>
+    Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : null;
+  const merged = {
+    ...current,
+    ...(bounded(next.kcal, 800, 6000) != null ? { kcal: bounded(next.kcal, 800, 6000) } : {}),
+    ...(bounded(next.fuelProteinG, 30, 400) != null ? { fuelProteinG: bounded(next.fuelProteinG, 30, 400) } : {}),
+    ...(bounded(next.carbsG, 0, 800) != null ? { carbsG: bounded(next.carbsG, 0, 800) } : {}),
+    ...(bounded(next.fatG, 20, 400) != null ? { fatG: bounded(next.fatG, 20, 400) } : {}),
+  };
+  await prisma.healthProfile.update({ where: { id: PROFILE_ID }, data: { targets: merged } });
+  revalidateHealth();
+}
+
+
+// ── The Sunday recap ─────────────────────────────────────────
+
+/**
+ * One sentence for the week, composed from whatever cleared its guard —
+ * a missing piece is simply omitted, never zero-filled. Null when nothing
+ * qualified (a silent week gets silence, not an empty notification).
+ */
+export async function getWeeklyDigest(): Promise<string | null> {
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000);
+  const [bodyStats, sessions, nutrition, bp, cpap, profile] = await Promise.all([
+    prisma.bodyStat.findMany({ orderBy: { date: 'desc' }, take: 30, select: { date: true, weight: true } }),
+    prisma.workout.count({ where: { date: { gte: weekAgo }, NOT: { name: { startsWith: 'Rescue walk' } } } }),
+    prisma.nutritionLog.findMany({ orderBy: { day: 'desc' }, take: 10, select: { day: true, kcal: true, proteinG: true } }),
+    prisma.bpReading.findMany({ where: { at: { gte: weekAgo } }, select: { at: true, systolic: true, diastolic: true } }),
+    prisma.cpapNight.findMany({ where: { night: { gte: weekAgo } }, select: { usageHours: true } }),
+    prisma.healthProfile.findUnique({ where: { id: PROFILE_ID }, select: { targets: true } }),
+  ]);
+
+  const parts: string[] = [];
+  const pace = weightPace(bodyStats);
+  if (pace) parts.push(`${pace.kgPerWeek > 0 ? '+' : ''}${pace.kgPerWeek} kg`);
+  if (sessions > 0) parts.push(`${sessions} session${sessions === 1 ? '' : 's'}`);
+  const targets = fuelTargets((profile?.targets as Record<string, unknown> | null) ?? null);
+  const week = fuelWeek(nutrition, targets);
+  if (week.proteinLoggedDays > 0) parts.push(`protein ${week.proteinHitDays}/${week.proteinLoggedDays}`);
+  const bp7 = bpAverage(bp, 7);
+  if (bp7) parts.push(`BP ${bp7.systolic}/${bp7.diastolic}`);
+  const maskNights = cpap.filter((n) => (n.usageHours ?? 0) >= 4).length;
+  if (maskNights > 0) parts.push(`${maskNights} night${maskNights === 1 ? '' : 's'} on the mask`);
+
+  return parts.length >= 2 ? `This week: ${parts.join(' \u00b7 ')}.` : null;
 }
 
 // ── Reads for the pages ──────────────────────────────────────

@@ -3,6 +3,7 @@ import BackLink from '@/components/BackLink';
 import { getHealthData } from '../../health-actions';
 import {
   afCorrelates,
+  cpapCompliance,
   afStats,
   dayRelativeSymptoms,
   severityByDose,
@@ -25,6 +26,9 @@ export default async function HealthAnalyticsPage() {
   const relative = dayRelativeSymptoms(symptoms, injections);
   const byDose = severityByDose(symptoms, injections);
   const af = afStats(data.afEpisodes);
+  const mask = cpapCompliance(
+    data.cpapNights.map((n) => ({ night: n.night, usageHours: n.usageHours })),
+  );
   const correlates = afCorrelates(data.afEpisodes);
   const weight = weightSnapshot(
     data.profile,
@@ -232,6 +236,26 @@ export default async function HealthAnalyticsPage() {
           </p>
         )}
       </div>
+      {mask.monthLogged > 0 && (
+        <div className="card-lg p-4">
+          <p className="section-label mb-2">The mask, this month</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="metric-value">{mask.month4h}<span className="text-sm text-app-tx3">/{mask.monthLogged}</span></p>
+              <p className="metric-label">nights ≥4h</p>
+            </div>
+            <div>
+              <p className="metric-value">{mask.currentStreak}</p>
+              <p className="metric-label">current streak</p>
+            </div>
+            <div>
+              <p className="metric-value">{mask.bestStreak}</p>
+              <p className="metric-label">best streak</p>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

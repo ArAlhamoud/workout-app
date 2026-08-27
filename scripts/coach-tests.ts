@@ -25,6 +25,7 @@ import {
   type CoachExercise,
   type CoachWorkout,
   type ReadinessSignal,
+  strengthHold,
 } from '../src/lib/coach';
 import {
   alternateDay,
@@ -43,6 +44,7 @@ import {
   type LoggedSession,
 } from '../src/lib/program';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
+import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
 import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
 import { routeForDeepLink } from '../src/lib/deep-links';
@@ -67,6 +69,18 @@ import {
   DEFAULT_ROTATION,
   bpContextAverages,
   bpWeeklyAverages,
+  fuelTargets,
+  fuelWeek,
+  FUEL_DEFAULTS,
+  weightPace,
+  milestoneEta,
+  fastLossLowProtein,
+  learnedMaintenance,
+  deliveryDayPattern,
+  afRecord,
+  cpapCompliance,
+  bpWeightStory,
+  recentMilestoneCross,
 } from '../src/lib/health-insights';
 import { normalizeSampleType, pairBpSamples } from '../src/lib/health';
 
@@ -1560,6 +1574,159 @@ console.log('health-insights');
   assert(!!full && full.systolic === 128 && full.diastolic === 83,
     'a 3-reading week averages honestly');
   assert(weekly.length === 2, 'weeks with zero readings are skipped');
+}
+
+
+// ── fuel (daily macros) ──────────────────────────────────────
+{
+  // Stored targets win; junk and absences fall back to the suggestions.
+  const t = fuelTargets({ kcal: 2400, fuelProteinG: 140, carbsG: 9999 });
+  assert(t.kcal === 2400 && t.proteinG === 140, 'stored fuel targets override the defaults');
+  assert(t.carbsG === FUEL_DEFAULTS.carbsG && t.fatG === FUEL_DEFAULTS.fatG,
+    'out-of-bounds and missing targets fall back to the suggested numbers');
+  // The check-in's proteinG key (100) must NOT leak into fuel targets.
+  assert(fuelTargets({ proteinG: 100 }).proteinG === FUEL_DEFAULTS.proteinG,
+    'fuel protein reads fuelProteinG, never the check-in proteinG key');
+
+  const now = new Date('2026-09-10T18:00:00');
+  const d = (daysAgo: number) => {
+    const x = new Date('2026-09-10T00:00:00Z');
+    x.setUTCDate(x.getUTCDate() - daysAgo);
+    return x;
+  };
+  const week = fuelWeek(
+    [
+      { day: d(0), kcal: 1900, proteinG: 135 },
+      { day: d(1), kcal: 2100, proteinG: 120 },
+      { day: d(2), kcal: 2000, proteinG: 131 },
+      { day: d(9), kcal: 5000, proteinG: 10 }, // outside the window
+    ],
+    FUEL_DEFAULTS, 7, now,
+  );
+  assert(week.daysLogged === 3, 'only days inside the window count');
+  assert(week.avgKcal === 2000, 'calorie average over logged days');
+  assert(week.proteinHitDays === 2 && week.proteinLoggedDays === 3,
+    'protein-hit counts days at or above the target');
+
+  const thin = fuelWeek([{ day: d(0), kcal: 1900 }], FUEL_DEFAULTS, 7, now);
+  assert(thin.avgKcal === null && thin.daysLogged === 1,
+    'one logged day reports a count, never an average');
+}
+
+
+// ── the new-information wave: pace, maintenance, stories ─────
+{
+  const now = new Date('2026-09-10T12:00:00');
+  const w = (daysAgo: number, kg: number) => ({
+    date: new Date(now.getTime() - daysAgo * 86_400_000), weight: kg,
+  });
+
+  // Pace: week-average vs week-average, guarded at 2+2 readings.
+  const pace = weightPace([w(1,129.0), w(3,129.4), w(6,129.8), w(8,130.2), w(10,130.4), w(13,130.6)], now);
+  assert(pace !== null && pace.kgPerWeek === -1.0, 'pace compares week means, not endpoints');
+  assert(weightPace([w(1,129), w(8,131)], now) === null, 'one reading per week is not a pace');
+
+  // ETA: only when losing, never past half a year.
+  const eta = milestoneEta(129.4, 126.4, pace, now);
+  assert(eta !== null && Math.round((eta.getTime() - now.getTime()) / 86_400_000) === 21,
+    '3 kg at 1 kg/week lands 21 days out');
+  assert(milestoneEta(129.4, 103, pace, now) === null, 'a 26-week horizon caps the crystal ball');
+  assert(milestoneEta(129.4, 126.4, null, now) === null, 'no pace, no promise');
+
+  // The muscle-guard flag: fast loss + protein under (or un-)logged.
+  const lowP = { daysLogged: 5, avgKcal: 1500, avgProteinG: 90, proteinHitDays: 0, proteinLoggedDays: 5 };
+  const goodP = { ...lowP, avgProteinG: 140 };
+  assert(fastLossLowProtein(pace, lowP, FUEL_DEFAULTS), 'fast loss + low protein trips the flag');
+  assert(!fastLossLowProtein(pace, goodP, FUEL_DEFAULTS), 'fast loss with the floor held does not');
+  assert(!fastLossLowProtein({ kgPerWeek: -0.6, nRecent: 3, nPrior: 3 }, lowP, FUEL_DEFAULTS),
+    'target-pace loss never flags');
+
+  // Learned maintenance: intake plus what the scale says storage paid.
+  const meals = Array.from({ length: 12 }, (_, i) => ({
+    day: new Date(now.getTime() - (i + 1) * 86_400_000), kcal: 2000,
+  }));
+  const scale = [w(1,129.0), w(4,129.5), w(9,130.0), w(13,130.2), w(12,130.4)];
+  const lm = learnedMaintenance(meals, scale, now);
+  assert(lm !== null && lm.maintenanceKcal > 2500 && lm.maintenanceKcal < 3100,
+    'losing ~1.05 kg over 12 days on 2000 kcal implies maintenance near 2700');
+  assert(learnedMaintenance(meals.slice(0, 5), scale, now) === null,
+    'under 8 logged days the answer is not-enough-data');
+
+  // Delivery vs own-cooking days (days stored at UTC midnight).
+  const day = (iso: string, kcal: number) => ({ day: new Date(iso + 'T00:00:00Z'), kcal });
+  const pat = deliveryDayPattern([
+    day('2026-09-06', 2000), day('2026-09-07', 2100), day('2026-09-08', 2050), day('2026-09-09', 1950),
+    day('2026-09-04', 2600), day('2026-09-05', 2500),
+  ], now);
+  assert(pat !== null && pat.deliveryAvg === 2025 && pat.ownAvg === 2550,
+    'Sun–Thu and Fri–Sat bucket separately');
+
+  // AF record: the longest calm stretch can be the current one.
+  const rec = afRecord([{ startedAt: '2026-08-01' }, { startedAt: '2026-08-21' }], now);
+  assert(rec !== null && rec.currentDays === 20 && rec.longestDays === 20,
+    'current calm stretch counts toward the record');
+
+  // CPAP compliance: a sub-4h night breaks the streak.
+  const night = (iso: string, h: number) => ({ night: new Date(iso + 'T00:00:00Z'), usageHours: h });
+  const strip = cpapCompliance([
+    night('2026-09-05', 6), night('2026-09-06', 6.5), night('2026-09-07', 2), night('2026-09-08', 7), night('2026-09-09', 6),
+  ], now);
+  assert(strip.currentStreak === 2 && strip.bestStreak === 2 && strip.month4h === 4 && strip.monthLogged === 5,
+    'streaks break on short nights; the month counts every log');
+
+  // BP × weight story: months qualify only with 3 readings + 2 weigh-ins.
+  const bpRow = (iso: string, sv: number, dv: number) => ({ at: iso, systolic: sv, diastolic: dv });
+  const story = bpWeightStory(
+    [bpRow('2026-08-02',138,88), bpRow('2026-08-10',136,87), bpRow('2026-08-20',134,86),
+     bpRow('2026-09-01',131,84), bpRow('2026-09-05',130,84), bpRow('2026-09-08',129,83)],
+    [ { date: '2026-08-05', weight: 132 }, { date: '2026-08-25', weight: 130 },
+      { date: '2026-09-02', weight: 129.6 }, { date: '2026-09-08', weight: 129.0 } ],
+  );
+  assert(story !== null && story.length === 2 && story[0].systolic === 136 && story[1].kg === 129.3,
+    'monthly BP averages pair with monthly weight averages');
+
+  // The figure slims with him — same drawing at t=0, narrower below the
+  // neck at t=1, and always the same path structure.
+  assert(bodyPathAt(0) === BODY, 'no progress, no change');
+  const slim = bodyPathAt(1);
+  assert(slim !== BODY && slim.split(',').length === BODY.split(',').length,
+    'slimming rescales coordinates, never restructures the path');
+  const firstBellyX = Number(/C130,77 115,82 107,93/.test(BODY)) ? 107 : 0;
+  assert(slim.includes('116.5,93') || slim.includes('116.6,93'),
+    'the shoulder at x=107 moves ~9.5 units toward the centre at t=1');
+  assert(slimProgress(133, 103, 129.4) !== null && Math.abs(slimProgress(133, 103, 129.4)! - 0.12) < 0.001,
+    '3.6 of 30 kg is 12% of the journey');
+  assert(slimProgress(133, 103, null) === null, 'no weigh-in, no figure change');
+  void firstBellyX;
+
+  // Strength scoreboard: both windows required, gyms never mix.
+  const set = (daysAgo: number, name: string, gym: string, kg: number) => ({
+    name, gym, weight: kg, date: new Date(now.getTime() - daysAgo * 86_400_000),
+  });
+  const holdRows = strengthHold([
+    set(5, 'Leg press', 'bfit', 90), set(30, 'Leg press', 'bfit', 90),
+    set(4, 'Chest press', 'bfit', 55), set(28, 'Chest press', 'bfit', 50),
+    set(3, 'Row', 'bfit', 60), set(29, 'Row', 'bfit', 65),
+    set(2, 'Leg press', 'work', 70),
+  ], now);
+  assert(holdRows.length === 3, 'an exercise seen in only one window stays silent');
+  assert(holdRows[0].verdict === 'up' && holdRows[0].name === 'Chest press', 'ups lead the scoreboard');
+  assert(holdRows.find((r) => r.name === 'Leg press')!.verdict === 'held', 'same top weight reads held');
+  assert(holdRows.find((r) => r.name === 'Row')!.verdict === 'down', 'a slide is named a slide');
+}
+
+// ── milestone crossings ──────────────────────────────────────
+{
+  const now = new Date('2026-09-10T12:00:00');
+  const w = (daysAgo: number, kg: number) => ({
+    date: new Date(now.getTime() - daysAgo * 86_400_000), weight: kg,
+  });
+  const cross = recentMilestoneCross([126.4, 120], [w(20,128), w(10,127), w(3,126.2), w(1,126.0)], now);
+  assert(cross !== null && cross.kg === 126.4, 'the 5% mark was crossed 3 days ago');
+  assert(recentMilestoneCross([126.4], [w(20,128), w(12,126.0), w(1,125.8)], now) === null,
+    'a crossing older than the window is history, not news');
+  assert(recentMilestoneCross([126.4], [w(2,126.0)], now) === null,
+    'one weigh-in cannot witness a crossing');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────

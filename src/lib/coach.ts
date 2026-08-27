@@ -693,3 +693,49 @@ export function sleepDebtHours(dailyHours: Array<number | null>): number | null 
   const debt = nights.reduce((sum, h) => sum + Math.max(0, need - h - 0.25), 0);
   return round2(debt);
 }
+
+// ── Strength held while losing (the real scoreboard) ─────────
+// The win condition of the cut: the scale drops, the machines don't.
+// Compares each exercise's top working weight in the last 3 weeks against
+// the 3 weeks before, per gym (stacks are not comparable across gyms).
+// Only exercises trained in BOTH windows can testify.
+
+export interface StrengthHoldRow {
+  name: string;
+  gym: string;
+  recentTopKg: number;
+  priorTopKg: number;
+  verdict: 'up' | 'held' | 'down';
+}
+
+export function strengthHold(
+  sets: Array<{ name: string; gym: string; date: Date | string; weight: number }>,
+  now: Date = new Date(),
+): StrengthHoldRow[] {
+  const DAY = 86_400_000;
+  const t = now.getTime();
+  const tops = new Map<string, { recent: number; prior: number; name: string; gym: string }>();
+  for (const s of sets) {
+    if (!(s.weight > 0)) continue;
+    const age = t - new Date(s.date).getTime();
+    if (age < 0 || age > 42 * DAY) continue;
+    const key = `${s.gym}::${s.name}`;
+    const cur = tops.get(key) ?? { recent: 0, prior: 0, name: s.name, gym: s.gym };
+    if (age <= 21 * DAY) cur.recent = Math.max(cur.recent, s.weight);
+    else cur.prior = Math.max(cur.prior, s.weight);
+    tops.set(key, cur);
+  }
+  const rows: StrengthHoldRow[] = [];
+  for (const v of tops.values()) {
+    if (v.recent <= 0 || v.prior <= 0) continue;
+    rows.push({
+      name: v.name,
+      gym: v.gym,
+      recentTopKg: v.recent,
+      priorTopKg: v.prior,
+      verdict: v.recent > v.prior ? 'up' : v.recent === v.prior ? 'held' : 'down',
+    });
+  }
+  const order = { up: 0, held: 1, down: 2 } as const;
+  return rows.sort((a, b) => order[a.verdict] - order[b.verdict] || a.name.localeCompare(b.name));
+}
