@@ -89,7 +89,7 @@ export default function DetectedSessionBanner() {
   if (!offer) return null;
 
   const when = new Date(offer.startISO).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const params = new URLSearchParams({ hk: offer.uuid, mins: String(offer.durationMin) });
+  const params = new URLSearchParams({ hk: offer.uuid, mins: String(offer.durationMin), start: offer.startISO });
   if (offer.localDay) params.set('date', offer.localDay);
 
   return (

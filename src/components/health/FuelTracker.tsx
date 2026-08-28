@@ -123,7 +123,7 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
           </button>
           <button
             type="button"
-            className="w-full py-2 text-center text-xs font-bold text-app-tx3"
+            className="min-h-[44px] w-full text-center text-xs font-bold text-app-tx3"
             onClick={() => {
               setTKcal(String(FUEL_DEFAULTS.kcal));
               setTProtein(String(FUEL_DEFAULTS.proteinG));

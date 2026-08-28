@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logBp, logCpapNight, logSymptoms, logAfEpisode } from '@/app/health-actions';
 import { hapticSuccess } from '@/lib/native-feedback';
-import { bodyPathAt } from '@/lib/body-figure';
+import { bodyPathAt, trimX } from '@/lib/body-figure';
 import { isNativeApp, queryCategory, windowStartISO } from '@/lib/native-health';
 
 export interface BodyData {
@@ -102,7 +102,7 @@ function RailLabel({
       style={{ top }}
     >
       <span className="text-[9px] font-black uppercase tracking-[0.12em] text-app-tx3">{label}</span>
-      <span className="max-w-[92px] whitespace-nowrap text-[12.5px] font-extrabold text-app-tx1">
+      <span className="max-w-[92px] truncate text-[12.5px] font-extrabold text-app-tx1">
         {value}
       </span>
     </button>
@@ -165,7 +165,13 @@ export default function BodyMap({ data }: { data: BodyData }) {
     }
   };
 
-  const sitePos = SITE_POS[data.nextSite] ?? SITE_POS['abdomen-right'];
+  const slimT = data.slimT ?? 0;
+  // Limb-anchored overlays ride the same narrowing as the body itself.
+  const tx = (x: number) => trimX(x, slimT);
+  const txPct = (leftPct: string) => `${Math.round(tx(parseFloat(leftPct) * 3.2) / 3.2 * 10) / 10}%`;
+  const siteRaw = SITE_POS[data.nextSite] ?? SITE_POS['abdomen-right'];
+  const sitePos = { left: txPct(siteRaw.left), top: siteRaw.top };
+  const cuffPath = `M${tx(90)},140 L${tx(114)},138 L${tx(115)},160 L${tx(90)},162 Z`;
   // Organ tints carry state: teal when logged and calm, ember when today
   // flagged something, faint grey before any data.
   const breathOn = data.breath.lastHours != null;
@@ -204,14 +210,14 @@ export default function BodyMap({ data }: { data: BodyData }) {
           />
           <path d={GUT_COILS} fill="none" stroke={gutFlagged ? '#b45309' : '#0f766e'} strokeWidth="2" strokeLinecap="round" />
           {/* the cuff on his right arm */}
-          <path d={CUFF} fill={bpOn ? 'rgba(34,211,238,.40)' : quiet.fill} stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="2" />
-          <line x1="94" y1="147" x2="111" y2="146" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
-          <line x1="94" y1="153" x2="111" y2="152" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
+          <path d={cuffPath} fill={bpOn ? 'rgba(34,211,238,.40)' : quiet.fill} stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="2" />
+          <line x1={tx(94)} y1="147" x2={tx(111)} y2="146" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
+          <line x1={tx(94)} y1="153" x2={tx(111)} y2="152" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
           {/* leader lines: organ → rail */}
           <g stroke="#0b0b0f" strokeOpacity="0.28" strokeWidth="1.5">
             <line x1="192" y1="108" x2="246" y2="100" />
             <line x1="180" y1="128" x2="246" y2="134" />
-            <line x1="86" y1="150" x2="66" y2="150" />
+            <line x1={tx(86)} y1="150" x2="66" y2="150" />
             <line x1="144" y1="188" x2="66" y2="188" />
           </g>
         </svg>
@@ -238,7 +244,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
         <RailLabel
           rail={ANATOMY.gut.rail} top={ANATOMY.gut.top}
           label="Gut"
-          value={data.gut.today.length ? data.gut.today.slice(0, 2).join(' · ') : 'quiet today'}
+          value={data.gut.today.length ? `${data.gut.today[0]}${data.gut.today.length > 1 ? ` +${data.gut.today.length - 1}` : ''}` : 'quiet today'}
           onTap={() => setSheet('gut')}
         />
 
@@ -246,7 +252,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
         <Link
           href="/health/injection"
           aria-label={`Next injection: ${data.nextSiteLabel}`}
-          className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+          className="absolute z-10 -m-2 -translate-x-1/2 -translate-y-1/2 p-2"
           style={sitePos}
         >
           <span className="relative flex h-7 w-7 items-center justify-center">
@@ -260,10 +266,10 @@ export default function BodyMap({ data }: { data: BodyData }) {
 
       <div className="mt-1 flex items-center justify-between border-t border-ink/10 pt-2.5">
         <p className="text-[11px] font-bold text-app-tx3">
-          Next injection · <span className="text-app-tx1">{data.nextSiteLabel}</span> — the marked spot
+          Next injection · <span className="text-app-tx1">{data.nextSiteLabel}</span>
         </p>
         {data.ldl && (
-          <Link href="/health/plan" className="text-[11px] font-bold text-app-tx2">
+          <Link href="/health/plan" className="shrink-0 text-[11px] font-bold text-app-tx2">
             Blood · LDL {data.ldl.value} →
           </Link>
         )}
@@ -326,7 +332,14 @@ export default function BodyMap({ data }: { data: BodyData }) {
                     <input className={inputCls} type="time" value={afEnd} onChange={(e) => setAfEnd(e.target.value)} />
                   </label>
                 </div>
-                <p className="text-[11px] font-semibold text-app-tx3">Leave Ended blank if it&apos;s still going.</p>
+                <p className="text-[11px] font-semibold text-app-tx3">
+                  Leave Ended blank if it&apos;s still going.
+                  {afEnd && (
+                    <button type="button" onClick={() => setAfEnd('')} className="ml-2 min-h-[44px] font-bold text-acc-teal">
+                      clear it
+                    </button>
+                  )}
+                </p>
                 <button
                   type="button"
                   onClick={() => setAfYesterday(!afYesterday)}
@@ -433,7 +446,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
               </div>
             )}
 
-            <button type="button" onClick={() => setSheet(null)} className="mt-2 w-full py-2 text-center text-xs font-bold text-app-tx3">
+            <button type="button" onClick={() => setSheet(null)} className="mt-1 min-h-[44px] w-full text-center text-xs font-bold text-app-tx3">
               close
             </button>
           </div>

@@ -111,12 +111,17 @@ export default async function FuelPage() {
           <div className="space-y-0.5 text-sm text-app-tx1">
             <p>
               {learned.days} days · avg <span className="font-extrabold tabular-nums">{learned.avgIntakeKcal}</span> kcal
-              · scale <span className="font-extrabold tabular-nums">{learned.deltaKg > 0 ? '+' : ''}{learned.deltaKg} kg</span>
+              · scale <span className="font-extrabold tabular-nums">{learned.deltaKg > 0 ? '+' : learned.deltaKg < 0 ? '−' : ''}{Math.abs(learned.deltaKg)} kg</span>
               {' → '}maintenance ≈ <span className="font-extrabold tabular-nums text-acc-teal">{learned.maintenanceKcal}</span> kcal
             </p>
             <p>
               Target {targets.kcal} → <span className="font-extrabold tabular-nums">{targets.kcal - learned.maintenanceKcal > 0 ? '+' : '−'}{Math.abs(targets.kcal - learned.maintenanceKcal)}</span>/day
             </p>
+            {Math.abs(learned.deltaKg) > (learned.days / 7) * 1.5 && (
+              <p className="text-[11px] font-semibold text-app-tx3">
+                Early fast loss includes water — this estimate settles as the weeks add up.
+              </p>
+            )}
           </div>
         ) : (
           <p className="text-sm text-app-tx2">

@@ -164,7 +164,7 @@ export default async function HomePage() {
           {pace && (
             <p className="mt-0.5 text-xs font-semibold text-app-tx2">
               <span className={pace.kgPerWeek < 0 ? 'text-acc-teal font-bold' : 'text-app-tx1 font-bold'}>
-                {pace.kgPerWeek > 0 ? '+' : ''}{pace.kgPerWeek} kg/week
+                {pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '−' : ''}{Math.abs(pace.kgPerWeek)} kg/week
               </span>
               {eta && nextMilestoneKg != null &&
                 ` · ${nextMilestoneKg} kg by ~${eta.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}

@@ -208,7 +208,7 @@ export default async function DoctorReportPage({
           <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
             <p className="metric-value print:text-black">{clock ? `${clock.lastDoseMg} mg` : '—'}</p>
             <p className="metric-label print:text-gray-700">
-              {clock ? `weekly · treatment week ${clock.week}` : 'not started'}
+              {clock ? `weekly · week ${clock.week}` : 'not started'}
             </p>
           </div>
           <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
@@ -248,7 +248,12 @@ export default async function DoctorReportPage({
         {clock && ledger.length > 0 && (
           <Section title="Mounjaro — since dose 1">
             <Row label="First dose" value={fmt(clock.anchor)} />
-            {pace && <Row label="Current pace" value={`${pace.kgPerWeek} kg/week`} />}
+            {pace && (
+              <Row
+                label="Current pace"
+                value={`${pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '−' : ''}${Math.abs(pace.kgPerWeek)} kg/week`}
+              />
+            )}
             {bpSplit.before && (
               <Row
                 label="BP before treatment"

@@ -400,7 +400,7 @@ export async function getWeeklyDigest(): Promise<string | null> {
 
   const parts: string[] = [];
   const pace = weightPace(bodyStats);
-  if (pace) parts.push(`${pace.kgPerWeek > 0 ? '+' : ''}${pace.kgPerWeek} kg`);
+  if (pace) parts.push(`${pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '\u2212' : ''}${Math.abs(pace.kgPerWeek)} kg`);
   if (sessions > 0) parts.push(`${sessions} session${sessions === 1 ? '' : 's'}`);
   const targets = fuelTargets((profile?.targets as Record<string, unknown> | null) ?? null);
   const week = fuelWeek(nutrition, targets);
