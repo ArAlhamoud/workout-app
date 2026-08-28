@@ -1725,6 +1725,13 @@ console.log('health-insights');
   });
   const cross = recentMilestoneCross([126.4, 120], [w(20,128), w(10,127), w(3,126.2), w(1,126.0)], now);
   assert(cross !== null && cross.kg === 126.4, 'the 5% mark was crossed 3 days ago');
+  const two = recentMilestoneCross(
+    [120, 118],
+    [w(10,121), w(5,119.8), w(3,118.4), w(1,117.9)],
+    now,
+  );
+  assert(two !== null && two.kg === 118,
+    'with two crossings in the window, the NEWEST is the news (adversary M2)');
   assert(recentMilestoneCross([126.4], [w(20,128), w(12,126.0), w(1,125.8)], now) === null,
     'a crossing older than the window is history, not news');
   assert(recentMilestoneCross([126.4], [w(2,126.0)], now) === null,

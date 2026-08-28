@@ -7,6 +7,7 @@
 
 import prisma from '@/lib/prisma';
 import { calendarDaysBetween, getDynamicPlan, isTrainingSession, queuedDay } from '@/lib/program';
+import { ownerDayKey } from '@/lib/health-insights';
 
 export async function getRoomGlances(): Promise<Record<string, string>> {
   try {
@@ -47,8 +48,8 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
         ? `last ${latestInjection.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
         : 'first dose ahead',
       '/health/fuel': (() => {
-        // Nutrition days sit at UTC midnight of the local calendar day.
-        const key = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        // Nutrition days sit at UTC midnight of the owner's calendar day.
+        const key = ownerDayKey(now);
         if (latestFuel && latestFuel.day.toISOString().slice(0, 10) === key) {
           return latestFuel.kcal != null ? `${latestFuel.kcal} kcal today` : `${latestFuel.proteinG ?? 0}g protein today`;
         }

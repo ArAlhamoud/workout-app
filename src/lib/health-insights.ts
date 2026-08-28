@@ -1059,9 +1059,19 @@ export function bpWeightStory(
   return rows.length >= 2 ? rows : null;
 }
 
+/** The owner's calendar day (YYYY-MM-DD). Single-user app, owner in
+ *  Riyadh: server-side "today" must be HIS today, not Vercel's UTC day —
+ *  a 00:30 macro entry used to read as "not logged today" until 03:00
+ *  (adversary M1). */
+export function ownerDayKey(d: Date = new Date()): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
+}
+
 /** The most recent milestone crossed within `windowDays`: the first
  *  weigh-in at or under the mark, with the weigh-in before it still above.
- *  Returns the heaviest such crossing (the newest achievement). */
+ *  Returns the crossing with the LATEST date — while losing, lighter
+ *  milestones are crossed later, so "heaviest" would celebrate the oldest
+ *  achievement and suppress the fresh one (adversary M2). */
 export function recentMilestoneCross(
   milestonesKg: number[],
   bodyStats: Array<{ date: Date | string; weight: number | null }>,
@@ -1078,7 +1088,7 @@ export function recentMilestoneCross(
     for (let i = 1; i < weights.length; i++) {
       if (weights[i].w <= kg && weights[i - 1].w > kg) {
         const age = now.getTime() - weights[i].t;
-        if (age >= 0 && age <= windowDays * DAY_MS && (!best || kg > best.kg)) {
+        if (age >= 0 && age <= windowDays * DAY_MS && (!best || weights[i].t > best.at.getTime())) {
           best = { kg, at: new Date(weights[i].t) };
         }
         break; // first crossing only — a re-cross after a bounce is not news

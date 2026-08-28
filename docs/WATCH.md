@@ -35,7 +35,7 @@ posts in one shot.
 
 ## Server contract (already live on the branch)
 
-### `GET /api/watch/plan?day=A|B&dur=30|45|60` — both params optional
+### `GET /api/watch/plan?day=A|B&dur=30|45|60&gym=bfit|work` — all params optional
 
 Omitting `day` returns the dynamic plan's queued day; omitting `dur`
 returns 60 (45 during a return ramp). Response:
@@ -66,9 +66,12 @@ returns 60 (45 during a return ramp). Response:
 }
 ```
 
-- `prefillKg` is **already ramp-scaled and pin-rounded** — display it as
-  is. `null` means no history: the watch shows `— kg` and the crown
-  starts from 0 in `pinKg` steps.
+- `prefillKg` is **already ramp-scaled** (floored to the pin during a
+  ramp — conservative, matching the phone) — display it as is. `null`
+  means no history: the watch shows `— kg` and the crown starts from 0
+  in `pinKg` steps.
+- Pins and prefills are **per gym** — pass `gym=work` at Alrajhi or the
+  numbers describe the wrong building's stacks.
 - `pinKg` is that machine's **learned pin increment** (CLAUDE.md rule 4:
   stacks move in pins, not kilograms — the crown must step by `pinKg`,
   never by a fixed 2.5).
@@ -83,6 +86,7 @@ returns 60 (45 during a return ramp). Response:
   "day": "B",
   "name": "Day B — Watch · Sep 1",
   "startISO": "2026-09-01T17:04:00Z",
+  "localDay": "2026-09-01",
   "durationSec": 3120,
   "gym": "bfit",
   "healthWorkoutUuid": "<uuid of the HKWorkout the watch recorded>",
@@ -93,6 +97,13 @@ returns 60 (45 during a return ramp). Response:
 }
 ```
 
+- `localDay` is the wrist's local calendar day — REQUIRED in practice:
+  the server cannot know the watch's timezone, and every other workout
+  sits at UTC midnight of the local day. Omit it and a post-midnight
+  session files under the wrong day.
+- A `startISO` more than 10 minutes in the future is rejected (400) —
+  fix the clock, don't retry. `healthWorkoutUuid` over 64 chars is
+  rejected. `gym` must be exactly `bfit` or `work`.
 - Response `{ id }` or `{ id, deduped: true }`. **Idempotent twice
   over**: `clientSaveId` (retry-safe) and `healthWorkoutUuid` (a
   phone-side detect of the same HKWorkout can never duplicate it).

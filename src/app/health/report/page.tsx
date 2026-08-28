@@ -86,11 +86,15 @@ export default async function DoctorReportPage({
   // The checkpoint pack — everything the dose-review visit decides on,
   // anchored at treatment start (never range-scoped: the doctor reads the
   // whole treatment, not the last four weeks).
+  // Numbered from the TRUE total: data.injections is a bounded window, and
+  // past its size "Dose 1" would be wrong on a medical document (the same
+  // truncated-window class the treatment clock guards against).
+  const ledgerOffset = Math.max(0, (data.injectionCount ?? 0) - data.injections.length);
   const ledger = clock
     ? doseLedger(
         data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })),
         data.symptoms.map((sy) => ({ at: sy.at, kind: sy.kind, severity: sy.severity })),
-      )
+      ).map((d) => ({ ...d, n: d.n + ledgerOffset }))
     : [];
   const bpSplit = clock
     ? bpSplitAroundAnchor(

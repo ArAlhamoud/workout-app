@@ -362,14 +362,18 @@ export async function updateFuelTargets(next: {
     select: { targets: true },
   });
   const current = (profile?.targets as Record<string, unknown> | null) ?? {};
-  const bounded = (v: number, lo: number, hi: number) =>
-    Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : null;
+  // Out-of-range means LEAVE UNCHANGED, never clamp: a cleared input
+  // arrives as 0 and used to save as the range floor while the UI said
+  // "Targets saved" (adversary S2). Same reject-don't-clamp rule as the
+  // read side (fuelTargets).
+  const valid = (v: number, lo: number, hi: number) =>
+    Number.isFinite(v) && v >= lo && v <= hi ? Math.round(v) : null;
   const merged = {
     ...current,
-    ...(bounded(next.kcal, 800, 6000) != null ? { kcal: bounded(next.kcal, 800, 6000) } : {}),
-    ...(bounded(next.fuelProteinG, 30, 400) != null ? { fuelProteinG: bounded(next.fuelProteinG, 30, 400) } : {}),
-    ...(bounded(next.carbsG, 0, 800) != null ? { carbsG: bounded(next.carbsG, 0, 800) } : {}),
-    ...(bounded(next.fatG, 20, 400) != null ? { fatG: bounded(next.fatG, 20, 400) } : {}),
+    ...(valid(next.kcal, 800, 6000) != null ? { kcal: valid(next.kcal, 800, 6000) } : {}),
+    ...(valid(next.fuelProteinG, 30, 400) != null ? { fuelProteinG: valid(next.fuelProteinG, 30, 400) } : {}),
+    ...(valid(next.carbsG, 0, 800) != null ? { carbsG: valid(next.carbsG, 0, 800) } : {}),
+    ...(valid(next.fatG, 20, 400) != null ? { fatG: valid(next.fatG, 20, 400) } : {}),
   };
   await prisma.healthProfile.update({ where: { id: PROFILE_ID }, data: { targets: merged } });
   revalidateHealth();

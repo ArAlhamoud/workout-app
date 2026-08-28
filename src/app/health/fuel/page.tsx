@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import BackLink from '@/components/BackLink';
 import { getHealthData } from '../../health-actions';
-import { deliveryDayPattern, fuelTargets, fuelWeek, learnedMaintenance } from '@/lib/health-insights';
+import { deliveryDayPattern, fuelTargets, fuelWeek, learnedMaintenance, ownerDayKey } from '@/lib/health-insights';
 import FuelTracker from '@/components/health/FuelTracker';
 
 export const metadata: Metadata = { title: 'Fuel' };
@@ -16,12 +16,8 @@ export default async function FuelPage() {
     (data.profile.targets as Record<string, unknown> | null) ?? null,
   );
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  // NutritionLog days are stored at UTC midnight of the local calendar day.
-  const dayKey = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const todayIso = dayKey(new Date());
+  // NutritionLog days are stored at UTC midnight of the owner's local day.
+  const todayIso = ownerDayKey();
   const today =
     data.nutrition.find((n) => n.day.toISOString().slice(0, 10) === todayIso) ?? null;
 

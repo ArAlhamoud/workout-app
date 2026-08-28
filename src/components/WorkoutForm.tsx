@@ -385,7 +385,14 @@ export default function WorkoutForm({
   // Restore draft on mount. localStorage is the fast path; the durable vault
   // (native UserDefaults) is the copy that survives WKWebView storage
   // eviction — checked only when localStorage came up empty.
+  //
+  // NEVER when confirming a detected session (adversary C2): restoring an
+  // abandoned Tuesday draft over a Thursday Watch session would save
+  // Tuesday's junk sets under Thursday's HKWorkout uuid — and that uuid
+  // then suppresses the real session from the detect list forever. The
+  // draft stays in the vault for the next plain open.
   useEffect(() => {
+    if (healthWorkoutUuid) return;
     const applyDraft = (draft: {
       name?: string; date?: string; notes?: string; gym?: string;
       blocks?: unknown; startTime?: number; savedAt?: number;
