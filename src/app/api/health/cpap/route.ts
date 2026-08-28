@@ -24,13 +24,21 @@ export async function POST(request: Request) {
   }
 
   let saved = 0;
+  let removed = 0;
   const skipped: string[] = [];
   for (const raw of nights) {
-    const r = raw as { night?: string; usageHours?: number; ahi?: number };
+    const r = raw as { night?: string; usageHours?: number; ahi?: number; remove?: boolean };
     const night =
       typeof r.night === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.night)
         ? new Date(`${r.night}T00:00:00.000Z`)
         : null;
+    // A correction row: {night, remove:true} erases the night entirely —
+    // for rows that never should have existed (pre-therapy zeros), not
+    // for nights he'd rather forget.
+    if (night && !Number.isNaN(night.getTime()) && r.remove === true) {
+      removed += (await prisma.cpapNight.deleteMany({ where: { night } })).count;
+      continue;
+    }
     if (
       !night ||
       Number.isNaN(night.getTime()) ||
@@ -54,5 +62,5 @@ export async function POST(request: Request) {
     });
     saved++;
   }
-  return NextResponse.json({ saved, skipped });
+  return NextResponse.json({ saved, removed, skipped });
 }
