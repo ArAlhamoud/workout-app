@@ -88,7 +88,7 @@ export default async function FuelPage() {
       <div className="card-lg p-4">
         <p className="section-label mb-2">Last 7 days</p>
         {week.daysLogged === 0 ? (
-          <p className="text-sm text-app-tx2">Nothing logged yet — the first entry starts the record.</p>
+          <p className="text-sm text-app-tx2">Nothing logged yet.</p>
         ) : (
           <div className="space-y-1.5 text-sm text-app-tx1">
             <p>
@@ -112,18 +112,19 @@ export default async function FuelPage() {
       <div className="card-lg p-4">
         <p className="section-label mb-2">Your real maintenance</p>
         {learned ? (
-          <p className="text-sm leading-relaxed text-app-tx1">
-            Over the last {learned.days} days you averaged{' '}
-            <span className="font-extrabold tabular-nums">{learned.avgIntakeKcal}</span> kcal and the
-            scale moved <span className="font-extrabold tabular-nums">{learned.deltaKg > 0 ? '+' : ''}{learned.deltaKg} kg</span> —
-            which puts your true maintenance near{' '}
-            <span className="font-extrabold tabular-nums text-acc-teal">{learned.maintenanceKcal}</span> kcal.
-            Your {targets.kcal} target is a real {learned.maintenanceKcal - targets.kcal > 0 ? `−${learned.maintenanceKcal - targets.kcal}` : 'surplus'}/day.
-          </p>
+          <div className="space-y-0.5 text-sm text-app-tx1">
+            <p>
+              {learned.days} days · avg <span className="font-extrabold tabular-nums">{learned.avgIntakeKcal}</span> kcal
+              · scale <span className="font-extrabold tabular-nums">{learned.deltaKg > 0 ? '+' : ''}{learned.deltaKg} kg</span>
+              {' → '}maintenance ≈ <span className="font-extrabold tabular-nums text-acc-teal">{learned.maintenanceKcal}</span> kcal
+            </p>
+            <p>
+              Target {targets.kcal} → <span className="font-extrabold tabular-nums">{targets.kcal - learned.maintenanceKcal > 0 ? '+' : '−'}{Math.abs(targets.kcal - learned.maintenanceKcal)}</span>/day
+            </p>
+          </div>
         ) : (
           <p className="text-sm text-app-tx2">
-            Not enough data yet — 8+ logged days and 4+ weigh-ins across two weeks, and this
-            card computes your true maintenance from your own ledger instead of a formula.
+            Not enough data yet — needs 8+ logged days and 4+ weigh-ins across two weeks.
           </p>
         )}
       </div>
@@ -175,8 +176,7 @@ export default async function FuelPage() {
       )}
 
       <p className="text-[10px] leading-relaxed text-app-tx3">
-        Counts, not grades — a light day on Mounjaro is the medicine working, not a failure.
-        Protein is the number to defend.
+        Counts, not grades — a light day on Mounjaro is the medicine working.
       </p>
     </div>
   );

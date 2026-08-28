@@ -65,7 +65,7 @@ export type QuantityIdentifier =
   | 'bloodPressureSystolic'
   | 'bloodPressureDiastolic';
 
-export type CategoryIdentifier = 'sleepAnalysis';
+export type CategoryIdentifier = 'sleepAnalysis' | 'irregularHeartRhythmEvent';
 
 export interface QuantitySample {
   value: number;

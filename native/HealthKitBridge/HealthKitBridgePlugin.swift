@@ -141,7 +141,10 @@ public class HealthKitBridgePlugin: CAPPlugin, CAPBridgedPlugin {
     }()
 
     private static let categorySpecs: [String: HKCategoryTypeIdentifier] = [
-        "sleepAnalysis": .sleepAnalysis
+        "sleepAnalysis": .sleepAnalysis,
+        // Watch-detected irregular rhythm notifications — read-only evidence
+        // the app can OFFER as an AF episode to confirm, never auto-log.
+        "irregularHeartRhythmEvent": .irregularHeartRhythmEvent
     ]
 
     /// Legacy shorthands used by the purpose-built calls.

@@ -120,7 +120,9 @@ export default function BodyMap({ data }: { data: BodyData }) {
   const [ahi, setAhi] = useState('');
   const [kind, setKind] = useState<string | null>(null);
   const [sev, setSev] = useState(2);
-  const [afMin, setAfMin] = useState('');
+  const [afStart, setAfStart] = useState('');
+  const [afEnd, setAfEnd] = useState('');
+  const [afYesterday, setAfYesterday] = useState(false);
 
   const act = async (fn: () => Promise<unknown>, done: string) => {
     if (busy) return;
@@ -257,16 +259,51 @@ export default function BodyMap({ data }: { data: BodyData }) {
                 {data.heart.longestDays !== null && data.heart.daysClear !== null && (
                   <p className="text-xs font-semibold text-app-tx2">
                     {data.heart.daysClear >= data.heart.longestDays
-                      ? 'This is your longest calm stretch on record.'
+                      ? 'Longest calm stretch yet.'
                       : `Longest calm stretch: ${data.heart.longestDays} days.`}
                   </p>
                 )}
-                <input className={inputCls} inputMode="numeric" placeholder="Episode now? Minutes (guess)" value={afMin} onChange={(e) => setAfMin(e.target.value)} />
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-app-tx3">Started</span>
+                    <input className={inputCls} type="time" value={afStart} onChange={(e) => setAfStart(e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-app-tx3">Ended</span>
+                    <input className={inputCls} type="time" value={afEnd} onChange={(e) => setAfEnd(e.target.value)} />
+                  </label>
+                </div>
+                <p className="text-[11px] font-semibold text-app-tx3">Leave Ended blank if it&apos;s still going.</p>
                 <button
-                  type="button" className={saveBtn} disabled={busy}
-                  onClick={() => act(() => logAfEpisode({ startedAt: new Date().toISOString(), durationMin: afMin ? Number(afMin) : undefined }), 'Episode logged')}
+                  type="button"
+                  onClick={() => setAfYesterday(!afYesterday)}
+                  className={`min-h-[40px] rounded-full border-2 px-3 text-xs font-bold ${afYesterday ? 'border-ink bg-ink text-white' : 'border-ink/20 bg-app-surface text-app-tx2'}`}
                 >
-                  Log an episode
+                  {afYesterday ? 'Yesterday' : 'Today'} — tap to switch
+                </button>
+                <button
+                  type="button" className={saveBtn} disabled={busy || !afStart}
+                  onClick={() =>
+                    act(() => {
+                      const day = new Date();
+                      if (afYesterday) day.setDate(day.getDate() - 1);
+                      const [sh, sm] = afStart.split(':').map(Number);
+                      const started = new Date(day);
+                      started.setHours(sh, sm, 0, 0);
+                      let durationMin: number | undefined;
+                      if (afEnd) {
+                        const [eh, em] = afEnd.split(':').map(Number);
+                        const ended = new Date(day);
+                        ended.setHours(eh, em, 0, 0);
+                        // An episode running past midnight ends on the next day.
+                        if (ended <= started) ended.setDate(ended.getDate() + 1);
+                        durationMin = Math.round((ended.getTime() - started.getTime()) / 60_000);
+                      }
+                      return logAfEpisode({ startedAt: started.toISOString(), durationMin });
+                    }, 'Episode logged')
+                  }
+                >
+                  Log the episode
                 </button>
                 <Link href="/health/analytics" className="block text-center text-xs font-bold text-app-tx3">rhythm patterns →</Link>
               </div>

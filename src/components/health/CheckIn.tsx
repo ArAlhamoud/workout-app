@@ -125,7 +125,7 @@ export default function CheckIn({ cpapLoggedToday }: { cpapLoggedToday: boolean 
           <p className="text-base font-extrabold text-app-tx1">Roughly how long, and the AHI if the app shows it?</p>
           {watchSleep !== null && (
             <p className="text-xs font-semibold text-app-tx2">
-              Your Watch counted {watchSleep} h asleep — mask time is usually a little less.
+              Your Watch counted {watchSleep} h asleep.
             </p>
           )}
           <div className="grid grid-cols-2 gap-2">

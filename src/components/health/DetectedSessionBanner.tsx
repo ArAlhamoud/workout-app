@@ -101,9 +101,6 @@ export default function DetectedSessionBanner() {
         Trained {offer.durationMin} min at {when} — from your Watch.
         <span className="text-acc-violet"> Fill in the sets →</span>
       </p>
-      <p className="mt-0.5 text-xs font-semibold text-app-tx2">
-        Opens the logger prefilled from last time; adjust and save once.
-      </p>
     </Link>
   );
 }

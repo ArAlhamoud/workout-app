@@ -172,7 +172,7 @@ export default async function HomePage() {
           )}
           {clock && clock.daysSinceLast === 6 && trainPlan.mode === 'train' && !trainedToday && (
             <p className="mt-0.5 text-xs font-semibold text-acc-violet">
-              Dose tomorrow — a good day to train.
+              Dose tomorrow.
             </p>
           )}
         </div>
@@ -199,9 +199,8 @@ export default async function HomePage() {
       {stamp && (
         <div className="card border-acc-teal/50 px-4 py-3">
           <p className="text-sm font-bold text-app-tx1">
-            {stamp.kg} kg — passed{' '}
+            Milestone: {stamp.kg} kg · passed{' '}
             {stamp.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
-            <span className="font-semibold text-app-tx2"> A milestone off the map.</span>
           </p>
         </div>
       )}
@@ -209,8 +208,7 @@ export default async function HomePage() {
       {muscleGuard && (
         <div className="card border-acc-ember-deep/50 px-4 py-3">
           <p className="text-sm leading-relaxed text-app-tx1">
-            Fast loss this week with protein under the floor in your logs. The scale is fine —
-            the muscle is what needs defending: aim at {targets.proteinG} g today.
+            Fast loss this week — defend the muscle: {targets.proteinG} g protein today.
           </p>
         </div>
       )}
@@ -240,26 +238,6 @@ export default async function HomePage() {
           </div>
         </div>
       )}
-
-      {/* The pages branch from here */}
-      <div className="grid grid-cols-2 gap-2">
-        {[
-          { href: '/journey', label: 'Journey' },
-          { href: '/train', label: 'Training' },
-          { href: '/health/report', label: 'Doctor report' },
-          { href: '/health/plan', label: 'Plan & profile' },
-          { href: '/health/analytics', label: 'Patterns' },
-          { href: '/health/timeline', label: 'The full log' },
-        ].map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className="card px-4 py-3 text-sm font-bold text-app-tx1 transition-colors hover:border-app-border-hi"
-          >
-            {l.label} <span className="text-app-tx3">→</span>
-          </Link>
-        ))}
-      </div>
 
       <p className="text-[10px] leading-relaxed text-app-tx3">
         A tracker, not a diagnosis — patterns are observations from your own logs; decisions

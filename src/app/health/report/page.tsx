@@ -29,6 +29,29 @@ const fmt = (d: Date | string) =>
 
 const SEVERITY_WORD = ['none', 'mild', 'moderate', 'severe'];
 
+/** One fact per line: label left, value right — a doctor scans, never reads. */
+function Row({ label, value, dim }: { label: string; value: string; dim?: boolean }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 py-0.5">
+      <span className="text-sm text-app-tx2 print:text-gray-700">{label}</span>
+      <span
+        className={`text-right text-sm font-bold tabular-nums ${dim ? 'text-app-tx3 print:text-gray-600' : 'text-app-tx1 print:text-black'}`}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-t border-ink/10 pt-3 print:border-gray-300">
+      <p className="section-label mb-1.5 print:font-bold print:text-black">{title}</p>
+      {children}
+    </section>
+  );
+}
+
 export default async function DoctorReportPage({
   searchParams,
 }: {
@@ -114,6 +137,9 @@ export default async function DoctorReportPage({
     symptomAgg.set(s.kind, cur);
   }
 
+  const fmtMin = (m: number) =>
+    m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`;
+
   const meds = data.meds.filter((m) => !m.stoppedOn);
   const rangeLabel = range === '4w' ? 'Last 4 weeks' : range === '3m' ? 'Last 3 months' : 'All data';
   const rangeLabelAr = range === '4w' ? 'آخر ٤ أسابيع' : range === '3m' ? 'آخر ٣ أشهر' : 'كل البيانات';
@@ -154,7 +180,8 @@ export default async function DoctorReportPage({
         </div>
       </div>
 
-      {/* The report body — reads in under two minutes, prints clean */}
+      {/* The report body — the four headline numbers first, then one fact
+          per line. A doctor scans; nothing here asks to be read twice. */}
       <div className="card-lg space-y-4 p-4 print:border-0 print:bg-white print:p-0 print:shadow-none">
         <div>
           <p className="text-base font-bold text-app-tx1 print:text-black">
@@ -166,143 +193,166 @@ export default async function DoctorReportPage({
           </p>
         </div>
 
-        <section>
-          <p className="section-label mb-1 print:font-bold print:text-black">Weight</p>
-          <p className="text-sm text-app-tx1 print:text-black">
-            {snapshot
-              ? `${snapshot.startKg} kg (start) → ${snapshot.currentKg} kg now · ${signedKg(snapshot.lostKg)} kg (${snapshot.pctLost}%) · BMI ${snapshot.startBmi} → ${snapshot.bmi}`
-              : 'No weigh-ins logged.'}
-            {rangeDelta != null && ` · ${rangeLabel.toLowerCase()}: ${rangeDelta > 0 ? '+' : ''}${rangeDelta} kg (${weightsInRange.length} weigh-ins)`}
-          </p>
-        </section>
+        {/* The headline numbers */}
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
+            <p className="metric-value print:text-black">{snapshot ? snapshot.currentKg : '—'}</p>
+            <p className="metric-label print:text-gray-700">
+              kg now{snapshot ? ` · from ${snapshot.startKg} (${signedKg(snapshot.lostKg)})` : ''}
+            </p>
+          </div>
+          <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
+            <p className="metric-value print:text-black">{clock ? `${clock.lastDoseMg} mg` : '—'}</p>
+            <p className="metric-label print:text-gray-700">
+              {clock ? `weekly · treatment week ${clock.week}` : 'not started'}
+            </p>
+          </div>
+          <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
+            <p className="metric-value print:text-black">
+              {bpAvg ? `${bpAvg.systolic}/${bpAvg.diastolic}` : '—'}
+            </p>
+            <p className="metric-label print:text-gray-700">
+              {bpAvg ? `BP average · ${bpAvg.n} readings` : 'BP · too few readings'}
+            </p>
+          </div>
+          <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
+            <p className="metric-value print:text-black">{episodes.length}</p>
+            <p className="metric-label print:text-gray-700">
+              AF episode{episodes.length === 1 ? '' : 's'} in range
+            </p>
+          </div>
+        </div>
 
-        <section>
-          <p className="section-label mb-1 print:font-bold print:text-black">Mounjaro (tirzepatide)</p>
-          {injections.length === 0 ? (
-            <p className="text-sm text-app-tx3 print:text-gray-600">No injections in this range.</p>
-          ) : (
-            <div className="space-y-0.5 text-sm text-app-tx1 print:text-black">
-              {clock && (
-                <p className="text-xs text-app-tx3 print:text-gray-600">
-                  Treatment week {clock.week} · current dose {clock.lastDoseMg} mg weekly
-                </p>
+        <Section title="Weight">
+          {snapshot ? (
+            <>
+              <Row label="Start → now" value={`${snapshot.startKg} → ${snapshot.currentKg} kg`} />
+              <Row label="Change" value={`${signedKg(snapshot.lostKg)} kg (${snapshot.pctLost}%)`} />
+              <Row label="BMI" value={`${snapshot.startBmi} → ${snapshot.bmi}`} />
+              {rangeDelta != null && (
+                <Row
+                  label={rangeLabel}
+                  value={`${rangeDelta > 0 ? '+' : ''}${rangeDelta} kg · ${weightsInRange.length} weigh-ins`}
+                />
               )}
-              {injections.map((i) => (
-                <p key={i.id} className="tabular-nums">
-                  {fmt(i.at)} · {i.doseMg} mg · {siteLabel(i.site)}
-                  {i.onSchedule ? '' : ' · off-plan'}
-                </p>
-              ))}
-            </div>
+            </>
+          ) : (
+            <p className="text-sm text-app-tx3 print:text-gray-600">No weigh-ins logged.</p>
           )}
-        </section>
+        </Section>
 
         {clock && ledger.length > 0 && (
-          <section>
-            <p className="section-label mb-1 print:font-bold print:text-black">
-              Checkpoint — the escalation decision
-            </p>
-            <div className="space-y-1 text-sm text-app-tx1 print:text-black">
-              <p>
-                Since dose 1 ({fmt(clock.anchor)}): {snapshot ? `${snapshot.startKg} → ${snapshot.currentKg} kg` : 'no weigh-ins'}
-                {pace && ` · current pace ${pace.kgPerWeek} kg/week`}
-              </p>
-              {(bpSplit.before || bpSplit.since) && (
-                <p>
-                  BP {bpSplit.before ? `${bpSplit.before.systolic}/${bpSplit.before.diastolic} before treatment (${bpSplit.before.n})` : 'before: too few readings'}
-                  {' · '}
-                  {bpSplit.since ? `${bpSplit.since.systolic}/${bpSplit.since.diastolic} since (${bpSplit.since.n})` : 'since: too few readings'}
-                </p>
-              )}
-              <div className="space-y-0.5 pt-1">
-                {ledger.map((d) => (
-                  <p key={d.n} className="tabular-nums text-xs text-app-tx2 print:text-gray-700">
+          <Section title="Mounjaro — since dose 1">
+            <Row label="First dose" value={fmt(clock.anchor)} />
+            {pace && <Row label="Current pace" value={`${pace.kgPerWeek} kg/week`} />}
+            {bpSplit.before && (
+              <Row
+                label="BP before treatment"
+                value={`${bpSplit.before.systolic}/${bpSplit.before.diastolic} · ${bpSplit.before.n} readings`}
+              />
+            )}
+            {bpSplit.since && (
+              <Row
+                label="BP since"
+                value={`${bpSplit.since.systolic}/${bpSplit.since.diastolic} · ${bpSplit.since.n} readings`}
+              />
+            )}
+            <div className="mt-1.5 space-y-1">
+              {ledger.map((d) => (
+                <div key={d.n} className="text-sm tabular-nums">
+                  <p className="font-bold text-app-tx1 print:text-black">
                     Dose {d.n} · {fmt(d.at)} · {d.doseMg} mg · {siteLabel(d.site)}
-                    {d.symptoms.length
-                      ? ` — ${d.symptoms
-                          .slice(0, 3)
-                          .map((sy) => `${SYMPTOM_LABEL[sy.kind] ?? sy.kind} (${SEVERITY_WORD[sy.maxSeverity]}, ${sy.count}×)`)
-                          .join(', ')}`
-                      : ' — no side effects logged'}
                   </p>
-                ))}
-              </div>
+                  <p className="text-xs text-app-tx2 print:text-gray-700">
+                    {d.symptoms.length
+                      ? d.symptoms
+                          .slice(0, 3)
+                          .map((sy) => `${SYMPTOM_LABEL[sy.kind] ?? sy.kind} — ${SEVERITY_WORD[sy.maxSeverity]}, ${sy.count}×`)
+                          .join(' · ')
+                      : 'no side effects logged'}
+                  </p>
+                </div>
+              ))}
             </div>
-          </section>
+          </Section>
         )}
 
-        <section>
-          <p className="section-label mb-1 print:font-bold print:text-black">Side effects & GI</p>
+        <Section title="Side effects & GI">
           {symptomAgg.size === 0 ? (
             <p className="text-sm text-app-tx3 print:text-gray-600">Nothing logged in this range.</p>
           ) : (
-            <p className="text-sm leading-relaxed text-app-tx1 print:text-black">
-              {[...symptomAgg.entries()]
-                .sort((a, b) => b[1].max - a[1].max)
-                .map(
-                  ([kind, v]) =>
-                    `${kind.replace('-', ' ')} (${v.n}×, worst ${SEVERITY_WORD[v.max]})`,
-                )
-                .join(' · ')}
+            [...symptomAgg.entries()]
+              .sort((a, b) => b[1].max - a[1].max)
+              .map(([kind, v]) => (
+                <Row
+                  key={kind}
+                  label={SYMPTOM_LABEL[kind] ?? kind.replace('-', ' ')}
+                  value={`${v.n}× · worst ${SEVERITY_WORD[v.max]}`}
+                />
+              ))
+          )}
+        </Section>
+
+        <Section title="Atrial fibrillation">
+          <Row label="Episodes in range" value={String(episodes.length)} />
+          {episodes.map((e) => (
+            <Row
+              key={e.id}
+              label={fmt(e.startedAt)}
+              value={e.durationMin != null ? fmtMin(e.durationMin) : 'duration unknown'}
+            />
+          ))}
+          {af.daysSinceLast != null && (
+            <Row label="Days since last" value={String(af.daysSinceLast)} dim />
+          )}
+        </Section>
+
+        <Section title="Blood pressure">
+          {bpAvg ? (
+            <Row label={`Average · ${bpAvg.n} readings`} value={`${bpAvg.systolic}/${bpAvg.diastolic}`} />
+          ) : (
+            <p className="text-sm text-app-tx3 print:text-gray-600">
+              {bp.length
+                ? `${bp.length} reading${bp.length === 1 ? '' : 's'} — too few for an average.`
+                : 'No readings in this range.'}
             </p>
           )}
-        </section>
+        </Section>
 
-        <section>
-          <p className="section-label mb-1 print:font-bold print:text-black">Atrial fibrillation</p>
-          <p className="text-sm text-app-tx1 print:text-black">
-            {episodes.length} episode{episodes.length === 1 ? '' : 's'} in range
-            {episodes.length > 0 &&
-              ` · durations ${episodes
-                .map((e) => (e.durationMin != null ? `${e.durationMin}m` : '?'))
-                .join(', ')}`}
-            {af.daysSinceLast != null && ` · ${af.daysSinceLast} days since last`}
-          </p>
-        </section>
+        <Section title="CPAP">
+          {cpap.length ? (
+            <>
+              <Row label="Nights logged" value={String(cpap.length)} />
+              <Row label="Average use" value={`${cpapAvgH ?? '—'} h/night`} />
+              <Row label="Nights ≥ 4 h" value={`${cpapOver4} of ${cpap.length}`} />
+              {cpapAvgAhi != null && <Row label="Average AHI" value={String(cpapAvgAhi)} />}
+            </>
+          ) : (
+            <p className="text-sm text-app-tx3 print:text-gray-600">No CPAP nights logged in this range.</p>
+          )}
+        </Section>
 
-        <section>
-          <p className="section-label mb-1 print:font-bold print:text-black">Blood pressure</p>
-          <p className="text-sm text-app-tx1 print:text-black">
-            {bpAvg
-              ? `Average ${bpAvg.systolic}/${bpAvg.diastolic} over ${bpAvg.n} readings`
-              : bp.length
-              ? `${bp.length} reading${bp.length === 1 ? '' : 's'} (too few for an average)`
-              : 'No readings in this range.'}
-          </p>
-        </section>
-
-        <section>
-          <p className="section-label mb-1 print:font-bold print:text-black">CPAP</p>
-          <p className="text-sm text-app-tx1 print:text-black">
-            {cpap.length
-              ? `${cpap.length} nights logged · avg ${cpapAvgH ?? '—'} h/night · ${cpapOver4} nights ≥4 h${cpapAvgAhi != null ? ` · avg AHI ${cpapAvgAhi}` : ''}`
-              : 'No CPAP nights logged in this range.'}
-          </p>
-        </section>
-
-        <section>
-          <p className="section-label mb-1 print:font-bold print:text-black">Laboratory</p>
+        <Section title="Laboratory">
           {labs.length === 0 ? (
             <p className="text-sm text-app-tx3 print:text-gray-600">No labs in this range.</p>
           ) : (
-            <div className="space-y-0.5 text-sm tabular-nums text-app-tx1 print:text-black">
-              {labs.map((l) => (
-                <p key={l.id}>
-                  {fmt(l.date)} · {l.test.toUpperCase()} {l.value} {l.unit}
-                  {l.refHigh != null && ` (ref ≤ ${l.refHigh})`}
-                  {l.notes && <span className="text-app-tx3 print:text-gray-600"> · {l.notes}</span>}
-                </p>
-              ))}
-            </div>
+            labs.map((l) => (
+              <Row
+                key={l.id}
+                label={`${l.test.toUpperCase()} · ${fmt(l.date)}`}
+                value={`${l.value} ${l.unit}${l.refHigh != null ? ` (ref ≤ ${l.refHigh})` : ''}`}
+              />
+            ))
           )}
-        </section>
+        </Section>
 
-        <section>
-          <p className="section-label mb-1 print:font-bold print:text-black">Current medications</p>
-          <p className="text-sm text-app-tx1 print:text-black">
-            {meds.map((m) => `${m.name} ${m.doseLabel} ${m.frequency}`).join(' · ') || '—'}
-          </p>
-        </section>
+        <Section title="Current medications">
+          {meds.length ? (
+            meds.map((m) => <Row key={m.id} label={m.name} value={`${m.doseLabel} · ${m.frequency}`} />)
+          ) : (
+            <p className="text-sm text-app-tx3 print:text-gray-600">—</p>
+          )}
+        </Section>
 
         {/* Arabic summary — same key numbers, right-to-left */}
         <section dir="rtl" lang="ar" className="border-t border-ink/10 pt-3 print:border-gray-300">

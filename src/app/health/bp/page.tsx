@@ -120,7 +120,7 @@ export default async function BpPage() {
             ))}
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-app-tx3">
-            Observed together in your logs — the association your cardiologist will want to see.
+            Observed together in your logs.
           </p>
         </div>
       )}

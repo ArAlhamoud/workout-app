@@ -59,8 +59,7 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
       <div className="card-lg space-y-2.5 p-4">
         <p className="section-label">Log today</p>
         <p className="text-xs font-semibold text-app-tx2">
-          The four numbers from the meal app — or what you actually ate. Any subset saves;
-          re-saving corrects.
+          Any subset saves; re-saving corrects.
         </p>
         <div className="grid grid-cols-4 gap-1.5">
           <input className={inputCls} inputMode="numeric" placeholder="kcal" value={kcal} onChange={(e) => setKcal(e.target.value)} />
@@ -135,9 +134,8 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
             use the suggested numbers ({FUEL_DEFAULTS.kcal} · {FUEL_DEFAULTS.proteinG}P / {FUEL_DEFAULTS.carbsG}C / {FUEL_DEFAULTS.fatG}F)
           </button>
           <p className="text-[11px] leading-relaxed text-app-tx3">
-            Suggested from your own numbers: protein 130 g is ~1.5 g per kg of adjusted body
-            weight — the muscle floor that matters most while appetite is suppressed; 2200 kcal
-            is your estimated maintenance (~2900) minus a steady deficit; fat 85 g is the
+            Suggested from your own numbers: protein ≈1.5 g/kg adjusted weight (the muscle
+            floor on a GLP-1 appetite); kcal is maintenance minus a steady deficit; fat is the
             hormone floor; carbs fill the rest. Starting points — a dietitian outranks this
             arithmetic.
           </p>

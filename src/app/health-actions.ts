@@ -406,7 +406,7 @@ export async function getWeeklyDigest(): Promise<string | null> {
   const maskNights = cpap.filter((n) => (n.usageHours ?? 0) >= 4).length;
   if (maskNights > 0) parts.push(`${maskNights} night${maskNights === 1 ? '' : 's'} on the mask`);
 
-  return parts.length >= 2 ? `This week: ${parts.join(' \u00b7 ')}.` : null;
+  return parts.length >= 2 ? `${parts.join(' \u00b7 ')}.` : null;
 }
 
 // ── Reads for the pages ──────────────────────────────────────
