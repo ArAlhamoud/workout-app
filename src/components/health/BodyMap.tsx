@@ -123,7 +123,10 @@ export default function BodyMap({ data }: { data: BodyData }) {
   const [sev, setSev] = useState(2);
   const [afStart, setAfStart] = useState('');
   const [afEnd, setAfEnd] = useState('');
-  const [afYesterday, setAfYesterday] = useState(false);
+  // Before 06:00 an episode being logged almost always happened yesterday
+  // (the after-midnight trap dated one to tomorrow morning) — same pre-6am
+  // flip the CPAP night picker uses.
+  const [afYesterday, setAfYesterday] = useState(() => new Date().getHours() < 6);
   // Watch-flagged irregular rhythms (last 48h) — offered as prefills,
   // never auto-logged: the Watch spot-checks, he confirms what was real.
   // Native-only and permission-gated; empty everywhere else.

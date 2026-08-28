@@ -12,6 +12,7 @@ import {
   addLabResult,
   deleteLabResult,
   deleteInjection,
+  deleteAfEpisode,
 } from '@/app/health-actions';
 import { siteLabel, type DosePlanStep } from '@/lib/health-insights';
 import { hapticSuccess } from '@/lib/native-feedback';
@@ -25,6 +26,7 @@ const fmtDay = (iso: string) =>
 export default function PlanEditor({
   profile,
   injections,
+  episodes,
   labs,
 }: {
   profile: {
@@ -36,6 +38,7 @@ export default function PlanEditor({
     reminders: Record<string, boolean>;
   };
   injections: Array<{ id: string; at: string; doseMg: number; site: string }>;
+  episodes: Array<{ id: string; at: string; durationMin: number | null }>;
   labs: Array<{ id: string; date: string; test: string; value: number; unit: string }>;
 }) {
   const router = useRouter();
@@ -260,6 +263,47 @@ export default function PlanEditor({
             Deleting an injection rewinds the treatment clock and rotation — for wrong entries
             only.
           </p>
+        </div>
+      )}
+
+      {/* Recent rhythm episodes — the undo for a wrong-day log */}
+      {episodes.length > 0 && (
+        <div className="card-lg space-y-1 p-4">
+          <p className="section-label mb-1">Rhythm log</p>
+          {episodes.map((e) => (
+            <div key={e.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="text-app-tx1">
+                {fmtDay(e.at)} · {e.durationMin != null
+                  ? e.durationMin >= 60
+                    ? `${Math.floor(e.durationMin / 60)} h${e.durationMin % 60 ? ` ${e.durationMin % 60} min` : ''}`
+                    : `${e.durationMin} min`
+                  : 'ongoing / unknown'}
+              </span>
+              {confirmDelete === e.id ? (
+                <span className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { setConfirmDelete(null); void run(() => deleteAfEpisode(e.id), 'Episode removed'); }}
+                    className="min-h-[44px] rounded-card border border-rpe-grind/40 bg-rpe-grind/10 px-3 text-xs font-bold text-rpe-grind"
+                  >
+                    Delete
+                  </button>
+                  <button type="button" onClick={() => setConfirmDelete(null)} className="min-h-[44px] px-2 text-xs text-app-tx3">
+                    Keep
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Delete this episode"
+                  onClick={() => setConfirmDelete(e.id)}
+                  className="min-h-[44px] px-2 text-app-tx3 hover:text-rpe-grind"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

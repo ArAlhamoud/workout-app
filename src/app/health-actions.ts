@@ -209,6 +209,11 @@ export async function logAfEpisode(data: {
   revalidateHealth();
 }
 
+export async function deleteAfEpisode(id: string) {
+  await prisma.afEpisode.delete({ where: { id } });
+  revalidateHealth();
+}
+
 // ── Blood pressure ───────────────────────────────────────────
 
 export async function logBp(data: {
