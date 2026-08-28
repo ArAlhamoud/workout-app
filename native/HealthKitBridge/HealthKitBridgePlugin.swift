@@ -135,6 +135,16 @@ public class HealthKitBridgePlugin: CAPPlugin, CAPBridgedPlugin {
                 unitName: "degC",
                 aggregation: .discrete
             )
+            // AFib History's weekly burden (% of time in AFib) — the metric
+            // that matters once AFib History replaces irregular-rhythm
+            // notifications on the Watch. Mutually exclusive features on
+            // iOS; the app reads whichever the owner runs.
+            specs["atrialFibrillationBurden"] = QuantitySpec(
+                identifier: .atrialFibrillationBurden,
+                unit: fraction,
+                unitName: "fraction",
+                aggregation: .discrete
+            )
         }
 
         return specs

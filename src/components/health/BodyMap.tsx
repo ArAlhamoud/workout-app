@@ -7,12 +7,13 @@
 // its number and opening a sheet to see more and log in place. Anatomy as
 // navigation.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logBp, logCpapNight, logSymptoms, logAfEpisode } from '@/app/health-actions';
 import { hapticSuccess } from '@/lib/native-feedback';
 import { bodyPathAt } from '@/lib/body-figure';
+import { isNativeApp, queryCategory, windowStartISO } from '@/lib/native-health';
 
 export interface BodyData {
   heart: { daysClear: number | null; thisMonth: number; longestDays: number | null };
@@ -123,6 +124,29 @@ export default function BodyMap({ data }: { data: BodyData }) {
   const [afStart, setAfStart] = useState('');
   const [afEnd, setAfEnd] = useState('');
   const [afYesterday, setAfYesterday] = useState(false);
+  // Watch-flagged irregular rhythms (last 48h) — offered as prefills,
+  // never auto-logged: the Watch spot-checks, he confirms what was real.
+  // Native-only and permission-gated; empty everywhere else.
+  const [watchFlags, setWatchFlags] = useState<Array<{ iso: string }>>([]);
+
+  useEffect(() => {
+    if (sheet !== 'heart' || !isNativeApp()) return;
+    let alive = true;
+    queryCategory('irregularHeartRhythmEvent', { startISO: windowStartISO(2) })
+      .then((samples) => {
+        if (!alive) return;
+        const cutoff = Date.now() - 48 * 3_600_000;
+        setWatchFlags(
+          samples
+            .map((c) => ({ iso: c.startISO }))
+            .filter((c) => new Date(c.iso).getTime() >= cutoff)
+            .slice(-3)
+            .reverse(),
+        );
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [sheet]);
 
   const act = async (fn: () => Promise<unknown>, done: string) => {
     if (busy) return;
@@ -262,6 +286,35 @@ export default function BodyMap({ data }: { data: BodyData }) {
                       ? 'Longest calm stretch yet.'
                       : `Longest calm stretch: ${data.heart.longestDays} days.`}
                   </p>
+                )}
+                {watchFlags.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-app-tx3">
+                      Watch flagged — tap to prefill
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {watchFlags.map((f) => {
+                        const d = new Date(f.iso);
+                        const isToday = d.toDateString() === new Date().toDateString();
+                        return (
+                          <button
+                            key={f.iso}
+                            type="button"
+                            onClick={() => {
+                              setAfYesterday(!isToday);
+                              setAfStart(
+                                `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+                              );
+                            }}
+                            className="min-h-[40px] rounded-full border-2 border-ink/25 bg-app-surface px-3 text-xs font-bold text-app-tx1"
+                          >
+                            {isToday ? 'Today' : 'Yesterday'}{' '}
+                            {d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block">

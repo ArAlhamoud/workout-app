@@ -73,8 +73,13 @@ as the number to defend.
 ## Deliberately not built
 
 ECG interpretation (validated-integration
-territory), AFib auto-import (still needs its own read type when that
-day comes), medication adjustment suggestions of any kind. BP import is
+territory), medication adjustment suggestions of any kind. AFib
+auto-LOGGING stays not built by design — but the bridge now reads BOTH
+Apple AF signals (Aug 2026): irregularHeartRhythmEvent (spot-check
+notifications) surfaces as tap-to-prefill chips in the heart sheet, and
+atrialFibrillationBurden (AFib History's weekly %) is readable for a
+future burden card. The Watch proposes; the owner confirms; nothing
+auto-logs an episode. BP import is
 now BUILT (see above — Aug 2026). CPAP auto-import is IMPOSSIBLE, not
 skipped: the Löwenstein prisma APP exports nothing to Apple Health (its
 data goes only to prisma CLOUD for clinicians); mask hours + AHI stay a

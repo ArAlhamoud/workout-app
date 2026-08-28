@@ -63,7 +63,9 @@ export type QuantityIdentifier =
   | 'appleSleepingWristTemperature'
   /** Requires a bridge deployed after the BP link (rejected as unknown before). */
   | 'bloodPressureSystolic'
-  | 'bloodPressureDiastolic';
+  | 'bloodPressureDiastolic'
+  /** iOS 16+ AFib History weekly burden; needs the Aug-2026 bridge. */
+  | 'atrialFibrillationBurden';
 
 export type CategoryIdentifier = 'sleepAnalysis' | 'irregularHeartRhythmEvent';
 
