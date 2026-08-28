@@ -81,6 +81,8 @@ import {
   cpapCompliance,
   bpWeightStory,
   recentMilestoneCross,
+  doseLedger,
+  bpSplitAroundAnchor,
 } from '../src/lib/health-insights';
 import { normalizeSampleType, pairBpSamples } from '../src/lib/health';
 
@@ -1727,6 +1729,41 @@ console.log('health-insights');
     'a crossing older than the window is history, not news');
   assert(recentMilestoneCross([126.4], [w(2,126.0)], now) === null,
     'one weigh-in cannot witness a crossing');
+}
+
+// ── checkpoint pack ──────────────────────────────────────────
+{
+  const doses = [
+    { at: '2026-08-25T19:00:00Z', doseMg: 2.5, site: 'abdomen-right' },
+    { at: '2026-09-01T19:00:00Z', doseMg: 2.5, site: 'abdomen-left' },
+  ];
+  const ledger = doseLedger(doses, [
+    { at: '2026-08-27T09:00:00Z', kind: 'nausea', severity: 2 },
+    { at: '2026-08-28T09:00:00Z', kind: 'nausea', severity: 1 },
+    { at: '2026-09-02T09:00:00Z', kind: 'fatigue', severity: 1 },
+    { at: '2026-08-20T09:00:00Z', kind: 'reflux', severity: 3 },
+  ]);
+  assert(ledger.length === 2 && ledger[0].n === 1 && ledger[1].doseMg === 2.5,
+    'every dose gets a numbered ledger row');
+  assert(ledger[0].symptoms.length === 1 && ledger[0].symptoms[0].kind === 'nausea'
+    && ledger[0].symptoms[0].maxSeverity === 2 && ledger[0].symptoms[0].count === 2,
+    'symptoms attach to the dose they followed, worst-first, pre-treatment excluded');
+  assert(ledger[1].symptoms[0].kind === 'fatigue',
+    'a symptom after dose 2 never blames dose 1');
+
+  const split = bpSplitAroundAnchor(
+    [
+      { at: '2026-08-10', systolic: 140, diastolic: 90 },
+      { at: '2026-08-15', systolic: 138, diastolic: 88 },
+      { at: '2026-08-20', systolic: 136, diastolic: 86 },
+      { at: '2026-09-02', systolic: 131, diastolic: 84 },
+      { at: '2026-09-05', systolic: 129, diastolic: 83 },
+    ],
+    new Date('2026-08-25T19:00:00Z'),
+  );
+  assert(split.before !== null && split.before.systolic === 138,
+    'pre-treatment BP averages its own side');
+  assert(split.since === null, 'two readings since treatment is not yet an average');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────

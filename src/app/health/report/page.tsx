@@ -6,10 +6,14 @@ import { getHealthData } from '../../health-actions';
 import {
   afStats,
   bpAverage,
+  bpSplitAroundAnchor,
+  doseLedger,
   siteLabel,
   treatmentClock,
+  weightPace,
   weightSnapshot,
   DEFAULT_DOSE_PLAN,
+  SYMPTOM_LABEL,
   type DosePlanStep,
 } from '@/lib/health-insights';
 
@@ -55,6 +59,23 @@ export default async function DoctorReportPage({
     data.firstInjectionAt ?? undefined,
     data.injectionCount,
   );
+
+  // The checkpoint pack — everything the dose-review visit decides on,
+  // anchored at treatment start (never range-scoped: the doctor reads the
+  // whole treatment, not the last four weeks).
+  const ledger = clock
+    ? doseLedger(
+        data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })),
+        data.symptoms.map((sy) => ({ at: sy.at, kind: sy.kind, severity: sy.severity })),
+      )
+    : [];
+  const bpSplit = clock
+    ? bpSplitAroundAnchor(
+        data.bpReadings.map((r) => ({ at: r.at, systolic: r.systolic, diastolic: r.diastolic })),
+        clock.anchor,
+      )
+    : { before: null, since: null };
+  const pace = weightPace(data.bodyStats);
   const snapshot = weightSnapshot(
     data.profile,
     (data.profile.milestonesKg as number[] | null) ?? [],
@@ -175,6 +196,40 @@ export default async function DoctorReportPage({
             </div>
           )}
         </section>
+
+        {clock && ledger.length > 0 && (
+          <section>
+            <p className="section-label mb-1 print:font-bold print:text-black">
+              Checkpoint — the escalation decision
+            </p>
+            <div className="space-y-1 text-sm text-app-tx1 print:text-black">
+              <p>
+                Since dose 1 ({fmt(clock.anchor)}): {snapshot ? `${snapshot.startKg} → ${snapshot.currentKg} kg` : 'no weigh-ins'}
+                {pace && ` · current pace ${pace.kgPerWeek} kg/week`}
+              </p>
+              {(bpSplit.before || bpSplit.since) && (
+                <p>
+                  BP {bpSplit.before ? `${bpSplit.before.systolic}/${bpSplit.before.diastolic} before treatment (${bpSplit.before.n})` : 'before: too few readings'}
+                  {' · '}
+                  {bpSplit.since ? `${bpSplit.since.systolic}/${bpSplit.since.diastolic} since (${bpSplit.since.n})` : 'since: too few readings'}
+                </p>
+              )}
+              <div className="space-y-0.5 pt-1">
+                {ledger.map((d) => (
+                  <p key={d.n} className="tabular-nums text-xs text-app-tx2 print:text-gray-700">
+                    Dose {d.n} · {fmt(d.at)} · {d.doseMg} mg · {siteLabel(d.site)}
+                    {d.symptoms.length
+                      ? ` — ${d.symptoms
+                          .slice(0, 3)
+                          .map((sy) => `${SYMPTOM_LABEL[sy.kind] ?? sy.kind} (${SEVERITY_WORD[sy.maxSeverity]}, ${sy.count}×)`)
+                          .join(', ')}`
+                      : ' — no side effects logged'}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         <section>
           <p className="section-label mb-1 print:font-bold print:text-black">Side effects & GI</p>
