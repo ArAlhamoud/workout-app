@@ -17,7 +17,7 @@ import { isNativeApp, queryCategory, windowStartISO } from '@/lib/native-health'
 
 export interface BodyData {
   heart: { daysClear: number | null; thisMonth: number; longestDays: number | null };
-  breath: { lastHours: number | null; ahi: number | null; streak: number };
+  breath: { lastHours: number | null; ahi: number | null; streak: number; everLogged: boolean };
   gut: { today: string[] };
   bp: { latest: string | null; avg7: string | null };
   nextSite: string; // slug like 'thigh-left'
@@ -229,7 +229,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
         <RailLabel
           rail={ANATOMY.breath.rail} top={ANATOMY.breath.top}
           label="Breath"
-          value={data.breath.lastHours != null ? `${data.breath.lastHours}h · AHI ${data.breath.ahi ?? '—'}` : 'not logged'}
+          value={data.breath.lastHours != null ? `${data.breath.lastHours}h · AHI ${data.breath.ahi ?? '—'}` : data.breath.everLogged ? 'report due' : 'not logged'}
           onTap={() => setSheet('breath')}
         />
         <RailLabel

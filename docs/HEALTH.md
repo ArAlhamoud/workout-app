@@ -50,6 +50,24 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   deployed with the BP types (Mac: `npm run ios:deploy`, then re-grant
   Health access; reinstall if iOS shows no new permission sheet).
 
+## How data gets in (the streamlined contract, Aug 29)
+
+- Weight: smart scale → Apple Health → silent import. Automatic.
+- BP: home monitor → Apple Health → paired import. Automatic after the
+  native re-grant.
+- Workouts: Watch detect → one-tap confirm (full Watch app in flight).
+- AFib: Watch flags → tap-to-prefill chips (post re-grant); backdatable
+  manual logging on the heart sheet; wrong-day undo on /health/plan.
+- CPAP: the weekly prisma report PDF → POST /api/health/cpap (parsed by
+  the cloud session; keyed by the morning a night ends, PATCH-upserts,
+  {remove:true} rows correct). The nightly check-in question is GONE —
+  device truth beats a morning guess. Breath label shows 'report due'
+  past the cadence; the Sunday digest nudges.
+- Macros: meal-app screenshot → POST /api/health/fuel (same contract).
+  Future delivery days may be pre-logged as planned intake; re-posting
+  corrects.
+- Daily check-in: body → heart → extras. ~5 seconds.
+
 ## The one static safety line
 
 Two or more severity-3 logs of vomiting / abdominal pain / dizziness

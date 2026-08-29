@@ -107,10 +107,12 @@ export default async function HomePage() {
     (w) => isTrainingSession(w) && new Date(w.date) >= todayStart,
   );
   const injectionDue = !clock || clock.daysSinceLast >= 7 || clock.overdue;
-  const cpapLoggedToday = data.cpapNights.some((n) => new Date(n.createdAt) >= todayStart);
 
+  // CPAP truth arrives weekly via the prisma report, so "recent" spans the
+  // report cadence — a mid-week stale label would nag about data that is
+  // simply in transit.
   const lastNightIsRecent =
-    lastNight && Date.now() - new Date(lastNight.night).getTime() < 3 * 86_400_000;
+    lastNight && Date.now() - new Date(lastNight.night).getTime() < 8 * 86_400_000;
 
   const body: BodyData = {
     heart: { daysClear: af.daysSinceLast, thisMonth: af.thisMonth, longestDays: heartRecord?.longestDays ?? null },
@@ -118,6 +120,7 @@ export default async function HomePage() {
       lastHours: lastNightIsRecent ? lastNight.usageHours : null,
       ahi: lastNightIsRecent ? lastNight.ahi : null,
       streak: cpap.streak,
+      everLogged: data.cpapNights.length > 0,
     },
     gut: {
       today: [...new Set(todaySymptoms.map((s) => SYMPTOM_LABEL[s.kind] ?? s.kind))],
@@ -220,7 +223,7 @@ export default async function HomePage() {
       <BodyMap data={body} />
 
       {/* The conversation */}
-      <CheckIn cpapLoggedToday={cpapLoggedToday} />
+      <CheckIn />
 
       {pattern && (
         <div className="card border-acc-cyan/40 px-4 py-3">

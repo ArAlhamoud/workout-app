@@ -414,6 +414,12 @@ export async function getWeeklyDigest(): Promise<string | null> {
   if (bp7) parts.push(`BP ${bp7.systolic}/${bp7.diastolic}`);
   const maskNights = cpap.filter((n) => (n.usageHours ?? 0) >= 4).length;
   if (maskNights > 0) parts.push(`${maskNights} night${maskNights === 1 ? '' : 's'} on the mask`);
+  // CPAP truth arrives as a weekly PDF drop — when the newest night is
+  // older than the cadence, the recap carries the nudge.
+  const newestNight = await prisma.cpapNight.findFirst({ orderBy: { night: 'desc' }, select: { night: true } });
+  if (newestNight && Date.now() - newestNight.night.getTime() > 6 * 86_400_000) {
+    parts.push('CPAP report due');
+  }
 
   return parts.length >= 2 ? `${parts.join(' \u00b7 ')}.` : null;
 }
