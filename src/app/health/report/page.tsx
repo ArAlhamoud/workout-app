@@ -145,6 +145,12 @@ export default async function DoctorReportPage({
     m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`;
 
   const meds = data.meds.filter((m) => !m.stoppedOn);
+  const conditions = ((data.profile.conditions as string[] | null) ?? []).filter(
+    (c): c is string => typeof c === 'string',
+  );
+  const firstCpapNight = data.cpapNights.length
+    ? [...data.cpapNights].sort((a, b) => new Date(a.night).getTime() - new Date(b.night).getTime())[0].night
+    : null;
   const rangeLabel = range === '4w' ? 'Last 4 weeks' : range === '3m' ? 'Last 3 months' : 'All data';
   const rangeLabelAr = range === '4w' ? 'آخر ٤ أسابيع' : range === '3m' ? 'آخر ٣ أشهر' : 'كل البيانات';
 
@@ -176,6 +182,12 @@ export default async function DoctorReportPage({
             </Link>
           ))}
           <a
+            href={`/api/health/report-pdf?range=${range}`}
+            className="flex-1 rounded-card border border-acc-cyan/40 bg-acc-cyan/10 py-2 text-center text-xs font-bold text-acc-cyan"
+          >
+            PDF ↓
+          </a>
+          <a
             href={`/api/health/export?range=${range}`}
             className="flex-1 rounded-card border border-app-border bg-app-surface2/60 py-2 text-center text-xs font-bold text-app-tx3"
           >
@@ -195,6 +207,18 @@ export default async function DoctorReportPage({
             Self-reported data from AR Health · generated {fmt(new Date())} · not a
             medical record
           </p>
+        </div>
+
+        {/* Patient block — what a clinician expects at the top of a page */}
+        <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
+          <Row label="Patient" value="Abdulrahman Alhamoud" />
+          <Row label="Born" value={`1988 · ${new Date().getFullYear() - 1988} y`} />
+          <Row label="Height" value={`${data.profile.heightCm} cm`} />
+          {conditions.length > 0 && (
+            <p className="pt-1 text-xs leading-relaxed text-app-tx2 print:text-gray-700">
+              {conditions.join(' · ')}
+            </p>
+          )}
         </div>
 
         {/* The headline numbers */}
@@ -304,13 +328,28 @@ export default async function DoctorReportPage({
 
         <Section title="Atrial fibrillation">
           <Row label="Episodes in range" value={String(episodes.length)} />
-          {episodes.map((e) => (
-            <Row
-              key={e.id}
-              label={fmt(e.startedAt)}
-              value={e.durationMin != null ? fmtMin(e.durationMin) : 'duration unknown'}
-            />
-          ))}
+          {episodes.map((e) => {
+            const flags = (
+              [
+                ['after a meal', e.afterMeal], ['bloating', e.bloating], ['gas', e.gas],
+                ['during/after sleep', e.sleepRelated], ['around exercise', e.exerciseRelated],
+                ['caffeine', e.caffeine], ['dehydration', e.dehydration], ['stress', e.stress],
+              ] as Array<[string, boolean | null]>
+            ).filter(([, v]) => v === true).map(([label]) => label);
+            return (
+              <div key={e.id}>
+                <Row
+                  label={`${fmt(e.startedAt)} · ${new Date(e.startedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
+                  value={`${e.durationMin != null ? fmtMin(e.durationMin) : 'duration unknown'}${e.hrBpm ? ` · ${e.hrBpm} bpm` : ''}`}
+                />
+                {flags.length > 0 && (
+                  <p className="text-xs text-app-tx3 print:text-gray-600">
+                    noted at the time: {flags.join(', ')}
+                  </p>
+                )}
+              </div>
+            );
+          })}
           {af.daysSinceLast != null && (
             <Row label="Days since last" value={String(af.daysSinceLast)} dim />
           )}
@@ -331,6 +370,7 @@ export default async function DoctorReportPage({
         <Section title="CPAP">
           {cpap.length ? (
             <>
+              {firstCpapNight && <Row label="Therapy since" value={fmt(firstCpapNight)} />}
               <Row label="Nights logged" value={String(cpap.length)} />
               <Row label="Average use" value={`${cpapAvgH ?? '—'} h/night`} />
               <Row label="Nights ≥ 4 h" value={`${cpapOver4} of ${cpap.length}`} />

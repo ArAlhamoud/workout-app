@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "_comment_build": "DO NOT add `prisma db push` here. It has broken production twice (e4fa396, and again in 7840432). The build runs on every deploy against the live database, so any guarded change \u2014 a unique constraint, a dropped column \u2014 aborts the whole deploy, and a schema push is not something a deploy should decide to do silently. Schema changes go through the Apply-schema GitHub Action, which shows a migrate-diff first.",
+    "_comment_build": "DO NOT add `prisma db push` here. It has broken production twice (e4fa396, and again in 7840432). The build runs on every deploy against the live database, so any guarded change — a unique constraint, a dropped column — aborts the whole deploy, and a schema push is not something a deploy should decide to do silently. Schema changes go through the Apply-schema GitHub Action, which shows a migrate-diff first.",
     "build": "rm -f next.config.ts && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
@@ -31,6 +31,7 @@
     "@capacitor/preferences": "^8.0.1",
     "@prisma/client": "^5.19.0",
     "next": "14.2.13",
+    "pdf-lib": "^1.17.1",
     "react": "^18",
     "react-dom": "^18"
   },
