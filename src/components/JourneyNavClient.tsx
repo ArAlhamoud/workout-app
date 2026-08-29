@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { getRoomGlances } from '@/app/nav-actions';
+import { getNowDoors, getRoomGlances } from '@/app/nav-actions';
 
 export interface NavStation {
   state: 'done' | 'next' | 'future' | 'gate';
@@ -27,13 +27,14 @@ export interface NavAction {
 // the network). Three groups mirror how he thinks: the body, the training,
 // and the record both of them write.
 type Room = { href: string; label: string; icon: RoomIconKind };
+type NowDoor = { href: string; label: string; icon: string };
 const ROOM_GROUPS: Array<{ title: string; rooms: Room[] }> = [
   {
     title: 'Body',
     rooms: [
       { href: '/health/injection', label: 'Injection day', icon: 'dose' },
       { href: '/health/bp', label: 'Pressure', icon: 'cuff' },
-      { href: '/health/fuel', label: 'Fuel', icon: 'bowl' },
+      { href: '/health/diet', label: 'Diet', icon: 'bowl' },
       { href: '/health/plan', label: 'Plan & profile', icon: 'person' },
       { href: '/health/report', label: 'Doctor report', icon: 'doc' },
     ],
@@ -122,12 +123,18 @@ export default function JourneyNavClient({
   // (device-tester, HIGH). Stale lines still paint instantly; fresh ones
   // swap in; a failure keeps the previous lines and retries next open.
   const [glances, setGlances] = useState<Record<string, string> | null>(null);
+  // The Now row: today's 2-3 doors, picked by state — same fetch-on-open,
+  // same keep-stale-on-failure contract as the glances.
+  const [nowDoors, setNowDoors] = useState<NowDoor[]>([]);
   useEffect(() => {
     if (!roomsOpen) return;
     let cancelled = false;
     getRoomGlances()
       .then((g) => { if (!cancelled) setGlances(g); })
       .catch(() => { /* keep what we have; next open retries */ });
+    getNowDoors()
+      .then((d) => { if (!cancelled) setNowDoors(d); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [roomsOpen]);
 
@@ -155,7 +162,12 @@ export default function JourneyNavClient({
           />
           <div className="relative mx-auto max-w-lg px-3 pb-2">
             <div className="sheet-surface max-h-[72vh] overflow-y-auto overscroll-contain rounded-card-lg border-2 border-ink p-3 shadow-[5px_5px_0_#0b0b0f]">
-              {ROOM_GROUPS.map((g, gi) => (
+              {[
+                ...(nowDoors.length
+                  ? [{ title: 'Now', rooms: nowDoors as Room[] }]
+                  : []),
+                ...ROOM_GROUPS,
+              ].map((g, gi) => (
                 <div key={g.title} className={gi > 0 ? 'mt-3' : ''}>
                   <p className="px-1 pb-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-app-tx3">
                     {g.title}

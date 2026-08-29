@@ -129,6 +129,17 @@ export default async function HomePage() {
       latest: latestBp ? `${latestBp.systolic}/${latestBp.diastolic}` : null,
       avg7: bp7 ? `${bp7.systolic}/${bp7.diastolic}` : null,
     },
+    train: {
+      value:
+        trainedToday
+          ? 'trained today'
+          : trainPlan.mode === 'train'
+            ? `Day ${trainDay} next`
+            : trainPlan.mode === 'recover'
+              ? 'recover day'
+              : 'rest',
+      day: trainDay ?? null,
+    },
     nextSite: site,
     nextSiteLabel: siteLabel(site),
     ldl: latestLdl
@@ -154,10 +165,12 @@ export default async function HomePage() {
           <p className="section-label text-acc-cyan/80">
             AR Health{day.day ? ` · day ${day.day}` : ''}
           </p>
-          <h1 className="mt-0.5 font-round text-3xl font-extrabold leading-none tracking-tight text-app-tx1">
-            {snapshot ? `${snapshot.currentKg}` : '—'}
-            <span className="text-base font-bold text-app-tx3"> kg</span>
-          </h1>
+          <Link href="/stats" className="block">
+            <h1 className="mt-0.5 font-round text-3xl font-extrabold leading-none tracking-tight text-app-tx1">
+              {snapshot ? `${snapshot.currentKg}` : '—'}
+              <span className="text-base font-bold text-app-tx3"> kg</span>
+            </h1>
+          </Link>
           <p className="mt-1 text-xs font-semibold text-app-tx2">
             {snapshot && snapshot.lostKg >= 0.5 && `−${snapshot.lostKg} kg since the start · `}
             {clock ? `${clock.lastDoseMg} mg weekly` : 'first dose ahead'}

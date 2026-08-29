@@ -20,6 +20,8 @@ export interface BodyData {
   breath: { lastHours: number | null; ahi: number | null; streak: number; everLogged: boolean };
   gut: { today: string[] };
   bp: { latest: string | null; avg7: string | null };
+  /** Today's training answer — the hand that lifts carries the door. */
+  train: { value: string; day: 'A' | 'B' | null };
   nextSite: string; // slug like 'thigh-left'
   nextSiteLabel: string;
   ldl: { value: number; when: string } | null;
@@ -54,6 +56,7 @@ const ANATOMY = {
   heart: { rail: 'r' as const, top: '37.2%' },
   bp: { rail: 'l' as const, top: '41.7%' },
   gut: { rail: 'l' as const, top: '52.2%' },
+  train: { rail: 'r' as const, top: '55%' },
 };
 
 
@@ -216,12 +219,19 @@ export default function BodyMap({ data }: { data: BodyData }) {
           <path d={cuffPath} fill={bpOn ? 'rgba(34,211,238,.40)' : quiet.fill} stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="2" />
           <line x1={tx(94)} y1="147" x2={tx(111)} y2="146" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
           <line x1={tx(94)} y1="153" x2={tx(111)} y2="152" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
+          {/* the dumbbell, in the hand that lifts */}
+          <g transform={`rotate(-30 ${tx(218)} 198)`}>
+            <line x1={tx(207)} y1="198" x2={tx(229)} y2="198" stroke="#0b0b0f" strokeWidth="3" strokeLinecap="round" />
+            <rect x={tx(204)} y="191" width="5" height="14" rx="1.5" fill={data.train.day === 'A' ? '#8b5cf6' : '#14b8a6'} stroke="#0b0b0f" strokeWidth="1.5" />
+            <rect x={tx(227)} y="191" width="5" height="14" rx="1.5" fill={data.train.day === 'A' ? '#8b5cf6' : '#14b8a6'} stroke="#0b0b0f" strokeWidth="1.5" />
+          </g>
           {/* leader lines: organ → rail */}
           <g stroke="#0b0b0f" strokeOpacity="0.28" strokeWidth="1.5">
             <line x1="192" y1="108" x2="246" y2="100" />
             <line x1="180" y1="128" x2="246" y2="134" />
             <line x1={tx(86)} y1="150" x2="66" y2="150" />
             <line x1="144" y1="188" x2="66" y2="188" />
+            <line x1={tx(232)} y1="198" x2="252" y2="198" />
           </g>
         </svg>
 
@@ -243,6 +253,12 @@ export default function BodyMap({ data }: { data: BodyData }) {
           label="Pressure"
           value={data.bp.latest ?? 'no reading'}
           onTap={() => setSheet('bp')}
+        />
+        <RailLabel
+          rail={ANATOMY.train.rail} top={ANATOMY.train.top}
+          label="Train"
+          value={data.train.value}
+          onTap={() => router.push('/train')}
         />
         <RailLabel
           rail={ANATOMY.gut.rail} top={ANATOMY.gut.top}
@@ -425,6 +441,9 @@ export default function BodyMap({ data }: { data: BodyData }) {
                 >
                   Save
                 </button>
+                <Link href="/health/diet" className="block text-center text-xs font-bold text-app-tx3">
+                  what went in today · Diet →
+                </Link>
               </div>
             )}
 

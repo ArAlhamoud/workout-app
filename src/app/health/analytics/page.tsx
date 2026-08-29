@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import BackLink from '@/components/BackLink';
 import { getHealthData } from '../../health-actions';
 import {
@@ -256,6 +257,9 @@ export default async function HealthAnalyticsPage() {
         </div>
       )}
 
+      <Link href="/health/timeline" className="block text-center text-xs font-bold text-app-tx3">
+        the full log, entry by entry →
+      </Link>
     </div>
   );
 }

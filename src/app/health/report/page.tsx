@@ -389,6 +389,13 @@ export default async function DoctorReportPage({
           </div>
         </section>
       </div>
+
+      <Link
+        href="/health/plan"
+        className="block text-center text-xs font-bold text-app-tx3 print:hidden"
+      >
+        adjust the plan & profile →
+      </Link>
     </div>
   );
 }

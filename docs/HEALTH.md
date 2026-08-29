@@ -78,11 +78,11 @@ app never judges urgency — it only refuses to stay silent. Do not add
 more triggers without the clinical-safety review lens; alarm fatigue is
 the failure mode on the other side.
 
-## Fuel (daily macros — Aug 27, the calorie kill-list reversed)
+## Diet (daily macros — Aug 27, the calorie kill-list reversed; renamed from Fuel Aug 29)
 
 The owner joined a macro-printed meal subscription, which made the four
 numbers free to copy — he asked for the tracker (“i plan to have tracker
-for daily micros”). /health/fuel: one day-total entry (kcal/P/C/F,
+for daily micros”). /health/diet: one day-total entry (kcal/P/C/F,
 PATCH-upserted onto NutritionLog’s new nullable columns), targets in
 profile.targets (kcal/fuelProteinG/carbsG/fatG; suggested defaults
 2200/130/230/85 derived transparently in health-insights.ts —
