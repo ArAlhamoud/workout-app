@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import BackLink from '@/components/BackLink';
 import PrintButton from '@/components/health/PrintButton';
+import PdfShareButton from '@/components/health/PdfShareButton';
 import { getHealthData } from '../../health-actions';
 import {
   afStats,
@@ -181,12 +182,7 @@ export default async function DoctorReportPage({
               {r === '4w' ? '4 weeks' : r === '3m' ? '3 months' : 'All'}
             </Link>
           ))}
-          <a
-            href={`/api/health/report-pdf?range=${range}`}
-            className="flex-1 rounded-card border border-acc-cyan/40 bg-acc-cyan/10 py-2 text-center text-xs font-bold text-acc-cyan"
-          >
-            PDF ↓
-          </a>
+          <PdfShareButton range={range} />
           <a
             href={`/api/health/export?range=${range}`}
             className="flex-1 rounded-card border border-app-border bg-app-surface2/60 py-2 text-center text-xs font-bold text-app-tx3"
