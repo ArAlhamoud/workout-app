@@ -64,8 +64,10 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   device truth beats a morning guess. Breath label shows 'report due'
   past the cadence; the Sunday digest nudges.
 - Macros: meal-app screenshot → POST /api/health/fuel (same contract).
-  Future delivery days may be pre-logged as planned intake; re-posting
-  corrects.
+  THE SCREEN IS A BASELINE, NOT THE DAY: the subscription delivers
+  breakfast+lunch+snack only — dinner (his own) stacks on top via
+  addNutrition / {add:true} rows. Future delivery days may be pre-logged
+  as planned baseline; re-posting corrects.
 - Daily check-in: body → heart → extras. ~5 seconds.
 
 ## The one static safety line

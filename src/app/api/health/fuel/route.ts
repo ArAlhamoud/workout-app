@@ -33,6 +33,9 @@ export async function POST(request: Request) {
     const r = raw as {
       day?: string; kcal?: number; proteinG?: number; carbsG?: number; fatG?: number;
       waterMl?: number; remove?: boolean;
+      /** Add on top of the day instead of setting it — dinner stacking
+       *  onto the subscription baseline. */
+      add?: boolean;
     };
     const day =
       typeof r.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.day)
@@ -60,6 +63,13 @@ export async function POST(request: Request) {
     if (!Object.keys(patch).length) {
       skipped.push(r.day as string);
       continue;
+    }
+    if (r.add === true) {
+      const existing = await prisma.nutritionLog.findUnique({ where: { day } });
+      const caps: Record<string, number> = { kcal: 8000, proteinG: 400, carbsG: 900, fatG: 400, waterMl: 10_000 };
+      for (const k of Object.keys(patch)) {
+        patch[k] = Math.min(((existing as Record<string, number | null> | null)?.[k] ?? 0) + patch[k], caps[k]);
+      }
     }
     await prisma.nutritionLog.upsert({ where: { day }, update: patch, create: { day, ...patch } as never });
     saved++;
