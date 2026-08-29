@@ -26,7 +26,7 @@ const RANGES = { '4w': 28, '3m': 91, all: 100_000 } as const;
 type RangeKey = keyof typeof RANGES;
 
 const fmt = (d: Date | string) =>
-  new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Riyadh' });
 
 const SEVERITY_WORD = ['none', 'mild', 'moderate', 'severe'];
 
@@ -335,7 +335,7 @@ export default async function DoctorReportPage({
             return (
               <div key={e.id}>
                 <Row
-                  label={`${fmt(e.startedAt)} · ${new Date(e.startedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`}
+                  label={`${fmt(e.startedAt)} · ${new Date(e.startedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh' })}`}
                   value={`${e.durationMin != null ? fmtMin(e.durationMin) : 'duration unknown'}${e.hrBpm ? ` · ${e.hrBpm} bpm` : ''}`}
                 />
                 {flags.length > 0 && (

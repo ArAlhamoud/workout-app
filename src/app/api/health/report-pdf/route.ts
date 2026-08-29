@@ -23,7 +23,7 @@ type RangeKey = keyof typeof RANGES;
 
 const SEVERITY_WORD = ['none', 'mild', 'moderate', 'severe'];
 const fmt = (d: Date | string) =>
-  new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Riyadh' });
 const fmtMin = (m: number) =>
   m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`;
 
@@ -217,7 +217,7 @@ export async function GET(request: Request) {
       ] as Array<[string, boolean | null]>
     ).filter(([, v]) => v === true).map(([l]) => l);
     row(
-      `${fmt(e.startedAt)} ${new Date(e.startedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`,
+      `${fmt(e.startedAt)} ${new Date(e.startedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh' })}`,
       `${e.durationMin != null ? fmtMin(e.durationMin) : 'duration unknown'}${e.hrBpm ? ` · ${e.hrBpm} bpm` : ''}`,
     );
     if (flags.length) note(`  noted at the time: ${flags.join(', ')}`);
