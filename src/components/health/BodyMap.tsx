@@ -22,6 +22,14 @@ export interface BodyData {
   bp: { latest: string | null; avg7: string | null };
   /** Today's training answer — the hand that lifts carries the door. */
   train: { value: string; day: 'A' | 'B' | null };
+  /** The treatment road, drawn as the ground under his feet. */
+  road: {
+    dots: Array<'done' | 'here' | 'future' | 'gate'>;
+    caption: string;
+    captionDim: string | null;
+    hitLandmark: string | null;
+    aheadLandmarks: string[];
+  } | null;
   nextSite: string; // slug like 'thigh-left'
   nextSiteLabel: string;
   ldl: { value: number; when: string } | null;
@@ -282,6 +290,60 @@ export default function BodyMap({ data }: { data: BodyData }) {
           </span>
         </Link>
       </div>
+
+      {/* The ground he walks on: doses behind him teal, the ring beneath
+          his feet, the doctor's ember door ahead, weight landmarks on the
+          roadside. Words, not code — the caption says what the road means. */}
+      {data.road && (() => {
+        const road = data.road;
+        const doneDots = road.dots.filter((d) => d === 'done');
+        const afterHere = road.dots.slice(road.dots.indexOf('here') + 1);
+        const futureDots = afterHere.filter((d) => d === 'future');
+        const pos = (i: number, n: number, lo: number, hi: number) =>
+          n <= 1 ? (lo + hi) / 2 : lo + ((hi - lo) * i) / (n - 1);
+        return (
+          <Link href="/journey" className="mt-1 block px-1" aria-label="Open the journey">
+            <div className="relative h-9">
+              <span className="absolute left-0 right-0 top-[13px] h-[3px] rounded bg-ink/15" />
+              <span className="absolute left-0 top-[13px] h-[3px] w-1/2 rounded bg-acc-teal-deep" />
+              {doneDots.map((_, i) => (
+                <span
+                  key={`d${i}`}
+                  className="absolute top-[14px] h-[11px] w-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ink bg-acc-teal-deep"
+                  style={{ left: `${pos(i, doneDots.length, 7, 40)}%` }}
+                />
+              ))}
+              <span className="absolute left-1/2 top-[14px] h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-ink bg-white shadow-[0_0_0_5px_rgba(20,184,166,.25)]" />
+              {futureDots.map((_, i) => (
+                <span
+                  key={`f${i}`}
+                  className="absolute top-[14px] h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ink bg-white"
+                  style={{ left: `${pos(i, futureDots.length, 60, 86)}%` }}
+                />
+              ))}
+              {afterHere.includes('gate') && (
+                <>
+                  <span className="absolute left-[95%] top-[14px] h-[11px] w-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ink bg-acc-ember-deep" />
+                  <span className="absolute left-[95%] top-[26px] -translate-x-1/2 text-[8.5px] font-extrabold text-app-tx3">doctor</span>
+                </>
+              )}
+              {road.hitLandmark && (
+                <span className="absolute left-[26%] top-[26px] -translate-x-1/2 text-[8.5px] font-extrabold text-acc-teal">{road.hitLandmark}</span>
+              )}
+              {road.aheadLandmarks[0] && (
+                <span className="absolute left-[66%] top-[26px] -translate-x-1/2 text-[8.5px] font-extrabold text-app-tx3">{road.aheadLandmarks[0]}</span>
+              )}
+              {road.aheadLandmarks[1] && (
+                <span className="absolute left-[83%] top-[26px] -translate-x-1/2 text-[8.5px] font-extrabold text-app-tx3">{road.aheadLandmarks[1]}</span>
+              )}
+            </div>
+            <p className="mt-1.5 text-center text-[13px] font-extrabold text-app-tx1">
+              {road.caption}
+              {road.captionDim && <span className="font-semibold text-app-tx3"> {road.captionDim}</span>}
+            </p>
+          </Link>
+        );
+      })()}
 
       <div className="mt-1 flex items-center justify-between border-t border-ink/10 pt-2.5">
         <p className="text-[11px] font-bold text-app-tx3">

@@ -5,6 +5,7 @@ import { getWorkouts } from './actions';
 import { getDynamicPlan, isTrainingSession, queuedDay } from '@/lib/program';
 import {
   journeyDay,
+  journeyStations,
   journeyStory,
   ownPattern,
   afStats,
@@ -101,6 +102,41 @@ export default async function HomePage() {
   const stamp = recentMilestoneCross(milestoneKgs, data.bodyStats);
   const heartRecord = afRecord(data.afEpisodes.map((e) => ({ startedAt: e.startedAt })));
 
+  // The road under his feet: stations mapped to ground dots, spoken in words.
+  const stations = journeyStations(plan, data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })));
+  const roadDots = stations.map((st): 'done' | 'here' | 'future' | 'gate' =>
+    st.state === 'done' ? 'done' : st.state === 'next' ? 'here' : st.kind === 'checkpoint' ? 'gate' : 'future',
+  );
+  const nextDoseNumber = data.injectionCount + 1;
+  const roadCaption = !clock
+    ? 'First dose · today'
+    : clock.planExhausted
+      ? 'Plan complete — doctor review'
+      : clock.daysSinceLast >= 7 || clock.overdue
+        ? `Dose ${nextDoseNumber} · today`
+        : `Dose ${nextDoseNumber} · ${clock.nextDue.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Riyadh' })}`;
+  const roadCaptionDim =
+    day.dosesUntilCheckpoint != null && day.dosesUntilCheckpoint > 0
+      ? `· ${day.dosesUntilCheckpoint} to the doctor`
+      : null;
+  const achieved = snapshot
+    ? [...snapshot.pctMilestones.filter((m) => m.achieved).map((m) => m.kg),
+       ...snapshot.kgMilestones.filter((m) => m.achieved).map((m) => m.kg)]
+    : [];
+  const ahead = snapshot
+    ? [...new Set([...snapshot.pctMilestones, ...snapshot.kgMilestones]
+        .filter((m) => !m.achieved).map((m) => m.kg))].sort((a, b) => b - a)
+    : [];
+  const road = roadDots.includes('here') || roadDots.includes('done')
+    ? {
+        dots: roadDots,
+        caption: roadCaption,
+        captionDim: roadCaptionDim,
+        hitLandmark: achieved.length ? `${Math.min(...achieved)} ✓` : null,
+        aheadLandmarks: ahead.slice(0, 2).map((kg) => String(kg)),
+      }
+    : { dots: roadDots, caption: roadCaption, captionDim: roadCaptionDim, hitLandmark: null, aheadLandmarks: [] };
+
   const trainPlan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
   const trainDay = queuedDay(trainPlan);
   const trainedToday = workouts.some(
@@ -140,6 +176,7 @@ export default async function HomePage() {
               : 'rest',
       day: trainDay ?? null,
     },
+    road,
     nextSite: site,
     nextSiteLabel: siteLabel(site),
     ldl: latestLdl
@@ -174,8 +211,6 @@ export default async function HomePage() {
           <p className="mt-1 text-xs font-semibold text-app-tx2">
             {snapshot && snapshot.lostKg >= 0.5 && `−${snapshot.lostKg} kg since the start · `}
             {clock ? `${clock.lastDoseMg} mg weekly` : 'first dose ahead'}
-            {day.dosesUntilCheckpoint != null && day.dosesUntilCheckpoint > 0 &&
-              ` · ${day.dosesUntilCheckpoint} to the doctor`}
           </p>
           {pace && (
             <p className="mt-0.5 text-xs font-semibold text-app-tx2">

@@ -2,7 +2,7 @@
 
 // The navigation IS the journey (owner's third push: stop thinking like a
 // workout app). The bottom bar is the treatment road itself — dose
-// stations as dots, the doctor gate in ember, him as the ring — plus ONE
+// a Home button (the person), plus ONE
 // morphing action that knows what today asks (syringe / barbell / talk),
 // and one door to every room. No generic icon strip.
 
@@ -109,10 +109,8 @@ function ActionIcon({ kind }: { kind: NavAction['kind'] }) {
 }
 
 export default function JourneyNavClient({
-  stations,
   action,
 }: {
-  stations: NavStation[];
   action: NavAction;
 }) {
   const pathname = usePathname();
@@ -144,7 +142,6 @@ export default function JourneyNavClient({
   useEffect(() => {
     setRoomsOpen(false);
   }, [pathname]);
-  const onHome = pathname === '/';
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 print:hidden">
@@ -210,46 +207,28 @@ export default function JourneyNavClient({
       <div className="relative mx-auto max-w-lg px-3 pb-[max(env(safe-area-inset-bottom),0.625rem)]">
         {/* Gap taps close the sheet — misses 3px off ROOMS must not no-op. */}
         <div className="flex items-center gap-2" onClick={() => roomsOpen && setRoomsOpen(false)}>
-          {/* The road — the bar IS the journey. Tap = the full path. */}
+          {/* Home — the person. The road now lives under his feet on Home. */}
           <Link
-            href={onHome ? '/journey' : '/'}
-            aria-label={onHome ? 'Open the journey' : 'Go home'}
-            className="glass-overlay flex h-[54px] min-w-0 flex-1 items-center rounded-[28px] border-2 border-ink px-4 shadow-nav"
+            href="/"
+            aria-label="Home"
+            className="glass-overlay grid h-[54px] w-[54px] flex-none place-items-center rounded-full border-2 border-ink shadow-nav"
           >
-            <span className="mr-3 flex-none text-[9px] font-black uppercase tracking-[0.14em] text-app-tx3">
-              {onHome ? 'Journey' : 'Home'}
-            </span>
-            <span className="relative flex min-w-0 flex-1 items-center">
-              <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-ink/15" aria-hidden="true" />
-              <span className="relative flex w-full items-center justify-between">
-                {stations.slice(0, 8).map((s, i) => (
-                  <span
-                    key={i}
-                    className={`rounded-full border-2 border-ink ${
-                      s.state === 'next'
-                        ? 'h-3.5 w-3.5 bg-white ring-4 ring-acc-teal-deep/30'
-                        : s.kind === 'checkpoint'
-                        ? 'h-2.5 w-2.5 bg-acc-ember-deep'
-                        : s.state === 'done'
-                        ? 'h-2.5 w-2.5 bg-acc-teal-deep'
-                        : 'h-2 w-2 bg-app-surface2'
-                    }`}
-                  />
-                ))}
-              </span>
-            </span>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <circle cx="12" cy="5.5" r="3" />
+              <path d="M8 21v-6c0-3 1.5-5 4-5s4 2 4 5v6" />
+            </svg>
           </Link>
 
           {/* Today's one action, morphing */}
           <Link
             href={action.href}
             aria-label={action.label}
-            className={`flex h-[54px] flex-none items-center gap-2 rounded-[28px] border-2 border-ink px-4 text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] ${
+            className={`flex h-[54px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[28px] border-2 border-ink px-4 text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] ${
               action.kind === 'train' ? 'bg-acc-violet-deep' : 'bg-acc-teal-deep'
             }`}
           >
             <ActionIcon kind={action.kind} />
-            <span className="hidden min-[380px]:inline">{action.label}</span>
+            <span>{action.label}</span>
           </Link>
 
           {/* The rooms */}
