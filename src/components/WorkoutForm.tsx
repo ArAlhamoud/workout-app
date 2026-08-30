@@ -1056,9 +1056,9 @@ export default function WorkoutForm({
   // Aurora day accent — Day A glows violet, Day B (and freestyle) teal.
   const violetDay = dayAccent === 'A';
   const stepAccent = violetDay
-    ? 'text-acc-violet active:bg-acc-violet-deep/20'
-    : 'text-acc-teal active:bg-acc-teal-deep/20';
-  const stepperShell = `flex items-center min-w-0 h-12 bg-app-surface2 border border-app-border rounded-xl overflow-hidden transition-colors ${
+    ? 'volt-stepbtn text-acc-violet active:bg-acc-violet-deep/20'
+    : 'volt-stepbtn text-acc-teal active:bg-acc-teal-deep/20';
+  const stepperShell = `volt-step flex items-center min-w-0 h-12 bg-app-surface2 border border-app-border rounded-xl overflow-hidden transition-colors ${
     violetDay ? 'focus-within:border-acc-violet/50' : 'focus-within:border-acc-teal/50'
   }`;
   const currentSetRing = violetDay
@@ -1725,7 +1725,7 @@ export default function WorkoutForm({
                           <button
                             type="button"
                             onClick={() => toggleSetDone(block.uid, i)}
-                            className={`w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-90 ${
+                            className={`volt-done w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-90 ${
                               set.done
                                 ? 'bg-gradient-to-br from-acc-teal to-acc-teal-deep text-white shadow-glow-teal'
                                 : set.isWarmup
@@ -1755,7 +1755,7 @@ export default function WorkoutForm({
                                 type="button"
                                 key={v}
                                 onClick={() => updateSetRpe(block.uid, i, set.rpe === v ? 0 : v)}
-                                className={`relative text-[10px] font-bold uppercase tracking-[0.08em] px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
+                                className={`volt-rpe relative text-[10px] font-bold uppercase tracking-[0.08em] px-3 py-1.5 rounded-full border transition-colors flex-shrink-0 ${
                                   set.rpe === v
                                     ? c
                                     : locked

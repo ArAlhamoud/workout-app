@@ -484,3 +484,30 @@ body.has-draft-banner main {
 }
 .volt-protocol::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
 .volt-protocol::after { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+
+/* Volt set entry — the mock's heavy numerals on the existing safe
+   markup (behavior untouched; the Aug-5 clip budget respected: 21px
+   digits fit the flex-[3]/flex-[2] shells at iPhone width). */
+[data-domain='volt'] .volt-step {
+  height: 3.5rem;
+  border-radius: 0;
+  background: #0e0e11;
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1.5px #2b2d24;
+}
+[data-domain='volt'] .volt-step:focus-within {
+  box-shadow: inset 0 0 0 1.5px var(--volt);
+}
+[data-domain='volt'] .volt-step input,
+[data-domain='volt'] .volt-step > span {
+  font-size: 21px;
+  font-weight: 800;
+  font-family: var(--font-round);
+}
+[data-domain='volt'] .volt-stepbtn { color: var(--volt); font-size: 24px; }
+[data-domain='volt'] .volt-done { border-radius: 0; }
+[data-domain='volt'] .volt-rpe {
+  border-radius: 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.14em;
+}
