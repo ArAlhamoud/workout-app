@@ -26,8 +26,9 @@ export default async function BpPage() {
   const weekly = bpWeeklyAverages(readings, 8);
   const story = bpWeightStory(readings, data.bodyStats);
 
+  // Server clock is UTC; a 00:27 reading is "yesterday" without the zone.
   const weekLabel = (d: Date) =>
-    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' });
 
   return (
     <div className="space-y-4 pb-8">
@@ -45,7 +46,7 @@ export default async function BpPage() {
           <p className="metric-value">{latest ? `${latest.systolic}/${latest.diastolic}` : '—'}</p>
           <p className="metric-label">
             {latest
-              ? `latest · ${new Date(latest.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+              ? `latest · ${weekLabel(new Date(latest.at))}`
               : 'no readings yet'}
           </p>
         </div>

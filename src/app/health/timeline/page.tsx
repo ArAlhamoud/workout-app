@@ -95,6 +95,7 @@ export default async function HealthTimelinePage() {
   const byDay = new Map<string, TimelineEvent[]>();
   for (const e of events) {
     const key = e.at.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Riyadh',
       weekday: 'short',
       month: 'short',
       day: 'numeric',

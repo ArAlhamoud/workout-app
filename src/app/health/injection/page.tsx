@@ -121,7 +121,7 @@ export default async function InjectionDayPage() {
             {recentSites
               .map(
                 (r) =>
-                  `${siteLabel(r.site)} (${new Date(r.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`,
+                  `${siteLabel(r.site)} (${new Date(r.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })})`,
               )
               .join(' · ')}
           </p>

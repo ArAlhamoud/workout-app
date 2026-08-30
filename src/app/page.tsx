@@ -182,7 +182,7 @@ export default async function HomePage() {
     ldl: latestLdl
       ? {
           value: latestLdl.value,
-          when: new Date(latestLdl.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          when: new Date(latestLdl.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'Asia/Riyadh' }),
         }
       : null,
     slimT: slimProgress(profile.startWeightKg, profile.goalWeightKg, snapshot?.currentKg ?? null),
@@ -218,7 +218,7 @@ export default async function HomePage() {
                 {pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '−' : ''}{Math.abs(pace.kgPerWeek)} kg/week
               </span>
               {eta && nextMilestoneKg != null &&
-                ` · ${nextMilestoneKg} kg by ~${eta.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+                ` · ${nextMilestoneKg} kg by ~${eta.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`}
             </p>
           )}
           {clock && clock.daysSinceLast === 6 && trainPlan.mode === 'train' && !trainedToday && (
@@ -251,7 +251,7 @@ export default async function HomePage() {
         <div className="card border-acc-teal/50 px-4 py-3">
           <p className="text-sm font-bold text-app-tx1">
             Milestone: {stamp.kg} kg · passed{' '}
-            {stamp.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
+            {stamp.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}.
           </p>
         </div>
       )}

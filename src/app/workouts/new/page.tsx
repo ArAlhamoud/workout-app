@@ -95,8 +95,8 @@ export default async function NewWorkoutPage({
   const RESCUE_LOAD_PCT = 60;
 
   const initialName = isRescue
-    ? `Rescue 15m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-    : `Day ${validDay} ${validDur}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+    ? `Rescue 15m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`
+    : `Day ${validDay} ${validDur}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`;
 
   const initialExercises = (() => {
     const templateExercises = isRescue
