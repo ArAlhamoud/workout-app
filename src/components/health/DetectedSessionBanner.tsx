@@ -51,7 +51,7 @@ export default function DetectedSessionBanner() {
       try {
         const workouts = await queryWorkouts(windowStartISO(2));
         const candidates = workouts
-          .filter((w) => w.sourceBundleId !== OWN_BUNDLE_ID)
+          .filter((w) => !w.sourceBundleId?.startsWith(OWN_BUNDLE_ID))
           .map((w) => ({
             uuid: w.uuid,
             startISO: w.startISO,

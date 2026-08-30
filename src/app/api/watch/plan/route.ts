@@ -57,9 +57,11 @@ export async function GET(request: Request) {
   const template = getExercisesForDuration(day, dur as 30 | 45 | 60);
   const byName = new Map(exercises.map((e) => [e.name, e]));
   const ids = template.map((t) => byName.get(t.name)?.id).filter((v): v is string => !!v);
+  // Rule 2: pins are per-machine per-gym. Untagged history is B_Fit.
+  const gymRows = workoutRows.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === DEFAULT_GYM_ID);
   const [memory, learned] = [
     await getLastSessionForExercises(ids, DEFAULT_GYM_ID),
-    learnPinIncrements(workoutRows as never),
+    learnPinIncrements(gymRows as never),
   ];
 
   const payload = {
@@ -85,6 +87,7 @@ export async function GET(request: Request) {
         repsMin: t.repsMin,
         repsMax: t.repsMax,
         unit: t.unit,
+        restSec: parseInt(t.rest, 10) || 90,
         prefillKg: scaled,
         prefillReps: last?.reps ?? t.repsMin,
         pinKg: pin,
