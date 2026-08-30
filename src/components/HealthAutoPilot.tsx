@@ -235,6 +235,23 @@ async function runSyncs(): Promise<void> {
         ...sys.samples.map((s) => ({ type: 'bp_systolic', value: s.value, unit: 'mmHg', date: s.dateISO })),
         ...dia.samples.map((s) => ({ type: 'bp_diastolic', value: s.value, unit: 'mmHg', date: s.dateISO })),
       ];
+      // The cuff writes its pulse as a heartRate sample at the same instant.
+      // Narrow per-reading queries, not one window query: the Watch logs HR
+      // continuously and a 30-day pull would be tens of thousands of samples.
+      // Newest 40 readings bound the query count; the import route attaches
+      // the nearest sample within two minutes as the reading's pulse.
+      for (const s of sys.samples.slice(-40)) {
+        try {
+          const t = new Date(s.dateISO).getTime();
+          const hr = await queryQuantity('heartRate', {
+            startISO: new Date(t - 2 * 60_000).toISOString(),
+            endISO: new Date(t + 2 * 60_000).toISOString(),
+          });
+          rows.push(
+            ...hr.samples.map((h) => ({ type: 'heart_rate', value: h.value, unit: 'count/min', date: h.dateISO })),
+          );
+        } catch { /* pulse is a bonus; the reading still imports */ }
+      }
       // Same-origin server action, not the token-era route — the branch
       // was cut before Wave 5 removed /api/health/* and the sync token.
       await importHealth(rows);

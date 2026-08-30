@@ -83,8 +83,11 @@ async function enrichWorkouts(samples: ParsedSample[]): Promise<number> {
  * per monitor reading) into BpReading rows. Idempotent across the rolling
  * sync window: any existing reading within a minute of a pair's timestamp —
  * imported earlier, or logged by hand for the same measurement — wins, and
- * the pair is skipped. Imports are marked by `notes` so provenance stays
- * visible without a schema change.
+ * the pair is skipped (though a heart-rate sample can still fill its missing
+ * pulse). The monitor writes its pulse as a separate heartRate sample at the
+ * same instant; the nearest one within two minutes rides along as `pulse`.
+ * Imports are marked by `notes` so provenance stays visible without a schema
+ * change.
  */
 async function importBpReadings(samples: ParsedSample[]): Promise<number> {
   const pairs = pairBpSamples(
@@ -92,6 +95,17 @@ async function importBpReadings(samples: ParsedSample[]): Promise<number> {
     samples.filter((s) => s.type === 'bp_diastolic').map((s) => ({ dateISO: s.date.toISOString(), value: s.value })),
   );
   if (!pairs.length) return 0;
+
+  const PULSE_MS = 2 * 60_000;
+  const hr = samples.filter((s) => s.type === 'heart_rate');
+  const pulseNear = (t: number): number | null => {
+    let best: ParsedSample | null = null;
+    for (const s of hr) {
+      const d = Math.abs(s.date.getTime() - t);
+      if (d <= PULSE_MS && (!best || d < Math.abs(best.date.getTime() - t))) best = s;
+    }
+    return best && best.value > 20 && best.value < 250 ? Math.round(best.value) : null;
+  };
 
   const DEDUPE_MS = 60_000;
   const times = pairs.map((p) => p.at.getTime());
@@ -102,19 +116,29 @@ async function importBpReadings(samples: ParsedSample[]): Promise<number> {
         lte: new Date(Math.max(...times) + DEDUPE_MS),
       },
     },
-    select: { at: true },
+    select: { id: true, at: true, pulse: true },
   });
   const taken = existing.map((r) => r.at.getTime());
 
   let created = 0;
   for (const pair of pairs) {
     const t = pair.at.getTime();
+    const twin = existing.find((e) => Math.abs(e.at.getTime() - t) <= DEDUPE_MS);
+    if (twin) {
+      // Only fill nulls — never clobber a pulse someone logged.
+      const pulse = twin.pulse === null ? pulseNear(t) : null;
+      if (pulse !== null) {
+        await prisma.bpReading.update({ where: { id: twin.id }, data: { pulse } });
+      }
+      continue;
+    }
     if (taken.some((e) => Math.abs(e - t) <= DEDUPE_MS)) continue;
     await prisma.bpReading.create({
       data: {
         at: pair.at,
         systolic: pair.systolic,
         diastolic: pair.diastolic,
+        pulse: pulseNear(t),
         notes: 'Apple Health',
       },
     });
