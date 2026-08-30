@@ -327,66 +327,26 @@ export default async function TrainPage() {
       {/* The coach's voice — renders nothing until a note exists */}
       {process.env.ANTHROPIC_API_KEY ? <CoachCard /> : null}
 
-      {/* ── Hero: answer first — ring + tonight's plan ──── */}
-      <section className="card-lg relative overflow-hidden p-4">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 rounded-card-lg"
-          style={{
-            background:
-              'radial-gradient(220px 130px at 85% 0%, rgba(94,234,212,0.10), transparent 70%), radial-gradient(200px 140px at 0% 100%, rgba(139,92,246,0.10), transparent 70%)',
-          }}
-        />
-        <div className="relative flex items-center gap-4">
-          {/* Weekly activity ring */}
-          <div className="relative h-[72px] w-[72px] flex-none" role="img" aria-label={`${sessionsThisWeek} of 3 sessions this week`}>
-            <svg viewBox="0 0 112 112" fill="none" className="ring-svg h-full w-full" aria-hidden="true">
-              <defs>
-                <linearGradient id="weekRingGrad" x1="0" y1="0" x2="112" y2="112" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#5eead4" />
-                  <stop offset="0.6" stopColor="#22d3ee" />
-                  <stop offset="1" stopColor="#818cf8" />
-                </linearGradient>
-                <filter id="weekRingGlow" x="-40%" y="-40%" width="180%" height="180%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#2dd4bf" floodOpacity="0.8" />
-                </filter>
-              </defs>
-              <circle cx="56" cy="56" r={RING_R} stroke="rgba(255,255,255,0.09)" strokeWidth="10" />
-              {ringProgress > 0 && (
-                <circle
-                  cx="56"
-                  cy="56"
-                  r={RING_R}
-                  stroke="url(#weekRingGrad)"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(ringProgress * RING_C).toFixed(1)} ${RING_C.toFixed(1)}`}
-                  filter="url(#weekRingGlow)"
-                />
-              )}
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="font-round text-lg font-light leading-none tabular-nums text-app-tx1">
-                <b className="font-bold text-acc-teal">{sessionsThisWeek}</b>
-                <span className="text-sm text-app-tx3">/3</span>
-              </div>
-            </div>
+      {/* ── The week, as a strip — mock's metgrid, not a card of air ── */}
+      <section className="border-y border-app-border py-3">
+        <div className="grid grid-cols-3">
+          <div className="pr-3">
+            <p className="font-round text-[22px] font-black leading-none tabular-nums text-app-tx1">
+              {sessionsThisWeek}<span className="text-[14px] text-app-tx3">/3</span>
+            </p>
+            <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Sessions · wk</p>
           </div>
-
-          {/* Only fact here HomeVerdict does not already carry. */}
-          {sessionsThisWeek > 0 && (
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <p className="text-xs tabular-nums text-app-tx2">
-                <b className="font-semibold text-acc-teal">{kgCompact(weekVolume)} kg</b> this week
-              </p>
-            </div>
-          )}
-          {/* Week/phase moved to the masthead topline — say each thing once. */}
-          <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
-            <span className="min-w-0 text-[11px] text-app-tx2"><StepsChipLabel /></span>
+          <div className="border-l border-app-border px-3">
+            <p className="font-round text-[22px] font-black leading-none tabular-nums text-app-tx1">
+              {sessionsThisWeek > 0 ? kgCompact(weekVolume) : '—'}
+            </p>
+            <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">kg this wk</p>
+          </div>
+          <div className="border-l border-app-border pl-3">
+            <p className="font-round text-[13px] font-bold leading-tight text-app-tx1"><StepsChipLabel /></p>
+            <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Today</p>
           </div>
         </div>
-
       </section>
 
       {/* ── Return Protocol — exclusive ember, coach directive ── */}

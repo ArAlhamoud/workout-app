@@ -546,3 +546,13 @@ body.has-draft-banner main {
 [data-domain='volt'] .shadow-glow-teal,
 [data-domain='volt'] .shadow-glow-ember,
 [data-domain='volt'] .shadow-glow-gold { box-shadow: 3px 3px 0 rgba(205, 255, 0, 0.8); }
+
+/* The verdict on Volt is a directive, not a card — it fuses to the
+   masthead: no box, no border, no nebula glow, just the order. */
+[data-domain='volt'] .verdict-line {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 2px 0 0;
+}
+[data-domain='volt'] .verdict-line > div[aria-hidden='true'] { display: none; }
