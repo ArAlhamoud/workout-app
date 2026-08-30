@@ -101,5 +101,21 @@ with, and prefer pushing before a session rather than during one.
 
 ## Mac backlog (owner-approved, cloud session cannot build these)
 
+- **FIRST — Volt simulator pass (owner asked 2026-08-30).** The training
+  routes (`/train`, `/program`, `/stats`, `/workouts/*`, `/progress/*`,
+  `/exercises`) now wear the dark Volt skin (`[data-domain='volt']`,
+  see CLAUDE.md "Design system"). Web-side theme/contrast/overlap was
+  verified at iPhone viewport; the simulator must confirm the iOS
+  chrome the browser can't show (rule 3):
+  1. Status-bar text over the black ground on every Volt route — the
+     shell's status bar style was tuned for the light theme; if the
+     clock/battery go invisible on /train, the native side needs a
+     per-route or scroll-aware status-bar style.
+  2. Home-indicator area: bottom nav + draft pill on Volt screens with
+     a real safe-area inset.
+  3. The domain switch while navigating Home ↔ Train inside the shell
+     (no flash of the wrong ground; back-swipe too).
+  4. Volt date/time inputs on /workouts/new and /stats on-device (WKWebView
+     paints its own field internals — rule 3's original bug).
 - Home-screen widget: `day N · next dose · latest kg` without opening the app.
 - Apple Watch quick-log: water / protein / weight from the wrist.
