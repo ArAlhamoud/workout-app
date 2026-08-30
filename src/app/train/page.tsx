@@ -253,92 +253,65 @@ export default async function TrainPage() {
       {/* The coach's voice — renders nothing until a note exists */}
       {process.env.ANTHROPIC_API_KEY ? <CoachCard /> : null}
 
-      {/* ── Return Protocol — the ramp owns the top slot while it runs ── */}
+      {/* ── Return Protocol — one ember line while the ramp runs; the
+          slab and preview already carry the scaled targets, so the strip
+          states the regime once and keeps the rules a tap away. */}
       {status.mode === 'return' && (
-        <section className="volt-protocol volt-protocol--ember p-4">
-          <div className="relative">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-acc-ember">Return protocol</span>
-              <span className="ml-auto flex-none bg-acc-ember-deep px-2 py-1 font-mono text-[9px] font-extrabold uppercase tracking-[0.2em] text-black">
-                {status.returnWeek.phase}
-              </span>
-            </div>
-
-            <div className="mt-2.5 flex items-baseline gap-2">
-              <span className="font-round text-[28px] font-black uppercase leading-none tracking-tight text-acc-ember">Week {status.week}</span>
-              <span className="text-sm text-app-tx2">of 4</span>
-              <span className="ml-auto flex items-center gap-1.5" aria-hidden="true">
-                {[1, 2, 3, 4].map((i) => (
-                  <span
-                    key={i}
-                    className={`h-2.5 w-6 ${i <= status.week ? 'bg-acc-ember-deep' : 'shadow-[inset_0_0_0_1.5px_#5a5d55]'}`}
-                  />
-                ))}
-              </span>
-            </div>
-
-            <p className="mt-3 border-t border-ink/10 pt-3 text-[11px] font-semibold uppercase tracking-[0.13em]">
+        <details className="group">
+          <summary className="flex cursor-pointer select-none list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+            <span className="h-2 w-2 flex-none bg-acc-ember-deep" aria-hidden="true" />
+            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">
+              Return W{status.week} · {status.returnWeek.phase} · {status.returnWeek.loadPct}% · cap {RPE_LABELS[status.returnWeek.rpeCap]}
+            </span>
+            <span className="ml-auto flex items-center gap-1" aria-hidden="true">
+              {[1, 2, 3, 4].map((i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 w-4 ${i <= status.week ? 'bg-acc-ember-deep' : 'shadow-[inset_0_0_0_1px_#5a5d55]'}`}
+                />
+              ))}
+            </span>
+            <Chevron />
+          </summary>
+          <div className="volt-protocol volt-protocol--ember mt-2.5 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.13em]">
               <span className="glow-amber">We rebuild. We don&apos;t test.</span>
             </p>
+            <p className="mt-2.5 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
+              {status.daysOff} days off. Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
+              <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
+            </p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
 
-            <div className="mt-3 flex border-t border-ink/10 pt-3">
-              <div className="flex flex-1 flex-col gap-0.5">
-                <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.loadPct}%</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">load</span>
+            <div className="mt-3" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
+              <div className="flex items-baseline justify-between text-[10px] font-bold uppercase tracking-[0.16em]">
+                <span className="text-app-tx3">Effort ceiling</span>
+                <span className="glow-amber">{RPE_LABELS[status.returnWeek.rpeCap]}</span>
               </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
-                <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.sessions}</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">sessions</span>
-              </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
-                <b className="font-round text-[15px] font-semibold text-app-tx1">{RPE_LABELS[status.returnWeek.rpeCap]}</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">cap</span>
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                {RPE_LABELS.slice(1).map((label, i) => {
+                  const v = i + 1;
+                  const cap = status.returnWeek.rpeCap;
+                  const seg =
+                    v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-ink/[0.02] text-app-tx3 line-through opacity-60';
+                  return (
+                    <span
+                      key={label}
+                      className={`relative rounded-lg border py-2 text-center text-[9.5px] font-extrabold uppercase tracking-[0.13em] ${seg}`}
+                    >
+                      {label}
+                      {v === cap && (
+                        <span className={`absolute -top-2 right-1 rounded border bg-[#140f03] px-1 py-px text-[7px] font-extrabold tracking-[0.1em] no-underline ${RPE_CAP_FLAG[v]}`}>
+                          CAP
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             </div>
-
-            {/* Full directive + effort ladder — one tap away */}
-            <details className="group mt-3">
-              <summary className={`${SUMMARY_CHIP} border-acc-ember/30 bg-acc-ember/10 text-acc-ember hover:border-acc-ember/50 hover:text-acc-ember`}>
-                The rules
-                <Chevron />
-              </summary>
-
-              <p className="mt-3 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
-                {status.daysOff} days off. Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
-                <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
-              </p>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
-
-              <div className="mt-4" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
-                <div className="flex items-baseline justify-between text-[10px] font-bold uppercase tracking-[0.16em]">
-                  <span className="text-app-tx3">Effort ceiling</span>
-                  <span className="glow-amber">{RPE_LABELS[status.returnWeek.rpeCap]}</span>
-                </div>
-                <div className="mt-2 grid grid-cols-4 gap-1.5">
-                  {RPE_LABELS.slice(1).map((label, i) => {
-                    const v = i + 1;
-                    const cap = status.returnWeek.rpeCap;
-                    const seg =
-                      v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-ink/[0.02] text-app-tx3 line-through opacity-60';
-                    return (
-                      <span
-                        key={label}
-                        className={`relative rounded-lg border py-2 text-center text-[9.5px] font-extrabold uppercase tracking-[0.13em] ${seg}`}
-                      >
-                        {label}
-                        {v === cap && (
-                          <span className={`absolute -top-2 right-1 rounded border bg-[#140f03] px-1 py-px text-[7px] font-extrabold tracking-[0.1em] no-underline ${RPE_CAP_FLAG[v]}`}>
-                            CAP
-                          </span>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            </details>
           </div>
-        </section>
+        </details>
       )}
 
       {/* Fatigue signal — one mono line; the ramp supersedes it */}
