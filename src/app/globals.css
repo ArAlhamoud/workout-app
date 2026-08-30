@@ -524,3 +524,19 @@ body.has-draft-banner main {
 }
 /* Direction B has no rounded pills — chips go sharp on the black ground. */
 [data-domain='volt'] .chip { border-radius: 0; }
+
+/* ── VOLT LAW: zero softness ──────────────────────────────────
+   Direction B has no curves and no glow. Enforced as a blanket, not
+   per-spot patches (the owner caught three hybrid stragglers in a row):
+   every rounding utility — arbitrary values included — flattens, and
+   every soft glow shadow dies on the black ground. The hard offset
+   shadows (volt overrides above) are exempt by name order. Escape
+   hatch: .volt-keep-round for anything that must stay circular. */
+[data-domain='volt'] [class*='rounded'] { border-radius: 0; }
+[data-domain='volt'] .volt-keep-round { border-radius: 9999px; }
+[data-domain='volt'] [class*='shadow-[0_0_'] { box-shadow: none; }
+[data-domain='volt'] .shadow-glow-blue,
+[data-domain='volt'] .shadow-glow-violet,
+[data-domain='volt'] .shadow-glow-teal,
+[data-domain='volt'] .shadow-glow-ember,
+[data-domain='volt'] .shadow-glow-gold { box-shadow: 3px 3px 0 rgba(205, 255, 0, 0.8); }
