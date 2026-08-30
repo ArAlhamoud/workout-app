@@ -51,8 +51,8 @@
   --rpe-grind: #d6336c;
 
   /* Type — Archivo carries the Chroma voice (loaded in layout) */
-  --font-round: 'Archivo', -apple-system, 'Helvetica Neue', 'Segoe UI',
-    Roboto, sans-serif;
+  --font-round: var(--font-archivo, 'Archivo'), -apple-system,
+    'Helvetica Neue', 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ── Base styles ───────────────────────────────────────────── */

@@ -10,7 +10,12 @@ import HealthAutoPilot from '@/components/HealthAutoPilot';
 
 // Chroma's voice: Archivo, one variable family — 900 for display, 500-700
 // for body and labels.
-const archivo = Archivo({ subsets: ['latin'] });
+// `variable` matters: --font-round in globals.css names 'Archivo'
+// literally, but next/font registers the family under a private hashed
+// name — so display text silently fell back to system fonts everywhere
+// (on iOS the fallback + text-stroke + synthetic bold painted the volt
+// letters as two overlapping glyphs — owner's screenshot, Aug 31).
+const archivo = Archivo({ subsets: ['latin'], variable: '--font-archivo' });
 
 export const viewport: Viewport = {
   themeColor: '#f2f0ea',
@@ -43,7 +48,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${archivo.className} bg-app-bg text-app-tx1 min-h-screen`}>
+      <body className={`${archivo.className} ${archivo.variable} bg-app-bg text-app-tx1 min-h-screen`}>
         {/* Volt/Aurora domain switch before first paint — a hard load of a
             training route must never flash bone. Kept in sync with
             VOLT_ROUTES in DomainTheme.tsx. */}
