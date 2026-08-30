@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Archivo } from 'next/font/google';
 import './globals.css';
 import JourneyNav from '@/components/JourneyNav';
+import DomainTheme from '@/components/DomainTheme';
 import InstallPrompt from '@/components/InstallPrompt';
 import WorkoutDraftBanner from '@/components/WorkoutDraftBanner';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
@@ -41,8 +42,18 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={`${archivo.className} bg-app-bg text-app-tx1 min-h-screen`}>
+        {/* Volt/Aurora domain switch before first paint — a hard load of a
+            training route must never flash bone. Kept in sync with
+            VOLT_ROUTES in DomainTheme.tsx. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(/^\\/(train|program|stats|workouts|progress|exercises)(\\/|$)/.test(location.pathname))document.documentElement.dataset.domain='volt'}catch(e){}",
+          }}
+        />
+        <DomainTheme />
         {/* Chroma ground — flat bone, one fixed layer */}
         <div className="aurora-sky" aria-hidden="true" />
         <main className="mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-32 max-w-lg">

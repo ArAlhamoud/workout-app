@@ -20,6 +20,8 @@ export interface NavAction {
   href: string;
   label: string;
   kind: 'dose' | 'train' | 'talk';
+  /** For kind 'train': which day the CTA starts — it wears that day's color. */
+  day?: 'A' | 'B';
 }
 
 // The map: every room, grouped by world, each with a stroke icon and one
@@ -145,7 +147,10 @@ export default function JourneyNavClient({
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 print:hidden">
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-[#f2f0ea] via-[#f2f0ea]/70 to-transparent" />
+      {/* Ground fade under the bar — token-driven so Volt fades to black,
+          not to bone (the literal hex here was the one white ghost on the
+          dark training screens). */}
+      <div className="nav-scrim pointer-events-none absolute inset-x-0 bottom-0 h-24" />
 
       {/* The map — every room, grouped, glanceable. Tap outside to close. */}
       {roomsOpen && (
@@ -224,7 +229,8 @@ export default function JourneyNavClient({
             href={action.href}
             aria-label={action.label}
             className={`flex h-[54px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[28px] border-2 border-ink px-4 text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] ${
-              action.kind === 'train' ? 'bg-acc-violet-deep' : 'bg-acc-teal-deep'
+              // Day color is law: A violet, B teal — the train CTA wears ITS day.
+              action.kind === 'train' ? (action.day === 'B' ? 'bg-acc-teal-deep' : 'bg-acc-violet-deep') : 'bg-acc-teal-deep'
             }`}
           >
             <ActionIcon kind={action.kind} />

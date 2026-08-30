@@ -47,7 +47,7 @@ export default async function JourneyNav() {
       action = { href: '/health/injection', label: 'Dose day', kind: 'dose' };
     } else if (trainPlan.mode === 'train' && !trainedToday) {
       const day = queuedDay(trainPlan);
-      action = { href: `/workouts/new?day=${day}&dur=45`, label: `Train ${day}`, kind: 'train' };
+      action = { href: `/workouts/new?day=${day}&dur=45`, label: `Train ${day}`, kind: 'train', day };
     } else {
       action = { href: '/', label: 'Check in', kind: 'talk' };
     }

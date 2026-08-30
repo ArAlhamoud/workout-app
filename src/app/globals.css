@@ -88,8 +88,10 @@ body {
     background: var(--app-glass-solid);
     border-color: var(--app-ink);
   }
+  /* Sheets follow the domain ground (a literal #fff here made the
+     session-complete modal white-on-white under Volt). */
   .sheet-surface {
-    background: #ffffff;
+    background: var(--app-glass-solid);
   }
   .section-label {
     @apply text-[11px] font-black uppercase tracking-[0.14em] text-app-tx3;
@@ -195,4 +197,195 @@ body.has-draft-banner main {
 }
 @media (prefers-reduced-motion: reduce) {
   .heartbeat { animation: none; }
+}
+
+/* ── VOLT · the training domain skin ───────────────────────────
+   Direction B from the July design canvas ("Volt", the runner-up),
+   applied where it belongs: the gym. The switch is [data-domain='volt']
+   on <html>, set for /train, /program, /stats, /workouts/*,
+   /progress/* and /exercises by a
+   pre-paint script + DomainTheme; Home and every health route keep
+   Aurora/Chroma. This is a token swap, not a rebuild — same layouts,
+   same components, darker stage. Day A violet / Day B teal and the
+   RPE spectrum keep their meanings (brightened for OLED black). */
+[data-domain='volt'] {
+  --volt: #cdff00;
+  --volt-dim: #93b800;
+  --app-bg: #050505;
+  --app-bg-hi: #0b0c09;
+  --app-surface: #0b0c09;
+  --app-surface2: #101107;
+  --app-glass-solid: #050505;
+  --app-ink: #f2f2f0;
+  --app-border: #2b2d24;
+  --app-border-hi: #cdff00;
+  --app-tx1: #f2f2f0;
+  --app-tx2: #8e9188;
+  --app-tx3: #6b6e66; /* one step up from Direction B's #5a5d55 — clears 3:1 on black */
+  --app-primary: #cdff00;
+  --app-primary-muted: rgba(205, 255, 0, 0.12);
+  --acc-violet: #a78bfa;
+  --acc-teal: #2dd4bf;
+  --acc-cyan: #22d3ee;
+  --acc-ember: #fbbf24;
+  --acc-gold: #facc15;
+  --acc-indigo: #818cf8;
+  --rpe-easy: #4ade80;
+  --rpe-med: #fbbf24;
+  --rpe-hard: #fb923c;
+  --rpe-grind: #f472b6;
+}
+
+/* Ground: OLED black with the faint volt sky from Direction B. */
+[data-domain='volt'] .aurora-sky {
+  background: radial-gradient(ellipse 120% 60% at 50% -10%, rgba(205, 255, 0, 0.06), transparent 60%), #050505;
+}
+
+/* Chroma's ink lines and ink shadows are literal hexes (opacity
+   modifiers need them) — restated here for the dark ground.
+   NOTE: .card/.card-lg get box-shadow DIRECTLY — @apply inlines the
+   shadow-card declarations at build time, so overriding the .shadow-card
+   utility alone never reaches them (adversary finding, first ship). */
+[data-domain='volt'] .card,
+[data-domain='volt'] .card-lg { border-color: #2b2d24; }
+[data-domain='volt'] .card { box-shadow: 4px 4px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .card-lg { box-shadow: 5px 5px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .border-ink { border-color: #2b2d24; }
+[data-domain='volt'] .shadow-card { box-shadow: 4px 4px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .shadow-card-lg { box-shadow: 5px 5px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .shadow-nav { box-shadow: 0 -2px 0 #2b2d24; }
+[data-domain='volt'] .shadow-glow-blue,
+[data-domain='volt'] .shadow-glow-violet,
+[data-domain='volt'] .shadow-glow-teal,
+[data-domain='volt'] .shadow-glow-ember,
+[data-domain='volt'] .shadow-glow-gold { box-shadow: 3px 3px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .bg-ink { background-color: #16170f; }
+[data-domain='volt'] .bg-ink\/5 { background-color: rgba(242, 242, 240, 0.05); }
+[data-domain='volt'] .bg-ink\/10 { background-color: rgba(242, 242, 240, 0.08); }
+[data-domain='volt'] .bg-ink\/\[0\.03\] { background-color: rgba(242, 242, 240, 0.04); }
+[data-domain='volt'] .bg-ink\/\[0\.04\] { background-color: rgba(242, 242, 240, 0.05); }
+
+/* Brightened accents/RPE for OLED black — GENERATED from actual class
+   usage across src (scripts: see wave notes). The Chroma palette is
+   text-safe-dark-on-bone by design; every (text|border|bg|ring) acc/rpe
+   utility the code uses gets a bright counterpart here. -deep fills and
+   solid accent bgs stay saturated (they read fine on black). Regenerate
+   the list when adding new opacity steps rather than hand-patching. */
+[data-domain='volt'] .bg-acc-cyan\/10 { background-color: rgba(34, 211, 238, 0.1); }
+[data-domain='volt'] .bg-acc-cyan\/15 { background-color: rgba(34, 211, 238, 0.15); }
+[data-domain='volt'] .bg-acc-cyan\/20 { background-color: rgba(34, 211, 238, 0.16); }
+[data-domain='volt'] .bg-acc-cyan\/40 { background-color: rgba(34, 211, 238, 0.16); }
+[data-domain='volt'] .bg-acc-ember\/10 { background-color: rgba(251, 191, 36, 0.1); }
+[data-domain='volt'] .bg-acc-ember\/15 { background-color: rgba(251, 191, 36, 0.15); }
+[data-domain='volt'] .bg-acc-ember\/25 { background-color: rgba(251, 191, 36, 0.16); }
+[data-domain='volt'] .bg-acc-gold\/10 { background-color: rgba(250, 204, 21, 0.1); }
+[data-domain='volt'] .bg-acc-indigo\/15 { background-color: rgba(129, 140, 248, 0.15); }
+[data-domain='volt'] .bg-acc-indigo\/25 { background-color: rgba(129, 140, 248, 0.16); }
+[data-domain='volt'] .bg-acc-teal\/10 { background-color: rgba(45, 212, 191, 0.1); }
+[data-domain='volt'] .bg-acc-teal\/15 { background-color: rgba(45, 212, 191, 0.15); }
+[data-domain='volt'] .bg-acc-teal\/20 { background-color: rgba(45, 212, 191, 0.16); }
+[data-domain='volt'] .bg-acc-violet\/15 { background-color: rgba(167, 139, 250, 0.15); }
+[data-domain='volt'] .bg-rpe-easy\/10 { background-color: rgba(74, 222, 128, 0.1); }
+[data-domain='volt'] .bg-rpe-easy\/15 { background-color: rgba(74, 222, 128, 0.15); }
+[data-domain='volt'] .bg-rpe-easy\/20 { background-color: rgba(74, 222, 128, 0.16); }
+[data-domain='volt'] .bg-rpe-grind\/10 { background-color: rgba(244, 114, 182, 0.1); }
+[data-domain='volt'] .bg-rpe-grind\/15 { background-color: rgba(244, 114, 182, 0.15); }
+[data-domain='volt'] .bg-rpe-grind\/20 { background-color: rgba(244, 114, 182, 0.16); }
+[data-domain='volt'] .bg-rpe-hard\/10 { background-color: rgba(251, 146, 60, 0.1); }
+[data-domain='volt'] .bg-rpe-hard\/15 { background-color: rgba(251, 146, 60, 0.15); }
+[data-domain='volt'] .bg-rpe-hard\/20 { background-color: rgba(251, 146, 60, 0.16); }
+[data-domain='volt'] .bg-rpe-hard\/60 { background-color: rgba(251, 146, 60, 0.16); }
+[data-domain='volt'] .bg-rpe-hard\/70 { background-color: rgba(251, 146, 60, 0.16); }
+[data-domain='volt'] .bg-rpe-med\/10 { background-color: rgba(251, 191, 36, 0.1); }
+[data-domain='volt'] .bg-rpe-med\/15 { background-color: rgba(251, 191, 36, 0.15); }
+[data-domain='volt'] .bg-rpe-med\/20 { background-color: rgba(251, 191, 36, 0.16); }
+[data-domain='volt'] .bg-rpe-med\/70 { background-color: rgba(251, 191, 36, 0.16); }
+[data-domain='volt'] .border-acc-cyan\/25 { border-color: rgba(34, 211, 238, 0.25); }
+[data-domain='volt'] .border-acc-cyan\/30 { border-color: rgba(34, 211, 238, 0.3); }
+[data-domain='volt'] .border-acc-cyan\/40 { border-color: rgba(34, 211, 238, 0.4); }
+[data-domain='volt'] .border-acc-cyan\/60 { border-color: rgba(34, 211, 238, 0.6); }
+[data-domain='volt'] .border-acc-ember\/25 { border-color: rgba(251, 191, 36, 0.25); }
+[data-domain='volt'] .border-acc-ember\/30 { border-color: rgba(251, 191, 36, 0.3); }
+[data-domain='volt'] .border-acc-ember\/35 { border-color: rgba(251, 191, 36, 0.35); }
+[data-domain='volt'] .border-acc-ember\/40 { border-color: rgba(251, 191, 36, 0.4); }
+[data-domain='volt'] .border-acc-ember\/50 { border-color: rgba(251, 191, 36, 0.5); }
+[data-domain='volt'] .border-acc-ember\/60 { border-color: rgba(251, 191, 36, 0.6); }
+[data-domain='volt'] .border-acc-gold\/30 { border-color: rgba(250, 204, 21, 0.3); }
+[data-domain='volt'] .border-acc-gold\/40 { border-color: rgba(250, 204, 21, 0.4); }
+[data-domain='volt'] .border-acc-teal\/20 { border-color: rgba(45, 212, 191, 0.2); }
+[data-domain='volt'] .border-acc-teal\/30 { border-color: rgba(45, 212, 191, 0.3); }
+[data-domain='volt'] .border-acc-teal\/35 { border-color: rgba(45, 212, 191, 0.35); }
+[data-domain='volt'] .border-acc-teal\/40 { border-color: rgba(45, 212, 191, 0.4); }
+[data-domain='volt'] .border-acc-teal\/50 { border-color: rgba(45, 212, 191, 0.5); }
+[data-domain='volt'] .border-acc-teal\/60 { border-color: rgba(45, 212, 191, 0.6); }
+[data-domain='volt'] .border-acc-teal\/70 { border-color: rgba(45, 212, 191, 0.7); }
+[data-domain='volt'] .border-acc-violet\/30 { border-color: rgba(167, 139, 250, 0.3); }
+[data-domain='volt'] .border-acc-violet\/35 { border-color: rgba(167, 139, 250, 0.35); }
+[data-domain='volt'] .border-acc-violet\/40 { border-color: rgba(167, 139, 250, 0.4); }
+[data-domain='volt'] .border-acc-violet\/50 { border-color: rgba(167, 139, 250, 0.5); }
+[data-domain='volt'] .border-acc-violet\/60 { border-color: rgba(167, 139, 250, 0.6); }
+[data-domain='volt'] .border-acc-violet\/70 { border-color: rgba(167, 139, 250, 0.7); }
+[data-domain='volt'] .border-rpe-easy\/30 { border-color: rgba(74, 222, 128, 0.3); }
+[data-domain='volt'] .border-rpe-easy\/40 { border-color: rgba(74, 222, 128, 0.4); }
+[data-domain='volt'] .border-rpe-easy\/50 { border-color: rgba(74, 222, 128, 0.5); }
+[data-domain='volt'] .border-rpe-easy\/60 { border-color: rgba(74, 222, 128, 0.6); }
+[data-domain='volt'] .border-rpe-easy\/70 { border-color: rgba(74, 222, 128, 0.7); }
+[data-domain='volt'] .border-rpe-grind\/30 { border-color: rgba(244, 114, 182, 0.3); }
+[data-domain='volt'] .border-rpe-grind\/40 { border-color: rgba(244, 114, 182, 0.4); }
+[data-domain='volt'] .border-rpe-grind\/50 { border-color: rgba(244, 114, 182, 0.5); }
+[data-domain='volt'] .border-rpe-grind\/60 { border-color: rgba(244, 114, 182, 0.6); }
+[data-domain='volt'] .border-rpe-grind\/70 { border-color: rgba(244, 114, 182, 0.7); }
+[data-domain='volt'] .border-rpe-hard\/30 { border-color: rgba(251, 146, 60, 0.3); }
+[data-domain='volt'] .border-rpe-hard\/40 { border-color: rgba(251, 146, 60, 0.4); }
+[data-domain='volt'] .border-rpe-hard\/50 { border-color: rgba(251, 146, 60, 0.5); }
+[data-domain='volt'] .border-rpe-hard\/60 { border-color: rgba(251, 146, 60, 0.6); }
+[data-domain='volt'] .border-rpe-hard\/70 { border-color: rgba(251, 146, 60, 0.7); }
+[data-domain='volt'] .border-rpe-med\/30 { border-color: rgba(251, 191, 36, 0.3); }
+[data-domain='volt'] .border-rpe-med\/40 { border-color: rgba(251, 191, 36, 0.4); }
+[data-domain='volt'] .border-rpe-med\/50 { border-color: rgba(251, 191, 36, 0.5); }
+[data-domain='volt'] .border-rpe-med\/60 { border-color: rgba(251, 191, 36, 0.6); }
+[data-domain='volt'] .border-rpe-med\/70 { border-color: rgba(251, 191, 36, 0.7); }
+[data-domain='volt'] .text-acc-cyan { color: rgb(34 211 238); }
+[data-domain='volt'] .text-acc-cyan\/80 { color: rgba(34, 211, 238, 0.8); }
+[data-domain='volt'] .text-acc-ember { color: rgb(251 191 36); }
+[data-domain='volt'] .text-acc-ember\/70 { color: rgba(251, 191, 36, 0.7); }
+[data-domain='volt'] .text-acc-ember\/80 { color: rgba(251, 191, 36, 0.8); }
+[data-domain='volt'] .text-acc-ember\/85 { color: rgba(251, 191, 36, 0.85); }
+[data-domain='volt'] .text-acc-ember\/90 { color: rgba(251, 191, 36, 0.9); }
+[data-domain='volt'] .text-acc-gold { color: rgb(250 204 21); }
+[data-domain='volt'] .text-acc-indigo { color: rgb(129 140 248); }
+[data-domain='volt'] .text-acc-teal { color: rgb(45 212 191); }
+[data-domain='volt'] .text-acc-teal\/75 { color: rgba(45, 212, 191, 0.75); }
+[data-domain='volt'] .text-acc-teal\/80 { color: rgba(45, 212, 191, 0.8); }
+[data-domain='volt'] .text-acc-violet { color: rgb(167 139 250); }
+[data-domain='volt'] .text-acc-violet\/80 { color: rgba(167, 139, 250, 0.8); }
+[data-domain='volt'] .text-rpe-easy { color: rgb(74 222 128); }
+[data-domain='volt'] .text-rpe-grind { color: rgb(244 114 182); }
+[data-domain='volt'] .text-rpe-hard { color: rgb(251 146 60); }
+[data-domain='volt'] .text-rpe-med { color: rgb(251 191 36); }
+[data-domain='volt'] .shadow-\[2px_2px_0_\#0b0b0f\] { box-shadow: 2px 2px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .shadow-\[3px_3px_0_\#0b0b0f\] { box-shadow: 3px 3px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .shadow-\[4px_4px_0_\#0b0b0f\] { box-shadow: 4px 4px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .shadow-\[5px_5px_0_\#0b0b0f\] { box-shadow: 5px 5px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .active\:shadow-\[1px_1px_0_\#0b0b0f\]:active { box-shadow: 1px 1px 0 rgba(205, 255, 0, 0.8); }
+[data-domain='volt'] .border-indigo-400\/30 { border-color: rgba(129, 140, 248, 0.35); }
+
+/* The Volt voice: condensed-caps headers, mono kickers, volt CTA. */
+[data-domain='volt'] h1 { text-transform: uppercase; letter-spacing: 0.01em; }
+[data-domain='volt'] .section-label {
+  color: var(--volt-dim);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.2em;
+}
+[data-domain='volt'] .btn-primary {
+  background: var(--volt);
+  color: #050505;
+  border-color: #f2f2f0;
+  box-shadow: 4px 4px 0 rgba(242, 242, 240, 0.9);
+}
+[data-domain='volt'] .btn-primary:active { box-shadow: 2px 2px 0 rgba(242, 242, 240, 0.9); }
+
+/* Nav ground fade — follows the domain's ground color. */
+.nav-scrim {
+  background: linear-gradient(to top, var(--app-bg) 20%, transparent);
 }
