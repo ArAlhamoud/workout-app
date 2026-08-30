@@ -274,18 +274,6 @@ export default async function DoctorReportPage({
                 value={`${pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '−' : ''}${Math.abs(pace.kgPerWeek)} kg/week`}
               />
             )}
-            {bpSplit.before && (
-              <Row
-                label="BP before treatment"
-                value={`${bpSplit.before.systolic}/${bpSplit.before.diastolic} · ${bpSplit.before.n} readings`}
-              />
-            )}
-            {bpSplit.since && (
-              <Row
-                label="BP since"
-                value={`${bpSplit.since.systolic}/${bpSplit.since.diastolic} · ${bpSplit.since.n} readings`}
-              />
-            )}
             <div className="mt-1.5 space-y-1">
               {ledger.map((d) => (
                 <div key={d.n} className="text-sm tabular-nums">
@@ -360,6 +348,20 @@ export default async function DoctorReportPage({
                 ? `${bp.length} reading${bp.length === 1 ? '' : 's'} — too few for an average.`
                 : 'No readings in this range.'}
             </p>
+          )}
+          {/* The treatment split lives here, not under Mounjaro — BP facts
+              stay in the BP section (owner's call, 2026-08-30). */}
+          {bpSplit.before && (
+            <Row
+              label="Before treatment"
+              value={`${bpSplit.before.systolic}/${bpSplit.before.diastolic} · ${bpSplit.before.n} readings`}
+            />
+          )}
+          {bpSplit.since && (
+            <Row
+              label="Since treatment"
+              value={`${bpSplit.since.systolic}/${bpSplit.since.diastolic} · ${bpSplit.since.n} readings`}
+            />
           )}
         </Section>
 

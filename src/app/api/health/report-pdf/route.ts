@@ -183,8 +183,6 @@ export async function GET(request: Request) {
     section('Mounjaro (tirzepatide) - since dose 1');
     row('First dose', fmt(clock.anchor));
     row('Current dose', `${clock.lastDoseMg} mg weekly · treatment week ${clock.week}`);
-    if (bpSplit.before) row('BP before treatment', `${bpSplit.before.systolic}/${bpSplit.before.diastolic} (${bpSplit.before.n} readings)`);
-    if (bpSplit.since) row('BP since treatment', `${bpSplit.since.systolic}/${bpSplit.since.diastolic} (${bpSplit.since.n} readings)`);
     y -= 2;
     for (const d of ledger) {
       ensure(24);
@@ -227,6 +225,9 @@ export async function GET(request: Request) {
   section('Blood pressure');
   if (bpAvg) row(`Average (${bpAvg.n} readings)`, `${bpAvg.systolic}/${bpAvg.diastolic}`);
   else note(bp.length ? `${bp.length} reading(s) - too few for an average.` : 'No readings in this range.');
+  // The treatment split lives here, not under Mounjaro (owner's call).
+  if (bpSplit.before) row('Before treatment', `${bpSplit.before.systolic}/${bpSplit.before.diastolic} (${bpSplit.before.n} readings)`);
+  if (bpSplit.since) row('Since treatment', `${bpSplit.since.systolic}/${bpSplit.since.diastolic} (${bpSplit.since.n} readings)`);
 
   section('CPAP');
   if (cpap.length) {
