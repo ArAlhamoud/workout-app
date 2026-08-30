@@ -230,8 +230,14 @@ export default async function HomePage() {
         {/* today's one thing, as a stamp */}
         <Link
           href={injectionDue ? '/health/injection' : trainPlan.mode === 'train' && !trainedToday ? `/workouts/new?day=${trainDay}&dur=45` : '/journey'}
-          className={`rounded-card border-2 border-ink px-3.5 py-2.5 text-xs font-extrabold text-white shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] ${
-            injectionDue ? 'bg-acc-teal-deep' : trainPlan.mode === 'train' && !trainedToday ? 'bg-acc-violet-deep' : 'bg-ink'
+          className={`rounded-card border-2 border-ink px-3.5 py-2.5 text-xs font-extrabold shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] ${
+            /* Day color is law (A violet, B teal); ink text clears contrast
+               on the fills where white failed (device-tester). */
+            injectionDue
+              ? 'bg-acc-teal-deep text-ink'
+              : trainPlan.mode === 'train' && !trainedToday
+                ? `text-ink ${trainDay === 'B' ? 'bg-acc-teal-deep' : 'bg-acc-violet-deep'}`
+                : 'bg-ink text-white'
           }`}
         >
           {!clock ? 'First dose →' : injectionDue ? 'Dose today →' : trainPlan.mode === 'train' && !trainedToday ? `Train ${trainDay} →` : 'On track →'}
