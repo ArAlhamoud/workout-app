@@ -1,23 +1,19 @@
-// Server half of the journey navigation: reads the treatment state and
-// today's priorities, hands the client bar its stations and ONE action.
-// Mirrors the Home page's priority order exactly — the bar and the page
-// must never disagree about what today asks.
+// Server half of the navigation: reads the treatment state and today's
+// priorities, hands the client bar its ONE action. Mirrors the Home
+// page's priority order exactly — the bar and the page must never
+// disagree about what today asks. (The journey road itself now lives on
+// Home, under the figure's feet.)
 
 import prisma from '@/lib/prisma';
 import { getDynamicPlan, queuedDay } from '@/lib/program';
 import {
-  journeyStations,
   treatmentClock,
   DEFAULT_DOSE_PLAN,
   type DosePlanStep,
 } from '@/lib/health-insights';
-import JourneyNavClient, { type NavAction, type NavStation } from './JourneyNavClient';
+import JourneyNavClient, { type NavAction } from './JourneyNavClient';
 
 export default async function JourneyNav() {
-  let stations: NavStation[] = DEFAULT_DOSE_PLAN.map((s) => ({
-    state: 'future' as const,
-    kind: s.mg === null ? ('checkpoint' as const) : ('dose' as const),
-  }));
   let action: NavAction = { href: '/health/injection', label: 'First dose', kind: 'dose' };
 
   try {
@@ -33,8 +29,6 @@ export default async function JourneyNav() {
       prisma.injection.count(),
     ]);
     const plan = ((profile?.dosePlan as DosePlanStep[] | null) ?? DEFAULT_DOSE_PLAN);
-    const full = journeyStations(plan, injections);
-    stations = full.map((s) => ({ state: s.state, kind: s.kind }));
 
     const clock = treatmentClock(
       injections, plan, new Date(),
@@ -61,5 +55,5 @@ export default async function JourneyNav() {
     /* pre-schema or db-down: the default first-dose bar stands */
   }
 
-  return <JourneyNavClient stations={stations} action={action} />;
+  return <JourneyNavClient action={action} />;
 }

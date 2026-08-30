@@ -41,7 +41,7 @@ import {
   REST_EXERCISE_KEY,
 } from '@/lib/native-feedback';
 import { armGapGuard, notifySickRest, notifyComeback, refreshLadderCopy } from '@/lib/gap-guard';
-import { scheduleLocalNotifications } from '@/lib/native-feedback';
+import { cancelLocalNotifications, scheduleLocalNotifications } from '@/lib/native-feedback';
 import { flushOutbox, retryDead } from '@/lib/outbox';
 import { importHealth, getWeeklyDigest, getWorkoutsToPush, markWorkoutsPushed } from '@/app/health-actions';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
@@ -310,6 +310,10 @@ async function runSyncs(): Promise<void> {
   // pieces schedules nothing.
   try {
     const digest = await getWeeklyDigest();
+    if (!digest) {
+      // A week that went quiet must not fire last month's recap.
+      cancelLocalNotifications([WEEKLY_DIGEST_ID]);
+    }
     if (digest) {
       const at = new Date();
       at.setHours(20, 0, 0, 0);

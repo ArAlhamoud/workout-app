@@ -223,6 +223,7 @@ export default function WorkoutForm({
   healthWorkoutUuid,
   initialDate,
   detectedDurationMin,
+  detectedStartISO,
 }: {
   exercises: Exercise[];
   initialName?: string;
@@ -249,6 +250,10 @@ export default function WorkoutForm({
   /** The detected session's real length; overrides the form-open timer,
    *  which measures typing time, not training time, on a retro log. */
   detectedDurationMin?: number;
+  /** The detected session's real start instant — the HR capture window
+   *  must cover the TRAINING, not the minutes spent typing it in later
+   *  (device-tester M2). */
+  detectedStartISO?: string;
 }) {
   const router = useRouter();
   const today = localTodayStr();
@@ -385,7 +390,14 @@ export default function WorkoutForm({
   // Restore draft on mount. localStorage is the fast path; the durable vault
   // (native UserDefaults) is the copy that survives WKWebView storage
   // eviction — checked only when localStorage came up empty.
+  //
+  // NEVER when confirming a detected session (adversary C2): restoring an
+  // abandoned Tuesday draft over a Thursday Watch session would save
+  // Tuesday's junk sets under Thursday's HKWorkout uuid — and that uuid
+  // then suppresses the real session from the detect list forever. The
+  // draft stays in the vault for the next plain open.
   useEffect(() => {
+    if (healthWorkoutUuid) return;
     const applyDraft = (draft: {
       name?: string; date?: string; notes?: string; gym?: string;
       blocks?: unknown; startTime?: number; savedAt?: number;
@@ -968,7 +980,7 @@ export default function WorkoutForm({
     payload.duration = detectedDurationMin
       ? detectedDurationMin * 60
       : Math.floor((Date.now() - sessionStart) / 1000);
-    const startISO = new Date(sessionStart).toISOString();
+    const startISO = detectedStartISO ?? new Date(sessionStart).toISOString();
     try {
       const { id, deduped } = await createWorkout(payload);
       if (deduped) {
@@ -991,7 +1003,13 @@ export default function WorkoutForm({
       void durableRemove(DRAFT_KEY);
       // Fire-and-forget: pull the session's real HR curve off the Watch data
       // and re-arm Gap Guard from today. Neither may delay navigation.
-      captureWorkoutHr(id, startISO, new Date().toISOString());
+      captureWorkoutHr(
+        id,
+        startISO,
+        detectedStartISO && detectedDurationMin
+          ? new Date(new Date(detectedStartISO).getTime() + detectedDurationMin * 60_000).toISOString()
+          : new Date().toISOString(),
+      );
       void rearmGapGuardFromServer(new Date().toISOString());
       clearComeback();
       hapticSuccess();

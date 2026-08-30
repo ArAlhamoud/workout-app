@@ -54,6 +54,14 @@ export function bodyPathAt(t: number): string {
   });
 }
 
+/** The same narrowing applied to a single x (320-space) — overlays that
+ *  anchor on limbs (site markers, the BP cuff) must move WITH the body or
+ *  they float inempty space as he slims (device-tester H1). */
+export function trimX(x: number, t: number): number {
+  const k = Math.min(1, Math.max(0, t)) * MAX_TRIM;
+  return CENTER_X + (x - CENTER_X) * (1 - k);
+}
+
 /**
  * Progress toward the goal from logged weights: 0 at the start weight,
  * 1 at goal. Null when there is no weigh-in yet.

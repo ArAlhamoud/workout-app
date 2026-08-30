@@ -110,7 +110,7 @@ export default async function BpPage() {
             {story.map((m) => (
               <div key={m.month} className="flex items-baseline justify-between">
                 <span className="text-sm font-semibold text-app-tx2">
-                  {new Date(`${m.month}-01T12:00:00`).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}
+                  {new Date(`${m.month}-01T12:00:00`).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </span>
                 <span className="font-round text-base font-extrabold tabular-nums text-app-tx1">
                   {m.systolic}/{m.diastolic}
@@ -120,7 +120,7 @@ export default async function BpPage() {
             ))}
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-app-tx3">
-            Observed together in your logs — the association your cardiologist will want to see.
+            Observed together in your logs.
           </p>
         </div>
       )}

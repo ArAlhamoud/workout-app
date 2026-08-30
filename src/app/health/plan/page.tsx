@@ -36,6 +36,11 @@ export default async function HealthPlanPage() {
           doseMg: i.doseMg,
           site: i.site,
         }))}
+        episodes={data.afEpisodes.slice(0, 10).map((e) => ({
+          id: e.id,
+          at: e.startedAt.toISOString(),
+          durationMin: e.durationMin,
+        }))}
         labs={data.labs.slice(0, 20).map((l) => ({
           id: l.id,
           date: l.date.toISOString(),

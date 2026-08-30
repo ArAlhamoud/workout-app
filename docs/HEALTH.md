@@ -50,6 +50,26 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   deployed with the BP types (Mac: `npm run ios:deploy`, then re-grant
   Health access; reinstall if iOS shows no new permission sheet).
 
+## How data gets in (the streamlined contract, Aug 29)
+
+- Weight: smart scale → Apple Health → silent import. Automatic.
+- BP: home monitor → Apple Health → paired import. Automatic after the
+  native re-grant.
+- Workouts: Watch detect → one-tap confirm (full Watch app in flight).
+- AFib: Watch flags → tap-to-prefill chips (post re-grant); backdatable
+  manual logging on the heart sheet; wrong-day undo on /health/plan.
+- CPAP: the weekly prisma report PDF → POST /api/health/cpap (parsed by
+  the cloud session; keyed by the morning a night ends, PATCH-upserts,
+  {remove:true} rows correct). The nightly check-in question is GONE —
+  device truth beats a morning guess. Breath label shows 'report due'
+  past the cadence; the Sunday digest nudges.
+- Macros: meal-app screenshot → POST /api/health/fuel (same contract).
+  THE SCREEN IS A BASELINE, NOT THE DAY: the subscription delivers
+  breakfast+lunch+snack only — dinner (his own) stacks on top via
+  addNutrition / {add:true} rows. Future delivery days may be pre-logged
+  as planned baseline; re-posting corrects.
+- Daily check-in: body → heart → extras. ~5 seconds.
+
 ## The one static safety line
 
 Two or more severity-3 logs of vomiting / abdominal pain / dizziness
@@ -58,11 +78,11 @@ app never judges urgency — it only refuses to stay silent. Do not add
 more triggers without the clinical-safety review lens; alarm fatigue is
 the failure mode on the other side.
 
-## Fuel (daily macros — Aug 27, the calorie kill-list reversed)
+## Diet (daily macros — Aug 27, the calorie kill-list reversed; renamed from Fuel Aug 29)
 
 The owner joined a macro-printed meal subscription, which made the four
 numbers free to copy — he asked for the tracker (“i plan to have tracker
-for daily micros”). /health/fuel: one day-total entry (kcal/P/C/F,
+for daily micros”). /health/diet: one day-total entry (kcal/P/C/F,
 PATCH-upserted onto NutritionLog’s new nullable columns), targets in
 profile.targets (kcal/fuelProteinG/carbsG/fatG; suggested defaults
 2200/130/230/85 derived transparently in health-insights.ts —
@@ -73,8 +93,13 @@ as the number to defend.
 ## Deliberately not built
 
 ECG interpretation (validated-integration
-territory), AFib auto-import (still needs its own read type when that
-day comes), medication adjustment suggestions of any kind. BP import is
+territory), medication adjustment suggestions of any kind. AFib
+auto-LOGGING stays not built by design — but the bridge now reads BOTH
+Apple AF signals (Aug 2026): irregularHeartRhythmEvent (spot-check
+notifications) surfaces as tap-to-prefill chips in the heart sheet, and
+atrialFibrillationBurden (AFib History's weekly %) is readable for a
+future burden card. The Watch proposes; the owner confirms; nothing
+auto-logs an episode. BP import is
 now BUILT (see above — Aug 2026). CPAP auto-import is IMPOSSIBLE, not
 skipped: the Löwenstein prisma APP exports nothing to Apple Health (its
 data goes only to prisma CLOUD for clinicians); mask hours + AHI stay a

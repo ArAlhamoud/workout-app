@@ -133,6 +133,16 @@ export async function createWorkout(data: {
     });
     if (existing) return { id: existing.id, deduped: true };
   }
+  // Same guard for the HKWorkout identity: without it a re-save under a
+  // fresh clientSaveId hits the unique index, throws, and the outbox
+  // replays a save that can never land (device-tester M1).
+  if (data.healthWorkoutUuid) {
+    const existing = await prisma.workout.findFirst({
+      where: { healthWorkoutUuid: data.healthWorkoutUuid },
+      select: { id: true },
+    });
+    if (existing) return { id: existing.id, deduped: true };
+  }
   const workout = await prisma.workout.create({
     data: {
       name: data.name,

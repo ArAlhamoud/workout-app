@@ -8,7 +8,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { logNutrition, updateFuelTargets } from '@/app/health-actions';
+import { addNutrition, logNutrition, updateFuelTargets } from '@/app/health-actions';
 import { hapticSuccess } from '@/lib/native-feedback';
 import { FUEL_DEFAULTS, type FuelTargets } from '@/lib/health-insights';
 
@@ -34,6 +34,9 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
   const [tFat, setTFat] = useState(String(targets.fatG));
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  // 'set' overwrites the day (the subscription screenshot's job); 'add'
+  // stacks a meal on top (dinner, his own side of the day).
+  const [mode, setMode] = useState<'set' | 'add'>('add');
 
   const run = async (fn: () => Promise<unknown>, done: string) => {
     if (busy) return;
@@ -58,9 +61,26 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
       {/* Log today */}
       <div className="card-lg space-y-2.5 p-4">
         <p className="section-label">Log today</p>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            onClick={() => setMode('add')}
+            className={`min-h-[40px] flex-1 rounded-full border-2 text-xs font-bold ${mode === 'add' ? 'border-ink bg-ink text-white' : 'border-ink/20 bg-app-surface text-app-tx2'}`}
+          >
+            Add a meal
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('set')}
+            className={`min-h-[40px] flex-1 rounded-full border-2 text-xs font-bold ${mode === 'set' ? 'border-ink bg-ink text-white' : 'border-ink/20 bg-app-surface text-app-tx2'}`}
+          >
+            Set day totals
+          </button>
+        </div>
         <p className="text-xs font-semibold text-app-tx2">
-          The four numbers from the meal app — or what you actually ate. Any subset saves;
-          re-saving corrects.
+          {mode === 'add'
+            ? 'Stacks on top of today — dinner over the delivered meals.'
+            : 'Overwrites today; re-saving corrects.'}
         </p>
         <div className="grid grid-cols-4 gap-1.5">
           <input className={inputCls} inputMode="numeric" placeholder="kcal" value={kcal} onChange={(e) => setKcal(e.target.value)} />
@@ -75,18 +95,18 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
           onClick={() =>
             run(
               () =>
-                logNutrition({
+                (mode === 'add' ? addNutrition : logNutrition)({
                   day: todayKey(),
                   kcal: kcal ? Number(kcal) : undefined,
                   proteinG: protein ? Number(protein) : undefined,
                   carbsG: carbs ? Number(carbs) : undefined,
                   fatG: fat ? Number(fat) : undefined,
                 }),
-              'Day saved',
+              mode === 'add' ? 'Added' : 'Day saved',
             ).then(() => { setKcal(''); setProtein(''); setCarbs(''); setFat(''); })
           }
         >
-          Save today
+          {mode === 'add' ? 'Add to today' : 'Save today'}
         </button>
         {msg && <p className="text-xs font-bold text-acc-teal">{msg}</p>}
       </div>
@@ -124,7 +144,7 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
           </button>
           <button
             type="button"
-            className="w-full py-2 text-center text-xs font-bold text-app-tx3"
+            className="min-h-[44px] w-full text-center text-xs font-bold text-app-tx3"
             onClick={() => {
               setTKcal(String(FUEL_DEFAULTS.kcal));
               setTProtein(String(FUEL_DEFAULTS.proteinG));
@@ -135,9 +155,8 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
             use the suggested numbers ({FUEL_DEFAULTS.kcal} · {FUEL_DEFAULTS.proteinG}P / {FUEL_DEFAULTS.carbsG}C / {FUEL_DEFAULTS.fatG}F)
           </button>
           <p className="text-[11px] leading-relaxed text-app-tx3">
-            Suggested from your own numbers: protein 130 g is ~1.5 g per kg of adjusted body
-            weight — the muscle floor that matters most while appetite is suppressed; 2200 kcal
-            is your estimated maintenance (~2900) minus a steady deficit; fat 85 g is the
+            Suggested from your own numbers: protein ≈1.5 g/kg adjusted weight (the muscle
+            floor on a GLP-1 appetite); kcal is maintenance minus a steady deficit; fat is the
             hormone floor; carbs fill the rest. Starting points — a dietitian outranks this
             arithmetic.
           </p>

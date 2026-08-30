@@ -209,6 +209,11 @@ export async function logAfEpisode(data: {
   revalidateHealth();
 }
 
+export async function deleteAfEpisode(id: string) {
+  await prisma.afEpisode.delete({ where: { id } });
+  revalidateHealth();
+}
+
 // ── Blood pressure ───────────────────────────────────────────
 
 export async function logBp(data: {
@@ -349,6 +354,42 @@ export async function logNutrition(data: {
   revalidateHealth();
 }
 
+/**
+ * Add a meal ON TOP of a day's existing numbers — the subscription screen
+ * logs breakfast+lunch+snack as the baseline, and dinner (his own) stacks
+ * onto it. Read-then-upsert (single user, races negligible); totals stay
+ * inside the same bounds as logNutrition.
+ */
+export async function addNutrition(data: {
+  day: string;
+  kcal?: number;
+  proteinG?: number;
+  carbsG?: number;
+  fatG?: number;
+}) {
+  const day = new Date(`${data.day}T00:00:00.000Z`);
+  if (Number.isNaN(day.getTime())) throw new Error('Bad day');
+  const add = (v: number | undefined, max: number) =>
+    v != null && Number.isFinite(v) && v > 0 && v <= max ? Math.round(v) : 0;
+  const inc = {
+    kcal: add(data.kcal, 8000),
+    proteinG: add(data.proteinG, 400),
+    carbsG: add(data.carbsG, 900),
+    fatG: add(data.fatG, 400),
+  };
+  if (!inc.kcal && !inc.proteinG && !inc.carbsG && !inc.fatG) return;
+  const existing = await prisma.nutritionLog.findUnique({ where: { day } });
+  const cap = (v: number, max: number) => Math.min(v, max);
+  const patch = {
+    kcal: cap((existing?.kcal ?? 0) + inc.kcal, 8000),
+    proteinG: cap((existing?.proteinG ?? 0) + inc.proteinG, 400),
+    carbsG: cap((existing?.carbsG ?? 0) + inc.carbsG, 900),
+    fatG: cap((existing?.fatG ?? 0) + inc.fatG, 400),
+  };
+  await prisma.nutritionLog.upsert({ where: { day }, update: patch, create: { day, ...patch } as never });
+  revalidateHealth();
+}
+
 /** Merge fuel targets into profile.targets without clobbering the other
  *  keys that live there (rotation, waterMl, proteinG for the check-in). */
 export async function updateFuelTargets(next: {
@@ -362,14 +403,18 @@ export async function updateFuelTargets(next: {
     select: { targets: true },
   });
   const current = (profile?.targets as Record<string, unknown> | null) ?? {};
-  const bounded = (v: number, lo: number, hi: number) =>
-    Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : null;
+  // Out-of-range means LEAVE UNCHANGED, never clamp: a cleared input
+  // arrives as 0 and used to save as the range floor while the UI said
+  // "Targets saved" (adversary S2). Same reject-don't-clamp rule as the
+  // read side (fuelTargets).
+  const valid = (v: number, lo: number, hi: number) =>
+    Number.isFinite(v) && v >= lo && v <= hi ? Math.round(v) : null;
   const merged = {
     ...current,
-    ...(bounded(next.kcal, 800, 6000) != null ? { kcal: bounded(next.kcal, 800, 6000) } : {}),
-    ...(bounded(next.fuelProteinG, 30, 400) != null ? { fuelProteinG: bounded(next.fuelProteinG, 30, 400) } : {}),
-    ...(bounded(next.carbsG, 0, 800) != null ? { carbsG: bounded(next.carbsG, 0, 800) } : {}),
-    ...(bounded(next.fatG, 20, 400) != null ? { fatG: bounded(next.fatG, 20, 400) } : {}),
+    ...(valid(next.kcal, 800, 6000) != null ? { kcal: valid(next.kcal, 800, 6000) } : {}),
+    ...(valid(next.fuelProteinG, 30, 400) != null ? { fuelProteinG: valid(next.fuelProteinG, 30, 400) } : {}),
+    ...(valid(next.carbsG, 0, 800) != null ? { carbsG: valid(next.carbsG, 0, 800) } : {}),
+    ...(valid(next.fatG, 20, 400) != null ? { fatG: valid(next.fatG, 20, 400) } : {}),
   };
   await prisma.healthProfile.update({ where: { id: PROFILE_ID }, data: { targets: merged } });
   revalidateHealth();
@@ -396,7 +441,7 @@ export async function getWeeklyDigest(): Promise<string | null> {
 
   const parts: string[] = [];
   const pace = weightPace(bodyStats);
-  if (pace) parts.push(`${pace.kgPerWeek > 0 ? '+' : ''}${pace.kgPerWeek} kg`);
+  if (pace) parts.push(`${pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '\u2212' : ''}${Math.abs(pace.kgPerWeek)} kg`);
   if (sessions > 0) parts.push(`${sessions} session${sessions === 1 ? '' : 's'}`);
   const targets = fuelTargets((profile?.targets as Record<string, unknown> | null) ?? null);
   const week = fuelWeek(nutrition, targets);
@@ -405,8 +450,14 @@ export async function getWeeklyDigest(): Promise<string | null> {
   if (bp7) parts.push(`BP ${bp7.systolic}/${bp7.diastolic}`);
   const maskNights = cpap.filter((n) => (n.usageHours ?? 0) >= 4).length;
   if (maskNights > 0) parts.push(`${maskNights} night${maskNights === 1 ? '' : 's'} on the mask`);
+  // CPAP truth arrives as a weekly PDF drop — when the newest night is
+  // older than the cadence, the recap carries the nudge.
+  const newestNight = await prisma.cpapNight.findFirst({ orderBy: { night: 'desc' }, select: { night: true } });
+  if (newestNight && Date.now() - newestNight.night.getTime() > 6 * 86_400_000) {
+    parts.push('CPAP report due');
+  }
 
-  return parts.length >= 2 ? `This week: ${parts.join(' \u00b7 ')}.` : null;
+  return parts.length >= 2 ? `${parts.join(' \u00b7 ')}.` : null;
 }
 
 // ── Reads for the pages ──────────────────────────────────────

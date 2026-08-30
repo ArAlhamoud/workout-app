@@ -1,19 +1,22 @@
 'use client';
 
-// The daily check-in — a conversation, not a form. The app asks three
-// questions (night → body → heart), one screen each, big targets, and
+// The daily check-in — a conversation, not a form. The app asks two
+// questions (body → heart), one screen each, big targets, and
 // writes through the same bounded actions the old quick-log used. Fifteen
 // seconds on a good day; a bad day branches into one follow-up, never a
 // table. Data-domain buttons (BP! GI! CPAP!) are tracker thinking — a
 // companion asks "how are you?" (the owner's re-orientation, Aug 25).
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { logCpapNight, logSymptoms, logAfEpisode, logBp, logNutrition } from '@/app/health-actions';
+import { logSymptoms, logAfEpisode, logBp, logNutrition } from '@/app/health-actions';
 import { hapticSuccess } from '@/lib/native-feedback';
-import { lastNightSleepHours } from '@/lib/health-metrics';
 
-type Step = 'night' | 'night-hours' | 'body' | 'body-which' | 'heart' | 'heart-episode' | 'extras' | 'done';
+// The night questions are gone: the prisma report PDF owns CPAP truth
+// (device-measured, weekly, PATCH-overwrites) — a morning guess added
+// taps without adding data. The breath sheet on the body remains as the
+// manual override.
+type Step = 'body' | 'body-which' | 'heart' | 'heart-episode' | 'extras' | 'done';
 
 const GI_PICK = [
   ['nausea', 'Nausea'],
@@ -29,12 +32,6 @@ const GI_PICK = [
   ['fatigue', 'Fatigue'],
 ] as const;
 
-function nightKey(): string {
-  const d = new Date();
-  if (d.getHours() < 6) d.setDate(d.getDate() - 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
 const big =
   'w-full min-h-[52px] rounded-card border-2 border-ink bg-app-surface text-sm font-extrabold text-app-tx1 shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f]';
 const bigTeal =
@@ -42,12 +39,10 @@ const bigTeal =
 const inputCls =
   'w-full rounded-card border-2 border-ink bg-app-surface px-3 py-3 text-base text-app-tx1 tabular-nums placeholder-app-tx3 focus:outline-none';
 
-export default function CheckIn({ cpapLoggedToday }: { cpapLoggedToday: boolean }) {
+export default function CheckIn() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<Step>(cpapLoggedToday ? 'body' : 'night');
-  const [hours, setHours] = useState('');
-  const [ahi, setAhi] = useState('');
+  const [step, setStep] = useState<Step>('body');
   const [whichKind, setWhichKind] = useState<string | null>(null);
   const [severity, setSeverity] = useState(2);
   const [afMin, setAfMin] = useState('');
@@ -56,19 +51,6 @@ export default function CheckIn({ cpapLoggedToday }: { cpapLoggedToday: boolean 
   const [protein, setProtein] = useState('');
   const [water, setWater] = useState('');
   const [busy, setBusy] = useState(false);
-  // The prisma APP keeps CPAP data to itself (no Health export), so mask
-  // hours stay a manual answer — but the Watch's sleep count anchors it.
-  // Native-only; null on the web and the hint simply doesn't render.
-  const [watchSleep, setWatchSleep] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!open || cpapLoggedToday) return;
-    let alive = true;
-    lastNightSleepHours()
-      .then((h) => { if (alive) setWatchSleep(h); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [open, cpapLoggedToday]);
 
   const go = (s: Step) => setStep(s);
   const finish = () => {
@@ -100,54 +82,6 @@ export default function CheckIn({ cpapLoggedToday }: { cpapLoggedToday: boolean 
 
   return (
     <div className="card-lg space-y-3 p-4">
-      {step === 'night' && (
-        <>
-          <p className="text-base font-extrabold text-app-tx1">Did the mask stay on last night?</p>
-          <div className="grid grid-cols-2 gap-2">
-            <button type="button" className={big} onClick={() => go('night-hours')}>Yes</button>
-            <button
-              type="button"
-              className={big}
-              disabled={busy}
-              onClick={() => act(() => logCpapNight({ night: nightKey(), usageHours: 0 }), 'body')}
-            >
-              No / barely
-            </button>
-          </div>
-          <button type="button" className="text-xs font-semibold text-app-tx3" onClick={() => go('body')}>
-            skip
-          </button>
-        </>
-      )}
-
-      {step === 'night-hours' && (
-        <>
-          <p className="text-base font-extrabold text-app-tx1">Roughly how long, and the AHI if the app shows it?</p>
-          {watchSleep !== null && (
-            <p className="text-xs font-semibold text-app-tx2">
-              Your Watch counted {watchSleep} h asleep — mask time is usually a little less.
-            </p>
-          )}
-          <div className="grid grid-cols-2 gap-2">
-            <input className={inputCls} inputMode="decimal" placeholder="Hours" value={hours} onChange={(e) => setHours(e.target.value)} autoFocus />
-            <input className={inputCls} inputMode="decimal" placeholder="AHI (optional)" value={ahi} onChange={(e) => setAhi(e.target.value)} />
-          </div>
-          <button
-            type="button"
-            className={bigTeal}
-            disabled={busy || !hours}
-            onClick={() =>
-              act(
-                () => logCpapNight({ night: nightKey(), usageHours: Number(hours), ahi: ahi ? Number(ahi) : undefined }),
-                'body',
-              )
-            }
-          >
-            Noted
-          </button>
-        </>
-      )}
-
       {step === 'body' && (
         <>
           <p className="text-base font-extrabold text-app-tx1">How does the body feel?</p>

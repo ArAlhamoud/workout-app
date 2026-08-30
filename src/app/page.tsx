@@ -5,6 +5,7 @@ import { getWorkouts } from './actions';
 import { getDynamicPlan, isTrainingSession, queuedDay } from '@/lib/program';
 import {
   journeyDay,
+  journeyStations,
   journeyStory,
   ownPattern,
   afStats,
@@ -101,16 +102,53 @@ export default async function HomePage() {
   const stamp = recentMilestoneCross(milestoneKgs, data.bodyStats);
   const heartRecord = afRecord(data.afEpisodes.map((e) => ({ startedAt: e.startedAt })));
 
+  // The road under his feet: stations mapped to ground dots, spoken in words.
+  const stations = journeyStations(plan, data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })));
+  const roadDots = stations.map((st): 'done' | 'here' | 'future' | 'gate' =>
+    st.state === 'done' ? 'done' : st.state === 'next' ? 'here' : st.kind === 'checkpoint' ? 'gate' : 'future',
+  );
+  const nextDoseNumber = data.injectionCount + 1;
+  const roadCaption = !clock
+    ? 'First dose · today'
+    : clock.planExhausted
+      ? 'Plan complete — doctor review'
+      : clock.daysSinceLast >= 7 || clock.overdue
+        ? `Dose ${nextDoseNumber} · today`
+        : `Dose ${nextDoseNumber} · ${clock.nextDue.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Riyadh' })}`;
+  const roadCaptionDim =
+    day.dosesUntilCheckpoint != null && day.dosesUntilCheckpoint > 0
+      ? `· ${day.dosesUntilCheckpoint} to the doctor`
+      : null;
+  const achieved = snapshot
+    ? [...snapshot.pctMilestones.filter((m) => m.achieved).map((m) => m.kg),
+       ...snapshot.kgMilestones.filter((m) => m.achieved).map((m) => m.kg)]
+    : [];
+  const ahead = snapshot
+    ? [...new Set([...snapshot.pctMilestones, ...snapshot.kgMilestones]
+        .filter((m) => !m.achieved).map((m) => m.kg))].sort((a, b) => b - a)
+    : [];
+  const road = roadDots.includes('here') || roadDots.includes('done')
+    ? {
+        dots: roadDots,
+        caption: roadCaption,
+        captionDim: roadCaptionDim,
+        hitLandmark: achieved.length ? `${Math.min(...achieved)} ✓` : null,
+        aheadLandmarks: ahead.slice(0, 2).map((kg) => String(kg)),
+      }
+    : { dots: roadDots, caption: roadCaption, captionDim: roadCaptionDim, hitLandmark: null, aheadLandmarks: [] };
+
   const trainPlan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
   const trainDay = queuedDay(trainPlan);
   const trainedToday = workouts.some(
     (w) => isTrainingSession(w) && new Date(w.date) >= todayStart,
   );
   const injectionDue = !clock || clock.daysSinceLast >= 7 || clock.overdue;
-  const cpapLoggedToday = data.cpapNights.some((n) => new Date(n.createdAt) >= todayStart);
 
+  // CPAP truth arrives weekly via the prisma report, so "recent" spans the
+  // report cadence — a mid-week stale label would nag about data that is
+  // simply in transit.
   const lastNightIsRecent =
-    lastNight && Date.now() - new Date(lastNight.night).getTime() < 3 * 86_400_000;
+    lastNight && Date.now() - new Date(lastNight.night).getTime() < 8 * 86_400_000;
 
   const body: BodyData = {
     heart: { daysClear: af.daysSinceLast, thisMonth: af.thisMonth, longestDays: heartRecord?.longestDays ?? null },
@@ -118,6 +156,7 @@ export default async function HomePage() {
       lastHours: lastNightIsRecent ? lastNight.usageHours : null,
       ahi: lastNightIsRecent ? lastNight.ahi : null,
       streak: cpap.streak,
+      everLogged: data.cpapNights.length > 0,
     },
     gut: {
       today: [...new Set(todaySymptoms.map((s) => SYMPTOM_LABEL[s.kind] ?? s.kind))],
@@ -126,6 +165,18 @@ export default async function HomePage() {
       latest: latestBp ? `${latestBp.systolic}/${latestBp.diastolic}` : null,
       avg7: bp7 ? `${bp7.systolic}/${bp7.diastolic}` : null,
     },
+    train: {
+      value:
+        trainedToday
+          ? 'trained today'
+          : trainPlan.mode === 'train'
+            ? `Day ${trainDay} next`
+            : trainPlan.mode === 'recover'
+              ? 'recover day'
+              : 'rest',
+      day: trainDay ?? null,
+    },
+    road,
     nextSite: site,
     nextSiteLabel: siteLabel(site),
     ldl: latestLdl
@@ -151,20 +202,20 @@ export default async function HomePage() {
           <p className="section-label text-acc-cyan/80">
             AR Health{day.day ? ` · day ${day.day}` : ''}
           </p>
-          <h1 className="mt-0.5 font-round text-3xl font-extrabold leading-none tracking-tight text-app-tx1">
-            {snapshot ? `${snapshot.currentKg}` : '—'}
-            <span className="text-base font-bold text-app-tx3"> kg</span>
-          </h1>
+          <Link href="/stats" className="block">
+            <h1 className="mt-0.5 font-round text-3xl font-extrabold leading-none tracking-tight text-app-tx1">
+              {snapshot ? `${snapshot.currentKg}` : '—'}
+              <span className="text-base font-bold text-app-tx3"> kg</span>
+            </h1>
+          </Link>
           <p className="mt-1 text-xs font-semibold text-app-tx2">
             {snapshot && snapshot.lostKg >= 0.5 && `−${snapshot.lostKg} kg since the start · `}
             {clock ? `${clock.lastDoseMg} mg weekly` : 'first dose ahead'}
-            {day.dosesUntilCheckpoint != null && day.dosesUntilCheckpoint > 0 &&
-              ` · ${day.dosesUntilCheckpoint} to the doctor`}
           </p>
           {pace && (
             <p className="mt-0.5 text-xs font-semibold text-app-tx2">
               <span className={pace.kgPerWeek < 0 ? 'text-acc-teal font-bold' : 'text-app-tx1 font-bold'}>
-                {pace.kgPerWeek > 0 ? '+' : ''}{pace.kgPerWeek} kg/week
+                {pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '−' : ''}{Math.abs(pace.kgPerWeek)} kg/week
               </span>
               {eta && nextMilestoneKg != null &&
                 ` · ${nextMilestoneKg} kg by ~${eta.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
@@ -172,7 +223,7 @@ export default async function HomePage() {
           )}
           {clock && clock.daysSinceLast === 6 && trainPlan.mode === 'train' && !trainedToday && (
             <p className="mt-0.5 text-xs font-semibold text-acc-violet">
-              Dose tomorrow — a good day to train.
+              Dose tomorrow.
             </p>
           )}
         </div>
@@ -199,9 +250,8 @@ export default async function HomePage() {
       {stamp && (
         <div className="card border-acc-teal/50 px-4 py-3">
           <p className="text-sm font-bold text-app-tx1">
-            {stamp.kg} kg — passed{' '}
+            Milestone: {stamp.kg} kg · passed{' '}
             {stamp.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}.
-            <span className="font-semibold text-app-tx2"> A milestone off the map.</span>
           </p>
         </div>
       )}
@@ -209,8 +259,7 @@ export default async function HomePage() {
       {muscleGuard && (
         <div className="card border-acc-ember-deep/50 px-4 py-3">
           <p className="text-sm leading-relaxed text-app-tx1">
-            Fast loss this week with protein under the floor in your logs. The scale is fine —
-            the muscle is what needs defending: aim at {targets.proteinG} g today.
+            Fast loss this week — defend the muscle: {targets.proteinG} g protein today.
           </p>
         </div>
       )}
@@ -222,7 +271,7 @@ export default async function HomePage() {
       <BodyMap data={body} />
 
       {/* The conversation */}
-      <CheckIn cpapLoggedToday={cpapLoggedToday} />
+      <CheckIn />
 
       {pattern && (
         <div className="card border-acc-cyan/40 px-4 py-3">
@@ -240,26 +289,6 @@ export default async function HomePage() {
           </div>
         </div>
       )}
-
-      {/* The pages branch from here */}
-      <div className="grid grid-cols-2 gap-2">
-        {[
-          { href: '/journey', label: 'Journey' },
-          { href: '/train', label: 'Training' },
-          { href: '/health/report', label: 'Doctor report' },
-          { href: '/health/plan', label: 'Plan & profile' },
-          { href: '/health/analytics', label: 'Patterns' },
-          { href: '/health/timeline', label: 'The full log' },
-        ].map((l) => (
-          <Link
-            key={l.href}
-            href={l.href}
-            className="card px-4 py-3 text-sm font-bold text-app-tx1 transition-colors hover:border-app-border-hi"
-          >
-            {l.label} <span className="text-app-tx3">→</span>
-          </Link>
-        ))}
-      </div>
 
       <p className="text-[10px] leading-relaxed text-app-tx3">
         A tracker, not a diagnosis — patterns are observations from your own logs; decisions

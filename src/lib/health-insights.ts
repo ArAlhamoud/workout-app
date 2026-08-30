@@ -1059,9 +1059,19 @@ export function bpWeightStory(
   return rows.length >= 2 ? rows : null;
 }
 
+/** The owner's calendar day (YYYY-MM-DD). Single-user app, owner in
+ *  Riyadh: server-side "today" must be HIS today, not Vercel's UTC day —
+ *  a 00:30 macro entry used to read as "not logged today" until 03:00
+ *  (adversary M1). */
+export function ownerDayKey(d: Date = new Date()): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
+}
+
 /** The most recent milestone crossed within `windowDays`: the first
  *  weigh-in at or under the mark, with the weigh-in before it still above.
- *  Returns the heaviest such crossing (the newest achievement). */
+ *  Returns the crossing with the LATEST date — while losing, lighter
+ *  milestones are crossed later, so "heaviest" would celebrate the oldest
+ *  achievement and suppress the fresh one (adversary M2). */
 export function recentMilestoneCross(
   milestonesKg: number[],
   bodyStats: Array<{ date: Date | string; weight: number | null }>,
@@ -1078,7 +1088,7 @@ export function recentMilestoneCross(
     for (let i = 1; i < weights.length; i++) {
       if (weights[i].w <= kg && weights[i - 1].w > kg) {
         const age = now.getTime() - weights[i].t;
-        if (age >= 0 && age <= windowDays * DAY_MS && (!best || kg > best.kg)) {
+        if (age >= 0 && age <= windowDays * DAY_MS && (!best || weights[i].t > best.at.getTime())) {
           best = { kg, at: new Date(weights[i].t) };
         }
         break; // first crossing only — a re-cross after a bounce is not news
@@ -1086,4 +1096,74 @@ export function recentMilestoneCross(
     }
   }
   return best;
+}
+
+// ── The checkpoint pack (the dose-review visit) ──────────────
+
+export interface DoseLedgerRow {
+  n: number;
+  at: Date;
+  doseMg: number;
+  site: string;
+  /** Symptoms in the 7 days after this dose: kind, worst severity, count. */
+  symptoms: Array<{ kind: string; maxSeverity: number; count: number }>;
+}
+
+/** Every dose with what followed it — the ledger the escalation decision
+ *  reads. Counts and worsts, not averages: a listing needs no guard. */
+export function doseLedger(
+  injections: InjectionLite[],
+  symptoms: SymptomLite[],
+): DoseLedgerRow[] {
+  const sorted = [...injections].sort((a, b) => time(a.at) - time(b.at));
+  return sorted.map((inj, idx) => {
+    const start = time(inj.at);
+    const agg = new Map<string, { max: number; count: number }>();
+    for (const s of symptoms) {
+      const st = time(s.at);
+      if (st < start) continue;
+      if (calendarDays(new Date(st), new Date(start)) > 7) continue;
+      // A symptom belongs to the LATEST dose before it — skip if a newer
+      // dose sits between.
+      const newer = sorted.find((o) => time(o.at) > start && time(o.at) <= st);
+      if (newer) continue;
+      const cur = agg.get(s.kind) ?? { max: 0, count: 0 };
+      cur.max = Math.max(cur.max, s.severity);
+      cur.count += 1;
+      agg.set(s.kind, cur);
+    }
+    return {
+      n: idx + 1,
+      at: new Date(inj.at),
+      doseMg: inj.doseMg,
+      site: inj.site,
+      symptoms: [...agg.entries()]
+        .map(([kind, v]) => ({ kind, maxSeverity: v.max, count: v.count }))
+        .sort((a, b) => b.maxSeverity - a.maxSeverity || b.count - a.count),
+    };
+  });
+}
+
+/** BP averaged before the first dose vs since it — 3+ readings each side
+ *  or that side stays null. The anchor is the treatment clock's anchor. */
+export function bpSplitAroundAnchor(
+  readings: BpLite[],
+  anchor: Date,
+): {
+  before: { systolic: number; diastolic: number; n: number } | null;
+  since: { systolic: number; diastolic: number; n: number } | null;
+} {
+  const avg = (rows: BpLite[]) =>
+    rows.length >= 3
+      ? {
+          systolic: Math.round(rows.reduce((s, r) => s + r.systolic, 0) / rows.length),
+          diastolic: Math.round(rows.reduce((s, r) => s + r.diastolic, 0) / rows.length),
+          n: rows.length,
+        }
+      : null;
+  const t = anchor.getTime();
+  return {
+    before: avg(readings.filter((r) => time(r.at) < t)),
+    since: avg(readings.filter((r) => time(r.at) >= t)),
+  };
 }

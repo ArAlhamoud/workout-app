@@ -30,9 +30,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const dayParam = url.searchParams.get('day');
   const durParam = Number(url.searchParams.get('dur'));
+  // Weights and pins are per building (rule 2) — default gym unless asked.
+  const gym = url.searchParams.get('gym') === 'work' ? 'work' : DEFAULT_GYM_ID;
 
   const [exercises, workoutRows] = await Promise.all([
-    prisma.exercise.findMany({ select: { id: true, name: true } }),
+    prisma.exercise.findMany({ select: { id: true, name: true, pinIncrement: true } }),
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
       take: 60,
@@ -57,10 +59,12 @@ export async function GET(request: Request) {
   const template = getExercisesForDuration(day, dur as 30 | 45 | 60);
   const byName = new Map(exercises.map((e) => [e.name, e]));
   const ids = template.map((t) => byName.get(t.name)?.id).filter((v): v is string => !!v);
-  // Rule 2: pins are per-machine per-gym. Untagged history is B_Fit.
-  const gymRows = workoutRows.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === DEFAULT_GYM_ID);
+  // Pin spacing learned from THIS gym's sessions only — a mixed-building
+  // learn infers a step that exists on neither machine (adversary C1, the
+  // same lesson the phone logger carries).
+  const gymRows = workoutRows.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym);
   const [memory, learned] = [
-    await getLastSessionForExercises(ids, DEFAULT_GYM_ID),
+    await getLastSessionForExercises(ids, gym),
     learnPinIncrements(gymRows as never),
   ];
 
@@ -75,9 +79,15 @@ export async function GET(request: Request) {
       const ex = byName.get(t.name);
       if (!ex) return [];
       const last = memory[ex.id];
-      const pin = combineIncrement(learned[ex.id]);
+      // Manual per-machine override outranks the learned spacing, exactly
+      // as on the phone.
+      const pin = combineIncrement(learned[ex.id], ex.pinIncrement);
       const raw = last?.weight ?? null;
-      const scaled = raw != null ? Math.round(((raw * loadPct) / 100) / pin) * pin : null;
+      // Ramp scaling FLOORS to the pin (conservative, matching
+      // scaleReturnWeight); an unscaled prefill is a genuinely logged
+      // weight and is never snapped.
+      const scaled =
+        raw == null ? null : loadPct === 100 ? raw : Math.floor(((raw * loadPct) / 100) / pin) * pin;
       return [{
         exerciseId: ex.id,
         name: t.name,

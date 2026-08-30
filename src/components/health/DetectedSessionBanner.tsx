@@ -89,7 +89,7 @@ export default function DetectedSessionBanner() {
   if (!offer) return null;
 
   const when = new Date(offer.startISO).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-  const params = new URLSearchParams({ hk: offer.uuid, mins: String(offer.durationMin) });
+  const params = new URLSearchParams({ hk: offer.uuid, mins: String(offer.durationMin), start: offer.startISO });
   if (offer.localDay) params.set('date', offer.localDay);
 
   return (
@@ -100,9 +100,6 @@ export default function DetectedSessionBanner() {
       <p className="text-sm font-bold text-app-tx1">
         Trained {offer.durationMin} min at {when} — from your Watch.
         <span className="text-acc-violet"> Fill in the sets →</span>
-      </p>
-      <p className="mt-0.5 text-xs font-semibold text-app-tx2">
-        Opens the logger prefilled from last time; adjust and save once.
       </p>
     </Link>
   );

@@ -88,6 +88,9 @@ export default async function NewWorkoutPage({
   const detectedMins = Number.isFinite(rawMins) && rawMins > 0 && rawMins < 300 ? Math.round(rawMins) : undefined;
   const rawDate = one(searchParams.date);
   const initialDate = rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate) ? rawDate : undefined;
+  const rawStart = one(searchParams.start);
+  const detectedStartISO =
+    rawStart && !Number.isNaN(new Date(rawStart).getTime()) ? new Date(rawStart).toISOString() : undefined;
   const RESCUE_EXERCISES = ['Leg Press', 'Chest Press', 'Lat Pulldown', 'Mid Row'];
   const RESCUE_LOAD_PCT = 60;
 
@@ -260,6 +263,7 @@ export default async function NewWorkoutPage({
         healthWorkoutUuid={hkUuid}
         initialDate={initialDate}
         detectedDurationMin={detectedMins}
+        detectedStartISO={detectedStartISO}
         personalRecords={personalRecords}
         progressionHints={progressionHints}
         repRecords={repRecords}

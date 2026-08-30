@@ -564,11 +564,6 @@ export default async function StatsPage() {
       {holdRows.length > 0 && (
         <div className="card-lg p-4">
           <p className="section-label mb-1.5">Strength through the cut · 3 wk vs prior 3</p>
-          {weightChange !== null && weightChange < 0 && (
-            <p className="mb-2 text-xs font-semibold text-app-tx2">
-              Body {weightChange} kg — the machines below tell the rest.
-            </p>
-          )}
           <div className="space-y-2.5">
             {[...holdByGym.entries()].map(([gym, rows]) => (
               <div key={gym}>
@@ -578,7 +573,12 @@ export default async function StatsPage() {
                   </p>
                 )}
                 <div className="divide-y divide-ink/5">
-                  {rows.slice(0, 6).map((r) => (
+                  {/* Declines are the whole reason this card exists — they are
+                      never the rows the cap trims (device-tester M5). */}
+                  {[
+                    ...rows.filter((r) => r.verdict !== 'down').slice(0, Math.max(0, 6 - rows.filter((r) => r.verdict === 'down').length)),
+                    ...rows.filter((r) => r.verdict === 'down'),
+                  ].slice(0, 6).map((r) => (
                     <div key={`${r.gym}-${r.name}`} className="flex min-h-[36px] items-baseline justify-between py-1">
                       <span className="text-sm font-semibold text-app-tx1">{r.name}</span>
                       <span className="font-round text-sm font-extrabold tabular-nums">

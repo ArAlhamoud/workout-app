@@ -23,6 +23,10 @@ export async function POST(request: Request) {
     name?: string;
     day?: string;
     startISO?: string;
+    /** The watch's local calendar day (YYYY-MM-DD) — the server cannot
+     *  know the wrist's timezone, and every other workout sits at UTC
+     *  midnight of the local day. */
+    localDay?: string;
     durationSec?: number;
     gym?: string;
     healthWorkoutUuid?: string;
@@ -33,6 +37,15 @@ export async function POST(request: Request) {
   const start = b.startISO ? new Date(b.startISO) : new Date();
   if (Number.isNaN(start.getTime())) {
     return NextResponse.json({ error: 'Bad startISO' }, { status: 400 });
+  }
+  // A future-dated session wedges the dynamic plan in done-today until
+  // that date (adversary S1). 10 minutes of clock skew is the allowance.
+  if (start.getTime() > Date.now() + 10 * 60_000) {
+    return NextResponse.json({ error: 'startISO is in the future' }, { status: 400 });
+  }
+  if (typeof b.healthWorkoutUuid === 'string' && b.healthWorkoutUuid.length > 64) {
+    // Checked in full but stored sliced would 500 on replay — refuse instead.
+    return NextResponse.json({ error: 'healthWorkoutUuid too long' }, { status: 400 });
   }
   const sets = (Array.isArray(b.sets) ? b.sets : [])
     .filter(
@@ -68,15 +81,19 @@ export async function POST(request: Request) {
     (typeof b.name === 'string' && b.name.trim().slice(0, 80)) ||
     `Day ${day ?? '?'} — Watch · ${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
+  const workoutDate =
+    typeof b.localDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.localDay)
+      ? `${b.localDay}T00:00:00.000Z`
+      : start.toISOString();
   const result = await createWorkout({
     name,
-    date: start.toISOString(),
-    gym: typeof b.gym === 'string' ? b.gym.slice(0, 20) : undefined,
+    date: workoutDate,
+    gym: b.gym === 'work' || b.gym === 'bfit' ? b.gym : undefined,
     duration:
       Number.isFinite(b.durationSec) && (b.durationSec as number) > 0 && (b.durationSec as number) < 4 * 3600
         ? Math.round(b.durationSec as number)
         : undefined,
-    healthWorkoutUuid: typeof b.healthWorkoutUuid === 'string' ? b.healthWorkoutUuid.slice(0, 64) : undefined,
+    healthWorkoutUuid: typeof b.healthWorkoutUuid === 'string' ? b.healthWorkoutUuid : undefined,
     clientSaveId: typeof b.clientSaveId === 'string' ? b.clientSaveId.slice(0, 64) : undefined,
     sets,
   });

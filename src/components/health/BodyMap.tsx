@@ -7,18 +7,29 @@
 // its number and opening a sheet to see more and log in place. Anatomy as
 // navigation.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { logBp, logCpapNight, logSymptoms, logAfEpisode } from '@/app/health-actions';
 import { hapticSuccess } from '@/lib/native-feedback';
-import { bodyPathAt } from '@/lib/body-figure';
+import { bodyPathAt, trimX } from '@/lib/body-figure';
+import { isNativeApp, queryCategory, windowStartISO } from '@/lib/native-health';
 
 export interface BodyData {
   heart: { daysClear: number | null; thisMonth: number; longestDays: number | null };
-  breath: { lastHours: number | null; ahi: number | null; streak: number };
+  breath: { lastHours: number | null; ahi: number | null; streak: number; everLogged: boolean };
   gut: { today: string[] };
   bp: { latest: string | null; avg7: string | null };
+  /** Today's training answer — the hand that lifts carries the door. */
+  train: { value: string; day: 'A' | 'B' | null };
+  /** The treatment road, drawn as the ground under his feet. */
+  road: {
+    dots: Array<'done' | 'here' | 'future' | 'gate'>;
+    caption: string;
+    captionDim: string | null;
+    hitLandmark: string | null;
+    aheadLandmarks: string[];
+  } | null;
   nextSite: string; // slug like 'thigh-left'
   nextSiteLabel: string;
   ldl: { value: number; when: string } | null;
@@ -53,6 +64,7 @@ const ANATOMY = {
   heart: { rail: 'r' as const, top: '37.2%' },
   bp: { rail: 'l' as const, top: '41.7%' },
   gut: { rail: 'l' as const, top: '52.2%' },
+  train: { rail: 'r' as const, top: '55%' },
 };
 
 
@@ -101,7 +113,7 @@ function RailLabel({
       style={{ top }}
     >
       <span className="text-[9px] font-black uppercase tracking-[0.12em] text-app-tx3">{label}</span>
-      <span className="max-w-[92px] whitespace-nowrap text-[12.5px] font-extrabold text-app-tx1">
+      <span className="max-w-[92px] truncate text-[12.5px] font-extrabold text-app-tx1">
         {value}
       </span>
     </button>
@@ -120,7 +132,35 @@ export default function BodyMap({ data }: { data: BodyData }) {
   const [ahi, setAhi] = useState('');
   const [kind, setKind] = useState<string | null>(null);
   const [sev, setSev] = useState(2);
-  const [afMin, setAfMin] = useState('');
+  const [afStart, setAfStart] = useState('');
+  const [afEnd, setAfEnd] = useState('');
+  // Before 06:00 an episode being logged almost always happened yesterday
+  // (the after-midnight trap dated one to tomorrow morning) — same pre-6am
+  // flip the CPAP night picker uses.
+  const [afYesterday, setAfYesterday] = useState(() => new Date().getHours() < 6);
+  // Watch-flagged irregular rhythms (last 48h) — offered as prefills,
+  // never auto-logged: the Watch spot-checks, he confirms what was real.
+  // Native-only and permission-gated; empty everywhere else.
+  const [watchFlags, setWatchFlags] = useState<Array<{ iso: string }>>([]);
+
+  useEffect(() => {
+    if (sheet !== 'heart' || !isNativeApp()) return;
+    let alive = true;
+    queryCategory('irregularHeartRhythmEvent', { startISO: windowStartISO(2) })
+      .then((samples) => {
+        if (!alive) return;
+        const cutoff = Date.now() - 48 * 3_600_000;
+        setWatchFlags(
+          samples
+            .map((c) => ({ iso: c.startISO }))
+            .filter((c) => new Date(c.iso).getTime() >= cutoff)
+            .slice(-3)
+            .reverse(),
+        );
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [sheet]);
 
   const act = async (fn: () => Promise<unknown>, done: string) => {
     if (busy) return;
@@ -139,7 +179,13 @@ export default function BodyMap({ data }: { data: BodyData }) {
     }
   };
 
-  const sitePos = SITE_POS[data.nextSite] ?? SITE_POS['abdomen-right'];
+  const slimT = data.slimT ?? 0;
+  // Limb-anchored overlays ride the same narrowing as the body itself.
+  const tx = (x: number) => trimX(x, slimT);
+  const txPct = (leftPct: string) => `${Math.round(tx(parseFloat(leftPct) * 3.2) / 3.2 * 10) / 10}%`;
+  const siteRaw = SITE_POS[data.nextSite] ?? SITE_POS['abdomen-right'];
+  const sitePos = { left: txPct(siteRaw.left), top: siteRaw.top };
+  const cuffPath = `M${tx(90)},140 L${tx(114)},138 L${tx(115)},160 L${tx(90)},162 Z`;
   // Organ tints carry state: teal when logged and calm, ember when today
   // flagged something, faint grey before any data.
   const breathOn = data.breath.lastHours != null;
@@ -178,15 +224,22 @@ export default function BodyMap({ data }: { data: BodyData }) {
           />
           <path d={GUT_COILS} fill="none" stroke={gutFlagged ? '#b45309' : '#0f766e'} strokeWidth="2" strokeLinecap="round" />
           {/* the cuff on his right arm */}
-          <path d={CUFF} fill={bpOn ? 'rgba(34,211,238,.40)' : quiet.fill} stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="2" />
-          <line x1="94" y1="147" x2="111" y2="146" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
-          <line x1="94" y1="153" x2="111" y2="152" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
+          <path d={cuffPath} fill={bpOn ? 'rgba(34,211,238,.40)' : quiet.fill} stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="2" />
+          <line x1={tx(94)} y1="147" x2={tx(111)} y2="146" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
+          <line x1={tx(94)} y1="153" x2={tx(111)} y2="152" stroke={bpOn ? '#0e7490' : quiet.stroke} strokeWidth="1.25" />
+          {/* the dumbbell, in the hand that lifts */}
+          <g transform={`rotate(-30 ${tx(218)} 198)`}>
+            <line x1={tx(207)} y1="198" x2={tx(229)} y2="198" stroke="#0b0b0f" strokeWidth="3" strokeLinecap="round" />
+            <rect x={tx(204)} y="191" width="5" height="14" rx="1.5" fill={data.train.day === 'A' ? '#8b5cf6' : '#14b8a6'} stroke="#0b0b0f" strokeWidth="1.5" />
+            <rect x={tx(227)} y="191" width="5" height="14" rx="1.5" fill={data.train.day === 'A' ? '#8b5cf6' : '#14b8a6'} stroke="#0b0b0f" strokeWidth="1.5" />
+          </g>
           {/* leader lines: organ → rail */}
           <g stroke="#0b0b0f" strokeOpacity="0.28" strokeWidth="1.5">
             <line x1="192" y1="108" x2="246" y2="100" />
             <line x1="180" y1="128" x2="246" y2="134" />
-            <line x1="86" y1="150" x2="66" y2="150" />
+            <line x1={tx(86)} y1="150" x2="66" y2="150" />
             <line x1="144" y1="188" x2="66" y2="188" />
+            <line x1={tx(232)} y1="198" x2="252" y2="198" />
           </g>
         </svg>
 
@@ -194,7 +247,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
         <RailLabel
           rail={ANATOMY.breath.rail} top={ANATOMY.breath.top}
           label="Breath"
-          value={data.breath.lastHours != null ? `${data.breath.lastHours}h · AHI ${data.breath.ahi ?? '—'}` : 'not logged'}
+          value={data.breath.lastHours != null ? `${data.breath.lastHours}h · AHI ${data.breath.ahi ?? '—'}` : data.breath.everLogged ? 'report due' : 'not logged'}
           onTap={() => setSheet('breath')}
         />
         <RailLabel
@@ -210,9 +263,15 @@ export default function BodyMap({ data }: { data: BodyData }) {
           onTap={() => setSheet('bp')}
         />
         <RailLabel
+          rail={ANATOMY.train.rail} top={ANATOMY.train.top}
+          label="Train"
+          value={data.train.value}
+          onTap={() => router.push('/train')}
+        />
+        <RailLabel
           rail={ANATOMY.gut.rail} top={ANATOMY.gut.top}
           label="Gut"
-          value={data.gut.today.length ? data.gut.today.slice(0, 2).join(' · ') : 'quiet today'}
+          value={data.gut.today.length ? `${data.gut.today[0]}${data.gut.today.length > 1 ? ` +${data.gut.today.length - 1}` : ''}` : 'quiet today'}
           onTap={() => setSheet('gut')}
         />
 
@@ -220,7 +279,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
         <Link
           href="/health/injection"
           aria-label={`Next injection: ${data.nextSiteLabel}`}
-          className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+          className="absolute z-10 -m-2 -translate-x-1/2 -translate-y-1/2 p-2"
           style={sitePos}
         >
           <span className="relative flex h-7 w-7 items-center justify-center">
@@ -232,12 +291,66 @@ export default function BodyMap({ data }: { data: BodyData }) {
         </Link>
       </div>
 
+      {/* The ground he walks on: doses behind him teal, the ring beneath
+          his feet, the doctor's ember door ahead, weight landmarks on the
+          roadside. Words, not code — the caption says what the road means. */}
+      {data.road && (() => {
+        const road = data.road;
+        const doneDots = road.dots.filter((d) => d === 'done');
+        const afterHere = road.dots.slice(road.dots.indexOf('here') + 1);
+        const futureDots = afterHere.filter((d) => d === 'future');
+        const pos = (i: number, n: number, lo: number, hi: number) =>
+          n <= 1 ? (lo + hi) / 2 : lo + ((hi - lo) * i) / (n - 1);
+        return (
+          <Link href="/journey" className="mt-1 block px-1" aria-label="Open the journey">
+            <div className="relative h-9">
+              <span className="absolute left-0 right-0 top-[13px] h-[3px] rounded bg-ink/15" />
+              <span className="absolute left-0 top-[13px] h-[3px] w-1/2 rounded bg-acc-teal-deep" />
+              {doneDots.map((_, i) => (
+                <span
+                  key={`d${i}`}
+                  className="absolute top-[14px] h-[11px] w-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ink bg-acc-teal-deep"
+                  style={{ left: `${pos(i, doneDots.length, 7, 40)}%` }}
+                />
+              ))}
+              <span className="absolute left-1/2 top-[14px] h-[22px] w-[22px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-ink bg-white shadow-[0_0_0_5px_rgba(20,184,166,.25)]" />
+              {futureDots.map((_, i) => (
+                <span
+                  key={`f${i}`}
+                  className="absolute top-[14px] h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ink bg-white"
+                  style={{ left: `${pos(i, futureDots.length, 60, 86)}%` }}
+                />
+              ))}
+              {afterHere.includes('gate') && (
+                <>
+                  <span className="absolute left-[95%] top-[14px] h-[11px] w-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-ink bg-acc-ember-deep" />
+                  <span className="absolute left-[95%] top-[26px] -translate-x-1/2 text-[8.5px] font-extrabold text-app-tx3">doctor</span>
+                </>
+              )}
+              {road.hitLandmark && (
+                <span className="absolute left-[26%] top-[26px] -translate-x-1/2 text-[8.5px] font-extrabold text-acc-teal">{road.hitLandmark}</span>
+              )}
+              {road.aheadLandmarks[0] && (
+                <span className="absolute left-[66%] top-[26px] -translate-x-1/2 text-[8.5px] font-extrabold text-app-tx3">{road.aheadLandmarks[0]}</span>
+              )}
+              {road.aheadLandmarks[1] && (
+                <span className="absolute left-[83%] top-[26px] -translate-x-1/2 text-[8.5px] font-extrabold text-app-tx3">{road.aheadLandmarks[1]}</span>
+              )}
+            </div>
+            <p className="mt-1.5 text-center text-[13px] font-extrabold text-app-tx1">
+              {road.caption}
+              {road.captionDim && <span className="font-semibold text-app-tx3"> {road.captionDim}</span>}
+            </p>
+          </Link>
+        );
+      })()}
+
       <div className="mt-1 flex items-center justify-between border-t border-ink/10 pt-2.5">
         <p className="text-[11px] font-bold text-app-tx3">
-          Next injection · <span className="text-app-tx1">{data.nextSiteLabel}</span> — the marked spot
+          Next injection · <span className="text-app-tx1">{data.nextSiteLabel}</span>
         </p>
         {data.ldl && (
-          <Link href="/health/plan" className="text-[11px] font-bold text-app-tx2">
+          <Link href="/health/plan" className="shrink-0 text-[11px] font-bold text-app-tx2">
             Blood · LDL {data.ldl.value} →
           </Link>
         )}
@@ -257,16 +370,87 @@ export default function BodyMap({ data }: { data: BodyData }) {
                 {data.heart.longestDays !== null && data.heart.daysClear !== null && (
                   <p className="text-xs font-semibold text-app-tx2">
                     {data.heart.daysClear >= data.heart.longestDays
-                      ? 'This is your longest calm stretch on record.'
+                      ? 'Longest calm stretch yet.'
                       : `Longest calm stretch: ${data.heart.longestDays} days.`}
                   </p>
                 )}
-                <input className={inputCls} inputMode="numeric" placeholder="Episode now? Minutes (guess)" value={afMin} onChange={(e) => setAfMin(e.target.value)} />
+                {watchFlags.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-app-tx3">
+                      Watch flagged — tap to prefill
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {watchFlags.map((f) => {
+                        const d = new Date(f.iso);
+                        const isToday = d.toDateString() === new Date().toDateString();
+                        return (
+                          <button
+                            key={f.iso}
+                            type="button"
+                            onClick={() => {
+                              setAfYesterday(!isToday);
+                              setAfStart(
+                                `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+                              );
+                            }}
+                            className="min-h-[40px] rounded-full border-2 border-ink/25 bg-app-surface px-3 text-xs font-bold text-app-tx1"
+                          >
+                            {isToday ? 'Today' : 'Yesterday'}{' '}
+                            {d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-app-tx3">Started</span>
+                    <input className={inputCls} type="time" value={afStart} onChange={(e) => setAfStart(e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-app-tx3">Ended</span>
+                    <input className={inputCls} type="time" value={afEnd} onChange={(e) => setAfEnd(e.target.value)} />
+                  </label>
+                </div>
+                <p className="text-[11px] font-semibold text-app-tx3">
+                  Leave Ended blank if it&apos;s still going.
+                  {afEnd && (
+                    <button type="button" onClick={() => setAfEnd('')} className="ml-2 min-h-[44px] font-bold text-acc-teal">
+                      clear it
+                    </button>
+                  )}
+                </p>
                 <button
-                  type="button" className={saveBtn} disabled={busy}
-                  onClick={() => act(() => logAfEpisode({ startedAt: new Date().toISOString(), durationMin: afMin ? Number(afMin) : undefined }), 'Episode logged')}
+                  type="button"
+                  onClick={() => setAfYesterday(!afYesterday)}
+                  className={`min-h-[40px] rounded-full border-2 px-3 text-xs font-bold ${afYesterday ? 'border-ink bg-ink text-white' : 'border-ink/20 bg-app-surface text-app-tx2'}`}
                 >
-                  Log an episode
+                  {afYesterday ? 'Yesterday' : 'Today'} — tap to switch
+                </button>
+                <button
+                  type="button" className={saveBtn} disabled={busy || !afStart}
+                  onClick={() =>
+                    act(() => {
+                      const day = new Date();
+                      if (afYesterday) day.setDate(day.getDate() - 1);
+                      const [sh, sm] = afStart.split(':').map(Number);
+                      const started = new Date(day);
+                      started.setHours(sh, sm, 0, 0);
+                      let durationMin: number | undefined;
+                      if (afEnd) {
+                        const [eh, em] = afEnd.split(':').map(Number);
+                        const ended = new Date(day);
+                        ended.setHours(eh, em, 0, 0);
+                        // An episode running past midnight ends on the next day.
+                        if (ended <= started) ended.setDate(ended.getDate() + 1);
+                        durationMin = Math.round((ended.getTime() - started.getTime()) / 60_000);
+                      }
+                      return logAfEpisode({ startedAt: started.toISOString(), durationMin });
+                    }, 'Episode logged')
+                  }
+                >
+                  Log the episode
                 </button>
                 <Link href="/health/analytics" className="block text-center text-xs font-bold text-app-tx3">rhythm patterns →</Link>
               </div>
@@ -319,6 +503,9 @@ export default function BodyMap({ data }: { data: BodyData }) {
                 >
                   Save
                 </button>
+                <Link href="/health/diet" className="block text-center text-xs font-bold text-app-tx3">
+                  what went in today · Diet →
+                </Link>
               </div>
             )}
 
@@ -343,7 +530,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
               </div>
             )}
 
-            <button type="button" onClick={() => setSheet(null)} className="mt-2 w-full py-2 text-center text-xs font-bold text-app-tx3">
+            <button type="button" onClick={() => setSheet(null)} className="mt-1 min-h-[44px] w-full text-center text-xs font-bold text-app-tx3">
               close
             </button>
           </div>
