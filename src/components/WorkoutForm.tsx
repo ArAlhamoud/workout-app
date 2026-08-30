@@ -1281,11 +1281,7 @@ export default function WorkoutForm({
 
         {/* Return protocol — coach directive, ember amber on glass */}
         {returnLoadPct && (
-          <div className="card rounded-card border-acc-ember/25 relative overflow-hidden px-4 py-3.5">
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(240px_120px_at_8%_0%,rgba(245,158,11,0.14),transparent_70%)]"
-            />
+          <div className="volt-protocol volt-protocol--ember relative px-4 py-3.5">
             <div className="relative min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-acc-ember/90">
@@ -1298,7 +1294,7 @@ export default function WorkoutForm({
                   type="button"
                   onClick={() => setShowReturnInfo((v) => !v)}
                   aria-expanded={showReturnInfo}
-                  className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors flex items-center gap-1 flex-shrink-0 ${
+                  className={`font-mono text-[10px] px-2.5 py-1 border uppercase tracking-[0.14em] transition-colors flex items-center gap-1 flex-shrink-0 ${
                     showReturnInfo
                       ? 'bg-acc-ember/15 text-acc-ember border-acc-ember/40'
                       : 'bg-app-surface2 text-app-tx3 border-app-border hover:text-app-tx2'
@@ -1321,7 +1317,7 @@ export default function WorkoutForm({
                   return (
                     <span
                       key={v}
-                      className={`relative text-[10px] font-bold uppercase tracking-[0.08em] px-3 py-1 rounded-full border ${
+                      className={`relative font-mono text-[10px] font-bold uppercase tracking-[0.14em] px-3 py-1 border ${
                         locked
                           ? 'bg-transparent border-ink/[0.07] text-[rgba(206,213,248,0.32)] line-through decoration-[rgba(206,213,248,0.4)]'
                           : c

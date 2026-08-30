@@ -513,3 +513,14 @@ body.has-draft-banner main {
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   letter-spacing: 0.14em;
 }
+
+/* Return Protocol under Volt — ember stays the ramp's color (law), but
+   it speaks Volt: dashed ember frame with corner brackets, flat fills,
+   square blocks, no glow. */
+.volt-protocol--ember { border-color: rgba(245, 158, 11, 0.55); }
+.volt-protocol--ember::before, .volt-protocol--ember::after { border-color: #f59e0b; }
+[data-domain='volt'] .volt-protocol--ember {
+  background: linear-gradient(rgba(245, 158, 11, 0.05), rgba(245, 158, 11, 0) 40%), #0b0c09;
+}
+/* Direction B has no rounded pills — chips go sharp on the black ground. */
+[data-domain='volt'] .chip { border-radius: 0; }

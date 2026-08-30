@@ -198,35 +198,23 @@ export default async function ProgramPage() {
 
       {/* This Week — live status */}
       {status.mode === 'return' ? (
-        <section className="card-lg relative overflow-hidden border-acc-ember/25 p-4">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 rounded-card-lg"
-            style={{ background: 'radial-gradient(260px 130px at 12% 0%, rgba(245,158,11,0.14), transparent 70%)' }}
-          />
+        <section className="volt-protocol volt-protocol--ember p-4">
           <div className="relative">
             <div className="flex items-center gap-2">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true" className="flex-none">
-                <path d="M7 1.2c1.4 2 .3 3-.4 4.2C5.8 6.7 6 8.2 7.4 9c-.2-1 .2-1.8 1-2.5.9 1.1 2.1 2.5 2.1 4.1A3.9 3.9 0 0 1 6.6 14 4.6 4.6 0 0 1 2.5 9.4C2.5 5.6 6.4 4.4 7 1.2z" fill="#fcd34d" opacity=".9" />
-              </svg>
-              <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">This week · Return protocol</span>
-              <span className="chip ml-auto flex-none bg-gradient-to-r from-acc-ember to-acc-ember-deep text-[9px] uppercase tracking-[0.14em] text-white shadow-[0_0_18px_-4px_rgba(245,158,11,0.75)]">
+              <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-acc-ember">This week · Return protocol</span>
+              <span className="ml-auto flex-none bg-acc-ember-deep px-2 py-1 font-mono text-[9px] font-extrabold uppercase tracking-[0.2em] text-black">
                 {status.returnWeek.phase}
               </span>
             </div>
 
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="glow-amber font-round text-2xl font-light tabular-nums tracking-tight">Week {status.week}</span>
+            <div className="mt-2.5 flex items-baseline gap-2">
+              <span className="font-round text-[26px] font-black uppercase leading-none tracking-tight text-acc-ember">Week {status.week}</span>
               <span className="text-sm text-app-tx2">of 4</span>
               <span className="ml-auto flex items-center gap-1.5" aria-hidden="true">
                 {[1, 2, 3, 4].map((i) => (
                   <span
                     key={i}
-                    className={`h-1.5 w-6 rounded-full ${
-                      i <= status.week
-                        ? 'bg-gradient-to-r from-acc-ember to-acc-ember-deep shadow-[0_0_12px_-1px_rgba(245,158,11,0.8)]'
-                        : 'bg-ink/10'
-                    }`}
+                    className={`h-2.5 w-6 ${i <= status.week ? 'bg-acc-ember-deep' : 'shadow-[inset_0_0_0_1.5px_#5a5d55]'}`}
                   />
                 ))}
               </span>
