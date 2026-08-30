@@ -88,6 +88,11 @@ has the two-minute setup if he ever changes his mind.
   like `.card` need direct overrides — overriding the utility alone
   does nothing (this bit once).
 
+- **White text on the deep fills (owner, 2026-08-30).** The teal/violet
+  action buttons keep `text-white`, on both grounds. A contrast pass
+  once switched them to ink (2.49:1 vs 8.4:1) and the owner reverted
+  it — his eyes, his call. Do not re-ink them for WCAG.
+
 ## The health domain (Wave 5)
 
 The app is **AR Health** (the owner's name, 2026-08-26 — 'Aurora' is only

@@ -231,12 +231,12 @@ export default async function HomePage() {
         <Link
           href={injectionDue ? '/health/injection' : trainPlan.mode === 'train' && !trainedToday ? `/workouts/new?day=${trainDay}&dur=45` : '/journey'}
           className={`rounded-card border-2 border-ink px-3.5 py-2.5 text-xs font-extrabold shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] ${
-            /* Day color is law (A violet, B teal); ink text clears contrast
-               on the fills where white failed (device-tester). */
+            /* Day color is law (A violet, B teal); white text on the fills
+               is the owner's standing choice (CLAUDE.md, 2026-08-30). */
             injectionDue
-              ? 'bg-acc-teal-deep text-ink'
+              ? 'bg-acc-teal-deep text-white'
               : trainPlan.mode === 'train' && !trainedToday
-                ? `text-ink ${trainDay === 'B' ? 'bg-acc-teal-deep' : 'bg-acc-violet-deep'}`
+                ? `text-white ${trainDay === 'B' ? 'bg-acc-teal-deep' : 'bg-acc-violet-deep'}`
                 : 'bg-ink text-white'
           }`}
         >

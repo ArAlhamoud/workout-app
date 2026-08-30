@@ -569,7 +569,7 @@ export default async function StatsPage() {
       {/* Strength held while losing — the win condition of the cut */}
       {holdRows.length > 0 && (
         <div className="card-lg p-4">
-          <p className="section-label mb-1.5">Strength through the cut · 3 wk vs prior 3</p>
+          <p className="section-label mb-1.5">Strength · 3 wk vs prior</p>
           <div className="space-y-2.5">
             {[...holdByGym.entries()].map(([gym, rows]) => (
               <div key={gym}>

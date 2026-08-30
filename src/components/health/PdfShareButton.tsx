@@ -99,7 +99,7 @@ export default function PdfShareButton({ range }: { range: string }) {
             <button
               type="button"
               onClick={share}
-              className="min-h-[44px] rounded-card border-2 border-ink bg-acc-teal-deep px-3.5 text-sm font-extrabold text-ink shadow-[2px_2px_0_#0b0b0f] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0_#0b0b0f]"
+              className="min-h-[44px] rounded-card border-2 border-ink bg-acc-teal-deep px-3.5 text-sm font-extrabold text-white shadow-[2px_2px_0_#0b0b0f] active:translate-x-[1px] active:translate-y-[1px] active:shadow-[1px_1px_0_#0b0b0f]"
             >
               Share
             </button>

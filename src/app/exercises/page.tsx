@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getExercises } from '../actions';
 import ExerciseForm from '@/components/ExerciseForm';
@@ -25,13 +26,14 @@ export default async function ExercisesPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="pt-1">
-        <p className="section-label mb-1">Your movements</p>
-        <h1 className="font-round text-2xl font-bold tracking-tight text-app-tx1">
-          Exercise Library
-        </h1>
-      </div>
+      {/* Volt masthead */}
+      <header className="pt-1">
+        <div className="volt-topline">
+          <span>Your movements</span>
+        </div>
+        <h1 className="volt-h1" style={{ fontSize: 36 }}>Exercise <span className="volt-hollow">library</span></h1>
+        <div className="volt-tape" aria-hidden="true" />
+      </header>
 
       <ExerciseForm categories={CATEGORIES} />
 
@@ -57,12 +59,14 @@ export default async function ExercisesPage() {
                 </div>
                 <div>
                   {exs.map((ex) => (
-                    <div
+                    <Link
                       key={ex.id}
-                      className="flex items-center justify-between py-2.5 border-b border-app-border last:border-0 last:pb-0"
+                      href={`/progress/${ex.id}`}
+                      className="flex items-center justify-between py-2.5 border-b border-app-border last:border-0 last:pb-0 transition-colors hover:text-acc-teal"
                     >
                       <span className="text-app-tx1 text-sm">{ex.name}</span>
-                    </div>
+                      <span className="text-app-tx3 text-xs">→</span>
+                    </Link>
                   ))}
                 </div>
               </div>

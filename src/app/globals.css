@@ -56,6 +56,8 @@
 }
 
 /* ── Base styles ───────────────────────────────────────────── */
+:root { color-scheme: light; }
+[data-domain='volt'] { color-scheme: dark; } /* native pickers/selects follow the ground */
 body {
   background-color: var(--app-bg);
   color: var(--app-tx1);

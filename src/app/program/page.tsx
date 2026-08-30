@@ -397,13 +397,18 @@ export default async function ProgramPage() {
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide ${pb.cls}`}>
                         {pb.label}
                       </span>
+                    </div>
+                    <div className="text-app-tx3 text-xs mt-1">
+                      {ex.machine} · {ex.rest} rest
                       {exId && (
-                        <Link href={`/progress/${exId}`} className={`text-xs text-app-tx3 transition-colors ${dayAccent.A.linkHover}`}>
-                          Progress &#8594;
-                        </Link>
+                        <>
+                          {' · '}
+                          <Link href={`/progress/${exId}`} className={`transition-colors ${dayAccent.A.linkHover}`}>
+                            Progress &#8594;
+                          </Link>
+                        </>
                       )}
                     </div>
-                    <div className="text-app-tx3 text-xs mt-1">{ex.machine} · {ex.rest} rest</div>
                     <Details label="Technique" className="mt-1.5">
                       <p className="text-app-tx2 text-xs leading-relaxed">{ex.cues}</p>
                     </Details>
@@ -463,7 +468,17 @@ export default async function ProgramPage() {
                         </Link>
                       )}
                     </div>
-                    <div className="text-app-tx3 text-xs mt-1">{ex.machine} · {ex.rest} rest</div>
+                    <div className="text-app-tx3 text-xs mt-1">
+                      {ex.machine} · {ex.rest} rest
+                      {exId && (
+                        <>
+                          {' · '}
+                          <Link href={`/progress/${exId}`} className={`transition-colors ${dayAccent.A.linkHover}`}>
+                            Progress &#8594;
+                          </Link>
+                        </>
+                      )}
+                    </div>
                     <Details label="Technique" className="mt-1.5">
                       <p className="text-app-tx2 text-xs leading-relaxed">{ex.cues}</p>
                     </Details>

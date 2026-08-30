@@ -421,12 +421,27 @@ export default function WorkoutForm({
       return true;
     };
 
+    // A draft from the OTHER day must not restore under this page's
+    // masthead — the Volt header shouts DAY A over Day B content
+    // (device-tester, Aug 30). Follow the draft instead: hop to its own
+    // day/dur so header and content always agree. Discarding stays his tap.
+    const pageDay = initialName.match(/^Day ([AB]) /)?.[1];
+    const draftHome = (nm?: string): string | null => {
+      const d = nm?.match(/^Day ([AB]) (\d+)m/);
+      return d && pageDay && d[1] !== pageDay ? `/workouts/new?day=${d[1]}&dur=${d[2]}` : null;
+    };
+
     let restored = false;
     if (rescueMode) { setInitialized(true); return; }
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) restored = applyDraft(JSON.parse(raw));
-      if (!restored && raw) localStorage.removeItem(DRAFT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const home = draftHome(parsed?.name);
+        if (home) { router.replace(home); return; }
+        restored = applyDraft(parsed);
+        if (!restored) localStorage.removeItem(DRAFT_KEY);
+      }
     } catch {
       localStorage.removeItem(DRAFT_KEY);
     }
@@ -444,7 +459,10 @@ export default function WorkoutForm({
           // started typing. Their live keystrokes outrank a stored copy.
           if (dirtyRef.current) return;
           try {
-            applyDraft(JSON.parse(vaulted));
+            const parsed = JSON.parse(vaulted);
+            const home = draftHome(parsed?.name);
+            if (home) { router.replace(home); return; }
+            applyDraft(parsed);
           } catch { /* a corrupt vault copy restores nothing */ }
         })
         .finally(() => setInitialized(true));
@@ -1412,7 +1430,10 @@ export default function WorkoutForm({
                   className="text-app-tx3 hover:text-acc-teal transition-colors text-base flex-shrink-0 w-8 h-11 flex items-center justify-center"
                   title="View progress"
                 >
-                  &#128200;
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 17l5-6 4 4 6-8" />
+                    <path d="M14 7h4v4" />
+                  </svg>
                 </Link>
                 <button
                   type="button"

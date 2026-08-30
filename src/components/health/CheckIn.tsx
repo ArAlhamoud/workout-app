@@ -35,7 +35,7 @@ const GI_PICK = [
 const big =
   'w-full min-h-[52px] rounded-card border-2 border-ink bg-app-surface text-sm font-extrabold text-app-tx1 shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f]';
 const bigTeal =
-  'w-full min-h-[52px] rounded-card border-2 border-ink bg-acc-teal-deep text-sm font-extrabold text-ink shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f]';
+  'w-full min-h-[52px] rounded-card border-2 border-ink bg-acc-teal-deep text-sm font-extrabold text-white shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f]';
 const inputCls =
   'w-full rounded-card border-2 border-ink bg-app-surface px-3 py-3 text-base text-app-tx1 tabular-nums placeholder-app-tx3 focus:outline-none';
 
@@ -106,7 +106,7 @@ export default function CheckIn() {
                 type="button"
                 onClick={() => setWhichKind(kind)}
                 className={`min-h-[44px] rounded-card border-2 px-1 text-[11px] font-bold transition-all ${
-                  whichKind === kind ? 'border-ink bg-acc-teal-deep text-ink' : 'border-ink/25 bg-app-surface text-app-tx2'
+                  whichKind === kind ? 'border-ink bg-acc-teal-deep text-white' : 'border-ink/25 bg-app-surface text-app-tx2'
                 }`}
               >
                 {label}

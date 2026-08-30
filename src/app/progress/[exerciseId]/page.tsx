@@ -33,7 +33,7 @@ export default async function ProgressPage({
       <div className="pt-1">
         <BackLink label="Back" />
         <div className="flex items-center gap-2.5 flex-wrap">
-          <h1 className="text-xl font-bold text-app-tx1">{exercise.name}</h1>
+          <h1 className="volt-h1" style={{ fontSize: 30, marginTop: 6 }}>{exercise.name}</h1>
           <div className="mt-2 flex gap-2">
             {[
               { id: 'bfit', label: 'B_Fit' },

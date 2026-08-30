@@ -134,7 +134,7 @@ export default async function WorkoutDetailPage({
               </span>
             )}
             <div className="min-w-0">
-              <h1 className="text-xl font-bold font-round tracking-tight leading-tight text-app-tx1">
+              <h1 className="font-round text-xl font-black uppercase tracking-tight leading-tight text-app-tx1">
                 {workout.name}
               </h1>
               <div className="mt-0.5 flex flex-wrap items-center gap-2">

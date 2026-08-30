@@ -184,7 +184,7 @@ export default function JourneyNavClient({
                           href={r.href}
                           onClick={() => setRoomsOpen(false)}
                           className={`flex min-h-[56px] items-center gap-2.5 rounded-card border-2 px-3 py-2 transition-colors ${
-                            here ? 'border-ink bg-acc-teal-deep text-ink' : 'border-ink/20 bg-app-surface text-app-tx1'
+                            here ? 'border-ink bg-acc-teal-deep text-white' : 'border-ink/20 bg-app-surface text-app-tx1'
                           }`}
                         >
                           <span className={here ? 'text-white' : 'text-app-tx2'}>
@@ -228,7 +228,7 @@ export default function JourneyNavClient({
           <Link
             href={action.href}
             aria-label={action.label}
-            className={`flex h-[54px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[28px] border-2 border-ink px-4 text-sm font-extrabold text-ink shadow-[4px_4px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] ${
+            className={`flex h-[54px] min-w-0 flex-1 items-center justify-center gap-2 rounded-[28px] border-2 border-ink px-4 text-sm font-extrabold text-white shadow-[4px_4px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] ${
               // Day color is law: A violet, B teal — the train CTA wears ITS day.
               action.kind === 'train' ? (action.day === 'B' ? 'bg-acc-teal-deep' : 'bg-acc-violet-deep') : 'bg-acc-teal-deep'
             }`}

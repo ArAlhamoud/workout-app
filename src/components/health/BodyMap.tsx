@@ -94,7 +94,7 @@ function nightKey(): string {
 const inputCls =
   'w-full rounded-card border-2 border-ink bg-app-surface px-3 py-3 text-base text-app-tx1 tabular-nums placeholder-app-tx3 focus:outline-none';
 const saveBtn =
-  'w-full min-h-[48px] rounded-card border-2 border-ink bg-acc-teal-deep text-sm font-extrabold text-ink shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] disabled:opacity-40';
+  'w-full min-h-[48px] rounded-card border-2 border-ink bg-acc-teal-deep text-sm font-extrabold text-white shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] disabled:opacity-40';
 
 /** The organ anchors a thin leader line; the label rests in a rail column. */
 function RailLabel({
@@ -481,7 +481,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
                   {GUT_KINDS.map(([k, label]) => (
                     <button
                       key={k} type="button" onClick={() => setKind(k)}
-                      className={`min-h-[44px] rounded-card border-2 px-1 text-[11px] font-bold ${kind === k ? 'border-ink bg-acc-teal-deep text-ink' : 'border-ink/20 bg-app-surface text-app-tx2'}`}
+                      className={`min-h-[44px] rounded-card border-2 px-1 text-[11px] font-bold ${kind === k ? 'border-ink bg-acc-teal-deep text-white' : 'border-ink/20 bg-app-surface text-app-tx2'}`}
                     >
                       {label}
                     </button>
