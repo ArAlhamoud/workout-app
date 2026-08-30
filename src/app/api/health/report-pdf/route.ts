@@ -109,6 +109,18 @@ export async function GET(request: Request) {
     cur.max = Math.max(cur.max, sy.severity);
     symptomAgg.set(sy.kind, cur);
   }
+  const pulses = bp.filter((r) => r.pulse != null).map((r) => r.pulse as number);
+  const pulseAvg =
+    pulses.length >= 3 ? Math.round(pulses.reduce((s, p) => s + p, 0) / pulses.length) : null;
+  // Adherence denominator: mornings elapsed since therapy began (clamped to
+  // the range), never less than the nights actually used — a lagging prisma
+  // report must not produce "7 of 6".
+  const cpapFrom = firstCpapNight
+    ? Math.max(new Date(firstCpapNight).getTime(), since.getTime())
+    : null;
+  const cpapElapsed = cpapFrom
+    ? Math.max(cpapUsed.length, Math.floor((Date.now() - cpapFrom) / DAY_MS) + 1)
+    : 0;
   const meds = data.meds.filter((m) => !m.stoppedOn);
   const conditions = ((data.profile.conditions as string[] | null) ?? []).filter(
     (c): c is string => typeof c === 'string',
@@ -169,6 +181,23 @@ export async function GET(request: Request) {
   row('Height', `${data.profile.heightCm} cm`);
   if (conditions.length) note(conditions.join(' · '));
 
+  // The 10-second read: one line the clinician scans before choosing a section.
+  const glance = [
+    snapshot ? `${signedKg(snapshot.lostKg)} kg` : null,
+    bpAvg ? `BP ${bpAvg.systolic}/${bpAvg.diastolic}` : null,
+    episodes.length
+      ? `AF x${episodes.length}${af.daysSinceLast != null ? ` (last ${af.daysSinceLast}d ago)` : ''}`
+      : af.daysSinceLast != null
+        ? `AF last ${af.daysSinceLast}d ago`
+        : null,
+    cpapAvgH != null ? `CPAP ${cpapAvgH} h/night` : null,
+  ].filter(Boolean).join('   ·   ');
+  if (glance) {
+    y -= 4;
+    text(glance, M, 10.5, bold);
+    y -= 18;
+  }
+
   section('Weight');
   if (snapshot) {
     row('Start -> now', `${snapshot.startKg} -> ${snapshot.currentKg} kg`);
@@ -226,6 +255,7 @@ export async function GET(request: Request) {
   if (bpAvg) row(`Average (${bpAvg.n} readings)`, `${bpAvg.systolic}/${bpAvg.diastolic}`);
   else note(bp.length ? `${bp.length} reading(s) - too few for an average.` : 'No readings in this range.');
   // The treatment split lives here, not under Mounjaro (owner's call).
+  if (pulseAvg != null) row('Average pulse', `${pulseAvg} bpm`);
   if (bpSplit.before) row('Before treatment', `${bpSplit.before.systolic}/${bpSplit.before.diastolic} (${bpSplit.before.n} readings)`);
   if (bpSplit.since) row('Since treatment', `${bpSplit.since.systolic}/${bpSplit.since.diastolic} (${bpSplit.since.n} readings)`);
 
@@ -235,6 +265,9 @@ export async function GET(request: Request) {
     row('Nights logged', String(cpap.length));
     row('Average use', `${cpapAvgH ?? '-'} h/night`);
     row('Nights >= 4 h', `${cpapOver4} of ${cpap.length}`);
+    if (cpapElapsed > 0) {
+      row('Nights used', `${cpapUsed.length} of ${cpapElapsed} (${Math.round((cpapUsed.length / cpapElapsed) * 100)}%)`);
+    }
     if (cpapAvgAhi != null) row('Average AHI', String(cpapAvgAhi));
   } else {
     note('No CPAP nights logged in this range.');
@@ -249,6 +282,19 @@ export async function GET(request: Request) {
   section('Current medications');
   if (!meds.length) note('-');
   for (const m of meds) row(m.name, `${m.doseLabel} · ${m.frequency}`);
+
+  // Footer on every page — a printed page separated from the stack must
+  // still identify itself. Drawn last, when the page count is known.
+  const pages = doc.getPages();
+  pages.forEach((p, i) => {
+    p.drawText(clean(`Abdulrahman Alhamoud · prepared ${fmt(new Date())} · AR Health`), {
+      x: M, y: 30, size: 7.5, font, color: DIM,
+    });
+    const pn = `page ${i + 1} of ${pages.length}`;
+    p.drawText(pn, {
+      x: A4[0] - M - font.widthOfTextAtSize(pn, 7.5), y: 30, size: 7.5, font, color: DIM,
+    });
+  });
 
   const bytes = await doc.save();
   return new Response(Buffer.from(bytes), {

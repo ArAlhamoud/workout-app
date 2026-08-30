@@ -152,6 +152,18 @@ export default async function DoctorReportPage({
   const firstCpapNight = data.cpapNights.length
     ? [...data.cpapNights].sort((a, b) => new Date(a.night).getTime() - new Date(b.night).getTime())[0].night
     : null;
+  const pulses = bp.filter((r) => r.pulse != null).map((r) => r.pulse as number);
+  const pulseAvg =
+    pulses.length >= 3 ? Math.round(pulses.reduce((s, p) => s + p, 0) / pulses.length) : null;
+  // Adherence denominator: mornings elapsed since therapy began (clamped to
+  // the range), never less than the nights used — a lagging report must not
+  // read "7 of 6".
+  const cpapFrom = firstCpapNight
+    ? Math.max(new Date(firstCpapNight).getTime(), since.getTime())
+    : null;
+  const cpapElapsed = cpapFrom
+    ? Math.max(cpapUsed.length, Math.floor((Date.now() - cpapFrom) / DAY_MS) + 1)
+    : 0;
   const rangeLabel = range === '4w' ? 'Last 4 weeks' : range === '3m' ? 'Last 3 months' : 'All data';
   const rangeLabelAr = range === '4w' ? 'آخر ٤ أسابيع' : range === '3m' ? 'آخر ٣ أشهر' : 'كل البيانات';
 
@@ -349,6 +361,7 @@ export default async function DoctorReportPage({
                 : 'No readings in this range.'}
             </p>
           )}
+          {pulseAvg != null && <Row label="Average pulse" value={`${pulseAvg} bpm`} />}
           {/* The treatment split lives here, not under Mounjaro — BP facts
               stay in the BP section (owner's call, 2026-08-30). */}
           {bpSplit.before && (
@@ -372,6 +385,12 @@ export default async function DoctorReportPage({
               <Row label="Nights logged" value={String(cpap.length)} />
               <Row label="Average use" value={`${cpapAvgH ?? '—'} h/night`} />
               <Row label="Nights ≥ 4 h" value={`${cpapOver4} of ${cpap.length}`} />
+              {cpapElapsed > 0 && (
+                <Row
+                  label="Nights used"
+                  value={`${cpapUsed.length} of ${cpapElapsed} (${Math.round((cpapUsed.length / cpapElapsed) * 100)}%)`}
+                />
+              )}
               {cpapAvgAhi != null && <Row label="Average AHI" value={String(cpapAvgAhi)} />}
             </>
           ) : (
