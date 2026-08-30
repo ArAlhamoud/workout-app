@@ -180,23 +180,8 @@ export async function GET(request: Request) {
   row('Born', `1988 · ${new Date().getFullYear() - 1988} y`);
   row('Height', `${data.profile.heightCm} cm`);
   if (conditions.length) note(conditions.join(' · '));
-
-  // The 10-second read: one line the clinician scans before choosing a section.
-  const glance = [
-    snapshot ? `${signedKg(snapshot.lostKg)} kg` : null,
-    bpAvg ? `BP ${bpAvg.systolic}/${bpAvg.diastolic}` : null,
-    episodes.length
-      ? `AF x${episodes.length}${af.daysSinceLast != null ? ` (last ${af.daysSinceLast}d ago)` : ''}`
-      : af.daysSinceLast != null
-        ? `AF last ${af.daysSinceLast}d ago`
-        : null,
-    cpapAvgH != null ? `CPAP ${cpapAvgH} h/night` : null,
-  ].filter(Boolean).join('   ·   ');
-  if (glance) {
-    y -= 4;
-    text(glance, M, 10.5, bold);
-    y -= 18;
-  }
+  // No at-a-glance strip: the sections carry these numbers once each
+  // (owner removed it as redundant, 2026-08-30 — say each thing once).
 
   section('Weight');
   if (snapshot) {
