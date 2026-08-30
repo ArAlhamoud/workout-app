@@ -43,6 +43,9 @@ done
 echo "==> Archiving (Release)"
 rm -rf "$ARCHIVE"
 set -o pipefail
+# The API key rides the ARCHIVE step too: registering a new bundle id or
+# capability (the watch app's HealthKit) needs ASC access, and headless
+# Macs have no signed-in Xcode account ("No Accounts" otherwise).
 xcodebuild \
   -project "$ROOT/ios/App/App.xcodeproj" \
   -scheme App \
@@ -50,6 +53,9 @@ xcodebuild \
   -destination 'generic/platform=iOS' \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
+  -authenticationKeyID "$KEY_ID" \
+  -authenticationKeyPath "$KEY_PATH" \
+  -authenticationKeyIssuerID "$ISSUER_ID" \
   archive 2>&1 | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)"
 
 echo "==> Uploading to App Store Connect"

@@ -42,6 +42,10 @@ struct LogPayload: Codable, Equatable {
     let day: String
     let name: String
     let startISO: String
+    /// The session's LOCAL calendar day (yyyy-MM-dd). Required in practice:
+    /// without it the server dates the workout by UTC instant, and an
+    /// after-midnight Riyadh session lands on the wrong day.
+    let localDay: String
     let durationSec: Int
     let gym: String
     let healthWorkoutUuid: String?

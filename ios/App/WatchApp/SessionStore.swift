@@ -232,10 +232,14 @@ final class SessionStore: ObservableObject {
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US")
         df.dateFormat = "MMM d"
+        let dayFmt = DateFormatter()
+        dayFmt.locale = Locale(identifier: "en_US_POSIX")
+        dayFmt.dateFormat = "yyyy-MM-dd" // wearer's local calendar day
         let payload = LogPayload(
             day: s.day,
             name: "Day \(s.day) — Watch · \(df.string(from: s.startedAt))",
             startISO: fmt.string(from: s.startedAt),
+            localDay: dayFmt.string(from: s.startedAt),
             durationSec: Int(Date().timeIntervalSince(s.startedAt)),
             gym: "bfit",
             healthWorkoutUuid: uuid,
