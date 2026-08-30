@@ -9,6 +9,14 @@
 
 import { useEffect, useState } from 'react';
 
+const A4_PT = 595.28; // must match the route's page width
+
+/** Shrink-only: full size on tablets/desktop, fit-to-width on phones. */
+function pdfScale(): number {
+  if (typeof window === 'undefined') return 1;
+  return Math.min(1, window.innerWidth / A4_PT);
+}
+
 export default function PdfShareButton({ range }: { range: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -94,11 +102,23 @@ export default function PdfShareButton({ range }: { range: string }) {
               Share
             </button>
           </div>
-          <iframe
-            src={preview.url}
-            title="Doctor report PDF"
-            className="w-full flex-1 border-0 bg-white"
-          />
+          {/* WKWebView's PDF plugin renders the A4 page (595pt) at 100% and
+              clips the right column on a phone. No zoom API reaches the
+              plugin, so fit-to-width is done by geometry: lay the frame out
+              at true A4 width and scale it down to the viewport. */}
+          <div className="flex-1 overflow-auto bg-white">
+            <iframe
+              src={preview.url}
+              title="Doctor report PDF"
+              className="border-0 bg-white"
+              style={{
+                width: `${A4_PT}px`,
+                height: `${100 / pdfScale()}%`,
+                transform: `scale(${pdfScale()})`,
+                transformOrigin: 'top left',
+              }}
+            />
+          </div>
         </div>
       )}
     </>
