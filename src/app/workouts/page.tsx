@@ -43,12 +43,15 @@ export default async function WorkoutsPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between pt-1">
-        <div>
-          <p className="text-app-tx3 text-sm mt-0.5 tabular-nums">{workouts.length} sessions</p>
+      {/* Volt masthead */}
+      <header>
+        <div className="volt-topline">
+          <span>Session history</span>
+          <span className="volt-live">{workouts.length} logged</span>
         </div>
-      </div>
+        <h1 className="volt-h1">History<span className="volt-hollow">.</span></h1>
+        <div className="volt-tape" aria-hidden="true" />
+      </header>
 
       {workouts.length === 0 ? (
         <div className="card-lg p-10 text-center border-dashed">

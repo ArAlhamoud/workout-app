@@ -421,9 +421,15 @@ export default async function StatsPage() {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="pt-1">
-      </div>
+      {/* Volt masthead */}
+      <header>
+        <div className="volt-topline">
+          <span>The ledger</span>
+          <span className="volt-live">All time</span>
+        </div>
+        <h1 className="volt-h1">Stats<span className="volt-hollow">.</span></h1>
+        <div className="volt-tape" aria-hidden="true" />
+      </header>
 
       {/* The chain — streak, momentum, lifetime. Numbers a gap cannot erase
           sit beside the two that a gap drains, on one glanceable strip. */}

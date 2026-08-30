@@ -389,3 +389,98 @@ body.has-draft-banner main {
 .nav-scrim {
   background: linear-gradient(to top, var(--app-bg) 20%, transparent);
 }
+
+/* ── VOLT · structural language (Direction B's signatures) ─────
+   Used only on volt routes; colors resolve through the volt scope.
+   The section-label override below is the multiplier: every existing
+   label on a training screen becomes the mock's skewed volt kicker
+   without touching markup. */
+:root { --volt: #cdff00; --volt-dim: #93b800; } /* fallback; volt scope re-declares */
+
+[data-domain='volt'] .section-label {
+  display: inline-block;
+  transform: skewX(-12deg);
+  background: var(--volt);
+  color: #000;
+  padding: 4px 11px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+}
+[data-domain='volt'] .section-label > * { display: inline-block; }
+/* Un-skew the text inside (approximation: labels are single-line). */
+[data-domain='volt'] .section-label { transform: skewX(-12deg); }
+
+.volt-topline {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--app-tx2);
+}
+.volt-live { display: flex; align-items: center; gap: 7px; color: var(--volt); }
+.volt-live::before { content: ''; width: 7px; height: 7px; background: var(--volt); border-radius: 50%; }
+.volt-h1 {
+  margin-top: 10px;
+  font-family: var(--font-round);
+  font-weight: 900;
+  font-size: 44px;
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--app-tx1);
+}
+.volt-hollow { color: transparent; -webkit-text-stroke: 2px var(--volt); }
+.volt-tape {
+  height: 7px;
+  margin-top: 14px;
+  background: repeating-linear-gradient(-45deg, var(--volt) 0 7px, #000 7px 14px);
+}
+
+/* The directive card — a solid volt slab with the giant outlined letter. */
+.volt-card-primary {
+  position: relative; overflow: hidden;
+  background: var(--volt); color: #000;
+  border: 2px solid #f2f2f0;
+  border-radius: 14px;
+  box-shadow: 4px 4px 0 rgba(242, 242, 240, 0.9);
+  padding: 18px 18px 16px 20px;
+}
+.volt-letter {
+  position: absolute; right: 8px; top: -14px;
+  font-family: var(--font-round); font-weight: 900;
+  font-size: 132px; line-height: 1; pointer-events: none;
+  color: transparent; -webkit-text-stroke: 2px rgba(0, 0, 0, 0.28);
+}
+.volt-letter-quiet {
+  position: absolute; right: 8px; top: -14px;
+  font-family: var(--font-round); font-weight: 900;
+  font-size: 110px; line-height: 1; pointer-events: none;
+  color: transparent; opacity: 0.55;
+}
+.volt-flag {
+  display: inline-block; background: #000; color: var(--volt);
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 9.5px; letter-spacing: 0.2em; font-weight: 800;
+  text-transform: uppercase; padding: 4px 8px;
+}
+.volt-startbar {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 52px; background: #000; color: var(--volt);
+  font-family: var(--font-round); font-weight: 900; font-size: 17px;
+  letter-spacing: 0.03em; text-transform: uppercase;
+  clip-path: polygon(2% 0, 100% 0, 98% 100%, 0 100%);
+}
+.volt-startbar:active { filter: brightness(1.2); }
+
+/* Corner-bracketed protocol frame (dashed volt-dim border). */
+.volt-protocol {
+  position: relative;
+  border: 1.5px dashed var(--volt-dim);
+  background: linear-gradient(rgba(205, 255, 0, 0.045), rgba(205, 255, 0, 0) 40%), #0b0c09;
+}
+.volt-protocol::before, .volt-protocol::after {
+  content: ''; position: absolute; width: 14px; height: 14px;
+  border: 2px solid var(--volt);
+}
+.volt-protocol::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+.volt-protocol::after { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }

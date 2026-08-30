@@ -186,12 +186,15 @@ export default async function ProgramPage() {
 
   return (
     <div className="space-y-8 pb-8">
-      {/* Header */}
-      <div>
-        <p className="section-label mb-1">
-          12-Week Fat Loss
-        </p>
-      </div>
+      {/* Volt masthead */}
+      <header>
+        <div className="volt-topline">
+          <span>The protocol</span>
+          <span className="volt-live">{status.mode === 'return' ? 'Return ramp' : 'Active'}</span>
+        </div>
+        <h1 className="volt-h1">Two-day <span className="volt-hollow">split</span></h1>
+        <div className="volt-tape" aria-hidden="true" />
+      </header>
 
       {/* This Week — live status */}
       {status.mode === 'return' ? (
@@ -289,7 +292,7 @@ export default async function ProgramPage() {
           </div>
         </section>
       ) : (
-        <section className="card-lg p-4">
+        <section className="volt-protocol rounded-none p-4">
           <div className="flex items-center justify-between">
             <p className="section-label">This Week</p>
             <span

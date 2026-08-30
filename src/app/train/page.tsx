@@ -148,32 +148,71 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
   }
 
   const primary = variant === 'primary';
+
+  /* Volt directive card — the mock's solid-volt slab: giant outlined
+     letter, black UP NEXT flag, black start bar. Day identity stays in
+     the letter and label; the slab itself is always volt. */
+  if (primary) {
+    return (
+      <section className="volt-card-primary">
+        <span aria-hidden="true" className="volt-letter">{day}</span>
+        <span className="volt-flag">Up next</span>
+        <h3 className="relative mt-2 font-round text-[32px] font-black uppercase leading-none tracking-tight">Day {day}</h3>
+        <p className="relative mt-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-black/70">{DAY_FOCUS[day]}</p>
+        <div className="relative mt-4 grid grid-cols-3 gap-2">
+          {DURATIONS.map((d) => (
+            <Link
+              key={d}
+              href={`/workouts/new?day=${day}&dur=${d}`}
+              className={`pressable flex min-h-[44px] flex-col items-center justify-center gap-0.5 font-round text-[15px] font-extrabold leading-none tabular-nums ${
+                d === 45
+                  ? 'bg-black text-[#cdff00]'
+                  : 'bg-black/10 text-black shadow-[inset_0_0_0_1.5px_#000]'
+              }`}
+            >
+              {d}
+              <span className="font-mono text-[8.5px] font-bold tracking-[0.18em] opacity-70">MIN</span>
+            </Link>
+          ))}
+        </div>
+        <Link href={`/workouts/new?day=${day}&dur=45`} className="volt-startbar pressable relative mt-3.5 w-full">
+          <svg width="13" height="14" viewBox="0 0 13 14" fill="none" aria-hidden="true" className="flex-none">
+            <path d="M1.5 1.6c0-.9 1-1.5 1.8-1L12 6a1.2 1.2 0 0 1 0 2.1L3.3 13.4c-.8.5-1.8-.1-1.8-1z" fill="currentColor" />
+          </svg>
+          Start Day {day}
+        </Link>
+        <p className="relative mt-3 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-black/55">
+          B_Fit default · pins learned per machine
+        </p>
+      </section>
+    );
+  }
+
   return (
-    <section className={`card-lg relative overflow-hidden p-4 ${primary ? accent.glowCard : ''} ${variant === 'muted' ? 'opacity-60' : ''}`}>
-      {primary && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-card-lg" style={{ background: accent.nebula }} />
-      )}
+    <section className={`card-lg relative overflow-hidden p-4 ${variant === 'muted' ? 'opacity-60' : ''}`}>
+      <span
+        aria-hidden="true"
+        className="volt-letter-quiet"
+        style={{ WebkitTextStroke: `1.5px ${day === 'A' ? '#8b5cf6' : '#14b8a6'}` }}
+      >
+        {day}
+      </span>
       <div className="relative">
         <div className="flex items-center gap-3">
-          <div className={`grid h-11 w-11 flex-none place-items-center rounded-2xl font-round text-lg font-extrabold ${primary ? accent.monogram : accent.monogramQuiet}`}>
+          <div className={`grid h-11 w-11 flex-none place-items-center rounded-2xl font-round text-lg font-extrabold ${accent.monogramQuiet}`}>
             {day}
           </div>
           <div className="min-w-0">
-            <h3 className="font-round text-base font-bold tracking-tight text-app-tx1">Day {day}</h3>
+            <h3 className="font-round text-base font-bold uppercase tracking-tight text-app-tx1">Day {day}</h3>
             <p className="mt-0.5 text-xs text-app-tx2">{DAY_FOCUS[day]}</p>
           </div>
-          {primary && (
-            <span className={`chip ml-auto flex-none text-[9px] uppercase tracking-[0.13em] ${accent.tag}`}>Up next</span>
-          )}
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {DURATIONS.map((d) => (
             <Link
               key={d}
               href={`/workouts/new?day=${day}&dur=${d}`}
-              className={`pressable flex items-center justify-center rounded-xl border py-3 transition-colors ${
-                primary && d === 45 ? accent.chip : CHIP_QUIET
-              }`}
+              className={`pressable flex items-center justify-center rounded-xl border py-3 transition-colors ${CHIP_QUIET}`}
             >
               <span className="font-round text-[17px] font-semibold leading-none tabular-nums">
                 {d}
@@ -182,18 +221,6 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
             </Link>
           ))}
         </div>
-        {/* The boldest object on the page — full-width gradient Start */}
-        {primary && (
-          <Link
-            href={`/workouts/new?day=${day}&dur=45`}
-            className={`pressable mt-3 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-round text-[15px] font-bold tracking-tight transition-all hover:brightness-110 active:brightness-95 ${accent.start}`}
-          >
-            <svg width="13" height="14" viewBox="0 0 13 14" fill="none" aria-hidden="true" className="flex-none">
-              <path d="M1.5 1.6c0-.9 1-1.5 1.8-1L12 6a1.2 1.2 0 0 1 0 2.1L3.3 13.4c-.8.5-1.8-.1-1.8-1z" fill="currentColor" />
-            </svg>
-            Start Day {day} · 45 min
-          </Link>
-        )}
       </div>
     </section>
   );
@@ -272,6 +299,20 @@ export default async function TrainPage() {
   return (
     <div className="space-y-4">
 
+      {/* ── Volt masthead — date, live state, the big word, the tape ── */}
+      <header>
+        <div className="volt-topline">
+          <span>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}
+          </span>
+          <span className="volt-live">
+            {status.mode === 'return' ? `Return W${status.week}` : `Wk ${programWeek} · ${currentPhase.phase}`}
+          </span>
+        </div>
+        <h1 className="volt-h1">Train<span className="volt-hollow">.</span></h1>
+        <div className="volt-tape" aria-hidden="true" />
+      </header>
+
       {/* ── The verdict — first thing on the screen ───────
           Server-rendered from the plan + the training status. Inside the native
           shell it upgrades itself with a HealthKit readiness read (and shows the
@@ -340,18 +381,9 @@ export default async function TrainPage() {
               </p>
             </div>
           )}
+          {/* Week/phase moved to the masthead topline — say each thing once. */}
           <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
             <span className="min-w-0 text-[11px] text-app-tx2"><StepsChipLabel /></span>
-            {status.mode === 'return' ? (
-              <span className="chip flex-none border border-acc-ember/40 bg-acc-ember/10 text-acc-ember">
-                Return W{status.week} · {status.returnWeek.phase}
-              </span>
-            ) : (
-              <span className={`chip flex-none ${phaseColor[currentPhase.phase] ?? 'bg-ink/10 text-app-tx2'}`}>
-                Wk {programWeek} · {currentPhase.phase}
-              </span>
-            )}
-        
           </div>
         </div>
 

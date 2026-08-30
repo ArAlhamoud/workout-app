@@ -197,7 +197,6 @@ export default async function NewWorkoutPage({
   );
 
   // Aurora day accents — Day A glows violet, Day B glows teal.
-  const eyebrowAccent = validDay === 'A' ? 'text-acc-violet/80' : 'text-acc-teal/80';
   const titleGradient =
     validDay === 'A'
       ? 'text-acc-violet'
@@ -209,12 +208,17 @@ export default async function NewWorkoutPage({
 
   return (
     <div className="space-y-5">
-      <div className="pt-1">
-        <p className={`section-label ${eyebrowAccent}`}>{getDayTemplate(validDay).focus}</p>
-        <h1 className={`text-2xl font-bold font-round tracking-tight mt-0.5 ${titleGradient}`}>
-          Day {validDay} Workout
+      {/* Volt masthead */}
+      <header className="pt-1">
+        <div className="volt-topline">
+          <span>Day {validDay} · {validDur} min</span>
+          <span className="volt-live">{getDayTemplate(validDay).focus}</span>
+        </div>
+        <h1 className="volt-h1" style={{ fontSize: 36 }}>
+          Day <span className={titleGradient}>{validDay}</span> <span className="volt-hollow">workout</span>
         </h1>
-      </div>
+        <div className="volt-tape" aria-hidden="true" />
+      </header>
 
       {/* Duration switcher pills */}
       <div>
