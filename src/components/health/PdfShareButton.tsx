@@ -81,7 +81,9 @@ export default function PdfShareButton({ range }: { range: string }) {
       {msg && <p className="w-full text-center text-[11px] font-semibold text-rpe-hard">{msg}</p>}
 
       {preview && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-app-bg">
+        {/* z-[60]: the viewer is a full-screen modal — the journey bar
+            (z-50) must not float over the document. */}
+        <div className="fixed inset-0 z-[60] flex flex-col bg-app-bg">
           <div
             className="flex items-center justify-between gap-2 border-b-2 border-ink bg-app-surface px-4 pb-2.5"
             style={{ paddingTop: 'calc(0.625rem + env(safe-area-inset-top))' }}
