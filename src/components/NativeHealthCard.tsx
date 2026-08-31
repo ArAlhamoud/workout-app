@@ -15,6 +15,7 @@ import {
 import {
   isNativeApp,
   requestHealthAuthorization,
+  queryQuantity,
   queryWeight,
   queryWorkouts,
   queryWorkoutStats,
@@ -234,6 +235,36 @@ export default function NativeHealthCard() {
       errs.push(reason(e, 'weight sync'));
     }
 
+    // 1b — blood-pressure readings (+ the cuff's pulse via narrow HR
+    // windows) — same contract as the autopilot's pass, so the manual
+    // button syncs everything the background pass does. Silently skipped
+    // on a bridge without the BP types or before the re-grant.
+    let bpUp = 0;
+    try {
+      const [sys, dia] = await Promise.all([
+        queryQuantity('bloodPressureSystolic', { startISO: windowStartISO(WEIGHT_WINDOW_DAYS) }),
+        queryQuantity('bloodPressureDiastolic', { startISO: windowStartISO(WEIGHT_WINDOW_DAYS) }),
+      ]);
+      if (sys.samples.length && dia.samples.length) {
+        const rows: ImportSample[] = [
+          ...sys.samples.map((s2) => ({ type: 'bp_systolic', value: s2.value, unit: 'mmHg', date: s2.dateISO })),
+          ...dia.samples.map((s2) => ({ type: 'bp_diastolic', value: s2.value, unit: 'mmHg', date: s2.dateISO })),
+        ];
+        for (const s2 of sys.samples.slice(-40)) {
+          try {
+            const t = new Date(s2.dateISO).getTime();
+            const hr = await queryQuantity('heartRate', {
+              startISO: new Date(t - 2 * 60_000).toISOString(),
+              endISO: new Date(t + 2 * 60_000).toISOString(),
+            });
+            rows.push(...hr.samples.map((h) => ({ type: 'heart_rate', value: h.value, unit: 'count/min', date: h.dateISO })));
+          } catch { /* pulse is a bonus */ }
+        }
+        await importHealth(rows);
+        bpUp = sys.samples.length;
+      }
+    } catch { /* pre-link build or denied reads: quiet, like the autopilot */ }
+
     // 2 — un-synced app workouts → HealthKit (+ HR/energy enrichment back to app)
     try {
       const workouts = await getWorkoutsToPush();
@@ -286,6 +317,7 @@ export default function NativeHealthCard() {
 
     const counts: string[] = [];
     if (weightsUp > 0) counts.push(`${weightsUp} weight${weightsUp === 1 ? '' : 's'}`);
+    if (bpUp > 0) counts.push(`${bpUp} BP reading${bpUp === 1 ? '' : 's'}`);
     if (workoutsUp > 0) counts.push(`${workoutsUp} workout${workoutsUp === 1 ? '' : 's'}`);
     if (workoutsEnriched > 0) counts.push(`${workoutsEnriched} enriched ↓`);
     // Zero is never proof of denial or of absence — Health won't say which.
