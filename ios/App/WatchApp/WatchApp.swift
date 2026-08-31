@@ -6,9 +6,14 @@ struct ARHealthWatchApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(store)
-                .onAppear { store.onLaunch() }
+            // NavigationStack is what makes .toolbar items actually render
+            // on watchOS — without it the End button silently vanished and
+            // a card with a disabled Log button became a trap.
+            NavigationStack {
+                RootView()
+            }
+            .environmentObject(store)
+            .onAppear { store.onLaunch() }
         }
     }
 }
