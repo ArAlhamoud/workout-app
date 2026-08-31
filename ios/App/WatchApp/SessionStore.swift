@@ -134,16 +134,11 @@ final class SessionStore: ObservableObject {
         Store.saveSession(s)
     }
 
-    /// Reps cards refuse a 0 kg log — a phantom-zero set would poison the
-    /// gym-scoped prefill memory the next plan is built from (CLAUDE.md
-    /// rule 2). Seconds cards (plank) are weightless by design.
-    var canLogCurrentSet: Bool {
-        guard let slot = currentSlot else { return false }
-        return slot.isSeconds || slot.weightKg > 0
-    }
-
     func logCurrentSet() {
-        guard canLogCurrentSet else { return }
+        // 0 kg is loggable but never accidental: the card's button turns
+        // amber and says "Log bodyweight · 0 kg" — the phantom-zero worry
+        // (rule 2) is answered by explicitness, not by a dead button that
+        // once trapped the owner on his first real session.
         guard var s = session, s.currentIndex < s.slots.count else { return }
         let slot = s.slots[s.currentIndex]
         s.logged.append(LogSet(

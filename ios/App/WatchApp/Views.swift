@@ -120,6 +120,7 @@ struct SetCardView: View {
     @EnvironmentObject var store: SessionStore
     let slot: SetSlot
     @State private var crownWeight: Double = 0
+    @FocusState private var crownFocused: Bool
 
     private var weightText: String {
         slot.weightKg <= 0 ? "—" : slot.weightKg.truncatingRemainder(dividingBy: 1) == 0
@@ -150,6 +151,7 @@ struct SetCardView: View {
                         .foregroundStyle(.secondary)
                 }
                 .focusable()
+                .focused($crownFocused)
                 .digitalCrownRotation(
                     $crownWeight,
                     from: 5, through: 180, by: 5,
@@ -158,8 +160,8 @@ struct SetCardView: View {
                 .onChange(of: crownWeight) { _, v in
                     store.setSeconds(Int(v))
                 }
-                .onAppear { crownWeight = Double(slot.reps) }
-                .onChange(of: slot.id) { _, _ in crownWeight = Double(slot.reps) }
+                .onAppear { crownWeight = Double(slot.reps); crownFocused = true }
+                .onChange(of: slot.id) { _, _ in crownWeight = Double(slot.reps); crownFocused = true }
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(weightText)
@@ -179,6 +181,7 @@ struct SetCardView: View {
                     .foregroundStyle(.teal)
                 }
                 .focusable()
+                .focused($crownFocused)
                 .digitalCrownRotation(
                     $crownWeight,
                     from: 0, through: 500, by: max(slot.pinKg, 0.5),
@@ -187,20 +190,24 @@ struct SetCardView: View {
                 .onChange(of: crownWeight) { _, v in
                     store.adjust(weight: v)
                 }
-                .onAppear { crownWeight = slot.weightKg }
-                .onChange(of: slot.id) { _, _ in crownWeight = slot.weightKg }
+                .onAppear { crownWeight = slot.weightKg; crownFocused = true }
+                .onChange(of: slot.id) { _, _ in crownWeight = slot.weightKg; crownFocused = true }
             }
 
+            if !slot.isSeconds && slot.weightKg <= 0 {
+                Text("turn the crown to set weight")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
             Button {
                 store.logCurrentSet()
             } label: {
-                Text(store.canLogCurrentSet ? "Log set" : "Set weight first")
-                    .font(.system(size: 17, weight: .black, design: .rounded))
+                Text(!slot.isSeconds && slot.weightKg <= 0 ? "Log bodyweight · 0 kg" : "Log set")
+                    .font(.system(size: !slot.isSeconds && slot.weightKg <= 0 ? 14 : 17, weight: .black, design: .rounded))
                     .frame(maxWidth: .infinity, minHeight: 40)
             }
             .buttonStyle(.borderedProminent)
-            .tint(store.canLogCurrentSet ? .green : .gray)
-            .disabled(!store.canLogCurrentSet)
+            .tint(!slot.isSeconds && slot.weightKg <= 0 ? .orange : .green)
         }
         .padding(.horizontal, 2)
         .toolbar {
@@ -284,6 +291,11 @@ struct RPEStripView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(tints[i].opacity(i + 1 > cap ? 0.55 : 1))
             }
+            // An unrated exercise is honest data too — never force a tap.
+            Button("skip") { store.skipRPE() }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 2)
         }
@@ -332,12 +344,14 @@ struct SummaryView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
-                if (store.session?.logged.isEmpty ?? true) {
-                    Button("Discard") { store.discard() }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
-                        .font(.system(size: 13, design: .rounded))
+                // Always offered: a test run with logged sets needs a way
+                // out that isn't "save it into the training history".
+                Button(store.session?.logged.isEmpty ?? true ? "Discard" : "Discard — don't save") {
+                    store.discard()
                 }
+                .buttonStyle(.bordered)
+                .tint(.red)
+                .font(.system(size: 13, design: .rounded))
             }
             .padding(.horizontal, 4)
         }
