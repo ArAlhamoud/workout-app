@@ -58,6 +58,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
         <DomainTheme />
+        {/* Offline fallback SW — registration lived inside the retired
+            install banner; it belongs to the shell, not a prompt. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(function(){})",
+          }}
+        />
         {/* Chroma ground — flat bone, one fixed layer */}
         <div className="aurora-sky" aria-hidden="true" />
         <main className="mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-32 max-w-lg">
