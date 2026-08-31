@@ -52,6 +52,9 @@ xcodebuild \
   -scheme App \
   -configuration Debug \
   -destination "id=$DEVICE" \
+  -authenticationKeyID Q4C9KQJY37 \
+  -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_Q4C9KQJY37.p8" \
+  -authenticationKeyIssuerID 3b3a22df-7fe5-4ad4-a523-1aa60fcd9eee \
   -derivedDataPath "$DERIVED" \
   -allowProvisioningUpdates \
   build 2>&1 | grep -E "error:|warning: .*(deprecat|unused)|BUILD (SUCCEEDED|FAILED)" || BUILD_STATUS=$?
