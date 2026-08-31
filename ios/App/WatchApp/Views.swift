@@ -291,6 +291,11 @@ struct RPEStripView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(tints[i].opacity(i + 1 > cap ? 0.55 : 1))
             }
+            // An unrated exercise is honest data too — never force a tap.
+            Button("skip") { store.skipRPE() }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 2)
         }
@@ -339,12 +344,14 @@ struct SummaryView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
-                if (store.session?.logged.isEmpty ?? true) {
-                    Button("Discard") { store.discard() }
-                        .buttonStyle(.bordered)
-                        .tint(.red)
-                        .font(.system(size: 13, design: .rounded))
+                // Always offered: a test run with logged sets needs a way
+                // out that isn't "save it into the training history".
+                Button(store.session?.logged.isEmpty ?? true ? "Discard" : "Discard — don't save") {
+                    store.discard()
                 }
+                .buttonStyle(.bordered)
+                .tint(.red)
+                .font(.system(size: 13, design: .rounded))
             }
             .padding(.horizontal, 4)
         }
