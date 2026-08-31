@@ -1,32 +1,25 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getBodyStats, getWorkouts } from '../actions';
+import { getExercises, getLastSessionForExercises, getWorkouts } from '../actions';
 import {
   getDynamicPlan,
   cleanRampSessionDates,
   getTrainingStatus,
-  getExerciseCountForDuration,
   getExercisesForDuration,
-  parseDayLetter,
   queuedDay,
   isTrainingSession,
-  recoveryActivity,
+  scaleReturnWeight,
+  DEFAULT_GYM_ID,
 } from '@/lib/program';
 import { phaseForWeek } from '@/lib/coach';
 import CoachCard from '@/components/CoachCard';
-import HomeVerdict from '@/components/HomeVerdict';
-import StepsChipLabel from '@/components/StepsChipLabel';
-import { formatDuration, formatRelative, getMondayOfWeek, kgCompact, RPE_LABELS, weekKey } from '@/lib/format';
+import { formatRelative, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
 const DURATIONS = [30, 45, 60] as const;
 
-const RING_R = 46;
-const RING_C = 2 * Math.PI * RING_R;
-
-/* ── Aurora day accents — light IS the information system ────
-   Day A glows violet · Day B glows teal. */
+/* Day identity — A violet, B teal, on the Volt stage. */
 type DayId = 'A' | 'B';
 type DayVariant = 'primary' | 'muted' | 'neutral' | 'done';
 
@@ -35,44 +28,14 @@ const DAY_FOCUS: Record<DayId, string> = {
   B: 'Back · Hamstrings · Arms',
 };
 
-const DAY_ACCENT: Record<DayId, {
-  glowCard: string;
-  nebula: string;
-  monogram: string;
-  monogramQuiet: string;
-  tag: string;
-  chip: string;
-  accentText: string;
-  start: string;
-}> = {
-  A: {
-    glowCard: 'border-acc-violet/30 shadow-glow-violet',
-    nebula: 'radial-gradient(240px 120px at 100% 0%, rgba(139,92,246,0.13), transparent 70%)',
-    monogram: 'bg-gradient-to-br from-[#ddd6fe] to-acc-violet-deep text-white shadow-[0_0_24px_-4px_rgba(139,92,246,0.8)]',
-    monogramQuiet: 'border border-acc-violet/35 bg-acc-violet-deep/15 text-acc-violet',
-    tag: 'bg-gradient-to-r from-acc-violet to-[#a78bfa] text-white shadow-[0_0_14px_-2px_rgba(139,92,246,0.7)]',
-    chip: 'border-acc-violet/50 bg-gradient-to-br from-acc-violet/25 to-acc-violet-deep/10 text-acc-violet shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)]',
-    accentText: 'text-acc-violet',
-    start:
-      'bg-gradient-to-r from-acc-violet to-acc-violet-deep text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_0_30px_-6px_rgba(139,92,246,0.8)]',
-  },
-  B: {
-    glowCard: 'border-acc-teal/30 shadow-glow-teal',
-    nebula: 'radial-gradient(240px 120px at 100% 0%, rgba(94,234,212,0.13), transparent 70%)',
-    monogram: 'bg-gradient-to-br from-[#99f6e4] to-acc-teal-deep text-white shadow-[0_0_24px_-4px_rgba(45,212,191,0.8)]',
-    monogramQuiet: 'border border-acc-teal/35 bg-acc-teal-deep/15 text-acc-teal',
-    tag: 'bg-gradient-to-r from-acc-teal to-acc-cyan text-white shadow-[0_0_14px_-2px_rgba(94,234,212,0.7)]',
-    chip: 'border-acc-teal/50 bg-gradient-to-br from-acc-teal/25 to-acc-teal-deep/10 text-acc-teal shadow-[0_0_18px_-4px_rgba(45,212,191,0.55)]',
-    accentText: 'text-acc-teal',
-    start:
-      'bg-gradient-to-r from-acc-teal to-acc-cyan text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_0_30px_-6px_rgba(45,212,191,0.8)]',
-  },
+const DAY_QUIET: Record<DayId, string> = {
+  A: 'border border-acc-violet/35 bg-acc-violet-deep/15 text-acc-violet',
+  B: 'border border-acc-teal/35 bg-acc-teal-deep/15 text-acc-teal',
 };
 
-/* Quiet duration chip — plain glass, only the 45-min default lights up */
 const CHIP_QUIET = 'border-app-border bg-ink/[0.04] text-app-tx2 hover:border-app-border-hi';
 
-/* Quiet aurora affordance for <details> summaries — full copy lives one tap away */
+/* Quiet affordance for <details> summaries — full copy lives one tap away */
 const SUMMARY_CHIP =
   'chip inline-flex w-fit cursor-pointer select-none list-none items-center gap-1.5 border border-app-border bg-ink/5 text-[10px] uppercase tracking-[0.12em] text-app-tx3 transition-colors hover:border-app-border-hi hover:text-app-tx2 [&::-webkit-details-marker]:hidden';
 
@@ -115,14 +78,12 @@ const RPE_CAP_FLAG = [
 ] as const;
 
 function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; doneWhen: string | null }) {
-  const accent = DAY_ACCENT[day];
-
   /* Quiet done-row — this day was trained this block; links stay intact */
   if (variant === 'done') {
     return (
       <section className="card p-3.5 opacity-80">
         <div className="flex items-center gap-3">
-          <div className={`grid h-9 w-9 flex-none place-items-center rounded-xl font-round text-sm font-extrabold ${accent.monogramQuiet}`}>
+          <div className={`grid h-9 w-9 flex-none place-items-center rounded-xl font-round text-sm font-extrabold ${DAY_QUIET[day]}`}>
             {day}
           </div>
           <div className="min-w-0 flex-1">
@@ -147,12 +108,9 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
     );
   }
 
-  const primary = variant === 'primary';
-
-  /* Volt directive card — the mock's solid-volt slab: giant outlined
-     letter, black UP NEXT flag, black start bar. Day identity stays in
-     the letter and label; the slab itself is always volt. */
-  if (primary) {
+  /* The directive — the mock's solid-volt slab: giant outlined letter,
+     black UP NEXT flag, black start bar. */
+  if (variant === 'primary') {
     return (
       <section className="volt-card-primary">
         <span aria-hidden="true" className="volt-letter">{day}</span>
@@ -181,15 +139,12 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
           </svg>
           Start Day {day}
         </Link>
-        <p className="relative mt-3 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-black/55">
-          B_Fit default · pins learned per machine
-        </p>
       </section>
     );
   }
 
   return (
-    <section className={`card-lg relative overflow-hidden p-4 ${variant === 'muted' ? 'opacity-60' : ''}`}>
+    <section className={`card relative overflow-hidden p-3.5 ${variant === 'muted' ? 'opacity-60' : ''}`}>
       <span
         aria-hidden="true"
         className="volt-letter-quiet"
@@ -197,27 +152,22 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
       >
         {day}
       </span>
-      <div className="relative">
-        <div className="flex items-center gap-3">
-          <div className={`grid h-11 w-11 flex-none place-items-center rounded-2xl font-round text-lg font-extrabold ${accent.monogramQuiet}`}>
-            {day}
-          </div>
-          <div className="min-w-0">
-            <h3 className="font-round text-base font-bold uppercase tracking-tight text-app-tx1">Day {day}</h3>
-            <p className="mt-0.5 text-xs text-app-tx2">{DAY_FOCUS[day]}</p>
-          </div>
+      <div className="relative flex items-center gap-3">
+        <div className={`grid h-10 w-10 flex-none place-items-center rounded-xl font-round text-base font-extrabold ${DAY_QUIET[day]}`}>
+          {day}
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-round text-sm font-bold uppercase tracking-tight text-app-tx1">Day {day}</h3>
+          <p className="mt-0.5 text-[11px] text-app-tx2">{DAY_FOCUS[day]}</p>
+        </div>
+        <div className="flex gap-1.5">
           {DURATIONS.map((d) => (
             <Link
               key={d}
               href={`/workouts/new?day=${day}&dur=${d}`}
-              className={`pressable flex items-center justify-center rounded-xl border py-3 transition-colors ${CHIP_QUIET}`}
+              className={`pressable rounded-lg border px-2.5 py-1.5 text-center text-[11px] font-semibold tabular-nums transition-colors ${CHIP_QUIET}`}
             >
-              <span className="font-round text-[17px] font-semibold leading-none tabular-nums">
-                {d}
-                <span className="ml-0.5 text-[9px] font-bold uppercase tracking-[0.12em] opacity-70">min</span>
-              </span>
+              {d}m
             </Link>
           ))}
         </div>
@@ -229,40 +179,23 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
 export const metadata: Metadata = { title: 'Train' };
 
 export default async function TrainPage() {
-  const [workouts, bodyStats] = await Promise.all([getWorkouts(), getBodyStats()]);
-  const recentWorkouts = workouts.slice(0, 4);
-
-  // Weigh-in nudge: bodyStats come back date-ascending
-  const lastBodyStat = bodyStats[bodyStats.length - 1];
-  const daysSinceWeighIn = lastBodyStat
-    ? Math.floor((Date.now() - new Date(lastBodyStat.date).getTime()) / 86400000)
-    : null;
-
-  // Week stats (Monday-start weeks)
-  const weekStart = getMondayOfWeek(new Date());
-  const sessionsThisWeek = workouts.filter((w) => new Date(w.date) >= weekStart).length;
-
-  // Week volume
-  const weekVolume = workouts
-    .filter((w) => new Date(w.date) >= weekStart)
-    .reduce((sum, w) => sum + w.sets.reduce((s, set) => s + (set.isWarmup ? 0 : set.weight * set.reps), 0), 0);
-
-  const isSunday = new Date().getDay() === 0;
+  const [workouts, exercises] = await Promise.all([getWorkouts(), getExercises()]);
 
   // What his own log says to do today: train (alternating A/B), recover the
   // day after a session, or nothing at all because it's already logged.
   const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
-  const isTrainDay = plan.mode === 'train';
   const isDoneToday = plan.mode === 'done-today';
-  // The glowing day. After a session logged today nothing glows — the day
-  // he did shows as done and the other stays neutral, both still startable.
   const suggestedDay: DayId | null = isDoneToday ? null : plan.day;
   const nextDay: DayId = queuedDay(plan);
-  const restActivity = recoveryActivity(plan.lastDay);
-
   const lastWorkout = workouts[0] ?? null;
 
-  // Deload signal
+  // Where the lifter actually is: fresh, ramping back, or mid-program.
+  const trainingOnly = workouts.filter(isTrainingSession);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
+  const currentPhase = phaseForWeek(status.week);
+  const returnLoadPct = status.mode === 'return' ? status.returnWeek.loadPct : null;
+
+  // Fatigue signal — one mono line, not a card (the ramp supersedes it).
   const deloadWarning = (() => {
     const cutoff = new Date(Date.now() - 14 * 86400000);
     const recentSets = workouts
@@ -270,35 +203,39 @@ export default async function TrainPage() {
       .flatMap((w) => w.sets)
       .filter((s) => s.rpe != null && s.rpe > 0);
     if (recentSets.length < 6) return false;
-    const hardCount = recentSets.filter((s) => s.rpe! >= 3).length;
-    return hardCount / recentSets.length > 0.5;
+    return recentSets.filter((s) => s.rpe! >= 3).length / recentSets.length > 0.5;
   })();
 
-  // Where the lifter actually is: fresh, ramping back after a layoff, or mid-program
-  const trainingOnly = workouts.filter(isTrainingSession);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
-  const programWeek = status.week;
-  const currentPhase = phaseForWeek(programWeek);
-
-  const phaseColor: Record<string, string> = {
-    LEARN:    'bg-ink/10 text-app-tx2',
-    BUILD:    'bg-acc-indigo/25 text-acc-indigo',
-    PUSH:     'bg-acc-teal/15 text-acc-teal',
-    DELOAD:   'bg-rpe-hard/15 text-rpe-hard',
-    REBUILD:  'bg-acc-violet/15 text-acc-violet',
-    EVALUATE: 'bg-acc-cyan/15 text-acc-cyan',
-  };
+  // ── Session preview: the queued day's machines with the weights he will
+  // actually see in the logger — gym-scoped to B_Fit (rule 2), pre-scaled
+  // by the ramp when it is running. This list IS the plan; the logger just
+  // makes it editable.
+  const previewDay: DayId = suggestedDay ?? nextDay;
+  const template = getExercisesForDuration(previewDay, 45);
+  const exerciseByName = new Map(exercises.map((e) => [e.name, e]));
+  const previewIds = template
+    .map((te) => exerciseByName.get(te.name)?.id)
+    .filter((id): id is string => Boolean(id));
+  const lastByExercise = await getLastSessionForExercises(previewIds, DEFAULT_GYM_ID);
+  const preview = template.map((te) => {
+    const ex = exerciseByName.get(te.name);
+    const last = ex ? lastByExercise[ex.id] : undefined;
+    const lastW = last && last.weight > 0 ? last.weight : null;
+    const shownW =
+      lastW != null && returnLoadPct != null ? scaleReturnWeight(lastW, returnLoadPct) : lastW;
+    return {
+      name: te.name,
+      setsReps: `${te.sets} × ${te.repsDisplay}`,
+      isHold: te.unit === 'seconds',
+      weight: te.unit === 'seconds' ? null : shownW,
+      scaled: returnLoadPct != null && lastW != null,
+    };
+  });
 
   const hour = new Date().getHours();
-  const heroVerb = hour >= 17 ? 'Tonight' : 'Today';
-  const ringProgress = Math.min(1, sessionsThisWeek / 3);
-  const suggestedAccent = suggestedDay ? DAY_ACCENT[suggestedDay] : null;
-  // Whatever is next sits on top — after a logged session that's the alternate.
-  const dayOrder: DayId[] = nextDay === 'B' ? ['B', 'A'] : ['A', 'B'];
 
   return (
-    <div className="space-y-4">
-
+    <div className="space-y-5">
       {/* ── Volt masthead — date, live state, the big word, the tape ── */}
       <header>
         <div className="volt-topline">
@@ -306,321 +243,141 @@ export default async function TrainPage() {
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}
           </span>
           <span className="volt-live">
-            {status.mode === 'return' ? `Return W${status.week}` : `Wk ${programWeek} · ${currentPhase.phase}`}
+            {status.mode === 'return' ? `Return W${status.week}` : `Wk ${status.week} · ${currentPhase.phase}`}
           </span>
         </div>
         <h1 className="volt-h1">Train<span className="volt-hollow">.</span></h1>
         <div className="volt-tape" aria-hidden="true" />
       </header>
 
-      {/* ── The verdict — first thing on the screen ───────
-          Server-rendered from the plan + the training status. Inside the native
-          shell it upgrades itself with a HealthKit readiness read (and shows the
-          readiness banner above it); on the web that read never happens and this
-          is exactly the line the plan alone produces. */}
-      <HomeVerdict
-        status={status}
-        plan={plan}
-        lastSessionISO={lastWorkout?.date.toISOString() ?? null}
-      />
-
       {/* The coach's voice — renders nothing until a note exists */}
       {process.env.ANTHROPIC_API_KEY ? <CoachCard /> : null}
 
-      {/* ── Hero: answer first — ring + tonight's plan ──── */}
-      <section className="card-lg relative overflow-hidden p-4">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 rounded-card-lg"
-          style={{
-            background:
-              'radial-gradient(220px 130px at 85% 0%, rgba(94,234,212,0.10), transparent 70%), radial-gradient(200px 140px at 0% 100%, rgba(139,92,246,0.10), transparent 70%)',
-          }}
-        />
-        <div className="relative flex items-center gap-4">
-          {/* Weekly activity ring */}
-          <div className="relative h-[72px] w-[72px] flex-none" role="img" aria-label={`${sessionsThisWeek} of 3 sessions this week`}>
-            <svg viewBox="0 0 112 112" fill="none" className="ring-svg h-full w-full" aria-hidden="true">
-              <defs>
-                <linearGradient id="weekRingGrad" x1="0" y1="0" x2="112" y2="112" gradientUnits="userSpaceOnUse">
-                  <stop offset="0" stopColor="#5eead4" />
-                  <stop offset="0.6" stopColor="#22d3ee" />
-                  <stop offset="1" stopColor="#818cf8" />
-                </linearGradient>
-                <filter id="weekRingGlow" x="-40%" y="-40%" width="180%" height="180%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#2dd4bf" floodOpacity="0.8" />
-                </filter>
-              </defs>
-              <circle cx="56" cy="56" r={RING_R} stroke="rgba(255,255,255,0.09)" strokeWidth="10" />
-              {ringProgress > 0 && (
-                <circle
-                  cx="56"
-                  cy="56"
-                  r={RING_R}
-                  stroke="url(#weekRingGrad)"
-                  strokeWidth="10"
-                  strokeLinecap="round"
-                  strokeDasharray={`${(ringProgress * RING_C).toFixed(1)} ${RING_C.toFixed(1)}`}
-                  filter="url(#weekRingGlow)"
-                />
-              )}
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <div className="font-round text-lg font-light leading-none tabular-nums text-app-tx1">
-                <b className="font-bold text-acc-teal">{sessionsThisWeek}</b>
-                <span className="text-sm text-app-tx3">/3</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Only fact here HomeVerdict does not already carry. */}
-          {sessionsThisWeek > 0 && (
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <p className="text-xs tabular-nums text-app-tx2">
-                <b className="font-semibold text-acc-teal">{kgCompact(weekVolume)} kg</b> this week
-              </p>
-            </div>
-          )}
-          {/* Week/phase moved to the masthead topline — say each thing once. */}
-          <div className="ml-auto flex min-w-0 flex-col items-end gap-1.5">
-            <span className="min-w-0 text-[11px] text-app-tx2"><StepsChipLabel /></span>
-          </div>
-        </div>
-
-      </section>
-
-      {/* ── Return Protocol — exclusive ember, coach directive ── */}
+      {/* ── Return Protocol — one ember line while the ramp runs; the
+          slab and preview already carry the scaled targets, so the strip
+          states the regime once and keeps the rules a tap away. */}
       {status.mode === 'return' && (
-        <section className="volt-protocol volt-protocol--ember p-4">
-          <div className="relative">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-acc-ember">Return protocol</span>
-              <span className="ml-auto flex-none bg-acc-ember-deep px-2 py-1 font-mono text-[9px] font-extrabold uppercase tracking-[0.2em] text-black">
-                {status.returnWeek.phase}
-              </span>
-            </div>
-
-            <div className="mt-2.5 flex items-baseline gap-2">
-              <span className="font-round text-[28px] font-black uppercase leading-none tracking-tight text-acc-ember">Week {status.week}</span>
-              <span className="text-sm text-app-tx2">of 4</span>
-              <span className="ml-auto flex items-center gap-1.5" aria-hidden="true">
-                {[1, 2, 3, 4].map((i) => (
-                  <span
-                    key={i}
-                    className={`h-2.5 w-6 ${i <= status.week ? 'bg-acc-ember-deep' : 'shadow-[inset_0_0_0_1.5px_#5a5d55]'}`}
-                  />
-                ))}
-              </span>
-            </div>
-
-            {/* Coach voice — one line of personality on the glance layer */}
-            <p className="mt-3 border-t border-ink/10 pt-3 text-[11px] font-semibold uppercase tracking-[0.13em]">
+        <details className="group">
+          <summary className="flex cursor-pointer select-none list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+            <span className="h-2 w-2 flex-none bg-acc-ember-deep" aria-hidden="true" />
+            <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">
+              Return W{status.week} · {status.returnWeek.phase} · {status.returnWeek.loadPct}% · cap {RPE_LABELS[status.returnWeek.rpeCap]}
+            </span>
+            <span className="ml-auto flex items-center gap-1" aria-hidden="true">
+              {[1, 2, 3, 4].map((i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 w-4 ${i <= status.week ? 'bg-acc-ember-deep' : 'shadow-[inset_0_0_0_1px_#5a5d55]'}`}
+                />
+              ))}
+            </span>
+            <Chevron />
+          </summary>
+          <div className="volt-protocol volt-protocol--ember mt-2.5 p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.13em]">
               <span className="glow-amber">We rebuild. We don&apos;t test.</span>
             </p>
+            <p className="mt-2.5 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
+              {status.daysOff} days off. Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
+              <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
+            </p>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
 
-            <div className="mt-3 flex border-t border-ink/10 pt-3">
-              <div className="flex flex-1 flex-col gap-0.5">
-                <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.loadPct}%</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">load</span>
+            <div className="mt-3" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
+              <div className="flex items-baseline justify-between text-[10px] font-bold uppercase tracking-[0.16em]">
+                <span className="text-app-tx3">Effort ceiling</span>
+                <span className="glow-amber">{RPE_LABELS[status.returnWeek.rpeCap]}</span>
               </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
-                <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.sessions}</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">sessions</span>
-              </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
-                <b className="font-round text-[15px] font-semibold text-app-tx1">{RPE_LABELS[status.returnWeek.rpeCap]}</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">cap</span>
+              <div className="mt-2 grid grid-cols-4 gap-1.5">
+                {RPE_LABELS.slice(1).map((label, i) => {
+                  const v = i + 1;
+                  const cap = status.returnWeek.rpeCap;
+                  const seg =
+                    v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-ink/[0.02] text-app-tx3 line-through opacity-60';
+                  return (
+                    <span
+                      key={label}
+                      className={`relative rounded-lg border py-2 text-center text-[9.5px] font-extrabold uppercase tracking-[0.13em] ${seg}`}
+                    >
+                      {label}
+                      {v === cap && (
+                        <span className={`absolute -top-2 right-1 rounded border bg-[#140f03] px-1 py-px text-[7px] font-extrabold tracking-[0.1em] no-underline ${RPE_CAP_FLAG[v]}`}>
+                          CAP
+                        </span>
+                      )}
+                    </span>
+                  );
+                })}
               </div>
             </div>
+          </div>
+        </details>
+      )}
 
-            {/* Full directive + effort ladder — one tap away */}
-            <details className="group mt-3">
-              <summary className={`${SUMMARY_CHIP} border-acc-ember/30 bg-acc-ember/10 text-acc-ember hover:border-acc-ember/50 hover:text-acc-ember`}>
-                The rules
-                <Chevron />
-              </summary>
+      {/* Fatigue signal — one mono line; the ramp supersedes it */}
+      {deloadWarning && status.mode !== 'return' && (
+        <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-rpe-hard">
+          ⚠ Fatigue · &gt;50% hard+ over 14d — go lighter today
+        </p>
+      )}
 
-              <p className="mt-3 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
-                {status.daysOff} days off. Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
-                <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
-              </p>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
+      {/* ── The directive ───────────────────────────────── */}
+      <div>
+        <p className="section-label mb-3">
+          {isDoneToday ? 'Logged today' : hour >= 17 ? 'Tonight’s directive' : 'Today’s directive'}
+        </p>
+        <DayCard
+          day={previewDay}
+          variant={isDoneToday ? 'done' : 'primary'}
+          doneWhen={isDoneToday && lastWorkout ? formatRelative(lastWorkout.date) : null}
+        />
+      </div>
 
-              {/* Effort-ceiling lockout ladder */}
-              <div className="mt-4" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
-                <div className="flex items-baseline justify-between text-[10px] font-bold uppercase tracking-[0.16em]">
-                  <span className="text-app-tx3">Effort ceiling</span>
-                  <span className="glow-amber">{RPE_LABELS[status.returnWeek.rpeCap]}</span>
+      {/* ── Session preview — what the start bar opens ───── */}
+      {preview.length > 0 && (
+        <div>
+          <p className="section-label mb-3">
+            Session preview · B_Fit{returnLoadPct != null ? ` · at ${returnLoadPct}%` : ''}
+          </p>
+          <div className="space-y-2">
+            {preview.map((row, i) => (
+              <div key={row.name} className="card flex min-h-[60px] items-center gap-3.5 px-4 py-3">
+                <span className={`grid h-10 w-10 flex-none place-items-center font-round text-base font-extrabold ${DAY_QUIET[previewDay]}`}>
+                  {i + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-app-tx1">{row.name}</p>
+                  <p className="mt-0.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3">{row.setsReps}</p>
                 </div>
-                <div className="mt-2 grid grid-cols-4 gap-1.5">
-                  {RPE_LABELS.slice(1).map((label, i) => {
-                    const v = i + 1;
-                    const cap = status.returnWeek.rpeCap;
-                    const seg =
-                      v < cap ? RPE_SEG_ON[v] : v === cap ? RPE_SEG_CAP[v] : 'border-app-border bg-ink/[0.02] text-app-tx3 line-through opacity-60';
-                    return (
-                      <span
-                        key={label}
-                        className={`relative rounded-lg border py-2 text-center text-[9.5px] font-extrabold uppercase tracking-[0.13em] ${seg}`}
-                      >
-                        {label}
-                        {v === cap && (
-                          <span className={`absolute -top-2 right-1 rounded border bg-[#140f03] px-1 py-px text-[7px] font-extrabold tracking-[0.1em] no-underline ${RPE_CAP_FLAG[v]}`}>
-                            CAP
-                          </span>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 flex items-baseline justify-between text-[11px]">
-                  <span className="text-app-tx3">Max effort this week</span>
-                  <b className="font-semibold text-acc-ember">Nothing past {RPE_LABELS[status.returnWeek.rpeCap]}</b>
+                <div className="flex-none text-right">
+                  {row.isHold ? (
+                    <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3">Hold</p>
+                  ) : row.weight != null ? (
+                    <>
+                      <p className="font-round text-[17px] font-extrabold leading-none tabular-nums text-app-tx1">
+                        {row.weight}
+                        <span className="ml-1 text-[10px] font-bold text-app-tx3">KG</span>
+                      </p>
+                      <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-app-tx3">
+                        {row.scaled ? 'Ramp target' : 'Last time'}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3">New</p>
+                  )}
                 </div>
               </div>
-            </details>
+            ))}
           </div>
-        </section>
-      )}
-
-      {/* ── Weigh-in nudge ──────────────────────────────── */}
-      {/* Widened from >7 days to also cover Sunday: this absorbed the weigh-in
-          chip that used to sit in the greeting header, so there is one weigh-in
-          affordance instead of two. */}
-      {daysSinceWeighIn !== null && (daysSinceWeighIn > 7 || isSunday) && (
-        <Link
-          href="/stats"
-          className="card-lg pressable flex items-center gap-3 border-acc-teal/30 bg-acc-teal/[0.06] px-4 py-3 shadow-[0_0_24px_-8px_rgba(45,212,191,0.45)] transition-colors hover:border-acc-teal/50"
-        >
-          <span className="chip flex-shrink-0 border border-acc-teal/40 bg-acc-teal/10 text-acc-teal">⚖ Weigh-in</span>
-          <span className="text-xs tabular-nums text-acc-teal/80">{daysSinceWeighIn}d ago · log →</span>
-        </Link>
-      )}
-
-      {/* ── Deload warning ──────────────────────────────── */}
-      {deloadWarning && status.mode !== 'return' && (
-        <div className="card-lg border-rpe-hard/30 bg-rpe-hard/[0.07] px-4 py-3.5">
-          <div className="flex items-center gap-3">
-            <span className="flex-shrink-0 text-xl leading-none">⚠️</span>
-            <p className="text-sm font-bold text-rpe-hard">Fatigue signal</p>
-            <span className="ml-auto flex-shrink-0 text-[11px] tabular-nums text-app-tx2">&gt;50% Hard+ · 14d</span>
-          </div>
-          <details className="group mt-2">
-            <summary className={`${SUMMARY_CHIP} border-rpe-hard/30 text-rpe-hard hover:border-rpe-hard/50 hover:text-rpe-hard`}>
-              More
-              <Chevron />
-            </summary>
-            <p className="mt-2 text-xs leading-relaxed text-app-tx2">
-              Over 50% of your sets in the last 2 weeks were Hard or Grind. Consider a lighter session — reduce weights by 40–50% and focus on form.
-            </p>
-          </details>
         </div>
       )}
 
-      {/* ── Training days ───────────────────────────────── */}
-      <div>
-        <div className="mb-3 flex items-baseline justify-between px-1">
-          <p className="section-label">
-            {isTrainDay ? (hour >= 17 ? 'Tonight’s session' : 'Today’s session') : 'Next session'}
-          </p>
-        </div>
-
-        {/* Both days stay startable, always — the plan suggests, it never blocks. */}
-        <div className="space-y-2.5">
-          {dayOrder.map((day) => {
-            const justLogged = isDoneToday && plan.day === day;
-            const variant: DayVariant = justLogged
-              ? 'done'
-              : suggestedDay === day
-                ? 'primary'
-                : suggestedDay
-                  ? 'muted'
-                  : 'neutral';
-            return (
-              <DayCard
-                key={day}
-                day={day}
-                variant={variant}
-                doneWhen={justLogged && lastWorkout ? formatRelative(lastWorkout.date) : null}
-              />
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Program lives inside the Train section now — the tab it used to
-          own belongs to the health-first IA. */}
-      <Link
-        href="/program"
-        className="card flex items-center justify-between px-4 py-3 transition-colors hover:border-app-border-hi"
-      >
-        <div>
-          <p className="text-sm font-semibold text-app-tx1">Program</p>
-          <p className="text-[11px] text-app-tx3">the 12-week plan · return protocol · technique</p>
-        </div>
-        <span className="text-app-tx3">→</span>
-      </Link>
-
-      {/* ── Recent workouts ─────────────────────────────── */}
-      <div>
-        <div className="mb-3 flex items-baseline justify-between px-1">
-          <p className="section-label">Recent</p>
-          {workouts.length > 4 && (
-            <Link href="/workouts" className="text-[11px] font-semibold text-acc-teal transition-colors hover:text-acc-teal">
-              See all →
-            </Link>
-          )}
-        </div>
-
-        {recentWorkouts.length === 0 ? (
-          <div className="card-lg border-dashed p-8 text-center">
-            <p className="mb-1 font-medium text-app-tx2">No workouts yet</p>
-            <p className="mb-4 text-sm text-app-tx3">Tap a duration above to begin</p>
-            <Link href="/program" className="text-sm text-acc-teal transition-colors hover:text-acc-teal">
-              Read the program first →
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {recentWorkouts.map((workout) => {
-              const dayLetter = parseDayLetter(workout.name);
-              const vol = workout.sets.reduce((s, set) => s + set.weight * set.reps, 0);
-              return (
-                <Link
-                  key={workout.id}
-                  href={`/workouts/${workout.id}`}
-                  className="card pressable flex items-center px-4 py-3.5 transition-all hover:border-app-border-hi active:scale-[0.99]"
-                >
-                  {/* Day badge — A glows violet, B glows teal */}
-                  {dayLetter ? (
-                    <span className={`mr-3 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl font-round text-[13px] font-extrabold ${
-                      dayLetter === 'A'
-                        ? 'border border-acc-violet/30 bg-acc-violet-deep/15 text-acc-violet'
-                        : 'border border-acc-teal/30 bg-acc-teal-deep/15 text-acc-teal'
-                    }`}>
-                      {dayLetter}
-                    </span>
-                  ) : (
-                    <span className="mr-3 h-8 w-8 flex-shrink-0 rounded-xl border border-app-border bg-ink/5" />
-                  )}
-
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-app-tx1">{workout.name}</div>
-                  </div>
-
-                  <div className="ml-4 flex-shrink-0 text-right">
-                    <div className="text-[11px] text-app-tx2">{formatRelative(workout.date)}</div>
-                    <div className="mt-0.5 text-[11px] tabular-nums text-app-tx3">
-                      {vol > 0 && `${kgCompact(vol)} kg`}
-                      {workout.duration ? ` · ${formatDuration(workout.duration)}` : ''}
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* ── The other day, one line — still startable, never nagging ── */}
+      <DayCard
+        day={previewDay === 'A' ? 'B' : 'A'}
+        variant={suggestedDay ? 'muted' : 'neutral'}
+        doneWhen={null}
+      />
     </div>
   );
 }

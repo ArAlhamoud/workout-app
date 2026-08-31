@@ -87,7 +87,7 @@ export function VerdictLine({ verdict }: { verdict: HomeVerdictShape }) {
   return (
     <section
       aria-label="Today’s instruction"
-      className={`card-lg relative overflow-hidden px-4 py-3.5 ${skin.shell}`}
+      className={`verdict-line card-lg relative overflow-hidden px-4 py-3.5 ${skin.shell}`}
     >
       {skin.nebula && (
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-card-lg" style={{ background: skin.nebula }} />

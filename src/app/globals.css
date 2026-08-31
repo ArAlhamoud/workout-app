@@ -51,8 +51,8 @@
   --rpe-grind: #d6336c;
 
   /* Type — Archivo carries the Chroma voice (loaded in layout) */
-  --font-round: 'Archivo', -apple-system, 'Helvetica Neue', 'Segoe UI',
-    Roboto, sans-serif;
+  --font-round: var(--font-archivo, 'Archivo'), -apple-system,
+    'Helvetica Neue', 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ── Base styles ───────────────────────────────────────────── */
@@ -443,7 +443,6 @@ body.has-draft-banner main {
   position: relative; overflow: hidden;
   background: var(--volt); color: #000;
   border: 2px solid #f2f2f0;
-  border-radius: 14px;
   box-shadow: 4px 4px 0 rgba(242, 242, 240, 0.9);
   padding: 18px 18px 16px 20px;
 }
@@ -533,6 +532,13 @@ body.has-draft-banner main {
    shadows (volt overrides above) are exempt by name order. Escape
    hatch: .volt-keep-round for anything that must stay circular. */
 [data-domain='volt'] [class*='rounded'] { border-radius: 0; }
+/* @apply inlines radii into component classes (same trap as the card
+   shadows — the class attribute never says 'rounded'), so they are
+   flattened by name: */
+[data-domain='volt'] .card,
+[data-domain='volt'] .card-lg,
+[data-domain='volt'] .btn-primary,
+[data-domain='volt'] .btn-ghost { border-radius: 0; }
 [data-domain='volt'] .volt-keep-round { border-radius: 9999px; }
 [data-domain='volt'] [class*='shadow-[0_0_'] { box-shadow: none; }
 [data-domain='volt'] .shadow-glow-blue,
@@ -540,3 +546,13 @@ body.has-draft-banner main {
 [data-domain='volt'] .shadow-glow-teal,
 [data-domain='volt'] .shadow-glow-ember,
 [data-domain='volt'] .shadow-glow-gold { box-shadow: 3px 3px 0 rgba(205, 255, 0, 0.8); }
+
+/* The verdict on Volt is a directive, not a card — it fuses to the
+   masthead: no box, no border, no nebula glow, just the order. */
+[data-domain='volt'] .verdict-line {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 2px 0 0;
+}
+[data-domain='volt'] .verdict-line > div[aria-hidden='true'] { display: none; }
