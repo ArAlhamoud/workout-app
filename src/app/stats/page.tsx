@@ -36,6 +36,26 @@ const RPE_RUNG_LIT: Record<Rpe, string> = {
 };
 const RPE_VALUES: Rpe[] = [1, 2, 3, 4];
 
+/* The mock's tiny volt sparkline — last 90 days of weigh-ins. */
+function BodyweightSpark({ stats }: { stats: { date: Date; weight: number | null }[] }) {
+  const pts = stats
+    .filter((s): s is { date: Date; weight: number } => s.weight !== null)
+    .slice(-30);
+  if (pts.length < 2) return null;
+  const ws = pts.map((p) => p.weight);
+  const min = Math.min(...ws);
+  const max = Math.max(...ws);
+  const span = Math.max(0.1, max - min);
+  const path = pts
+    .map((p, i) => `${(i / (pts.length - 1)) * 84 + 1},${37 - ((p.weight - min) / span) * 34}`)
+    .join(' ');
+  return (
+    <svg width="86" height="40" viewBox="0 0 86 40" aria-hidden="true" className="flex-none">
+      <polyline points={path} fill="none" stroke="#cdff00" strokeWidth="2.5" strokeLinecap="square" />
+    </svg>
+  );
+}
+
 /* Quiet aurora disclosure — the glance stays clean, detail lives one tap away */
 function Details({
   label,
@@ -431,28 +451,51 @@ export default async function StatsPage() {
         <div className="volt-tape" aria-hidden="true" />
       </header>
 
-      {/* The chain — streak, momentum, lifetime. Numbers a gap cannot erase
-          sit beside the two that a gap drains, on one glanceable strip. */}
-      {workouts.length > 0 && (
-        <div className="card-lg px-4 py-3">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className={`text-sm font-bold font-round ${
-              streak.status === 'alive' ? 'glow-teal' : streak.status === 'mendable' ? 'text-acc-ember' : 'text-app-tx1'
-            }`}>
-              {streak.label}
-            </span>
-            {momentum && (
-              <span className={`text-xs tabular-nums ${
-                momentum.direction === 'draining' ? 'text-acc-ember' : 'text-app-tx2'
-              }`}>
-                {momentum.label}
-              </span>
-            )}
+      {/* Mock frame 04's opening: the bodyweight slab, then the chain as
+          a mono strip — the record's headline numbers before the deep dive. */}
+      {latestWeight !== null && (
+        <div>
+          <p className="section-label mb-3">Bodyweight</p>
+          <div className="card flex items-center justify-between gap-4 p-4">
+            <div>
+              <p className="font-round text-[34px] font-black leading-none tabular-nums text-app-tx1">
+                {latestWeight}<span className="ml-1 text-[15px] text-app-tx3">KG</span>
+              </p>
+              {weightChange !== null && (
+                <p className="mt-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-acc-teal">
+                  {weightChange <= 0 ? '▼' : '▲'} {Math.abs(weightChange)} kg since the start
+                </p>
+              )}
+            </div>
+            <BodyweightSpark stats={stats} />
           </div>
-          <p className="text-app-tx3 text-[11px] mt-1 tabular-nums">
-            {life.sessions} sessions · {life.label} — yours for good
-          </p>
         </div>
+      )}
+
+      {workouts.length > 0 && (
+        <section className="border-y border-app-border py-3">
+          <div className="grid grid-cols-3">
+            <div className="pr-3">
+              <p className={`font-round text-[15px] font-black leading-tight ${
+                streak.status === 'alive' ? 'text-acc-teal' : streak.status === 'mendable' ? 'text-acc-ember' : 'text-app-tx1'
+              }`}>{streak.label}</p>
+              <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Chain</p>
+            </div>
+            <div className="border-l border-app-border px-3">
+              <p className="font-round text-[15px] font-black leading-tight tabular-nums text-app-tx1">{life.sessions}</p>
+              <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Sessions · yours</p>
+            </div>
+            <div className="border-l border-app-border pl-3">
+              <p className="font-round text-[15px] font-black leading-tight tabular-nums text-app-tx1">{life.label.replace(/ lifted$/, '')}</p>
+              <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Lifted · for good</p>
+            </div>
+          </div>
+          {momentum && momentum.direction === 'draining' && (
+            <p className="mt-2.5 border-t border-app-border pt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-acc-ember">
+              {momentum.label}
+            </p>
+          )}
+        </section>
       )}
 
       {sleepDebt !== null && sleepDebt >= 3 && (
@@ -585,12 +628,17 @@ export default async function StatsPage() {
                     ...rows.filter((r) => r.verdict !== 'down').slice(0, Math.max(0, 6 - rows.filter((r) => r.verdict === 'down').length)),
                     ...rows.filter((r) => r.verdict === 'down'),
                   ].slice(0, 6).map((r) => (
-                    <div key={`${r.gym}-${r.name}`} className="flex min-h-[36px] items-baseline justify-between py-1">
-                      <span className="text-sm font-semibold text-app-tx1">{r.name}</span>
-                      <span className="font-round text-sm font-extrabold tabular-nums">
-                        {r.verdict === 'up' && <span className="text-acc-teal">{r.priorTopKg}→{r.recentTopKg} kg ↑</span>}
-                        {r.verdict === 'held' && <span className="text-app-tx1">{r.recentTopKg} kg held</span>}
-                        {r.verdict === 'down' && <span className="text-acc-ember">{r.priorTopKg}→{r.recentTopKg} kg</span>}
+                    <div key={`${r.gym}-${r.name}`} className="flex min-h-[40px] items-center gap-3 py-1">
+                      <span className={`grid h-7 w-7 flex-none place-items-center border text-[13px] font-black ${
+                        r.verdict === 'up' ? 'border-acc-teal/60 text-acc-teal' : r.verdict === 'down' ? 'border-acc-ember/60 text-acc-ember' : 'border-app-border text-app-tx3'
+                      }`}>
+                        {r.verdict === 'up' ? '▲' : r.verdict === 'down' ? '▼' : '＝'}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-app-tx1">{r.name}</span>
+                      <span className="font-mono text-[11px] font-bold uppercase tracking-[0.1em] tabular-nums">
+                        {r.verdict === 'up' && <span className="text-acc-teal">{r.priorTopKg} → {r.recentTopKg} kg</span>}
+                        {r.verdict === 'held' && <span className="text-app-tx2">{r.recentTopKg} kg held</span>}
+                        {r.verdict === 'down' && <span className="text-acc-ember">{r.priorTopKg} → {r.recentTopKg} kg</span>}
                       </span>
                     </div>
                   ))}

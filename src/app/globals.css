@@ -574,3 +574,23 @@ body.has-draft-banner main {
 /* Never let WebKit fake a weight we did not load — synthetic bold
    double-paints outlined text on iOS. */
 html { font-synthesis: none; }
+
+/* Frame 02: the exercise in progress wears the volt focus frame. */
+[data-domain='volt'] .volt-focus {
+  border: 1.5px dashed var(--volt-dim);
+  box-shadow: 4px 4px 0 rgba(205, 255, 0, 0.8);
+  position: relative;
+}
+[data-domain='volt'] .volt-focus::before,
+[data-domain='volt'] .volt-focus::after {
+  content: ''; position: absolute; width: 14px; height: 14px;
+  border: 2px solid var(--volt); pointer-events: none; z-index: 20;
+}
+[data-domain='volt'] .volt-focus::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+[data-domain='volt'] .volt-focus::after { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+.volt-setflag {
+  background: var(--volt); color: #000;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
+  text-transform: uppercase; padding: 3px 7px;
+}

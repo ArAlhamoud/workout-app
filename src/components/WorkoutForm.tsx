@@ -309,7 +309,7 @@ export default function WorkoutForm({
   const [prToast, setPrToast] = useState<string | null>(null);
   const [mood, setMood] = useState('');
   const [showSummary, setShowSummary] = useState<{
-    sets: number; vol: number; prs: string[]; time: string;
+    sets: number; vol: number; prs: string[]; time: string; moved: string[]; ramp: boolean;
   } | null>(null);
   const [swipedSet, setSwipedSet] = useState<{ uid: string; idx: number } | null>(null);
   const touchStartX = useRef(0);
@@ -973,7 +973,30 @@ export default function WorkoutForm({
       .map(({ block: b }) => exerciseById.get(b.exerciseId)?.name ?? '')
       .filter(Boolean);
 
-    setShowSummary({ sets: setsToSave.length, vol, prs, time: formatElapsed(Math.floor((Date.now() - startRef.current) / 1000)) });
+    // What moved vs last time — the reward line. Suppressed during the
+    // ramp: 60% loads make every delta negative by prescription, and a
+    // wall of minus signs on the celebration screen is a shame surface
+    // (zero-shame rule). The ramp banks the session instead.
+    const moved = returnLoadPct
+      ? []
+      : (submitBlocks
+          .filter(({ block: b }) => !b.unit)
+          .map(({ block: b, sets: ss }) => {
+            const tops = ss.filter((s2) => !s2.isWarmup && s2.weight > 0).map((s2) => s2.weight);
+            const top = tops.length ? Math.max(...tops) : 0;
+            const prev = b.lastSession?.weight ?? null;
+            if (!top || prev == null || top === prev) return null;
+            const nm = exerciseById.get(b.exerciseId)?.name ?? '';
+            const inc = pinIncrements[b.exerciseId] ?? 0;
+            const diff = +(top - prev).toFixed(1);
+            const pins = inc > 0 ? Math.round(diff / inc) : 0;
+            const label = pins !== 0 && Math.abs(pins * inc - diff) < 0.01
+              ? `${pins > 0 ? '+' : ''}${pins} pin${Math.abs(pins) === 1 ? '' : 's'}`
+              : `${diff > 0 ? '+' : ''}${diff} kg`;
+            return `${nm} · ${label}`;
+          })
+          .filter((x): x is string => x !== null));
+    setShowSummary({ sets: setsToSave.length, vol, prs, moved, ramp: returnLoadPct != null, time: formatElapsed(Math.floor((Date.now() - startRef.current) / 1000)) });
     setSubmitting(true);
 
     const fullNotes = [mood ? `Feeling ${mood}` : '', notes.trim()].filter(Boolean).join(' · ');
@@ -1357,7 +1380,12 @@ export default function WorkoutForm({
         )}
 
         {/* Exercise blocks */}
+        {/* The set in progress lives in ONE card — it wears the volt
+            focus frame (mock frame 02) and a live SET N/M flag. */}
         {blocks.map((block, blockIdx) => {
+          const focusUid = blocks.find((b) => b.sets.some((s2) => !s2.done))?.uid;
+          const isFocus = block.uid === focusUid;
+          const doneCount = block.sets.filter((s2) => s2.done).length;
           const ex = exerciseById.get(block.exerciseId);
           const isTimed = block.unit === 'seconds';
           const pr = ex ? (gymRecords[block.exerciseId] ?? 0) : 0;
@@ -1400,7 +1428,9 @@ export default function WorkoutForm({
               className={`card-lg scroll-mt-24 transition-all duration-300 ${
                 allDone
                   ? 'bg-acc-teal/[0.05] border-acc-teal/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_0_44px_-14px_rgba(45,212,191,0.45)]'
-                  : ''
+                  : isFocus
+                    ? 'volt-focus'
+                    : ''
               }`}
             >
               {/* Header — sticky so exercise name stays visible while scrolling through sets */}
@@ -1421,6 +1451,11 @@ export default function WorkoutForm({
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-app-tx1">
                   {exerciseById.get(block.exerciseId)?.name ?? 'Exercise'}
                 </span>
+                {isFocus && !allDone && (
+                  <span className="volt-setflag flex-shrink-0">
+                    Set {Math.min(doneCount + 1, block.sets.length)}/{block.sets.length}
+                  </span>
+                )}
                 <Link
                   href={`/progress/${block.exerciseId}`}
                   className="text-app-tx3 hover:text-acc-teal transition-colors text-base flex-shrink-0 w-8 h-11 flex items-center justify-center"
@@ -1924,42 +1959,46 @@ export default function WorkoutForm({
       )}
 
       {showSummary && (
-        <div className="fixed inset-0 z-[70] bg-[#05060f]/90 backdrop-blur-sm flex items-center justify-center px-4">
-          <div className="relative overflow-hidden sheet-surface border border-app-border-hi rounded-card-lg shadow-card-lg p-8 w-full max-w-sm text-center">
-            {/* soft inner nebula — the observatory treatment */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 bg-[radial-gradient(220px_130px_at_85%_0%,rgba(94,234,212,0.12),transparent_70%),radial-gradient(200px_140px_at_0%_100%,rgba(139,92,246,0.12),transparent_70%)]"
-            />
-            <div className="relative">
-              <div className="text-5xl mb-3 leading-none">🎉</div>
-              <h2 className="text-2xl font-bold font-round tracking-tight mb-1 text-app-tx1">
-                Session complete.
-              </h2>
-              <p className="text-app-tx2 text-sm mb-5 truncate">{name}</p>
-              <div className="grid grid-cols-3 gap-2 mb-5">
-                <div className="bg-ink/[0.04] border border-app-border rounded-card p-3">
-                  <div className="font-round text-2xl font-light tabular-nums glow-violet">{showSummary.sets}</div>
-                </div>
-                <div className="bg-ink/[0.04] border border-app-border rounded-card p-3">
-                  <div className="font-round text-2xl font-light tabular-nums glow-teal">
-                    {showSummary.vol >= 1000 ? `${(showSummary.vol / 1000).toFixed(1)}k` : showSummary.vol}
-                  </div>
-                </div>
-                <div className="bg-ink/[0.04] border border-app-border rounded-card p-3">
-                  <div className="font-round text-2xl font-light tabular-nums glow-cyan">{showSummary.time}</div>
-                </div>
+        <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center px-4">
+          <div className="volt-protocol relative w-full max-w-sm p-6">
+            <p className="section-label">Session complete</p>
+            <h2 className="volt-h1 mt-2" style={{ fontSize: 30 }}>{showSummary.ramp ? 'Banked' : 'Done'}<span className="volt-dot" aria-hidden="true" /></h2>
+            <div className="mt-4 grid grid-cols-3 border-y border-app-border py-3">
+              <div className="pr-3">
+                <p className="font-round text-[24px] font-black leading-none tabular-nums text-app-tx1">{showSummary.sets}</p>
+                <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Sets</p>
               </div>
-              {showSummary.prs.length > 0 && (
-                <div className="bg-acc-gold/[0.08] border border-acc-gold/40 rounded-card px-4 py-3 mb-4 shadow-[0_0_24px_-8px_rgba(250,204,21,0.5)]">
-                  <p className="glow-gold font-bold text-xs uppercase tracking-widest mb-1.5">🏆 New PRs</p>
-                  <p className="text-app-tx1 text-sm font-medium leading-relaxed">{showSummary.prs.join(' · ')}</p>
-                </div>
-              )}
-              <div className="flex items-center justify-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-acc-teal animate-pulse motion-reduce:animate-none" />
-                <p className="text-app-tx2 text-xs">Saving your workout…</p>
+              <div className="border-l border-app-border px-3">
+                <p className="font-round text-[24px] font-black leading-none tabular-nums text-app-tx1">
+                  {showSummary.vol >= 1000 ? `${(showSummary.vol / 1000).toFixed(1)}k` : showSummary.vol}
+                </p>
+                <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">kg</p>
               </div>
+              <div className="border-l border-app-border pl-3">
+                <p className="font-round text-[24px] font-black leading-none tabular-nums text-app-tx1">{showSummary.time}</p>
+                <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Time</p>
+              </div>
+            </div>
+            {showSummary.ramp && (
+              <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-acc-ember">
+                Ramp session banked · we rebuild, we don&apos;t test
+              </p>
+            )}
+            {showSummary.moved.length > 0 && (
+              <div className="mt-3 space-y-1">
+                {showSummary.moved.map((m) => (
+                  <p key={m} className="font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-acc-teal">▲ {m}</p>
+                ))}
+              </div>
+            )}
+            {showSummary.prs.length > 0 && (
+              <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-acc-gold">
+                PR · {showSummary.prs.join(' · ')}
+              </p>
+            )}
+            <div className="mt-4 flex items-center gap-2">
+              <span className="h-2 w-2 flex-none animate-pulse bg-acc-teal-deep motion-reduce:animate-none" />
+              <p className="text-xs text-app-tx2">Saving your workout…</p>
             </div>
           </div>
         </div>
