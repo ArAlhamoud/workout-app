@@ -1,0 +1,46 @@
+name: Merge duplicate exercises
+
+# The sanctioned way to run scripts/merge-duplicate-exercises.js against
+# the live database (data-steward rule: live-DB work ships as a manually
+# triggered Action with a preview step, never from an ad-hoc machine).
+# The dry run ALWAYS prints first; the merge only happens when `apply`
+# is checked.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Merge the duplicates (leave unchecked to preview only)'
+        type: boolean
+        default: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: npm install --no-audit --progress=false
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Preview (dry run)
+        run: node scripts/merge-duplicate-exercises.js
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Apply merge
+        if: ${{ inputs.apply }}
+        run: node scripts/merge-duplicate-exercises.js --apply
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
