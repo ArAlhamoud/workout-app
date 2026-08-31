@@ -556,3 +556,21 @@ body.has-draft-banner main {
   padding: 2px 0 0;
 }
 [data-domain='volt'] .verdict-line > div[aria-hidden='true'] { display: none; }
+
+/* Vector day letters — see VoltLetter.tsx (fonts proved unreliable
+   for the giant outlines on iOS). */
+.volt-letter-svg {
+  position: absolute; right: 10px; top: 8px;
+  width: 96px; height: 127px; pointer-events: none;
+}
+.volt-letter-svg--quiet { width: 74px; height: 98px; top: 4px; opacity: 0.55; }
+/* The masthead's square period — a box, not a glyph. */
+.volt-dot {
+  display: inline-block;
+  width: 0.17em; height: 0.17em;
+  margin-left: 0.06em;
+  border: 2.5px solid var(--volt);
+}
+/* Never let WebKit fake a weight we did not load — synthetic bold
+   double-paints outlined text on iOS. */
+html { font-synthesis: none; }

@@ -427,7 +427,7 @@ export default async function StatsPage() {
           <span>The ledger</span>
           <span className="volt-live">All time</span>
         </div>
-        <h1 className="volt-h1">Stats<span className="volt-hollow">.</span></h1>
+        <h1 className="volt-h1">Stats<span className="volt-dot" aria-hidden="true" /></h1>
         <div className="volt-tape" aria-hidden="true" />
       </header>
 

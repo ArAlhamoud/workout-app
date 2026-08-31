@@ -49,7 +49,7 @@ export default async function WorkoutsPage() {
           <span>Session history</span>
           <span className="volt-live">{workouts.length} logged</span>
         </div>
-        <h1 className="volt-h1">History<span className="volt-hollow">.</span></h1>
+        <h1 className="volt-h1">History<span className="volt-dot" aria-hidden="true" /></h1>
         <div className="volt-tape" aria-hidden="true" />
       </header>
 

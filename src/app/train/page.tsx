@@ -13,6 +13,7 @@ import {
 } from '@/lib/program';
 import { phaseForWeek } from '@/lib/coach';
 import CoachCard from '@/components/CoachCard';
+import VoltLetter from '@/components/VoltLetter';
 import { formatRelative, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -113,7 +114,7 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
   if (variant === 'primary') {
     return (
       <section className="volt-card-primary">
-        <span aria-hidden="true" className="volt-letter">{day}</span>
+        <VoltLetter letter={day} stroke="rgba(0,0,0,0.28)" className="volt-letter-svg" />
         <span className="volt-flag">Up next</span>
         <h3 className="relative mt-2 font-round text-[32px] font-black uppercase leading-none tracking-tight">Day {day}</h3>
         <p className="relative mt-1.5 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-black/70">{DAY_FOCUS[day]}</p>
@@ -145,13 +146,12 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
 
   return (
     <section className={`card relative overflow-hidden p-3.5 ${variant === 'muted' ? 'opacity-60' : ''}`}>
-      <span
-        aria-hidden="true"
-        className="volt-letter-quiet"
-        style={{ WebkitTextStroke: `1.5px ${day === 'A' ? '#8b5cf6' : '#14b8a6'}` }}
-      >
-        {day}
-      </span>
+      <VoltLetter
+        letter={day}
+        stroke={day === 'A' ? '#8b5cf6' : '#14b8a6'}
+        strokeWidth={2.5}
+        className="volt-letter-svg volt-letter-svg--quiet"
+      />
       <div className="relative flex items-center gap-3">
         <div className={`grid h-10 w-10 flex-none place-items-center rounded-xl font-round text-base font-extrabold ${DAY_QUIET[day]}`}>
           {day}
@@ -246,7 +246,7 @@ export default async function TrainPage() {
             {status.mode === 'return' ? `Return W${status.week}` : `Wk ${status.week} · ${currentPhase.phase}`}
           </span>
         </div>
-        <h1 className="volt-h1">Train<span className="volt-hollow">.</span></h1>
+        <h1 className="volt-h1">Train<span className="volt-dot" aria-hidden="true" /></h1>
         <div className="volt-tape" aria-hidden="true" />
       </header>
 
