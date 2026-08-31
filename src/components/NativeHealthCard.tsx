@@ -47,7 +47,7 @@ const DISMISSED_MAX = 60;
 const WEIGHT_WINDOW_DAYS = 30;
 
 interface ImportSample {
-  type: 'weight' | 'heart_rate' | 'active_energy';
+  type: 'weight' | 'heart_rate' | 'active_energy' | 'bp_systolic' | 'bp_diastolic';
   value: number;
   unit: string;
   date: string;
@@ -247,8 +247,8 @@ export default function NativeHealthCard() {
       ]);
       if (sys.samples.length && dia.samples.length) {
         const rows: ImportSample[] = [
-          ...sys.samples.map((s2) => ({ type: 'bp_systolic', value: s2.value, unit: 'mmHg', date: s2.dateISO })),
-          ...dia.samples.map((s2) => ({ type: 'bp_diastolic', value: s2.value, unit: 'mmHg', date: s2.dateISO })),
+          ...sys.samples.map((s2) => ({ type: 'bp_systolic' as const, value: s2.value, unit: 'mmHg', date: s2.dateISO })),
+          ...dia.samples.map((s2) => ({ type: 'bp_diastolic' as const, value: s2.value, unit: 'mmHg', date: s2.dateISO })),
         ];
         for (const s2 of sys.samples.slice(-40)) {
           try {
@@ -257,7 +257,7 @@ export default function NativeHealthCard() {
               startISO: new Date(t - 2 * 60_000).toISOString(),
               endISO: new Date(t + 2 * 60_000).toISOString(),
             });
-            rows.push(...hr.samples.map((h) => ({ type: 'heart_rate', value: h.value, unit: 'count/min', date: h.dateISO })));
+            rows.push(...hr.samples.map((h) => ({ type: 'heart_rate' as const, value: h.value, unit: 'count/min', date: h.dateISO })));
           } catch { /* pulse is a bonus */ }
         }
         await importHealth(rows);
