@@ -112,5 +112,5 @@ with, and prefer pushing before a session rather than during one.
   their values correctly. Non-defects noted: the draft pill floats over
   page content near the bottom (by design, dismissible), and section
   chips scroll under the Dynamic Island like any content.
-- Home-screen widget: `day N · next dose · latest kg` without opening the app.
-- Apple Watch quick-log: water / protein / weight from the wrist.
+- ~~Home-screen widget~~ and ~~Watch quick-log~~ — DECLINED by the owner
+  (2026-08-31, "no need for both"). Do not re-propose; the backlog is empty.
