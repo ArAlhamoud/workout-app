@@ -560,8 +560,8 @@ body.has-draft-banner main {
 /* Vector day letters — see VoltLetter.tsx (fonts proved unreliable
    for the giant outlines on iOS). */
 .volt-letter-svg {
-  position: absolute; right: 10px; top: 8px;
-  width: 96px; height: 127px; pointer-events: none;
+  position: absolute; right: 14px; top: 12px;
+  width: 76px; height: 100px; pointer-events: none;
 }
 .volt-letter-svg--quiet { width: 74px; height: 98px; top: 4px; opacity: 0.55; }
 /* The masthead's square period — a box, not a glyph. */
