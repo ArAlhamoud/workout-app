@@ -3,7 +3,6 @@ import { Archivo } from 'next/font/google';
 import './globals.css';
 import JourneyNav from '@/components/JourneyNav';
 import DomainTheme from '@/components/DomainTheme';
-import InstallPrompt from '@/components/InstallPrompt';
 import WorkoutDraftBanner from '@/components/WorkoutDraftBanner';
 import DeepLinkHandler from '@/components/DeepLinkHandler';
 import HealthAutoPilot from '@/components/HealthAutoPilot';
@@ -68,7 +67,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <HealthAutoPilot />
         <WorkoutDraftBanner />
         <JourneyNav />
-        <InstallPrompt />
       </body>
     </html>
   );
