@@ -87,8 +87,8 @@ export async function GET(request: Request) {
       // Manual per-machine override outranks the learned spacing, exactly
       // as on the phone.
       const pin = combineIncrement(learned[ex.id], ex.pinIncrement);
-      // One scaler for wrist and phone: pre-break × loadPct floored to
-      // THIS machine's pin; held / 100% weights pass through unsnapped.
+      // One scaler for wrist and phone: pre-break × loadPct snapped to
+      // THIS machine's nearest pin; held / 100% weights pass through.
       const scaled = last ? rampPrefillWeight(last, loadPct, pin) : null;
       // Timed holds never scale — a plank at bodyweight is the same load in
       // every ramp week — and never open below the program floor (trainer:

@@ -54,7 +54,7 @@ Each of these broke something real. Do not relearn them.
    last session was — once that is a ramp session, 60% of 60%. Worse,
    "last session before this block" still read the abandoned one-session
    July ramp as the base. `rampBaseBefore` walks back to the last
-   full-load session; `getLoggerMemory` + `rampPrefillWeight(…, pin)` are
+   full-load session; `getLoggerMemory` + `rampPrefillWeight(…, pin)` (nearest pin) are
    the ONE memory and ONE scaler for the logger, `/train` and the Watch.
    Do not call `getLastSessionForExercises` directly for a prefill.
 

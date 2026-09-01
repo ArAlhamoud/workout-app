@@ -536,10 +536,12 @@ export function pickRampMemory<T extends { weight: number }>(
 
 /**
  * The ramp prefill for one machine: the pre-break weight scaled to the
- * week and FLOORED TO THAT MACHINE'S PIN (rule 4 — stacks move in pins;
- * a 2.5 kg floor put the phone on 27.5 while the wrist, flooring to the
- * learned 7 kg pin, said 28 — trainer). Never below one pin. A held
- * machine (no pre-break record) and a 100% week return the weight as-is.
+ * week and snapped to the NEAREST pin of that machine (rule 4 — stacks
+ * move in pins; a 2.5 kg floor put the phone on 27.5 while the wrist said
+ * 28). Nearest, not floor: flooring a 9 kg-pin Leg Extension put 60% of
+ * 29 at 9 kg (31%), and made ramp weeks 2 and 3 identical on a 7 kg
+ * stack. Never below one pin. A held machine (no pre-break record) and a
+ * 100% week return the weight as-is.
  */
 export function rampPrefillWeight(
   memory: { weight: number; rampHold?: boolean },
@@ -549,7 +551,7 @@ export function rampPrefillWeight(
   if (memory.weight <= 0) return 0;
   if (memory.rampHold || loadPct >= 100) return memory.weight;
   const p = pin > 0 ? pin : 2.5;
-  const steps = Math.floor((memory.weight * loadPct) / 100 / p + 1e-9);
+  const steps = Math.round((memory.weight * loadPct) / 100 / p);
   return +Math.max(p, steps * p).toFixed(2);
 }
 

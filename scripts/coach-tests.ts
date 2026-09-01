@@ -238,13 +238,14 @@ assert(
   const ramp1 = { weight: 17.5, reps: 10, rpe: 1 };
   const picked = pickRampMemory(pre, ramp1);
   assert(picked?.weight === 28 && !picked?.rampHold, 'ramp memory = pre-break weight when one exists');
-  assert(rampPrefillWeight(picked!, 60) === 15, `60% of pre-break 28 → 15, not 60% of 17.5 (got ${rampPrefillWeight(picked!, 60)})`);
+  assert(rampPrefillWeight(picked!, 60) === 17.5, `60% of pre-break 28 → 17.5 (nearest 2.5), not 60% of 17.5 (got ${rampPrefillWeight(picked!, 60)})`);
   assert(rampPrefillWeight(picked!, 100) === 28, 'RESTORE week returns the exact pre-break weight');
   // Pin-floored, same on wrist and phone: Lat Pulldown's learned 7 kg pin.
   const lat = { weight: 40, reps: 10, rpe: null as number | null };
-  assert(rampPrefillWeight(lat, 60, 7) === 21 && rampPrefillWeight(lat, 85, 7) === 28, `pin 7: 60%→21, 85%→28 (got ${rampPrefillWeight(lat, 60, 7)}, ${rampPrefillWeight(lat, 85, 7)})`);
+  assert(rampPrefillWeight(lat, 60, 7) === 21 && rampPrefillWeight(lat, 70, 7) === 28 && rampPrefillWeight(lat, 85, 7) === 35, `pin 7: 60→21, 70→28, 85→35 — four distinct steps (got ${rampPrefillWeight(lat, 60, 7)}, ${rampPrefillWeight(lat, 70, 7)}, ${rampPrefillWeight(lat, 85, 7)})`);
+  assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 18, `9 kg pin: 60% of 29 → 18, not floored to 9 (got ${rampPrefillWeight({ weight: 29 }, 60, 9)})`);
   assert(rampPrefillWeight({ weight: 2.5 }, 60, 2.5) === 2.5, 'never below one pin');
-  assert(rampPrefillWeight({ weight: 27.5 }, 60) === 15, `27.5 × 60% floors to 15 at 2.5 (got ${rampPrefillWeight({ weight: 27.5 }, 60)})`);
+  assert(rampPrefillWeight({ weight: 27.5 }, 60) === 17.5, `27.5 × 60% = 16.5 → nearest 2.5 = 17.5 (got ${rampPrefillWeight({ weight: 27.5 }, 60)})`);
 
   // The base walks back past an ABANDONED ramp. Owner's real shape: a
   // full block to Jun 16, one 60% session on Jul 29 after 43 days off,
