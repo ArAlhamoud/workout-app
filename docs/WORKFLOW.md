@@ -101,6 +101,18 @@ with, and prefer pushing before a session rather than during one.
 
 ## Mac backlog (owner-approved, cloud session cannot build these)
 
+- **TestFlight build 7 is VALID (2026-09-02, Mac session)** — carries the
+  three wrist features (occupied-machine swipe, keep-awake via the
+  recovered HKWorkoutSession, crown init) plus a Mac-side fix: finish()
+  could hang on "Saving…" forever when HealthKit's finishWorkout callback
+  never fires; WorkoutManager.end() now has a 10 s hard deadline. Note
+  for the cloud: WKExtension.frontmostTimeoutExtended is deprecated/no-op
+  since watchOS 7 and was removed — the workout session is the only real
+  keep-awake mechanism. Sim E2E: swipe POST verified set-by-set in the DB
+  (test row deleted), kill/relaunch resumed mid-session, Plank opened at
+  21 s. Item 4 (live handoff) awaits the branch + Apply-schema; the Mac
+  session builds and runs its script when it lands on main.
+
 - **FIRST — Watch: occupied-machine swipe (owner from the gym floor,
   2026-08-31).** The cloud session wrote the Swift (SessionStore
   `skipToNextMachine`/`backToPreviousMachine` rotating the pending
