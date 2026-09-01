@@ -255,3 +255,15 @@ Prefer features whose native half is **inert** (plist entry,
 already-installed plugin, frozen tiny target) and whose behaviour lives
 web-side. Anything the Mac session owns updates on the timescale of
 “whenever the Mac is next opened” — the history shows that is weeks.
+
+## Wave 6b — Live session handoff (2026-09-01)
+
+Built: start a workout on the phone and continue on the Watch, or the
+reverse. One server-owned `LiveSession` row per session (additive table,
+Apply-schema Action), `/api/live` pipe, per-set push from both devices,
+finish-merge under one client save id, "Continue" on the Watch Start
+screen and a "Continue here" pill on the phone. Decisions: HKWorkout on
+the Watch backdated to the phone's start; machine order per device,
+only logged sets sync. Rejected: WatchConnectivity (direct phone↔watch)
+— works offline but needs Swift on both sides plus a Capacitor plugin;
+the gym has signal and the Watch already depends on the server.

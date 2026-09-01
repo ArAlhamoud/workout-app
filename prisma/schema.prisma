@@ -319,3 +319,28 @@ model HealthSample {
   @@unique([type, date, source])
   @@index([type, date])
 }
+
+// The one in-flight session, shared by the phone logger and the Watch so a
+// workout can start on either device and continue on the other (owner,
+// 2026-09-01). Keyed by the client save id both devices finish with, so
+// the finish dedupes/merges into ONE Workout. Single user → at most one
+// open row matters; opening a new one closes the rest. Sets are JSON
+// (exerciseId, setNumber, reps, weight, rpe?, isWarmup?, completedAt,
+// source) merged by exercise+set number, later completion wins; a row
+// holds at most 200 keys. Every write also prunes leftovers — closed rows
+// older than 7 days, open rows idle for a day (live-store.ts). Ephemeral:
+// never exported or restored. Additive — a new table.
+model LiveSession {
+  clientSaveId String    @id
+  day          String?
+  durationMin  Int?
+  gym          String?
+  source       String
+  startedAt    DateTime
+  updatedAt    DateTime  @updatedAt
+  closedAt     DateTime?
+  workoutId    String?
+  sets         Json      @default("[]")
+
+  @@index([closedAt])
+}

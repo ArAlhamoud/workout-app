@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct ARHealthWatchApp: App {
     @StateObject private var store = SessionStore.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -14,6 +15,11 @@ struct ARHealthWatchApp: App {
             }
             .environmentObject(store)
             .onAppear { store.onLaunch() }
+            // Wrist-raise / return from the clock: learn what the phone did
+            // meanwhile (a session to continue, or ours finished there).
+            .onChange(of: scenePhase) { _, p in
+                if p == .active { Task { await store.refreshLive() } }
+            }
         }
     }
 }

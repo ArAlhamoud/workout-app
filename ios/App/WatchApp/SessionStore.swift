@@ -25,6 +25,9 @@ final class SessionStore: ObservableObject {
     @Published var pendingCount: Int = Store.loadOutbox().count
     /// One-line notice on the Start screen (e.g. why a start was refused).
     @Published var notice: String?
+    /// A session in progress on the PHONE (docs/WATCH.md "Live session"),
+    /// offered on the Start screen as "Continue". nil = nothing to continue.
+    @Published var phoneLive: LiveSession?
 
     let workout = WorkoutManager()
     private var restTimer: Timer?
@@ -37,6 +40,7 @@ final class SessionStore: ObservableObject {
         if let s = Store.loadSession() {
             session = s
             phase = s.currentIndex >= s.slots.count ? .summary : .active
+            keepAwake(true)
             // The HKWorkoutSession died with the process; get one running
             // again so the wrist behaves like a workout, not a launcher.
             Task { await workout.recoverOrBegin() }
@@ -46,6 +50,7 @@ final class SessionStore: ObservableObject {
             let sent = await Store.flushOutbox()
             if sent > 0 { pendingCount = Store.loadOutbox().count }
             await refreshPlan(day: nil, dur: nil)
+            await refreshLive()
         }
     }
 
@@ -53,6 +58,152 @@ final class SessionStore: ObservableObject {
         if let fresh = try? await API.fetchPlan(day: day, dur: dur) {
             plan = fresh
         }
+    }
+
+    // MARK: - Live session (phone ↔ watch)
+
+    /// Called on launch and whenever the app comes to the front. Two jobs:
+    /// learn about a phone session to continue, and notice when OUR session
+    /// was finished on the phone (row closed with a workout) — then the
+    /// wrist copy is done too and must not be posted again.
+    func refreshLive() async {
+        if let s = session {
+            guard let row = await API.fetchLive(id: s.clientSaveId) else { phoneLive = nil; return }
+            if row.isClosed {
+                if row.workoutId != nil {
+                    // Finished on the phone. Anything logged HERE that the
+                    // phone never saw rides a finish under the same id first
+                    // — the server adds what the workout lacks — then this
+                    // copy is done (adversary: wrist sets after the phone's
+                    // finish must not vanish).
+                    restTimer?.invalidate()
+                    let uuid = await workout.end()
+                    let own = s.logged.filter { $0.origin != "phone" }
+                    if !own.isEmpty {
+                        var payload = buildPayload(s, uuid: uuid)
+                        payload.sets = own
+                        if !(await API.postLog(payload)) { Store.enqueue(payload) }
+                    }
+                    Store.saveSession(nil)
+                    session = nil
+                    keepAwake(false)
+                    pendingCount = Store.loadOutbox().count
+                    phase = .done(banked: false)
+                    WKInterfaceDevice.current().play(.success)
+                } else {
+                    // Discarded on the phone: its sets go, the wrist's stay.
+                    dropPhoneSets(all: true)
+                }
+            } else {
+                mergeLive(row)
+            }
+            phoneLive = nil
+            return
+        }
+        let row = await API.fetchLive()
+        phoneLive = (row?.source == "phone" && row?.isClosed == false) ? row : nil
+    }
+
+    /// Phone-origin sets no longer on the row (un-ticked there) — or all of
+    /// them after a phone discard — leave `logged` so the finish does not
+    /// resurrect them. Their slots stay in the head: the card never asks
+    /// for a set the phone chose to bin.
+    private func dropPhoneSets(all: Bool, keeping row: LiveSession? = nil) {
+        guard var s = session else { return }
+        let onRow = Set((row?.sets ?? []).map { "\($0.exerciseId)#\($0.setNumber)" })
+        let before = s.logged.count
+        s.logged.removeAll { $0.origin == "phone" && (all || !onRow.contains("\($0.exerciseId)#\($0.setNumber)")) }
+        guard s.logged.count != before else { return }
+        session = s
+        Store.saveSession(s)
+    }
+
+    /// Sets the phone logged that this wrist has not seen: mark their slots
+    /// logged so the card does not ask for them again. Logged slots move to
+    /// the head (the invariant rotatePending relies on).
+    private func mergeLive(_ row: LiveSession) {
+        dropPhoneSets(all: false, keeping: row)
+        guard var s = session else { return }
+        let known = Set(s.logged.map { "\($0.exerciseId)#\($0.setNumber)" })
+        // Only the phone's sets come in; our own are already here.
+        let fresh = row.sets.filter { $0.source != "watch" && !known.contains("\($0.exerciseId)#\($0.setNumber)") }
+        guard !fresh.isEmpty else { return }
+        var head = Array(s.slots[..<s.currentIndex])
+        var tail = Array(s.slots[s.currentIndex...])
+        for ls in fresh {
+            guard let i = tail.firstIndex(where: { $0.exerciseId == ls.exerciseId && $0.setNumber == ls.setNumber }) else { continue }
+            var slot = tail.remove(at: i)
+            slot.weightKg = ls.weight
+            slot.reps = ls.reps
+            head.append(slot)
+            s.logged.append(LogSet(exerciseId: ls.exerciseId, setNumber: ls.setNumber, reps: ls.reps, weight: ls.weight, rpe: ls.rpe, isWarmup: ls.isWarmup ?? false, origin: "phone"))
+        }
+        s.slots = head + tail
+        s.currentIndex = head.count
+        session = s
+        Store.saveSession(s)
+        if s.currentIndex >= s.slots.count, case .active = phase { phase = .summary }
+    }
+
+    /// "Continue" on the Start screen: build the slots from the plan for the
+    /// phone session's day and length, tick what the phone already logged,
+    /// and carry on under the SAME save id so the finish merges into one
+    /// workout. The HKWorkout is backdated to the phone's start.
+    func continueLive(_ row: LiveSession) async {
+        guard session == nil else { phase = .active; return }
+        phase = .loading
+        notice = nil
+        var p = try? await API.fetchPlan(day: row.day, dur: row.durationMin)
+        if p == nil { p = Store.startablePlan() }
+        guard let p, !p.exercises.isEmpty else {
+            phase = .idle
+            notice = "No plan yet — need signal once"
+            return
+        }
+        plan = p
+        let slots = p.exercises
+            .sorted { $0.order < $1.order }
+            .flatMap { ex in
+                (1...max(1, ex.sets)).map { n in
+                    SetSlot(
+                        exerciseId: ex.exerciseId, exerciseName: ex.name,
+                        machine: ex.machine, setNumber: n, setsTotal: max(1, ex.sets),
+                        repsMin: ex.repsMin, repsMax: ex.repsMax, unit: ex.unit,
+                        restSec: ex.restSec ?? 90,
+                        pinKg: ex.pinKg, weightKg: ex.prefillKg ?? 0,
+                        reps: ex.prefillReps
+                    )
+                }
+            }
+        let s = ActiveSession(
+            clientSaveId: row.clientSaveId, day: row.day ?? p.day, rpeCap: p.rpeCap,
+            startedAt: row.startedDate, slots: slots, currentIndex: 0, logged: [],
+            gym: row.gym
+        )
+        session = s
+        Store.saveSession(s)
+        mergeLive(row)
+        await workout.requestAuthorization()
+        workout.begin(startDate: row.startedDate)
+        keepAwake(true)
+        phoneLive = nil
+        phase = (session?.currentIndex ?? 0) >= slots.count ? .summary : .active
+    }
+
+    /// Every logged set goes to the live row as it happens, so the phone
+    /// can take over mid-session. Fire-and-forget; the finish carries all.
+    private func postLive(_ sets: [LogSet]) {
+        guard let s = session else { return }
+        let now = ISO8601DateFormatter.fractional.string(from: Date())
+        // gym is nil on purpose: the OPENING device tagged the building and
+        // the server keeps the first writer (rule 2).
+        let post = LivePost(
+            clientSaveId: s.clientSaveId, source: "watch", day: s.day,
+            durationMin: plan?.durationMin, gym: nil,
+            startedAt: ISO8601DateFormatter.fractional.string(from: s.startedAt),
+            sets: sets.map { LiveUpdate(exerciseId: $0.exerciseId, setNumber: $0.setNumber, reps: $0.reps, weight: $0.weight, rpe: $0.rpe, isWarmup: $0.isWarmup, completedAt: now, remove: nil) }
+        )
+        Task { await API.postLive(post) }
     }
 
     // MARK: - Start
@@ -102,23 +253,28 @@ final class SessionStore: ObservableObject {
         Store.saveSession(s)
         await workout.requestAuthorization()
         workout.begin()
+        keepAwake(true)
         phase = .active
+        postLive([]) // open the live row so the phone can offer "Continue"
     }
 
     // MARK: - Staying on the wrist
 
     /// Between sets the watch drops to the clock and the next raise lands
-    /// on the face, not the card — the owner's first gym session. ONE
-    /// mechanism keeps the app up for the whole session: the running
-    /// HKWorkoutSession (begin/recoverOrBegin) — watchOS treats the app as
-    /// the active workout: frontmost with no timeout, and the always-on
-    /// display shows THIS screen dimmed when the wrist is down, rest
-    /// countdown still ticking. (The old WKExtension frontmost-timeout API
-    /// the cloud reached for is deprecated since watchOS 7 — "no longer
-    /// supported" — a belt made of air; if HealthKit is denied, there is
-    /// genuinely nothing to hold the app frontmost, which is one more
-    /// reason the Health permission matters.) The backlight itself is a
-    /// watch setting (Always On + Wake Duration — docs/WATCH.md).
+    /// on the face, not the card — the owner's first gym session. Two
+    /// layers keep the app up for the whole session:
+    ///   1. the running HKWorkoutSession (begin/recoverOrBegin) — watchOS
+    ///      treats the app as the active workout: it stays frontmost with
+    ///      no timeout and the always-on display shows THIS screen dimmed
+    ///      when the wrist is down, rest countdown still ticking;
+    ///   2. the extended frontmost timeout — the belt to that suspender: if
+    ///      HealthKit refused the session, wrist-raise still returns to the
+    ///      app for 8 minutes after the last touch instead of 2.
+    /// Nothing can hold the backlight itself on; that is a watch setting
+    /// (Always On + Wake Duration 70 s — docs/WATCH.md).
+    private func keepAwake(_ on: Bool) {
+        WKApplication.shared().isFrontmostTimeoutExtended = on
+    }
 
     // MARK: - The set flow
 
@@ -172,6 +328,7 @@ final class SessionStore: ObservableObject {
         session = s
         Store.saveSession(s)
         WKInterfaceDevice.current().play(.click)
+        postLive([s.logged[s.logged.count - 1]])
 
         if slot.isLastOfExercise {
             phase = .rpePrompt(exerciseId: slot.exerciseId, exerciseName: slot.exerciseName)
@@ -186,11 +343,15 @@ final class SessionStore: ObservableObject {
     /// (trainer review).
     func setRPE(_ rpe: Int, exerciseId: String) {
         guard var s = session else { return }
-        if let i = s.logged.lastIndex(where: { $0.exerciseId == exerciseId }) {
+        var rated: LogSet?
+        // Rate OUR last set of the machine, never one the phone logged.
+        if let i = s.logged.lastIndex(where: { $0.exerciseId == exerciseId && $0.origin != "phone" }) {
             s.logged[i].rpe = rpe
+            rated = s.logged[i]
         }
         session = s
         Store.saveSession(s)
+        if let rated { postLive([rated]) }
         advanceAfterExercise()
     }
 
@@ -275,15 +436,7 @@ final class SessionStore: ObservableObject {
 
     // MARK: - Finish
 
-    func finish() async {
-        guard let s = session, !s.logged.isEmpty else { discard(); return }
-        phase = .uploading
-        // HealthKit's finishWorkout callback is not guaranteed to fire —
-        // a recovered session's builder hung the sim E2E on "Saving…"
-        // forever with no exit. The workout uuid is a nice-to-have dedupe
-        // key, never worth the whole session: race it against 10 s and
-        // move on without it (clientSaveId still dedupes).
-        let uuid = await workout.end()
+    private func buildPayload(_ s: ActiveSession, uuid: String?) -> LogPayload {
         let fmt = ISO8601DateFormatter()
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US")
@@ -291,21 +444,29 @@ final class SessionStore: ObservableObject {
         let dayFmt = DateFormatter()
         dayFmt.locale = Locale(identifier: "en_US_POSIX")
         dayFmt.dateFormat = "yyyy-MM-dd" // wearer's local calendar day
-        let payload = LogPayload(
+        return LogPayload(
             day: s.day,
             name: "Day \(s.day) — Watch · \(df.string(from: s.startedAt))",
             startISO: fmt.string(from: s.startedAt),
             localDay: dayFmt.string(from: s.startedAt),
             durationSec: Int(Date().timeIntervalSince(s.startedAt)),
-            gym: "bfit",
+            gym: s.gym ?? "bfit",
             healthWorkoutUuid: uuid,
             clientSaveId: s.clientSaveId,
             sets: s.logged
         )
+    }
+
+    func finish() async {
+        guard let s = session, !s.logged.isEmpty else { discard(); return }
+        phase = .uploading
+        let uuid = await workout.end()
+        let payload = buildPayload(s, uuid: uuid)
         let sent = await API.postLog(payload)
         if !sent { Store.enqueue(payload) }
         Store.saveSession(nil)
         session = nil
+        keepAwake(false)
         pendingCount = Store.loadOutbox().count
         phase = .done(banked: !sent)
         WKInterfaceDevice.current().play(sent ? .success : .directionUp)
@@ -317,8 +478,10 @@ final class SessionStore: ObservableObject {
     func discard() {
         restTimer?.invalidate()
         workout.abort()
+        if let id = session?.clientSaveId { Task { await API.closeLive(id: id) } }
         Store.saveSession(nil)
         session = nil
+        keepAwake(false)
         phase = .idle
     }
 

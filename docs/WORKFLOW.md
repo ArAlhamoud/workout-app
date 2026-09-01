@@ -126,7 +126,16 @@ with, and prefer pushing before a session rather than during one.
   mid-session resumes with the workout running; the wrist-down behaviour
   itself only shows on the real watch — start a session, lower the
   wrist for a minute, raise it: the set card must be there, not the
-  clock. Then `npm run ios:testflight`.
+  clock. And **live session handoff** (owner, 2026-09-01; Swift in
+  Models/API/SessionStore/Views/WatchApp): with a phone session open at
+  `/workouts/new` (tick two sets), the Watch Start screen must show
+  "Continue Day X · 2 sets on the phone"; tap it → those sets are ticked,
+  the card is on the next pending set, log one → it appears on the phone
+  within 30 s; finish on the Watch → the phone jumps to the saved
+  workout carrying all three sets. Reverse: start on the Watch, log a
+  set, open the phone → pill "Day X on the Watch · Continue here" → tick
+  a set → Watch shows it after wrist-raise → finish on the phone → Watch
+  lands on "Finished on the phone". Then `npm run ios:testflight`.
 
 - ~~Volt simulator pass~~ **DONE (Mac session, 2026-08-30, iPhone 17 sim
   / WKWebView on production).** All four checks passed: (1) status-bar

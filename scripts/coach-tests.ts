@@ -46,6 +46,7 @@ import {
   type DynamicPlan,
   type LoggedSession,
 } from '../src/lib/program';
+import { isLiveFresh, liveKey, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, setsMissingFrom, unionForFinish, type OverlaySet } from '../src/lib/live-session';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
@@ -198,6 +199,93 @@ assert(weightTrend([]).classification === 'no_data', 'empty stats → no_data');
 assert(weightTrend([data.bodyStats[0]]).classification === 'no_data', 'a single weigh-in → no_data');
 
 // ── session-based return ramp ────────────────────────────────
+console.log('live session (phone ↔ watch handoff)');
+{
+  const at = (min: number) => new Date(Date.UTC(2026, 8, 1, 16, min)).toISOString();
+  const ls = (ex: string, n: number, w: number, min: number, source: 'phone' | 'watch' = 'phone') => ({
+    exerciseId: ex, setNumber: n, reps: 10, weight: w, completedAt: at(min), source,
+  });
+  // A device owns what it logs; keys the update never mentions survive.
+  const m1 = mergeLiveSets([ls('lat', 1, 28, 1)], [ls('lat', 2, 28, 3, 'watch')]);
+  assert(m1.length === 2 && m1[1].source === 'watch', 'merge keeps the phone set and adds the watch set');
+  // Later completion wins on the same key, whichever device sent it.
+  const m2 = mergeLiveSets([ls('lat', 1, 28, 5)], [ls('lat', 1, 21, 2, 'watch')]);
+  assert(m2.length === 1 && m2[0].weight === 28, 'an older tick never overwrites a newer one');
+  const m3 = mergeLiveSets([ls('lat', 1, 28, 1)], [ls('lat', 1, 21, 4, 'watch')]);
+  assert(m3[0].weight === 21 && m3[0].source === 'watch', 'a newer tick replaces the stored set');
+  // Un-tick on the phone removes the key.
+  const m4 = mergeLiveSets([ls('lat', 1, 28, 1), ls('lat', 2, 28, 2)], [{ exerciseId: 'lat', setNumber: 1, remove: true }]);
+  assert(m4.length === 1 && m4[0].setNumber === 2, 'remove deletes exactly that key');
+  // Output ordered by completion, not by arrival.
+  const m5 = mergeLiveSets([ls('row', 1, 20, 9)], [ls('lat', 1, 28, 2)]);
+  assert(m5[0].exerciseId === 'lat' && m5[1].exerciseId === 'row', 'merged sets are ordered by completion');
+
+  // Finishing: the poster's own copy wins, the other device's extras ride along.
+  const posted = [{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 28 }];
+  const u = unionForFinish(posted, [ls('lat', 1, 21, 1, 'watch'), ls('row', 1, 20, 2, 'watch')]);
+  assert(u.length === 2 && u[0].weight === 28 && u[1].exerciseId === 'row', 'finish union: poster wins ties, extras added');
+
+  // Freshness: closed, older than 4 h, or idle 2 h → not live.
+  const now = new Date('2026-09-01T18:00:00Z');
+  const fresh = { startedAt: '2026-09-01T17:00:00Z', updatedAt: '2026-09-01T17:40:00Z', closedAt: null };
+  assert(isLiveFresh(fresh, now), 'an hour-old session touched 20 min ago is live');
+  assert(!isLiveFresh({ ...fresh, closedAt: '2026-09-01T17:50:00Z' }, now), 'a closed session is not live');
+  assert(!isLiveFresh({ ...fresh, startedAt: '2026-09-01T13:30:00Z' }, now), 'started 4.5 h ago → leftover');
+  assert(!isLiveFresh({ ...fresh, updatedAt: '2026-09-01T15:30:00Z' }, now), 'idle 2.5 h → abandoned');
+
+  // Keys: warm-ups live apart from working set 1; the save must keep the
+  // template number (renumbering 1..n across a warm-up dropped the Watch's
+  // set 2 and doubled the phone's — steward + adversary).
+  assert(liveKey({ exerciseId: 'lp', setNumber: 0, isWarmup: true }) !== liveKey({ exerciseId: 'lp', setNumber: 1 }), 'warm-up key never collides with set 1');
+  {
+    const phone = [
+      { exerciseId: 'lp', setNumber: 0, reps: 10, weight: 20, isWarmup: true },
+      { exerciseId: 'lp', setNumber: 1, reps: 10, weight: 36 },
+    ];
+    const watch = [ls('lp', 2, 36, 5, 'watch'), ls('lp', 3, 36, 7, 'watch')];
+    const u1 = unionForFinish(phone, watch, 'phone');
+    assert(u1.length === 4 && u1.filter((s) => s.setNumber === 2).length === 1, `warm-up + phone set 1 + watch 2,3 → four sets (got ${u1.length})`);
+    // Second finisher: the phone posts the same four → nothing to add.
+    assert(setsMissingFrom(u1, u1).length === 0, 'a second finish with the same sets adds nothing');
+    // …but one the workout lacks is added exactly once.
+    assert(setsMissingFrom(u1, [...u1, { exerciseId: 'lp', setNumber: 4, reps: 8, weight: 36 }]).length === 1, 'a set the workout lacks is added once');
+    // The poster's own live sets are never re-added (a failed un-tick stays un-ticked).
+    const u2 = unionForFinish([{ exerciseId: 'lp', setNumber: 1, reps: 10, weight: 36 }], [ls('lp', 2, 36, 5, 'phone'), ls('lp', 3, 36, 7, 'watch')], 'phone');
+    assert(u2.length === 2 && u2[1].setNumber === 3, 'own-source live sets are not resurrected on finish');
+  }
+  // A row never grows past the cap.
+  {
+    const many = Array.from({ length: 250 }, (_, i) => ls(`ex${i}`, 1, 10, i));
+    assert(mergeLiveSets([], many).length === 200, 'merged sets are capped at 200');
+  }
+
+  // Overlay onto logger blocks: by set NUMBER, never array index — the
+  // warm-up entry (setNumber 0) at index 0 must stay a warm-up.
+  const mk = (n: number, extra: Partial<OverlaySet> = {}): OverlaySet => ({
+    exerciseId: 'lat', setNumber: n, reps: 10, weight: 40, done: false, notes: '', rpe: 0, completedAt: null, ...extra,
+  });
+  const blocks = [{ exerciseId: 'lat', sets: [mk(0, { isWarmup: true, weight: 20 }), mk(1), mk(2), mk(3)] }];
+  const ov = overlayLiveSets(blocks, [ls('lat', 1, 21, 1, 'watch'), ls('lat', 2, 21, 2, 'watch')], (id) => ({ exerciseId: id, sets: [] }));
+  const lat = ov.blocks[0].sets;
+  assert(lat[0].isWarmup === true && !lat[0].done && lat[0].weight === 20, 'warm-up entry untouched by the overlay');
+  assert(lat[1].done && lat[1].setNumber === 1 && lat[1].weight === 21 && lat[2].done && lat[2].setNumber === 2, 'sets 1 and 2 ticked by number');
+  assert(!lat[3].done && ov.applied.length === 2, 'set 3 pending; two sets applied');
+  const ov2 = overlayLiveSets(blocks, [ls('lat', 5, 21, 3, 'watch'), ls('row', 1, 20, 4, 'watch')], (id) => ({ exerciseId: id, sets: [] }));
+  assert(ov2.blocks[0].sets.length === 6 && ov2.blocks[0].sets[5].setNumber === 5 && ov2.blocks[0].sets[5].done, 'a set past the template extends the block');
+  assert(ov2.blocks[1].exerciseId === 'row' && ov2.blocks[1].sets[0].done, 'an unknown machine gets a block');
+  const mine = [{ exerciseId: 'lat', sets: [mk(1, { done: true, completedAt: at(9), weight: 28 })] }];
+  const ov3 = overlayLiveSets(mine, [ls('lat', 1, 21, 2, 'watch')], (id) => ({ exerciseId: id, sets: [] }));
+  assert(ov3.blocks[0].sets[0].weight === 28 && ov3.applied.length === 0, 'a later local tick beats the live copy');
+
+  // Sanitizer: junk dropped, rpe bounded, remove honoured, source stamped.
+  const r9 = sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 28, rpe: 9 }, 'watch');
+  assert(r9 !== null && !('remove' in r9) && r9.rpe === undefined, 'rpe 9 is dropped, set kept');
+  assert(sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 1, reps: 0, weight: 28 }, 'watch') === null, 'zero reps is junk');
+  assert(sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 2, remove: true }, 'phone')?.exerciseId === 'lat', 'remove passes through');
+  const st = sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 0 }, 'watch');
+  assert(st !== null && !('remove' in st) && st.source === 'watch' && st.weight === 0, 'bodyweight 0 kg is a valid live set');
+}
+
 console.log('getTrainingStatus (session-based ramp)');
 const realDates = data.workouts.map((w) => new Date(w.date));
 const day = (iso: string) => new Date(iso);

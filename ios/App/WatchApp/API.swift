@@ -29,6 +29,44 @@ enum API {
         return plan
     }
 
+    // MARK: Live session
+
+    /// The open session on the server (either device), or with an id that
+    /// row whatever its state. nil = nothing live, or no signal.
+    static func fetchLive(id: String? = nil) async -> LiveSession? {
+        var comps = URLComponents(url: baseURL.appendingPathComponent("/api/live"), resolvingAgainstBaseURL: false)!
+        if let id { comps.queryItems = [URLQueryItem(name: "id", value: id)] }
+        guard let (data, resp) = try? await session.data(from: comps.url!),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let env = try? JSONDecoder().decode(LiveEnvelope.self, from: data) else { return nil }
+        return env.live
+    }
+
+    /// Push logged sets (or the bare row, with no sets, when a session
+    /// starts). Returns the merged row; a closed row means the other device
+    /// finished. nil = no signal — nothing is lost, the finish carries all.
+    @discardableResult
+    static func postLive(_ post: LivePost) async -> LiveSession? {
+        var req = URLRequest(url: baseURL.appendingPathComponent("/api/live"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        guard let body = try? JSONEncoder().encode(post) else { return nil }
+        req.httpBody = body
+        guard let (data, resp) = try? await session.data(for: req),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let env = try? JSONDecoder().decode(LiveEnvelope.self, from: data) else { return nil }
+        return env.live
+    }
+
+    /// Discarded on the wrist: the phone must stop offering it.
+    static func closeLive(id: String) async {
+        var req = URLRequest(url: baseURL.appendingPathComponent("/api/live/close"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONEncoder().encode(["clientSaveId": id])
+        _ = try? await session.data(for: req)
+    }
+
     /// Returns true when the server accepted (or already had) the session.
     /// A 4xx means the payload can never succeed — treated as accepted so a
     /// poison payload cannot wedge the outbox forever.

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { createWorkout } from '@/app/actions';
+import { readLive } from '@/lib/live-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -85,10 +86,16 @@ export async function POST(request: Request) {
     typeof b.localDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.localDay)
       ? `${b.localDay}T00:00:00.000Z`
       : start.toISOString();
+  // A handed-off session keeps the building the OPENING device tagged
+  // (rule 2): the wrist has no gym toggle, so the live row outranks its
+  // default.
+  const live = typeof b.clientSaveId === 'string' ? await readLive(b.clientSaveId.slice(0, 64)) : null;
+  const gym = live?.gym === 'work' || live?.gym === 'bfit' ? live.gym : b.gym === 'work' || b.gym === 'bfit' ? b.gym : undefined;
   const result = await createWorkout({
     name,
     date: workoutDate,
-    gym: b.gym === 'work' || b.gym === 'bfit' ? b.gym : undefined,
+    gym,
+    finishSource: 'watch',
     duration:
       Number.isFinite(b.durationSec) && (b.durationSec as number) > 0 && (b.durationSec as number) < 4 * 3600
         ? Math.round(b.durationSec as number)

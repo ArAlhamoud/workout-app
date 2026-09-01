@@ -36,6 +36,9 @@ struct LogSet: Codable, Equatable {
     let weight: Double
     var rpe: Int?
     let isWarmup: Bool
+    /// "phone" when the set arrived through the live row rather than this
+    /// wrist — never rated here, dropped if the phone un-ticks or discards.
+    var origin: String? = nil
 }
 
 struct LogPayload: Codable, Equatable {
@@ -99,4 +102,69 @@ struct ActiveSession: Codable, Equatable {
     var slots: [SetSlot]
     var currentIndex: Int
     var logged: [LogSet]
+    /// The building the OPENING device tagged (rule 2). nil = this wrist
+    /// opened it; the server defaults to B_Fit.
+    var gym: String? = nil
+}
+
+// MARK: - Live session (phone ↔ watch handoff, docs/WATCH.md "Live session")
+
+struct LiveSet: Codable, Equatable {
+    let exerciseId: String
+    let setNumber: Int
+    let reps: Int
+    let weight: Double
+    var rpe: Int?
+    var isWarmup: Bool?
+    let completedAt: String
+    let source: String
+}
+
+struct LiveSession: Codable, Equatable {
+    let clientSaveId: String
+    let day: String?
+    let durationMin: Int?
+    let gym: String?
+    let source: String
+    let startedAt: String
+    let updatedAt: String
+    let closedAt: String?
+    let workoutId: String?
+    let sets: [LiveSet]
+
+    var isClosed: Bool { closedAt != nil }
+    var startedDate: Date { ISO8601DateFormatter.fractional.date(from: startedAt) ?? Date() }
+}
+
+struct LiveEnvelope: Codable { let live: LiveSession? }
+
+/// One outbound update: a logged set, or an un-log.
+struct LiveUpdate: Codable {
+    let exerciseId: String
+    let setNumber: Int
+    var reps: Int?
+    var weight: Double?
+    var rpe: Int?
+    var isWarmup: Bool?
+    var completedAt: String?
+    var remove: Bool?
+}
+
+struct LivePost: Codable {
+    let clientSaveId: String
+    let source: String
+    var day: String?
+    var durationMin: Int?
+    var gym: String?
+    var startedAt: String?
+    var sets: [LiveUpdate]
+}
+
+extension ISO8601DateFormatter {
+    /// The server writes fractional seconds; a plain formatter rejects them.
+    static let fractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
 }

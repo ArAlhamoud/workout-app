@@ -68,6 +68,24 @@ struct StartView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
+                if let live = store.phoneLive {
+                    // Started on the phone — pick it up here under the same
+                    // save id (docs/WATCH.md "Live session").
+                    Button {
+                        Task { await store.continueLive(live) }
+                    } label: {
+                        VStack(spacing: 2) {
+                            Text("Continue Day \(live.day ?? "?")")
+                                .font(.system(size: 18, weight: .black, design: .rounded))
+                            Text(live.sets.isEmpty ? "on the phone" : "\(live.sets.count) set\(live.sets.count == 1 ? "" : "s") on the phone")
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.green)
+                }
                 Button {
                     let d = chosenDay, dur = chosenDur
                     Task { await store.start(day: d, dur: dur) }
