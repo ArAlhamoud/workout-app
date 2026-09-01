@@ -121,13 +121,14 @@ function buildBlocks(
     // Overload by default: two straight all-Easy sessions at this weight
     // already proved it light — the prefill takes one learned pin, and the
     // chip beside the exercise undoes it in a tap. Never during a ramp
-    // (pre-scaled loads win) and never on top of a deload.
+    // (pre-scaled loads win) — EXCEPT a held machine (no pre-break record,
+    // nothing to scale): its effort rule runs under the ramp's RPE cap,
+    // or it would sit frozen for four weeks (trainer). Never on a deload.
     const inc = pinIncrements[ie.exerciseId] ?? DEFAULT_PIN_INCREMENT;
-    // Rescue is excluded explicitly: mid-ramp it arrives with returnLoadPct
-    // deliberately unset, and the one day readiness says "shrink" must not
-    // open machines a pin heavier (adversary).
+    // Rescue is excluded explicitly: the one day readiness says "shrink"
+    // must not open machines a pin heavier (adversary).
     const overloadTo =
-      !returnLoadPct && !isRescue && !isTimed && prev?.overload && prev.weight > 0 && prev.reps >= ie.defaultReps
+      (!returnLoadPct || prev?.rampHold) && !isRescue && !isTimed && prev?.overload && prev.weight > 0 && prev.reps >= ie.defaultReps
         ? +(prev.weight + inc).toFixed(1)
         : null;
     // The prefill IS the instruction (that is why ramp weights pre-scale).
@@ -163,9 +164,7 @@ function buildBlocks(
       sets: [
         ...(blockIdx < 2 && !isTimed && prev?.weight
           ? (() => {
-              const working = returnLoadPct
-                ? rampPrefillWeight(prev, returnLoadPct)
-                : seededWeight ?? prev.weight;
+              const working = seededWeight ?? rampPrefillWeight(prev, returnLoadPct ?? 100, inc);
               const warm = Math.max(inc, Math.floor((working * 0.55) / inc) * inc);
               return [{
                 exerciseId: ie.exerciseId,
@@ -192,9 +191,7 @@ function buildBlocks(
           : deload
             ? deload.weight
             : prev?.weight
-              ? (returnLoadPct
-                  ? rampPrefillWeight(prev, returnLoadPct)
-                  : seededWeight ?? prev.weight)
+              ? seededWeight ?? rampPrefillWeight(prev, returnLoadPct ?? 100, inc)
               : 0,
         done: false,
         notes: '',
@@ -552,13 +549,11 @@ export default function WorkoutForm({
             // a B_Fit number into an Alrajhi machine (trainer, rule 2).
             if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession, overloadApplied: undefined };
             const isTimed = b.unit === 'seconds';
-            const working = prevSession?.weight
-              ? (returnLoadPct ? rampPrefillWeight(prevSession, returnLoadPct) : prevSession.weight)
-              : 0;
+            const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+            const working = prevSession?.weight ? rampPrefillWeight(prevSession, returnLoadPct ?? 100, inc) : 0;
             // The warm-up stays a warm-up across a gym switch: 55% floored
             // to a pin — mapping it to the other gym's FULL working weight
             // made the cold first set the heaviest of the day (adversary).
-            const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
             const warm = working > 0 ? Math.max(inc, Math.floor((working * 0.55) / inc) * inc) : 0;
             return {
               ...b,
@@ -895,9 +890,7 @@ export default function WorkoutForm({
       cur > 0
         ? Math.max(0, +(cur + dir * inc).toFixed(2))
         : block.lastSession?.weight
-          ? (returnLoadPct
-              ? rampPrefillWeight(block.lastSession, returnLoadPct)
-              : block.lastSession.weight)
+          ? rampPrefillWeight(block.lastSession, returnLoadPct ?? 100, inc)
           : inc;
     updateSet(block.uid, idx, 'weight', next);
   }

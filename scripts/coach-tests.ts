@@ -35,6 +35,7 @@ import {
   getDayTemplate,
   getTrainingStatus,
   pickRampMemory,
+  rampBaseBefore,
   rampPrefillWeight,
   cleanRampSessionDates,
   rampContract,
@@ -239,6 +240,31 @@ assert(
   assert(picked?.weight === 28 && !picked?.rampHold, 'ramp memory = pre-break weight when one exists');
   assert(rampPrefillWeight(picked!, 60) === 15, `60% of pre-break 28 → 15, not 60% of 17.5 (got ${rampPrefillWeight(picked!, 60)})`);
   assert(rampPrefillWeight(picked!, 100) === 28, 'RESTORE week returns the exact pre-break weight');
+  // Pin-floored, same on wrist and phone: Lat Pulldown's learned 7 kg pin.
+  const lat = { weight: 40, reps: 10, rpe: null as number | null };
+  assert(rampPrefillWeight(lat, 60, 7) === 21 && rampPrefillWeight(lat, 85, 7) === 28, `pin 7: 60%→21, 85%→28 (got ${rampPrefillWeight(lat, 60, 7)}, ${rampPrefillWeight(lat, 85, 7)})`);
+  assert(rampPrefillWeight({ weight: 2.5 }, 60, 2.5) === 2.5, 'never below one pin');
+  assert(rampPrefillWeight({ weight: 27.5 }, 60) === 15, `27.5 × 60% floors to 15 at 2.5 (got ${rampPrefillWeight({ weight: 27.5 }, 60)})`);
+
+  // The base walks back past an ABANDONED ramp. Owner's real shape: a
+  // full block to Jun 16, one 60% session on Jul 29 after 43 days off,
+  // then Sep 1 after 34 more. "Last session before this block" was Jul 29
+  // — already 60% — so Day A would have opened at 60% of 60%.
+  const named = (iso: string, name: string) => ({ date: day(iso), name });
+  const shape = [
+    ...preBreak.map((d) => ({ date: d, name: 'Day A' })),
+    named('2026-07-29T00:00:00Z', 'Day A — Return'),
+    named('2026-09-01T16:00:00Z', 'Day B — Watch · Sep 1'),
+  ];
+  const base = rampBaseBefore(shape, [], day('2026-09-03T12:00:00Z'));
+  assert(base === '2026-07-29T00:00:00.000Z', `ramp base stops before the July ramp session (got ${base})`);
+  // Day 1 of the July return: the latest session (Jun 16) was full-load → no cut-off.
+  assert(rampBaseBefore(shape.slice(0, preBreak.length), [], day('2026-07-29T12:00:00Z')) === null, 'day 1 of a return → plain memory');
+  // A rescue session is never a base, even inside a normal block.
+  const withRescue = [...preBreak.map((d) => ({ date: d, name: 'Day B' })), named('2026-06-18T00:00:00Z', 'Rescue 15m — Jun 18')];
+  assert(rampBaseBefore(withRescue, [], day('2026-07-29T12:00:00Z')) === '2026-06-18T00:00:00.000Z', 'rescue session is skipped as a base');
+  // Nothing before the first-ever session is scaled: a brand-new lifter has no cut-off at all.
+  assert(rampBaseBefore([], [], day('2026-07-29T12:00:00Z')) === null, 'no history → no cut-off');
   const held = pickRampMemory(undefined, { weight: 12.5, reps: 12, rpe: 1 });
   assert(held?.rampHold === true && rampPrefillWeight(held!, 70) === 12.5, 'no pre-break record → in-block weight held, never rescaled');
   assert(pickRampMemory(undefined, undefined) === undefined, 'no memory at all → none');

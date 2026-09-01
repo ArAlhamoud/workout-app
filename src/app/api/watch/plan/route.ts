@@ -7,6 +7,8 @@ import {
   getTrainingStatus,
   isTrainingSession,
   queuedDay,
+  rampBaseBefore,
+  rampPrefillWeight,
   type DayId,
 } from '@/lib/program';
 import { combineIncrement, learnPinIncrements } from '@/lib/coach';
@@ -64,10 +66,10 @@ export async function GET(request: Request) {
   // same lesson the phone logger carries).
   const gymRows = workoutRows.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym);
   const [memory, learned] = [
-    // Ramp-aware: the percentage scales the PRE-BREAK weight, never the
-    // previous ramp session (which is already scaled — compounding bug,
-    // owner's first wrist session).
-    await getLoggerMemory(ids, gym, inRamp ? status.blockStartISO : undefined),
+    // Ramp-aware: the percentage scales the last FULL-LOAD weight, never
+    // a previous ramp session (already scaled — compounding bug, owner's
+    // first wrist session).
+    await getLoggerMemory(ids, gym, inRamp ? rampBaseBefore(training, cleanRampSessionDates(training)) : undefined),
     learnPinIncrements(gymRows as never),
   ];
 
@@ -85,16 +87,14 @@ export async function GET(request: Request) {
       // Manual per-machine override outranks the learned spacing, exactly
       // as on the phone.
       const pin = combineIncrement(learned[ex.id], ex.pinIncrement);
-      const raw = last?.weight ?? null;
-      // Ramp scaling FLOORS to the pin (conservative, matching
-      // scaleReturnWeight); an unscaled prefill is a genuinely logged
-      // weight and is never snapped.
-      const scaled =
-        raw == null
-          ? null
-          : loadPct === 100 || last?.rampHold
-            ? raw
-            : Math.floor(((raw * loadPct) / 100) / pin) * pin;
+      // One scaler for wrist and phone: pre-break × loadPct floored to
+      // THIS machine's pin; held / 100% weights pass through unsnapped.
+      const scaled = last ? rampPrefillWeight(last, loadPct, pin) : null;
+      // Timed holds never scale — a plank at bodyweight is the same load in
+      // every ramp week — and never open below the program floor (trainer:
+      // the 10 s planks on the first wrist session).
+      const prefillReps =
+        t.unit === 'seconds' ? Math.max(t.repsMin, last?.reps ?? t.repsMin) : last?.reps ?? t.repsMin;
       return [{
         exerciseId: ex.id,
         name: t.name,
@@ -106,7 +106,7 @@ export async function GET(request: Request) {
         unit: t.unit,
         restSec: parseInt(t.rest, 10) || 90,
         prefillKg: scaled,
-        prefillReps: last?.reps ?? t.repsMin,
+        prefillReps,
         pinKg: pin,
       }];
     }),

@@ -534,10 +534,57 @@ export function pickRampMemory<T extends { weight: number }>(
   return undefined;
 }
 
-/** The ramp prefill for one machine: scaled pre-break weight, or the
- *  held in-block weight when there is no pre-break record. */
-export function rampPrefillWeight(memory: { weight: number; rampHold?: boolean }, loadPct: number): number {
-  return memory.rampHold ? memory.weight : scaleReturnWeight(memory.weight, loadPct);
+/**
+ * The ramp prefill for one machine: the pre-break weight scaled to the
+ * week and FLOORED TO THAT MACHINE'S PIN (rule 4 — stacks move in pins;
+ * a 2.5 kg floor put the phone on 27.5 while the wrist, flooring to the
+ * learned 7 kg pin, said 28 — trainer). Never below one pin. A held
+ * machine (no pre-break record) and a 100% week return the weight as-is.
+ */
+export function rampPrefillWeight(
+  memory: { weight: number; rampHold?: boolean },
+  loadPct: number,
+  pin = 2.5,
+): number {
+  if (memory.weight <= 0) return 0;
+  if (memory.rampHold || loadPct >= 100) return memory.weight;
+  const p = pin > 0 ? pin : 2.5;
+  const steps = Math.floor((memory.weight * loadPct) / 100 / p + 1e-9);
+  return +Math.max(p, steps * p).toFixed(2);
+}
+
+/**
+ * Where the ramp's weight memory stops: the instant of the EARLIEST
+ * session logged below full load since the last full-load one. Memory
+ * read strictly before it is the pre-break base the percentages are
+ * defined against. A session counts as full-load when the status at the
+ * moment it was logged was not a ramp week under 100%; rescue sessions
+ * are 60% by construction and never a base. This walks back past an
+ * abandoned comeback — "last session before this block" read the owner's
+ * one-session July ramp as pre-break and would have opened Day A at 60%
+ * of 60% (adversary + trainer, 2026-09-01). null = the latest session was
+ * itself full-load (or there is no history): plain memory is right.
+ */
+export function rampBaseBefore(
+  sessions: Array<{ date: Date | string; name?: string | null }>,
+  cleanDates: Date[] = [],
+  now: Date = new Date(),
+): string | null {
+  const asc = sessions
+    .map((s) => ({ date: new Date(s.date), name: s.name ?? '' }))
+    .filter((s) => s.date.getTime() <= now.getTime())
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  let firstScaled: Date | null = null;
+  for (let i = asc.length - 1; i >= 0; i--) {
+    const s = asc[i];
+    const before = asc.slice(0, i).map((x) => x.date);
+    const cleanBefore = cleanDates.filter((d) => new Date(d).getTime() < s.date.getTime());
+    const at = getTrainingStatus(before, s.date, cleanBefore);
+    const scaled = s.name.startsWith('Rescue') || (at.mode === 'return' && at.returnWeek.loadPct < 100);
+    if (!scaled) return firstScaled ? firstScaled.toISOString() : null;
+    firstScaled = s.date;
+  }
+  return firstScaled ? firstScaled.toISOString() : null;
 }
 
 // ── Gyms ─────────────────────────────────────────────────────

@@ -199,6 +199,14 @@ watch: **Settings → Display & Brightness → Always On: on**, and **Wake
 Duration: Wake for 70 seconds** (the default is 15). With both, the card
 never disappears — it dims with the wrist down and is bright on raise.
 
+## Known gap: one RPE tap per exercise vs the overload rule
+
+The wrist rates only the last set of each exercise (honest, per the
+trainer). The phone's Overload-by-default rule needs ≥2 rated sets per
+exercise-session, so wrist-only history can never earn a pin after the
+ramp. Either the strip asks per set or the rule accepts a deliberately
+rated last set — decide when the ramp ends (trainer note, 2026-09-01).
+
 ## Occupied machine (owner, first wrist session, 2026-08-31)
 
 A horizontal swipe on the set card rotates the PENDING machines: swipe

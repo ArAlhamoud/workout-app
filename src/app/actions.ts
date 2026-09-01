@@ -9,6 +9,7 @@ import {
   getTrainingStatus,
   isTrainingSession,
   pickRampMemory,
+  rampBaseBefore,
 } from '@/lib/program';
 
 /**
@@ -192,21 +193,22 @@ export type ExerciseMemory = {
 };
 
 /**
- * Weight memory for the logger and the watch plan, ramp-aware. Outside a
- * return ramp (blockStartISO undefined) it is the plain last session. In a
- * ramp it reads the last session BEFORE the block started — the pre-break
- * weight the ramp percentage is defined against — and falls back to the
- * in-block weight, held, for machines with no pre-break history. Day 1 of
- * a return (blockStartISO null: no block session yet) needs no cut-off.
+ * Weight memory for the logger, /train and the watch plan, ramp-aware.
+ * Outside a return ramp (rampBaseBeforeISO undefined) it is the plain last
+ * session. In a ramp it reads the last FULL-LOAD session per machine —
+ * everything before `rampBaseBefore()`, the pre-break weight the ramp
+ * percentage is defined against — and falls back to the latest in-block
+ * weight, held, for machines with no pre-break history. null (the latest
+ * session was itself full-load) needs no cut-off.
  */
 export async function getLoggerMemory(
   exerciseIds: string[],
   gym: string | null | undefined,
-  blockStartISO: string | null | undefined,
+  rampBaseBeforeISO: string | null | undefined,
 ): Promise<Record<string, ExerciseMemory>> {
-  if (!blockStartISO) return getLastSessionForExercises(exerciseIds, gym);
+  if (!rampBaseBeforeISO) return getLastSessionForExercises(exerciseIds, gym);
   const [preBreak, latest] = await Promise.all([
-    getLastSessionForExercises(exerciseIds, gym, new Date(blockStartISO)),
+    getLastSessionForExercises(exerciseIds, gym, new Date(rampBaseBeforeISO)),
     getLastSessionForExercises(exerciseIds, gym),
   ]);
   const out: Record<string, ExerciseMemory> = {};
@@ -218,16 +220,17 @@ export async function getLoggerMemory(
 }
 
 /** The ramp cut-off for the client-side gym switch, which has no status
- *  in hand: undefined outside a ramp, else the block start (or null). */
-async function rampBlockStart(): Promise<string | null | undefined> {
+ *  in hand: undefined outside a ramp, else rampBaseBefore (or null). */
+async function rampBase(): Promise<string | null | undefined> {
   const rows = await prisma.workout.findMany({
     orderBy: { date: 'desc' },
-    take: 60,
+    take: 120,
     select: { date: true, name: true, sets: { select: { rpe: true, isWarmup: true } } },
   });
   const training = rows.filter((w) => isTrainingSession(w));
-  const status = getTrainingStatus(training.map((w) => w.date), new Date(), cleanRampSessionDates(training));
-  return status.mode === 'return' ? status.blockStartISO : undefined;
+  const clean = cleanRampSessionDates(training);
+  const status = getTrainingStatus(training.map((w) => w.date), new Date(), clean);
+  return status.mode === 'return' ? rampBaseBefore(training, clean) : undefined;
 }
 
 export async function getLastSessionForExercises(
@@ -251,7 +254,12 @@ export async function getLastSessionForExercises(
     where: {
       exerciseId: { in: exerciseIds },
       isWarmup: false,
-      workout: { ...(gym ? gymScope(gym) : {}), ...(before ? { date: { lt: before } } : {}) },
+      workout: {
+        ...(gym ? gymScope(gym) : {}),
+        // Ramp base: strictly before the first scaled session, and never a
+        // rescue session — those are 60% by construction.
+        ...(before ? { date: { lt: before }, NOT: { name: { startsWith: 'Rescue' } } } : {}),
+      },
     },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
     select: { exerciseId: true, weight: true, reps: true, rpe: true, workout: { select: { date: true } } },
@@ -503,7 +511,7 @@ export async function getRepRecords(
  */
 export async function getGymMemory(exerciseIds: string[], gym: string) {
   const [lastSession, personalRecords, repRecords] = await Promise.all([
-    rampBlockStart().then((cut) => getLoggerMemory(exerciseIds, gym, cut)),
+    rampBase().then((cut) => getLoggerMemory(exerciseIds, gym, cut)),
     getPersonalRecords(gym),
     getRepRecords(gym),
   ]);

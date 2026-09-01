@@ -15,6 +15,7 @@ import {
   queuedDay,
   type Duration,
   cleanRampSessionDates,
+  rampBaseBefore,
 } from '@/lib/program';
 
 export const metadata: Metadata = { title: 'Log Workout' };
@@ -127,12 +128,12 @@ export default async function NewWorkoutPage({
 
   const exerciseIds = initialExercises.map((e) => e.exerciseId);
   // Seeded for the default gym; the form refetches if he tags Alrajhi Tower.
-  // Ramp-aware: mid-ramp the memory is the PRE-BREAK weight (the base the
-  // percentage scales), not the previous ramp session.
+  // Ramp-aware: mid-ramp the memory is the last FULL-LOAD weight (the base
+  // the percentage scales), never a previous ramp session.
   const lastSession = await getLoggerMemory(
     exerciseIds,
     DEFAULT_GYM_ID,
-    status.mode === 'return' ? status.blockStartISO : undefined,
+    inRamp ? rampBaseBefore(trainingOnly, cleanDates) : undefined,
   );
 
   // Compute progression hints: exerciseId → true if same weight 2+ sessions with Easy/Med RPE
@@ -279,10 +280,11 @@ export default async function NewWorkoutPage({
         deloadHints={deloadHints}
         rescueMode={isRescue}
         returnLoadPct={
-          // Mid-ramp, last-logged weights are ALREADY scaled — 60% of 60% is
-          // a 36% session wearing a 60% label (trainer). Ramp prefill as-is
-          // is the right rescue load then.
-          isRescue ? (isReturning ? undefined : RESCUE_LOAD_PCT) : isReturning ? status.returnWeek.loadPct : undefined
+          // Memory is the UNSCALED full-load weight now, so a rescue day
+          // mid-ramp scales by the ramp's own week — not 60% on top of it
+          // (36% wearing a 60% label), and never full pre-break weight on
+          // the day readiness said "shrink" (adversary).
+          isRescue ? (isReturning ? status.returnWeek.loadPct : RESCUE_LOAD_PCT) : isReturning ? status.returnWeek.loadPct : undefined
         }
         returnRpeCap={isRescue ? 2 : isReturning ? status.returnWeek.rpeCap : undefined}
         pinIncrements={pinIncrements}

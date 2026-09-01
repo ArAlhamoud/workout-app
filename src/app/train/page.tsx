@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getExercises, getLastSessionForExercises, getWorkouts } from '../actions';
+import { getExercises, getLoggerMemory, getWorkouts } from '../actions';
 import {
   getDynamicPlan,
   cleanRampSessionDates,
@@ -8,10 +8,11 @@ import {
   getExercisesForDuration,
   queuedDay,
   isTrainingSession,
-  scaleReturnWeight,
+  rampBaseBefore,
+  rampPrefillWeight,
   DEFAULT_GYM_ID,
 } from '@/lib/program';
-import { phaseForWeek } from '@/lib/coach';
+import { combineIncrement, learnPinIncrements, phaseForWeek } from '@/lib/coach';
 import CoachCard from '@/components/CoachCard';
 import VoltLetter from '@/components/VoltLetter';
 import { formatRelative, RPE_LABELS } from '@/lib/format';
@@ -191,7 +192,8 @@ export default async function TrainPage() {
 
   // Where the lifter actually is: fresh, ramping back, or mid-program.
   const trainingOnly = workouts.filter(isTrainingSession);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
+  const cleanDates = cleanRampSessionDates(trainingOnly);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
   const currentPhase = phaseForWeek(status.week);
   const returnLoadPct = status.mode === 'return' ? status.returnWeek.loadPct : null;
 
@@ -216,19 +218,28 @@ export default async function TrainPage() {
   const previewIds = template
     .map((te) => exerciseByName.get(te.name)?.id)
     .filter((id): id is string => Boolean(id));
-  const lastByExercise = await getLastSessionForExercises(previewIds, DEFAULT_GYM_ID);
+  // Same memory and same pin-floored scaler as the logger and the wrist —
+  // one plan, not three (adversary: /train once showed a different ramp
+  // weight than the logger prefilled the same day).
+  const lastByExercise = await getLoggerMemory(
+    previewIds,
+    DEFAULT_GYM_ID,
+    returnLoadPct != null ? rampBaseBefore(trainingOnly, cleanDates) : undefined,
+  );
+  const learnedPins = learnPinIncrements(workouts.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID));
   const preview = template.map((te) => {
     const ex = exerciseByName.get(te.name);
     const last = ex ? lastByExercise[ex.id] : undefined;
     const lastW = last && last.weight > 0 ? last.weight : null;
+    const pin = ex ? combineIncrement(learnedPins[ex.id], ex.pinIncrement) : 2.5;
     const shownW =
-      lastW != null && returnLoadPct != null ? scaleReturnWeight(lastW, returnLoadPct) : lastW;
+      last && lastW != null && returnLoadPct != null ? rampPrefillWeight(last, returnLoadPct, pin) : lastW;
     return {
       name: te.name,
       setsReps: `${te.sets} × ${te.repsDisplay}`,
       isHold: te.unit === 'seconds',
       weight: te.unit === 'seconds' ? null : shownW,
-      scaled: returnLoadPct != null && lastW != null,
+      scaled: returnLoadPct != null && lastW != null && !last?.rampHold,
     };
   });
 

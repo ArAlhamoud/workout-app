@@ -119,8 +119,17 @@ struct StartView: View {
 struct SetCardView: View {
     @EnvironmentObject var store: SessionStore
     let slot: SetSlot
-    @State private var crownWeight: Double = 0
+    @State private var crownWeight: Double
     @FocusState private var crownFocused: Bool
+
+    /// The crown binding must START inside its range: a 0 default on the
+    /// seconds card (range 5…180) was clamped before onAppear could seed
+    /// it, and the clamp wrote a phantom short hold — the 10 s planks on
+    /// the first wrist session (prefill was 21 s).
+    init(slot: SetSlot) {
+        self.slot = slot
+        _crownWeight = State(initialValue: slot.isSeconds ? Double(slot.reps) : slot.weightKg)
+    }
 
     private var weightText: String {
         slot.weightKg <= 0 ? "—" : slot.weightKg.truncatingRemainder(dividingBy: 1) == 0
