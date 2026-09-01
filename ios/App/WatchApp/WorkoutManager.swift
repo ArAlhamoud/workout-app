@@ -66,16 +66,31 @@ final class WorkoutManager: NSObject, ObservableObject {
     }
 
     /// Ends the session and returns the recorded HKWorkout's uuid, or nil if
-    /// HealthKit was unavailable the whole way through.
+    /// HealthKit was unavailable the whole way through. HARD-DEADLINED:
+    /// HealthKit's completion handlers are not guaranteed to fire (an
+    /// entitlement refusal on the sim never called back and hung Finish on
+    /// "Saving…" forever), so a GCD timer resumes the continuation with nil
+    /// after 10 s no matter what — the uuid is a dedupe nicety, never worth
+    /// the session. The lock guarantees exactly one resume.
     func end() async -> String? {
         guard let s = session, let b = builder else { return nil }
         session = nil
         builder = nil
         s.end()
         return await withCheckedContinuation { cont in
+            let lock = NSLock()
+            var resumed = false
+            func finishOnce(_ v: String?) {
+                lock.lock()
+                let first = !resumed
+                resumed = true
+                lock.unlock()
+                if first { cont.resume(returning: v) }
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + 10) { finishOnce(nil) }
             b.endCollection(withEnd: Date()) { _, _ in
                 b.finishWorkout { workout, _ in
-                    cont.resume(returning: workout?.uuid.uuidString)
+                    finishOnce(workout?.uuid.uuidString)
                 }
             }
         }
