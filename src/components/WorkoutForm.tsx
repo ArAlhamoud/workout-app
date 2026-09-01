@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { createWorkout, getGymMemory, getRecentExerciseSessions } from '@/app/actions';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
-import { scaleReturnWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
+import { rampPrefillWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -64,7 +64,7 @@ interface ExerciseBlock {
   unit?: 'reps' | 'seconds';
   showCues: boolean;
   expandedNoteIdx: number | null;
-  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean };
+  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; rampHold?: boolean };
   /** Overload by default took one learned pin at seed time; tap undoes it. */
   overloadApplied?: { from: number; to: number };
 }
@@ -109,7 +109,7 @@ function formatElapsed(seconds: number): string {
 
 function buildBlocks(
   initialExercises: InitialExercise[],
-  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean }>,
+  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; rampHold?: boolean }>,
   returnLoadPct?: number,
   pinIncrements: Record<string, number> = {},
   deloadHints: Record<string, { weight: number; note: string }> = {},
@@ -164,7 +164,7 @@ function buildBlocks(
         ...(blockIdx < 2 && !isTimed && prev?.weight
           ? (() => {
               const working = returnLoadPct
-                ? scaleReturnWeight(prev.weight, returnLoadPct)
+                ? rampPrefillWeight(prev, returnLoadPct)
                 : seededWeight ?? prev.weight;
               const warm = Math.max(inc, Math.floor((working * 0.55) / inc) * inc);
               return [{
@@ -193,7 +193,7 @@ function buildBlocks(
             ? deload.weight
             : prev?.weight
               ? (returnLoadPct
-                  ? scaleReturnWeight(prev.weight, returnLoadPct)
+                  ? rampPrefillWeight(prev, returnLoadPct)
                   : seededWeight ?? prev.weight)
               : 0,
         done: false,
@@ -553,7 +553,7 @@ export default function WorkoutForm({
             if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession, overloadApplied: undefined };
             const isTimed = b.unit === 'seconds';
             const working = prevSession?.weight
-              ? (returnLoadPct ? scaleReturnWeight(prevSession.weight, returnLoadPct) : prevSession.weight)
+              ? (returnLoadPct ? rampPrefillWeight(prevSession, returnLoadPct) : prevSession.weight)
               : 0;
             // The warm-up stays a warm-up across a gym switch: 55% floored
             // to a pin — mapping it to the other gym's FULL working weight
@@ -896,7 +896,7 @@ export default function WorkoutForm({
         ? Math.max(0, +(cur + dir * inc).toFixed(2))
         : block.lastSession?.weight
           ? (returnLoadPct
-              ? scaleReturnWeight(block.lastSession.weight, returnLoadPct)
+              ? rampPrefillWeight(block.lastSession, returnLoadPct)
               : block.lastSession.weight)
           : inc;
     updateSet(block.uid, idx, 'weight', next);
@@ -1396,7 +1396,7 @@ export default function WorkoutForm({
           // While ramping back, the scaled target replaces the normal
           // progress/hold advice — that advice reads pre-break sessions.
           const returnTarget = returnLoadPct && !isTimed && block.lastSession?.weight
-            ? scaleReturnWeight(block.lastSession.weight, returnLoadPct)
+            ? rampPrefillWeight(block.lastSession, returnLoadPct)
             : null;
           const deload = deloadHints[block.exerciseId];
           const readinessHold = readiness?.verdict === 'hold';

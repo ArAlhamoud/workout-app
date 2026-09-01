@@ -34,6 +34,8 @@ import {
   cardioForGym,
   getDayTemplate,
   getTrainingStatus,
+  pickRampMemory,
+  rampPrefillWeight,
   cleanRampSessionDates,
   rampContract,
   parseDayLetter,
@@ -221,6 +223,26 @@ assert(s1.mode === 'return' && s1.week === 1, `43 days off at 2026-07-29 → ret
 const twoBack = [...preBreak, day('2026-07-27T00:00:00Z'), day('2026-07-29T00:00:00Z')];
 const s2 = getTrainingStatus(twoBack, day('2026-08-05T12:00:00Z'));
 assert(s2.mode === 'return' && s2.week === 2, `2 sessions + 7 days → return week 2 (got ${s2.mode} w${s2.week})`);
+
+// The ramp's weight base: day 1 has no block yet; once a block exists its
+// first session is the cut-off memory must be read BEFORE. Reading the
+// previous ramp session instead compounded 60% on 60% (owner, 2026-09-01).
+assert(s1.mode === 'return' && s1.blockStartISO === null, 'return day 1 → no block start yet');
+assert(
+  s2.mode === 'return' && s2.blockStartISO === '2026-07-27T00:00:00.000Z',
+  `block start = first session after the layoff (got ${s2.mode === 'return' ? s2.blockStartISO : s2.mode})`,
+);
+{
+  const pre = { weight: 28, reps: 10, rpe: null as number | null };
+  const ramp1 = { weight: 17.5, reps: 10, rpe: 1 };
+  const picked = pickRampMemory(pre, ramp1);
+  assert(picked?.weight === 28 && !picked?.rampHold, 'ramp memory = pre-break weight when one exists');
+  assert(rampPrefillWeight(picked!, 60) === 15, `60% of pre-break 28 → 15, not 60% of 17.5 (got ${rampPrefillWeight(picked!, 60)})`);
+  assert(rampPrefillWeight(picked!, 100) === 28, 'RESTORE week returns the exact pre-break weight');
+  const held = pickRampMemory(undefined, { weight: 12.5, reps: 12, rpe: 1 });
+  assert(held?.rampHold === true && rampPrefillWeight(held!, 70) === 12.5, 'no pre-break record → in-block weight held, never rescaled');
+  assert(pickRampMemory(undefined, undefined) === undefined, 'no memory at all → none');
+}
 
 // Only one session logged → calendar alone must NOT advance the ramp.
 const oneBack = [...preBreak, day('2026-07-29T00:00:00Z')];

@@ -2,7 +2,12 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import prisma from '@/lib/prisma';
 import { getPreviousSameDayWorkout, getWorkout } from '../../actions';
-import { calendarDaysBetween, getTrainingStatus, isTrainingSession } from '@/lib/program';
+import { DAY_A, DAY_B, calendarDaysBetween, getTrainingStatus, isTrainingSession } from '@/lib/program';
+
+// Timed holds (plank) log seconds in the reps column — render them as such.
+const TIMED_NAMES = new Set(
+  [...DAY_A.exercises, ...DAY_B.exercises].filter((e) => e.unit === 'seconds').map((e) => e.name),
+);
 import { lifetimeStats } from '@/lib/streak';
 import DeleteButton from '@/components/DeleteButton';
 import GapReasonInput from '@/components/GapReasonInput';
@@ -233,9 +238,18 @@ export default async function WorkoutDetailPage({
                         )}
                       </div>
                       <span className="text-app-tx1 tabular-nums">
-                        {set.weight > 0 ? `${set.weight} kg` : '—'}
-                        <span className="text-app-tx3 mx-1">×</span>
-                        {set.reps}
+                        {TIMED_NAMES.has(exercise.name) ? (
+                          <>
+                            {set.reps}
+                            <span className="text-app-tx3 ml-1">s hold</span>
+                          </>
+                        ) : (
+                          <>
+                            {set.weight > 0 ? `${set.weight} kg` : '—'}
+                            <span className="text-app-tx3 mx-1">×</span>
+                            {set.reps}
+                          </>
+                        )}
                       </span>
                     </div>
                   );

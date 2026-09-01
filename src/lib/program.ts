@@ -349,6 +349,12 @@ export type TrainingStatus =
       /** When the last SPACED clean session happened — the next one only
        *  counts once a rest day has passed after this. */
       lastCountedISO: string | null;
+      /** First session of this return block, or null on day 1 (none yet).
+       *  Weight memory for the ramp must be read from BEFORE this date:
+       *  the ramp scales the PRE-BREAK weight, and a prefill that read the
+       *  previous ramp session instead compounded 60% on 60% (owner's
+       *  first wrist session, 2026-09-01). */
+      blockStartISO: string | null;
     }
   | { mode: 'normal'; week: number };
 
@@ -390,6 +396,7 @@ export function getTrainingStatus(
     return {
       mode: 'return', week: 1, returnWeek: RETURN_PROGRAM[0], daysOff: daysSinceLast,
       sessionsInBlock: 0, cleanSpacedInBlock: 0, daysInBlock: 0, lastCountedISO: null,
+      blockStartISO: null,
     };
   }
 
@@ -445,6 +452,7 @@ export function getTrainingStatus(
       return {
         mode: 'return', week, returnWeek: RETURN_PROGRAM[week - 1], daysOff,
         sessionsInBlock, cleanSpacedInBlock, daysInBlock, lastCountedISO,
+        blockStartISO: blockStart.toISOString(),
       };
     }
     // Ramp done — rejoin the main program at BUILD and progress from there.
@@ -507,6 +515,29 @@ export function scaleReturnWeight(weight: number, loadPct: number): number {
   if (weight <= 0) return 0;
   if (loadPct >= 100) return weight; // full load returns the exact pre-break weight
   return Math.max(2.5, Math.floor((weight * loadPct) / 100 / 2.5) * 2.5);
+}
+
+/**
+ * Which memory a RAMP prefill scales. The percentage is "of pre-break
+ * working weight" (RETURN_PROGRAM), so the machine's last PRE-BREAK
+ * session is the base — never the previous ramp session, which is
+ * already scaled and would compound (60% of 60%, then 70% of that). A
+ * machine with no pre-break record at all (first met during the ramp)
+ * keeps its latest in-block weight as-is, flagged `rampHold`.
+ */
+export function pickRampMemory<T extends { weight: number }>(
+  preBreak: T | undefined,
+  latest: T | undefined,
+): (T & { rampHold?: boolean }) | undefined {
+  if (preBreak) return preBreak;
+  if (latest) return { ...latest, rampHold: true };
+  return undefined;
+}
+
+/** The ramp prefill for one machine: scaled pre-break weight, or the
+ *  held in-block weight when there is no pre-break record. */
+export function rampPrefillWeight(memory: { weight: number; rampHold?: boolean }, loadPct: number): number {
+  return memory.rampHold ? memory.weight : scaleReturnWeight(memory.weight, loadPct);
 }
 
 // ── Gyms ─────────────────────────────────────────────────────

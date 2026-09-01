@@ -3,7 +3,13 @@
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { DEFAULT_GYM_ID } from '@/lib/program';
+import {
+  DEFAULT_GYM_ID,
+  cleanRampSessionDates,
+  getTrainingStatus,
+  isTrainingSession,
+  pickRampMemory,
+} from '@/lib/program';
 
 /**
  * Workout filter restricting a query to one building.
@@ -180,11 +186,54 @@ export type ExerciseMemory = {
    *  takes one learned pin (Overload by default). Never set during a ramp
    *  (the client guards that; the flag only reports history). */
   overload?: boolean;
+  /** Ramp only: this machine has no pre-break record, so the weight is the
+   *  latest in-block one and must NOT be scaled again (pickRampMemory). */
+  rampHold?: boolean;
 };
+
+/**
+ * Weight memory for the logger and the watch plan, ramp-aware. Outside a
+ * return ramp (blockStartISO undefined) it is the plain last session. In a
+ * ramp it reads the last session BEFORE the block started — the pre-break
+ * weight the ramp percentage is defined against — and falls back to the
+ * in-block weight, held, for machines with no pre-break history. Day 1 of
+ * a return (blockStartISO null: no block session yet) needs no cut-off.
+ */
+export async function getLoggerMemory(
+  exerciseIds: string[],
+  gym: string | null | undefined,
+  blockStartISO: string | null | undefined,
+): Promise<Record<string, ExerciseMemory>> {
+  if (!blockStartISO) return getLastSessionForExercises(exerciseIds, gym);
+  const [preBreak, latest] = await Promise.all([
+    getLastSessionForExercises(exerciseIds, gym, new Date(blockStartISO)),
+    getLastSessionForExercises(exerciseIds, gym),
+  ]);
+  const out: Record<string, ExerciseMemory> = {};
+  for (const id of exerciseIds) {
+    const m = pickRampMemory(preBreak[id], latest[id]);
+    if (m) out[id] = m;
+  }
+  return out;
+}
+
+/** The ramp cut-off for the client-side gym switch, which has no status
+ *  in hand: undefined outside a ramp, else the block start (or null). */
+async function rampBlockStart(): Promise<string | null | undefined> {
+  const rows = await prisma.workout.findMany({
+    orderBy: { date: 'desc' },
+    take: 60,
+    select: { date: true, name: true, sets: { select: { rpe: true, isWarmup: true } } },
+  });
+  const training = rows.filter((w) => isTrainingSession(w));
+  const status = getTrainingStatus(training.map((w) => w.date), new Date(), cleanRampSessionDates(training));
+  return status.mode === 'return' ? status.blockStartISO : undefined;
+}
 
 export async function getLastSessionForExercises(
   exerciseIds: string[],
   gym?: string | null,
+  before?: Date,
 ): Promise<Record<string, ExerciseMemory>> {
   if (!exerciseIds.length) return {};
   // Weight memory is per building. The same exercise sits on a different
@@ -199,7 +248,11 @@ export async function getLastSessionForExercises(
   // both all-Easy at the same top weight. The take is generous at today's
   // scale; the fold below only ever reads the first two sessions it meets.
   const rows = await prisma.workoutSet.findMany({
-    where: { exerciseId: { in: exerciseIds }, isWarmup: false, workout: gym ? gymScope(gym) : {} },
+    where: {
+      exerciseId: { in: exerciseIds },
+      isWarmup: false,
+      workout: { ...(gym ? gymScope(gym) : {}), ...(before ? { date: { lt: before } } : {}) },
+    },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
     select: { exerciseId: true, weight: true, reps: true, rpe: true, workout: { select: { date: true } } },
     take: Math.min(2000, exerciseIds.length * 40),
@@ -450,7 +503,7 @@ export async function getRepRecords(
  */
 export async function getGymMemory(exerciseIds: string[], gym: string) {
   const [lastSession, personalRecords, repRecords] = await Promise.all([
-    getLastSessionForExercises(exerciseIds, gym),
+    rampBlockStart().then((cut) => getLoggerMemory(exerciseIds, gym, cut)),
     getPersonalRecords(gym),
     getRepRecords(gym),
   ]);

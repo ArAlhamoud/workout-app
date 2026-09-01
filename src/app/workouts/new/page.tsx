@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getExercises, getLastSessionForExercises, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
+import { getExercises, getLoggerMemory, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
 import RescueWalkButton from '@/components/RescueWalkButton';
 import WorkoutForm from '@/components/WorkoutForm';
 import { combineIncrement, deloadTarget, detectPlateau, learnPinIncrements } from '@/lib/coach';
@@ -59,8 +59,8 @@ export default async function NewWorkoutPage({
   // pre-scales every prefit weight, so a stale calendar week here would
   // keep the loads at 60% after the sessions earned 70.
   const cleanDates = cleanRampSessionDates(trainingOnly);
-  const inRamp =
-    getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates).mode === 'return';
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
+  const inRamp = status.mode === 'return';
   const validDur: Duration =
     durStr === '30' ? 30 : durStr === '45' ? 45 : durStr === '60' ? 60 : inRamp ? 45 : 60;
 
@@ -127,7 +127,13 @@ export default async function NewWorkoutPage({
 
   const exerciseIds = initialExercises.map((e) => e.exerciseId);
   // Seeded for the default gym; the form refetches if he tags Alrajhi Tower.
-  const lastSession = await getLastSessionForExercises(exerciseIds, DEFAULT_GYM_ID);
+  // Ramp-aware: mid-ramp the memory is the PRE-BREAK weight (the base the
+  // percentage scales), not the previous ramp session.
+  const lastSession = await getLoggerMemory(
+    exerciseIds,
+    DEFAULT_GYM_ID,
+    status.mode === 'return' ? status.blockStartISO : undefined,
+  );
 
   // Compute progression hints: exerciseId → true if same weight 2+ sessions with Easy/Med RPE
   const last2ByExercise: Record<string, { weight: number; rpe: number | null }[]> = {};
@@ -144,8 +150,7 @@ export default async function NewWorkoutPage({
       }
     }
   }
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
-  const isReturning = status.mode === 'return';
+  const isReturning = inRamp;
 
   // Per-machine pin spacing: learned from weight-jump history, with any
   // manual pinIncrement on the exercise taking precedence.

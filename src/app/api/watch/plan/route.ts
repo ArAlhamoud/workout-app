@@ -10,7 +10,7 @@ import {
   type DayId,
 } from '@/lib/program';
 import { combineIncrement, learnPinIncrements } from '@/lib/coach';
-import { getLastSessionForExercises } from '@/app/actions';
+import { getLoggerMemory } from '@/app/actions';
 import { DEFAULT_GYM_ID } from '@/lib/program';
 
 export const runtime = 'nodejs';
@@ -64,7 +64,10 @@ export async function GET(request: Request) {
   // same lesson the phone logger carries).
   const gymRows = workoutRows.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym);
   const [memory, learned] = [
-    await getLastSessionForExercises(ids, gym),
+    // Ramp-aware: the percentage scales the PRE-BREAK weight, never the
+    // previous ramp session (which is already scaled — compounding bug,
+    // owner's first wrist session).
+    await getLoggerMemory(ids, gym, inRamp ? status.blockStartISO : undefined),
     learnPinIncrements(gymRows as never),
   ];
 
@@ -87,7 +90,11 @@ export async function GET(request: Request) {
       // scaleReturnWeight); an unscaled prefill is a genuinely logged
       // weight and is never snapped.
       const scaled =
-        raw == null ? null : loadPct === 100 ? raw : Math.floor(((raw * loadPct) / 100) / pin) * pin;
+        raw == null
+          ? null
+          : loadPct === 100 || last?.rampHold
+            ? raw
+            : Math.floor(((raw * loadPct) / 100) / pin) * pin;
       return [{
         exerciseId: ex.id,
         name: t.name,
