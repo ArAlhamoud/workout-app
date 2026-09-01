@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-08-31T11:25:21.406Z",
+  "exportedAt": "2026-09-01T09:48:08.671Z",
   "totalWorkouts": 8,
   "totalBodyStats": 16,
   "totalExercises": 20,
@@ -4534,6 +4534,32 @@
         "sleepQuality": null,
         "notes": null,
         "createdAt": "2026-08-30T11:30:39.984Z"
+      },
+      {
+        "id": "cmtieq4uc0002peovv0v7z9j9",
+        "night": "2026-08-31T00:00:00.000Z",
+        "usageHours": 3.7,
+        "ahi": 3,
+        "leak": null,
+        "avgPressure": null,
+        "p95Pressure": null,
+        "maskComfort": null,
+        "sleepQuality": null,
+        "notes": null,
+        "createdAt": "2026-09-01T08:30:22.980Z"
+      },
+      {
+        "id": "cmtieq4uv0003peovpedg6why",
+        "night": "2026-09-01T00:00:00.000Z",
+        "usageHours": 4.4,
+        "ahi": 1,
+        "leak": null,
+        "avgPressure": null,
+        "p95Pressure": null,
+        "maskComfort": null,
+        "sleepQuality": null,
+        "notes": null,
+        "createdAt": "2026-09-01T08:30:23.000Z"
       }
     ],
     "labResult": [
@@ -4613,6 +4639,76 @@
         "flags": null,
         "notes": null,
         "createdAt": "2026-08-29T02:09:29.422Z"
+      },
+      {
+        "id": "cmtieopse00006gto21iow03a",
+        "day": "2026-09-06T00:00:00.000Z",
+        "proteinG": 71,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1146,
+        "carbsG": 121,
+        "fatG": 42,
+        "flags": null,
+        "notes": null,
+        "createdAt": "2026-09-01T08:29:16.812Z"
+      },
+      {
+        "id": "cmtieopug00016gtoyabxyp0m",
+        "day": "2026-09-07T00:00:00.000Z",
+        "proteinG": 69,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1102,
+        "carbsG": 94,
+        "fatG": 50,
+        "flags": null,
+        "notes": null,
+        "createdAt": "2026-09-01T08:29:16.889Z"
+      },
+      {
+        "id": "cmtieopuk00026gtomuu4v3ql",
+        "day": "2026-09-08T00:00:00.000Z",
+        "proteinG": 57,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1127,
+        "carbsG": 101,
+        "fatG": 55,
+        "flags": null,
+        "notes": null,
+        "createdAt": "2026-09-01T08:29:16.892Z"
+      },
+      {
+        "id": "cmtieopuo00036gtoc0a0a2oe",
+        "day": "2026-09-09T00:00:00.000Z",
+        "proteinG": 59,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 927,
+        "carbsG": 85,
+        "fatG": 39,
+        "flags": null,
+        "notes": null,
+        "createdAt": "2026-09-01T08:29:16.896Z"
+      },
+      {
+        "id": "cmtieopur00046gtox5vxnuwh",
+        "day": "2026-09-10T00:00:00.000Z",
+        "proteinG": 67,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1183,
+        "carbsG": 114,
+        "fatG": 51,
+        "flags": null,
+        "notes": null,
+        "createdAt": "2026-09-01T08:29:16.900Z"
       }
     ]
   }
