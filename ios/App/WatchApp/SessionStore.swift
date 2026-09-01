@@ -267,13 +267,14 @@ final class SessionStore: ObservableObject {
     ///      treats the app as the active workout: it stays frontmost with
     ///      no timeout and the always-on display shows THIS screen dimmed
     ///      when the wrist is down, rest countdown still ticking;
-    ///   2. the extended frontmost timeout — the belt to that suspender: if
-    ///      HealthKit refused the session, wrist-raise still returns to the
-    ///      app for 8 minutes after the last touch instead of 2.
-    /// Nothing can hold the backlight itself on; that is a watch setting
-    /// (Always On + Wake Duration 70 s — docs/WATCH.md).
+    /// ONE real mechanism keeps the app up: the running HKWorkoutSession
+    /// (begin/recoverOrBegin) — frontmost, no timeout, always-on shows this
+    /// screen dimmed. WKExtension's frontmostTimeoutExtended is deprecated
+    /// since watchOS 7 ("no longer supported") — removed twice now; do not
+    /// bring it back. Backlight duration is a watch setting (docs/WATCH.md).
     private func keepAwake(_ on: Bool) {
-        WKApplication.shared().isFrontmostTimeoutExtended = on
+        // no-op by design; the HKWorkoutSession is the keep-awake.
+        _ = on
     }
 
     // MARK: - The set flow
