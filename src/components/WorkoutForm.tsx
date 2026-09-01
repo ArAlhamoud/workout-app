@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createWorkout, getGymMemory, getRecentExerciseSessions } from '@/app/actions';
+import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, pushLiveSets } from '@/app/actions';
+import { liveKey, overlayLiveSets, type LiveSession, type LiveSet, type LiveSetUpdate } from '@/lib/live-session';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
 import { rampPrefillWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
@@ -221,6 +222,8 @@ export default function WorkoutForm({
   initialDate,
   detectedDurationMin,
   detectedStartISO,
+  liveSession = null,
+  durationMin,
 }: {
   exercises: Exercise[];
   initialName?: string;
@@ -251,6 +254,12 @@ export default function WorkoutForm({
    *  must cover the TRAINING, not the minutes spent typing it in later
    *  (device-tester M2). */
   detectedStartISO?: string;
+  /** A session in progress on the OTHER device (or this one, earlier),
+   *  fetched by the page. Applied on mount under the precedence rules in
+   *  the restore effect; null when nothing is live. */
+  liveSession?: LiveSession | null;
+  /** The template length, so the live row can tell the Watch which plan to build. */
+  durationMin?: number;
 }) {
   const router = useRouter();
   const today = localTodayStr();
@@ -302,6 +311,16 @@ export default function WorkoutForm({
   const lastGymRef = useRef<string | null>(null);
   /** True once the user touches anything — gates the async vault restore. */
   const dirtyRef = useRef(false);
+  // ── Live session (phone ↔ Watch handoff, docs/WATCH.md) ──
+  // Ticked sets are pushed to the server as they happen; the Watch can
+  // pick the session up mid-way and vice versa. Off for rescue sessions
+  // and for confirming a detected session (both already have an identity).
+  const liveEnabled = !healthWorkoutUuid && !rescueMode;
+  /** key → serialised done-set as last pushed (or received) — the diff base. */
+  const liveSnapRef = useRef<Map<string, string>>(new Map());
+  const [liveNotice, setLiveNotice] = useState<string | null>(null);
+  const liveSerial = (x: { reps: number; weight: number; rpe?: number; completedAt?: string | null }) =>
+    JSON.stringify([x.reps, x.weight, x.rpe || 0, x.completedAt ?? null]);
   const [autoTimer, setAutoTimer] = useState(true);
   const [prToast, setPrToast] = useState<string | null>(null);
   const [mood, setMood] = useState('');
@@ -395,11 +414,15 @@ export default function WorkoutForm({
   // draft stays in the vault for the next plain open.
   useEffect(() => {
     if (healthWorkoutUuid) return;
-    const applyDraft = (draft: {
+    type Draft = {
       name?: string; date?: string; notes?: string; gym?: string;
-      blocks?: unknown; startTime?: number; savedAt?: number;
-    }): boolean => {
+      blocks?: unknown; startTime?: number; savedAt?: number; saveId?: string;
+    };
+    const applyDraft = (draft: Draft): boolean => {
       if (!Array.isArray(draft.blocks) || draft.blocks.length === 0) return false;
+      // The save id rides the draft so a phone session the Watch continued
+      // finishes under the SAME id from either device (live session).
+      if (typeof draft.saveId === 'string' && draft.saveId) saveIdRef.current = draft.saveId;
       const age = Date.now() - (draft.savedAt ?? 0);
       // An old draft is a real session that got interrupted — sickness, a
       // dead phone. It used to be silently deleted at 24 h, which threw away
@@ -428,15 +451,34 @@ export default function WorkoutForm({
       return d && pageDay && d[1] !== pageDay ? `/workouts/new?day=${d[1]}&dur=${d[2]}` : null;
     };
 
+    // Live session precedence, decided once the draft question is settled:
+    //   same save id            → same session; overlay the live sets.
+    //   draft touched AFTER the live row moved → the phone is the truth; ignore live.
+    //   otherwise (no draft, or an older one) → the live session wins.
+    const maybeLive = (draft: Draft | null) => {
+      if (!liveSession || !liveEnabled) return;
+      const sameId = draft?.saveId === liveSession.clientSaveId;
+      if (draft && !sameId && (draft.savedAt ?? 0) > Date.parse(liveSession.updatedAt)) return;
+      if (draft && !sameId) {
+        setName(initialName);
+        setNotes('');
+        setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints, rescueMode));
+        setDraftRestored(false);
+      }
+      applyLive(liveSession);
+    };
+
     let restored = false;
+    let draftSeen: Draft | null = null;
     if (rescueMode) { setInitialized(true); return; }
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw);
+        const parsed = JSON.parse(raw) as Draft;
         const home = draftHome(parsed?.name);
         if (home) { router.replace(home); return; }
         restored = applyDraft(parsed);
+        if (restored) draftSeen = parsed;
         if (!restored) localStorage.removeItem(DRAFT_KEY);
       }
     } catch {
@@ -444,6 +486,7 @@ export default function WorkoutForm({
     }
 
     if (restored) {
+      maybeLive(draftSeen);
       setInitialized(true);
     } else {
       // The autosave gate stays CLOSED until the vault check settles — were
@@ -451,21 +494,157 @@ export default function WorkoutForm({
       // the vault copy before the async read could restore it.
       void durableGet(DRAFT_KEY)
         .then((vaulted) => {
-          if (!vaulted) return;
+          if (!vaulted) { maybeLive(null); return; }
           // The vault read lost a race against the user: they already
           // started typing. Their live keystrokes outrank a stored copy.
           if (dirtyRef.current) return;
           try {
-            const parsed = JSON.parse(vaulted);
+            const parsed = JSON.parse(vaulted) as Draft;
             const home = draftHome(parsed?.name);
             if (home) { router.replace(home); return; }
-            applyDraft(parsed);
+            maybeLive(applyDraft(parsed) ? parsed : null);
           } catch { /* a corrupt vault copy restores nothing */ }
         })
         .finally(() => setInitialized(true));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Lay live sets over the blocks (pure logic in live-session.ts); the
+   *  applied keys join the snapshot so they are not pushed straight back. */
+  function overlayLive(prev: ExerciseBlock[], sets: LiveSet[]): ExerciseBlock[] {
+    const { blocks: next, applied } = overlayLiveSets(prev, sets, (exerciseId) => ({
+      uid: Math.random().toString(36).slice(2),
+      exerciseId,
+      showCues: false,
+      expandedNoteIdx: null,
+      sets: [],
+    }));
+    for (const ls of applied) {
+      liveSnapRef.current.set(liveKey(ls), liveSerial({ reps: ls.reps, weight: ls.weight, rpe: ls.rpe, completedAt: ls.completedAt }));
+    }
+    return next;
+  }
+
+  function applyLive(live: LiveSession) {
+    saveIdRef.current = live.clientSaveId;
+    const started = Date.parse(live.startedAt);
+    if (Number.isFinite(started)) startRef.current = Math.min(startRef.current, started);
+    if (live.gym && live.gym !== gym) { lastGymRef.current = live.gym; setGym(live.gym); }
+    setBlocks((prev) => overlayLive(prev, live.sets));
+    const n = live.sets.length;
+    setLiveNotice(
+      live.source === 'watch'
+        ? `Continuing from Watch · ${n} set${n === 1 ? '' : 's'} logged there`
+        : n ? `Live session · ${n} set${n === 1 ? '' : 's'} already logged` : null,
+    );
+  }
+
+  /** The other device finished (or binned) this session. */
+  function liveClosedElsewhere(row: LiveSession) {
+    if (row.workoutId) {
+      pendingDraftRef.current = null;
+      void durableRemove(DRAFT_KEY);
+      hapticSuccess();
+      router.push(`/workouts/${row.workoutId}`);
+    } else {
+      // Discarded on the Watch: the phone copy is still his to keep or bin.
+      setLiveNotice('Watch discarded its copy — this one is still yours');
+    }
+  }
+
+  /** Push every done-set change since the last push. Fire-and-forget: a
+   *  failed push stays in the diff and rides the next change or poll. */
+  const liveBusyRef = useRef(false);
+  async function flushLive() {
+    if (!liveEnabled || liveBusyRef.current) return;
+    const current = new Map<string, LiveSetUpdate>();
+    for (const b of blocksRef.current) {
+      for (const st of b.sets) {
+        // Warm-ups count for nothing and the wrist has no such set.
+        if (!st.done || !st.completedAt || st.isWarmup) continue;
+        const key = liveKey({ exerciseId: b.exerciseId, setNumber: st.setNumber });
+        current.set(key, {
+          exerciseId: b.exerciseId, setNumber: st.setNumber, reps: st.reps, weight: st.weight,
+          rpe: st.rpe || undefined, isWarmup: false, completedAt: st.completedAt, source: 'phone',
+        });
+      }
+    }
+    const updates: LiveSetUpdate[] = [];
+    const serials = new Map<string, string>();
+    for (const [key, u] of current) {
+      const set = u as LiveSet;
+      const ser = liveSerial({ reps: set.reps, weight: set.weight, rpe: set.rpe, completedAt: set.completedAt });
+      if (liveSnapRef.current.get(key) !== ser) { updates.push(u); serials.set(key, ser); }
+    }
+    for (const key of liveSnapRef.current.keys()) {
+      if (!current.has(key)) {
+        const [exerciseId, n] = key.split('#');
+        updates.push({ exerciseId, setNumber: Number(n), remove: true });
+      }
+    }
+    if (!updates.length) return;
+    if (!saveIdRef.current) saveIdRef.current = newClientSaveId();
+    liveBusyRef.current = true;
+    try {
+      const row = await pushLiveSets(
+        {
+          clientSaveId: saveIdRef.current,
+          day: dayAccent ?? null,
+          durationMin: durationMin ?? null,
+          gym,
+          startedAt: new Date(startRef.current).toISOString(),
+        },
+        updates,
+      );
+      if (row?.closedAt) { liveClosedElsewhere(row); return; }
+      if (row) {
+        for (const [k, v] of serials) liveSnapRef.current.set(k, v);
+        for (const u of updates) if ('remove' in u) liveSnapRef.current.delete(liveKey(u));
+      }
+    } catch { /* offline: the diff stays pending */ } finally {
+      liveBusyRef.current = false;
+    }
+  }
+
+  /** Pull what the other device logged since we last looked, then push ours. */
+  async function syncLive() {
+    if (!liveEnabled || document.visibilityState === 'hidden') return;
+    try {
+      if (saveIdRef.current) {
+        const row = await getLiveSession(saveIdRef.current);
+        if (row?.closedAt) { liveClosedElsewhere(row); return; }
+        if (row) {
+          const fresh = row.sets.filter((ls) => liveSnapRef.current.get(liveKey(ls)) !== liveSerial(ls));
+          if (fresh.length) {
+            setBlocks((prev) => overlayLive(prev, fresh));
+            if (fresh.some((ls) => ls.source === 'watch')) setLiveNotice(`Watch logged ${fresh.length} more set${fresh.length === 1 ? '' : 's'}`);
+          }
+        }
+      } else if (!blocksRef.current.some((b) => b.sets.some((st) => st.done))) {
+        // Nothing ticked here yet: adopt a session the Watch started meanwhile.
+        const row = await getLiveSession();
+        if (row && row.source === 'watch' && !row.closedAt && (!dayAccent || row.day === dayAccent)) applyLive(row);
+      }
+    } catch { /* offline — next poll */ }
+    void flushLive();
+  }
+
+  // Debounced diff-push on every block change; poll while the page is up.
+  useEffect(() => {
+    if (!initialized || !liveEnabled) return;
+    const t = setTimeout(() => { void flushLive(); }, 400);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocks, initialized]);
+  useEffect(() => {
+    if (!initialized || !liveEnabled) return;
+    const onVisible = () => { if (document.visibilityState === 'visible') void syncLive(); };
+    document.addEventListener('visibilitychange', onVisible);
+    const iv = setInterval(() => { void syncLive(); }, 30_000);
+    return () => { document.removeEventListener('visibilitychange', onVisible); clearInterval(iv); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized]);
 
   // Any form-state change after mount marks the form dirty — the signal the
   // async vault restore checks so it never overwrites live keystrokes.
@@ -489,7 +668,7 @@ export default function WorkoutForm({
     // a notification and backing out must not leave a 60% "Rescue" draft
     // that tomorrow's normal logger restores (adversary).
     if (rescueMode) return;
-    pendingDraftRef.current = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current };
+    pendingDraftRef.current = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current, saveId: saveIdRef.current };
     const t = setTimeout(() => {
       const draft = pendingDraftRef.current;
       pendingDraftRef.current = null;
@@ -622,6 +801,10 @@ export default function WorkoutForm({
     // after this removal (adversary F1 — the resurrected-ghost-draft race).
     pendingDraftRef.current = null;
     void durableRemove(DRAFT_KEY);
+    // Binned here → the Watch must stop offering it as "Continue".
+    if (saveIdRef.current && liveSnapRef.current.size) void closeLiveSession(saveIdRef.current).catch(() => {});
+    liveSnapRef.current = new Map();
+    setLiveNotice(null);
     setName(initialName);
     setDate(today);
     setGym(DEFAULT_GYM_ID);
@@ -1016,18 +1199,11 @@ export default function WorkoutForm({
       : Math.floor((Date.now() - sessionStart) / 1000);
     const startISO = detectedStartISO ?? new Date(sessionStart).toISOString();
     try {
-      const { id, deduped } = await createWorkout(payload);
-      if (deduped) {
-        // This clientSaveId already landed — the outbox flushed it in the
-        // background. The CURRENT form contents were NOT saved; pretending
-        // otherwise would swallow them. Fresh id so a deliberate re-save
-        // creates a real workout.
-        saveIdRef.current = null;
-        setSubmitting(false);
-        setShowSummary(null);
-        setError('This session already uploaded in the background. Tap Save again to log what’s on screen as a new workout.');
-        return;
-      }
+      const { id } = await createWorkout(payload);
+      // deduped is a SUCCESS now: the same save id already landed (the
+      // Watch finished the handed-off session, or the outbox replayed) and
+      // the server merged any set this form had that the workout lacked.
+      // Nothing on screen is lost, so fall through to the normal finish.
       // Only clear the draft once the save has actually succeeded — and
       // disarm the debounced writer, or a save landing inside the 500 ms
       // window gets resurrected as a ghost draft by the still-armed flush;
@@ -1144,6 +1320,9 @@ export default function WorkoutForm({
         )}
 
         {/* Draft restored notice */}
+        {liveNotice && (
+          <p className="text-acc-teal text-xs font-semibold px-1" aria-live="polite">⌚ {liveNotice}</p>
+        )}
         {draftRestored && (
           <div className="card rounded-card border-acc-teal/30 px-4 py-3 flex items-center justify-between">
             <span className="text-acc-teal text-sm">

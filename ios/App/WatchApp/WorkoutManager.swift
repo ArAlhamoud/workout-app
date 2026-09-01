@@ -21,17 +21,22 @@ final class WorkoutManager: NSObject, ObservableObject {
         _ = try? await store.requestAuthorization(toShare: share, read: read)
     }
 
-    func begin() {
+    /// `startDate` backdates the workout to when the session really began —
+    /// a session continued from the phone starts its HKWorkout at the
+    /// phone's first set, so the saved workout spans the whole session
+    /// (owner's call, 2026-09-01; the phone half has no heart-rate curve).
+    func begin(startDate: Date = Date()) {
         guard HKHealthStore.isHealthDataAvailable() else { return }
         let config = HKWorkoutConfiguration()
         config.activityType = .traditionalStrengthTraining
         config.locationType = .indoor
+        let start = min(startDate, Date())
         do {
             let s = try HKWorkoutSession(healthStore: store, configuration: config)
             let b = s.associatedWorkoutBuilder()
             b.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: config)
-            s.startActivity(with: Date())
-            b.beginCollection(withStart: Date()) { _, _ in }
+            s.startActivity(with: start)
+            b.beginCollection(withStart: start) { _, _ in }
             session = s
             builder = b
         } catch {

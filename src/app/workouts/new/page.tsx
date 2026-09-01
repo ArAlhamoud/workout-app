@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getExercises, getLoggerMemory, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
+import { redirect } from 'next/navigation';
+import { getExercises, getLiveSession, getLoggerMemory, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
 import RescueWalkButton from '@/components/RescueWalkButton';
 import WorkoutForm from '@/components/WorkoutForm';
 import { combineIncrement, deloadTarget, detectPlateau, learnPinIncrements } from '@/lib/coach';
@@ -43,12 +44,26 @@ export default async function NewWorkoutPage({
   // constant default gym, so making them wait behind the template math was
   // pure serial latency — worst exactly on the Neon-cold-resume open at the
   // gym. Only lastSession genuinely needs exerciseIds (below).
-  const [exercises, allWorkouts, personalRecords, repRecords] = await Promise.all([
+  const [exercises, allWorkouts, personalRecords, repRecords, liveRow] = await Promise.all([
     getExercises(),
     getWorkouts(),
     getPersonalRecords(DEFAULT_GYM_ID),
     getRepRecords(DEFAULT_GYM_ID),
+    getLiveSession(),
   ]);
+  // A session in progress on the Watch opens HERE under its own day and
+  // length — same rule as a draft from the other day (device-tester, Aug
+  // 30): header and content must agree. Only a Watch-born session redirects;
+  // a phone-born one is already where it started. Never when confirming a
+  // detected session (it has its own identity).
+  const rawDayForLive = Array.isArray(searchParams.day) ? searchParams.day[0] : searchParams.day;
+  const hkForLive = Array.isArray(searchParams.hk) ? searchParams.hk[0] : searchParams.hk;
+  if (
+    liveRow && liveRow.source === 'watch' && liveRow.day && !hkForLive &&
+    (rawDayForLive !== liveRow.day || (liveRow.durationMin && durStr && Number(durStr) !== liveRow.durationMin))
+  ) {
+    redirect(`/workouts/new?day=${liveRow.day}&dur=${liveRow.durationMin ?? 45}`);
+  }
 
   // No ?dur= (the tab bar's +, a bare deep link): during a return ramp the
   // default is 45, not 60 — Home's CTA already says 45 then, and entering
@@ -274,6 +289,8 @@ export default async function NewWorkoutPage({
         initialDate={initialDate}
         detectedDurationMin={detectedMins}
         detectedStartISO={detectedStartISO}
+        liveSession={liveRow && (!liveRow.day || liveRow.day === validDay) ? liveRow : null}
+        durationMin={validDur}
         personalRecords={personalRecords}
         progressionHints={progressionHints}
         repRecords={repRecords}

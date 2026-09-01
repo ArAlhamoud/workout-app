@@ -3,6 +3,8 @@
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { liveKey, sanitizeLiveUpdate, unionForFinish, type LiveSetUpdate } from '@/lib/live-session';
+import { closeLive, readLive, upsertLive } from '@/lib/live-store';
 import {
   DEFAULT_GYM_ID,
   cleanRampSessionDates,
@@ -136,9 +138,42 @@ export async function createWorkout(data: {
   if (data.clientSaveId) {
     const existing = await prisma.workout.findUnique({
       where: { clientSaveId: data.clientSaveId },
-      select: { id: true },
+      select: { id: true, sets: { select: { exerciseId: true, setNumber: true } } },
     });
-    if (existing) return { id: existing.id, deduped: true };
+    if (existing) {
+      // The other half of a handed-off session: the Watch finished first
+      // and the phone (or the reverse) posts the same save id. Sets it
+      // logged that the saved workout lacks are added; keys already saved
+      // keep the first finisher's values. A plain outbox replay adds nothing.
+      const have = new Set(existing.sets.map(liveKey));
+      const missing = data.sets.filter((s) => !have.has(liveKey(s)));
+      if (missing.length) {
+        await prisma.workoutSet.createMany({
+          data: missing.map((s) => ({
+            workoutId: existing.id,
+            exerciseId: s.exerciseId,
+            setNumber: s.setNumber,
+            reps: s.reps,
+            weight: s.weight,
+            notes: s.notes || null,
+            rpe: s.rpe ?? null,
+            completedAt: s.completedAt ? new Date(s.completedAt) : null,
+            isWarmup: s.isWarmup === true,
+          })),
+        });
+        revalidatePath('/workouts');
+        revalidatePath(`/workouts/${existing.id}`);
+        revalidatePath('/');
+      }
+      await closeLive(data.clientSaveId, existing.id);
+      return { id: existing.id, deduped: true, merged: missing.length };
+    }
+    // Finishing a handed-off session: union in any set the OTHER device
+    // logged to the live row that this device never saw. Poster wins ties.
+    const live = await readLive(data.clientSaveId);
+    if (live && !live.closedAt && live.sets.length) {
+      data.sets = unionForFinish(data.sets, live.sets) as typeof data.sets;
+    }
   }
   // Same guard for the HKWorkout identity: without it a re-save under a
   // fresh clientSaveId hits the unique index, throws, and the outbox
@@ -167,6 +202,7 @@ export async function createWorkout(data: {
       },
     },
   });
+  if (data.clientSaveId) await closeLive(data.clientSaveId, workout.id);
   revalidatePath('/workouts');
   revalidatePath('/');
   return { id: workout.id };
@@ -701,4 +737,26 @@ export async function getDailyHealthValues(type: string, days = 14): Promise<Arr
     select: { value: true },
   });
   return rows.map((r) => r.value);
+}
+
+/** The open live session (from either device), for the logger and the
+ *  draft pill — or, with an id, that row whatever its state. */
+export async function getLiveSession(id?: string) {
+  return readLive(id);
+}
+
+/** The phone logger's per-set push: fire-and-forget from the client. */
+export async function pushLiveSets(
+  meta: { clientSaveId: string; day?: 'A' | 'B' | null; durationMin?: number | null; gym?: string | null; startedAt?: string | null },
+  updates: LiveSetUpdate[],
+) {
+  const clean = updates
+    .map((u) => sanitizeLiveUpdate(u, 'phone'))
+    .filter((u): u is LiveSetUpdate => u !== null);
+  return upsertLive({ ...meta, source: 'phone' }, clean);
+}
+
+/** Discarded on the phone: tell the Watch to stop offering it. */
+export async function closeLiveSession(clientSaveId: string) {
+  await closeLive(clientSaveId);
 }

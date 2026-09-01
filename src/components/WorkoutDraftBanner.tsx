@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { durableRemove } from '@/lib/native-store';
+import { getLiveSession } from '@/app/actions';
 
 const DRAFT_KEY = 'workout-draft';
 
@@ -13,6 +14,19 @@ export default function WorkoutDraftBanner() {
   // Discard is two taps on purpose: the pill is fixed above the nav bar, and a
   // single stray thumb should never bin a session that is mid-flight.
   const [confirming, setConfirming] = useState(false);
+  /** A session running on the Watch right now — offered as "Continue" here. */
+  const [watchLive, setWatchLive] = useState<{ day: string | null; dur: number | null; sets: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getLiveSession()
+      .then((row) => {
+        if (cancelled) return;
+        setWatchLive(row && row.source === 'watch' ? { day: row.day, dur: row.durationMin, sets: row.sets.length } : null);
+      })
+      .catch(() => { if (!cancelled) setWatchLive(null); });
+    return () => { cancelled = true; };
+  }, [pathname]);
 
   useEffect(() => {
     try {
@@ -32,7 +46,8 @@ export default function WorkoutDraftBanner() {
     setConfirming(false);
   }, [pathname]);
 
-  const visible = Boolean(draftName) && !pathname.startsWith('/workouts/new');
+  const showWatch = Boolean(watchLive) && !draftName;
+  const visible = (Boolean(draftName) || showWatch) && !pathname.startsWith('/workouts/new');
 
   // The banner is fixed at 88px with ~44px of its own height, which overruns
   // main's pb-32 (128px) and clips whatever ends the page — on Home that was
@@ -45,7 +60,22 @@ export default function WorkoutDraftBanner() {
     return () => document.body.classList.remove('has-draft-banner');
   }, [visible]);
 
+  const shell =
+    'glass-overlay flex items-center gap-2.5 max-w-full rounded-full border shadow-glow-teal px-4 py-2.5 text-sm font-semibold text-app-tx1';
+
   if (!visible) return null;
+
+  if (showWatch && watchLive) {
+    const href = `/workouts/new?day=${watchLive.day ?? 'A'}&dur=${watchLive.dur ?? 45}`;
+    return (
+      <div className="fixed bottom-[calc(88px+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex justify-center px-4 print:hidden">
+        <Link href={href} className={`${shell} border-acc-teal/40`}>
+          <span className="truncate">⌚ Day {watchLive.day ?? '?'} on the Watch · {watchLive.sets} set{watchLive.sets === 1 ? '' : 's'}</span>
+          <span className="flex-shrink-0 text-acc-teal text-xs font-bold">Continue here →</span>
+        </Link>
+      </div>
+    );
+  }
 
   /** Clear both stores: the logger persists through durableSet, which writes
    *  native Preferences as well as localStorage. Removing only one leaves a
@@ -59,8 +89,6 @@ export default function WorkoutDraftBanner() {
     setConfirming(false);
   }
 
-  const shell =
-    'glass-overlay flex items-center gap-2.5 max-w-full rounded-full border shadow-glow-teal px-4 py-2.5 text-sm font-semibold text-app-tx1';
 
   return (
     <div className="fixed bottom-[calc(88px+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex justify-center px-4 print:hidden">

@@ -58,6 +58,13 @@ Each of these broke something real. Do not relearn them.
    the ONE memory and ONE scaler for the logger, `/train` and the Watch.
    Do not call `getLastSessionForExercises` directly for a prefill.
 
+8. **A session in progress lives on the server, not on a device.** The
+   phone logger and the Watch share one `LiveSession` row (owner,
+   2026-09-01) so a workout can start on either and continue on the
+   other; both finish under the same client save id and the server
+   merges. `deduped` from `createWorkout` is a SUCCESS (sets merged),
+   not an error. Contract and merge rules: docs/WATCH.md "Live session".
+
 ## The coach layer is deliberately dormant
 
 Waves 3–4 built an AI coach (brief, chat, coach-written gap

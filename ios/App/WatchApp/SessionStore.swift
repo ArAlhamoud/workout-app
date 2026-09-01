@@ -25,6 +25,9 @@ final class SessionStore: ObservableObject {
     @Published var pendingCount: Int = Store.loadOutbox().count
     /// One-line notice on the Start screen (e.g. why a start was refused).
     @Published var notice: String?
+    /// A session in progress on the PHONE (docs/WATCH.md "Live session"),
+    /// offered on the Start screen as "Continue". nil = nothing to continue.
+    @Published var phoneLive: LiveSession?
 
     let workout = WorkoutManager()
     private var restTimer: Timer?
@@ -47,6 +50,7 @@ final class SessionStore: ObservableObject {
             let sent = await Store.flushOutbox()
             if sent > 0 { pendingCount = Store.loadOutbox().count }
             await refreshPlan(day: nil, dur: nil)
+            await refreshLive()
         }
     }
 
@@ -54,6 +58,120 @@ final class SessionStore: ObservableObject {
         if let fresh = try? await API.fetchPlan(day: day, dur: dur) {
             plan = fresh
         }
+    }
+
+    // MARK: - Live session (phone ↔ watch)
+
+    /// Called on launch and whenever the app comes to the front. Two jobs:
+    /// learn about a phone session to continue, and notice when OUR session
+    /// was finished on the phone (row closed with a workout) — then the
+    /// wrist copy is done too and must not be posted again.
+    func refreshLive() async {
+        if let s = session {
+            if let row = await API.fetchLive(id: s.clientSaveId), row.isClosed {
+                if row.workoutId != nil {
+                    restTimer?.invalidate()
+                    _ = await workout.end()
+                    Store.saveSession(nil)
+                    session = nil
+                    keepAwake(false)
+                    phase = .done(banked: false)
+                    notice = "Finished on the phone"
+                    WKInterfaceDevice.current().play(.success)
+                }
+                // Closed WITHOUT a workout = discarded on the phone. The wrist
+                // copy stays his; finishing here still saves it.
+            } else if let row = await API.fetchLive(id: s.clientSaveId) {
+                mergeLive(row)
+            }
+            phoneLive = nil
+            return
+        }
+        let row = await API.fetchLive()
+        phoneLive = (row?.source == "phone" && row?.isClosed == false) ? row : nil
+    }
+
+    /// Sets the phone logged that this wrist has not seen: mark their slots
+    /// logged so the card does not ask for them again. Logged slots move to
+    /// the head (the invariant rotatePending relies on).
+    private func mergeLive(_ row: LiveSession) {
+        guard var s = session else { return }
+        let known = Set(s.logged.map { "\($0.exerciseId)#\($0.setNumber)" })
+        let fresh = row.sets.filter { !known.contains("\($0.exerciseId)#\($0.setNumber)") }
+        guard !fresh.isEmpty else { return }
+        var head = Array(s.slots[..<s.currentIndex])
+        var tail = Array(s.slots[s.currentIndex...])
+        for ls in fresh {
+            guard let i = tail.firstIndex(where: { $0.exerciseId == ls.exerciseId && $0.setNumber == ls.setNumber }) else { continue }
+            var slot = tail.remove(at: i)
+            slot.weightKg = ls.weight
+            slot.reps = ls.reps
+            head.append(slot)
+            s.logged.append(LogSet(exerciseId: ls.exerciseId, setNumber: ls.setNumber, reps: ls.reps, weight: ls.weight, rpe: ls.rpe, isWarmup: ls.isWarmup ?? false))
+        }
+        s.slots = head + tail
+        s.currentIndex = head.count
+        session = s
+        Store.saveSession(s)
+        if s.currentIndex >= s.slots.count, case .active = phase { phase = .summary }
+    }
+
+    /// "Continue" on the Start screen: build the slots from the plan for the
+    /// phone session's day and length, tick what the phone already logged,
+    /// and carry on under the SAME save id so the finish merges into one
+    /// workout. The HKWorkout is backdated to the phone's start.
+    func continueLive(_ row: LiveSession) async {
+        guard session == nil else { phase = .active; return }
+        phase = .loading
+        notice = nil
+        var p = try? await API.fetchPlan(day: row.day, dur: row.durationMin)
+        if p == nil { p = Store.startablePlan() }
+        guard let p, !p.exercises.isEmpty else {
+            phase = .idle
+            notice = "No plan yet — need signal once"
+            return
+        }
+        plan = p
+        let slots = p.exercises
+            .sorted { $0.order < $1.order }
+            .flatMap { ex in
+                (1...max(1, ex.sets)).map { n in
+                    SetSlot(
+                        exerciseId: ex.exerciseId, exerciseName: ex.name,
+                        machine: ex.machine, setNumber: n, setsTotal: max(1, ex.sets),
+                        repsMin: ex.repsMin, repsMax: ex.repsMax, unit: ex.unit,
+                        restSec: ex.restSec ?? 90,
+                        pinKg: ex.pinKg, weightKg: ex.prefillKg ?? 0,
+                        reps: ex.prefillReps
+                    )
+                }
+            }
+        let s = ActiveSession(
+            clientSaveId: row.clientSaveId, day: row.day ?? p.day, rpeCap: p.rpeCap,
+            startedAt: row.startedDate, slots: slots, currentIndex: 0, logged: []
+        )
+        session = s
+        Store.saveSession(s)
+        mergeLive(row)
+        await workout.requestAuthorization()
+        workout.begin(startDate: row.startedDate)
+        keepAwake(true)
+        phoneLive = nil
+        phase = (session?.currentIndex ?? 0) >= slots.count ? .summary : .active
+    }
+
+    /// Every logged set goes to the live row as it happens, so the phone
+    /// can take over mid-session. Fire-and-forget; the finish carries all.
+    private func postLive(_ sets: [LogSet]) {
+        guard let s = session else { return }
+        let now = ISO8601DateFormatter.fractional.string(from: Date())
+        let post = LivePost(
+            clientSaveId: s.clientSaveId, source: "watch", day: s.day,
+            durationMin: plan?.durationMin, gym: "bfit",
+            startedAt: ISO8601DateFormatter.fractional.string(from: s.startedAt),
+            sets: sets.map { LiveUpdate(exerciseId: $0.exerciseId, setNumber: $0.setNumber, reps: $0.reps, weight: $0.weight, rpe: $0.rpe, isWarmup: $0.isWarmup, completedAt: now, remove: nil) }
+        )
+        Task { await API.postLive(post) }
     }
 
     // MARK: - Start
@@ -105,6 +223,7 @@ final class SessionStore: ObservableObject {
         workout.begin()
         keepAwake(true)
         phase = .active
+        postLive([]) // open the live row so the phone can offer "Continue"
     }
 
     // MARK: - Staying on the wrist
@@ -177,6 +296,7 @@ final class SessionStore: ObservableObject {
         session = s
         Store.saveSession(s)
         WKInterfaceDevice.current().play(.click)
+        postLive([s.logged[s.logged.count - 1]])
 
         if slot.isLastOfExercise {
             phase = .rpePrompt(exerciseId: slot.exerciseId, exerciseName: slot.exerciseName)
@@ -191,11 +311,14 @@ final class SessionStore: ObservableObject {
     /// (trainer review).
     func setRPE(_ rpe: Int, exerciseId: String) {
         guard var s = session else { return }
+        var rated: LogSet?
         if let i = s.logged.lastIndex(where: { $0.exerciseId == exerciseId }) {
             s.logged[i].rpe = rpe
+            rated = s.logged[i]
         }
         session = s
         Store.saveSession(s)
+        if let rated { postLive([rated]) }
         advanceAfterExercise()
     }
 
@@ -318,6 +441,7 @@ final class SessionStore: ObservableObject {
     func discard() {
         restTimer?.invalidate()
         workout.abort()
+        if let id = session?.clientSaveId { Task { await API.closeLive(id: id) } }
         Store.saveSession(nil)
         session = nil
         keepAwake(false)

@@ -178,6 +178,48 @@ must not break it, only outrank it.
 - [ ] Return-ramp week: prefills scaled, RPE buttons capped
 
 
+## Live session — start on one device, continue on the other (owner, 2026-09-01)
+
+The SERVER owns the picture of a session in progress: one `LiveSession`
+row keyed by the client save id both devices finish with. Every set
+logged on either device is pushed as it happens; the other device reads
+the row and carries on. The finish posts with the same id, so the two
+halves merge into ONE workout. Machine order stays per device — only
+logged sets sync (the occupied-machine swipe stays simple).
+
+Contract (`/api/live`, no auth — single user):
+
+- `GET /api/live` → `{ live }`: the open, fresh session or null. Fresh =
+  not closed, started < 4 h ago, touched < 2 h ago. `?id=<csid>` returns
+  that row whatever its state (closed rows say `closedAt` + `workoutId`).
+- `POST /api/live` `{ clientSaveId, source: 'phone'|'watch', day?,
+  durationMin?, gym?, startedAt?, sets: [ {exerciseId, setNumber, reps,
+  weight, rpe?, isWarmup?, completedAt} | {exerciseId, setNumber,
+  remove: true} ] }` → `{ live }` merged. Opening a new id closes every
+  other open row (one session at a time). A closed id writes nothing and
+  answers with the closed row — stop.
+- `POST /api/live/close` `{ clientSaveId }` — discarded on a device.
+
+Merge rule (`src/lib/live-session.ts`, tested): a device owns what it
+logs; same key (exercise + set number) → the LATER completion wins;
+keys the update never mentions are untouched. On finish, `createWorkout`
+unions any live set the poster never saw (poster wins ties) and closes
+the row; a second finish under the same id adds the sets the saved
+workout lacks and returns `deduped` — a success, not an error.
+
+Watch side: the Start screen shows **Continue Day X · N sets on the
+phone** when a phone-born row is open; `continueLive` builds the slots
+from the plan for that day/length, ticks the phone's sets (they move to
+the head), keeps the phone's save id, and backdates the HKWorkout to the
+phone's start (owner's call — the phone half has no HR curve). Every
+`logCurrentSet`/RPE posts its set; `refreshLive` on wrist-raise notices a
+row the phone finished and lands on Done without posting. Phone side:
+the logger applies a live row on open (draft precedence: same id →
+overlay; a draft touched after the row moved wins; else live wins),
+pushes a debounced diff of ticked sets, polls every 30 s / on
+visibility, and jumps to the saved workout if the Watch finished it.
+The draft pill offers **Day X on the Watch · Continue here** elsewhere.
+
 ## Staying on the wrist (owner, 2026-09-01)
 
 First gym session: between sets the watch dropped to the clock and the
