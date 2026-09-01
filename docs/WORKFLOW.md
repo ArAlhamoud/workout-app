@@ -101,6 +101,15 @@ with, and prefer pushing before a session rather than during one.
 
 ## Mac backlog (owner-approved, cloud session cannot build these)
 
+- **FIRST — Watch: occupied-machine swipe (owner from the gym floor,
+  2026-08-31).** The cloud session wrote the Swift (SessionStore
+  `skipToNextMachine`/`backToPreviousMachine` rotating the pending
+  exercise groups; `DragGesture` on SetCardView; hint line) but cannot
+  compile it. Mac: build the WatchApp target, drive the simulator through
+  swipe-left mid-exercise → log a set on the next machine → swipe-right
+  back → finish the session → confirm the POST carries every set with
+  correct exerciseId/setNumber, then `npm run ios:testflight`.
+
 - ~~Volt simulator pass~~ **DONE (Mac session, 2026-08-30, iPhone 17 sim
   / WKWebView on production).** All four checks passed: (1) status-bar
   text adapts per ground — white over Volt black on /train and /stats,

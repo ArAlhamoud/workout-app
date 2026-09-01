@@ -199,6 +199,12 @@ struct SetCardView: View {
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
             }
+            if store.pendingMachineCount > 1 {
+                // Occupied machine: swipe to the next one, come back later.
+                Text("‹ swipe · other machine ›")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
             Button {
                 store.logCurrentSet()
             } label: {
@@ -210,6 +216,17 @@ struct SetCardView: View {
             .tint(!slot.isSeconds && slot.weightKg <= 0 ? .orange : .green)
         }
         .padding(.horizontal, 2)
+        .contentShape(Rectangle())
+        // Occupied machine: a horizontal swipe rotates the pending machines.
+        // 40 pt minimum so a crown nudge or a sleeve brush never triggers it
+        // (the same accidental-input worry that removed the day detent).
+        .gesture(
+            DragGesture(minimumDistance: 40)
+                .onEnded { v in
+                    guard abs(v.translation.width) > abs(v.translation.height) else { return }
+                    if v.translation.width < 0 { store.skipToNextMachine() } else { store.backToPreviousMachine() }
+                }
+        )
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("End") { store.endEarly() }

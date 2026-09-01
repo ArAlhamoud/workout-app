@@ -176,3 +176,14 @@ must not break it, only outrank it.
 - [ ] Same session never appears twice (watch POST + phone detect)
 - [ ] Rest haptic fires with the screen down (wrist motion off)
 - [ ] Return-ramp week: prefills scaled, RPE buttons capped
+
+
+## Occupied machine (owner, first wrist session, 2026-08-31)
+
+A horizontal swipe on the set card rotates the PENDING machines: swipe
+left → the next machine's sets come up now and this one's remaining
+sets go to the back of the queue; swipe right → the reverse. Logged
+sets never move; finishing a machine removes it from the rotation. The
+card advertises the swipe only while more than one machine still has
+pending sets. 40 pt minimum drag so crown nudges and sleeve brushes
+never trigger it.

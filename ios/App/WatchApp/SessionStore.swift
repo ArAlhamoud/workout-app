@@ -187,6 +187,44 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    // MARK: - Occupied machine
+
+    /// Machine taken? Rotate the PENDING exercise groups: the next machine's
+    /// sets come up now and this machine's remaining sets go to the back of
+    /// the queue. Nothing is logged or lost — only the tail is reordered,
+    /// and logged sets (the head) never move, so rest/RPE bookkeeping that
+    /// reads `slots[currentIndex - 1]` stays truthful. Owner's first gym
+    /// session on the wrist: "sometimes the machine is occupied".
+    func skipToNextMachine() { rotatePending(forward: true) }
+    func backToPreviousMachine() { rotatePending(forward: false) }
+
+    /// Number of distinct machines still holding pending sets — the card
+    /// only advertises the swipe when there is somewhere to swipe to.
+    var pendingMachineCount: Int {
+        guard let s = session, s.currentIndex < s.slots.count else { return 0 }
+        return Set(s.slots[s.currentIndex...].map(\.exerciseId)).count
+    }
+
+    private func rotatePending(forward: Bool) {
+        guard var s = session, s.currentIndex < s.slots.count else { return }
+        let head = Array(s.slots[..<s.currentIndex])
+        let tail = Array(s.slots[s.currentIndex...])
+        var groups: [[SetSlot]] = []
+        for slot in tail {
+            if let last = groups.last?.first, last.exerciseId == slot.exerciseId {
+                groups[groups.count - 1].append(slot)
+            } else {
+                groups.append([slot])
+            }
+        }
+        guard groups.count > 1 else { WKInterfaceDevice.current().play(.failure); return }
+        if forward { groups.append(groups.removeFirst()) } else { groups.insert(groups.removeLast(), at: 0) }
+        s.slots = head + groups.flatMap { $0 }
+        session = s
+        Store.saveSession(s)
+        WKInterfaceDevice.current().play(forward ? .directionDown : .directionUp)
+    }
+
     // MARK: - Rest
 
     private func beginRest() {
