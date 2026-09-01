@@ -108,7 +108,13 @@ with, and prefer pushing before a session rather than during one.
   compile it. Mac: build the WatchApp target, drive the simulator through
   swipe-left mid-exercise → log a set on the next machine → swipe-right
   back → finish the session → confirm the POST carries every set with
-  correct exerciseId/setNumber, then `npm run ios:testflight`.
+  correct exerciseId/setNumber. Same build carries **keep-awake**
+  (`SessionStore.keepAwake` + `WorkoutManager.recoverOrBegin`, owner
+  2026-09-01): on the simulator confirm it compiles and a force-quit
+  mid-session resumes with the workout running; the wrist-down behaviour
+  itself only shows on the real watch — start a session, lower the
+  wrist for a minute, raise it: the set card must be there, not the
+  clock. Then `npm run ios:testflight`.
 
 - ~~Volt simulator pass~~ **DONE (Mac session, 2026-08-30, iPhone 17 sim
   / WKWebView on production).** All four checks passed: (1) status-bar

@@ -178,6 +178,27 @@ must not break it, only outrank it.
 - [ ] Return-ramp week: prefills scaled, RPE buttons capped
 
 
+## Staying on the wrist (owner, 2026-09-01)
+
+First gym session: between sets the watch dropped to the clock and the
+next wrist-raise landed on the face, not the set card. Two layers keep
+the app up for the whole session (`SessionStore.keepAwake`):
+
+1. **A running `HKWorkoutSession`.** watchOS treats the app as the active
+   workout: it stays frontmost with no timeout, and the always-on display
+   shows the current screen dimmed when the wrist is down, rest countdown
+   still ticking. After a relaunch mid-session `WorkoutManager.
+   recoverOrBegin` reattaches to HealthKit's live session (or starts a
+   fresh one) so a resumed session behaves the same.
+2. **Extended frontmost timeout** (`isFrontmostTimeoutExtended`) while a
+   session exists — if HealthKit refused the session, wrist-raise still
+   returns to the app for 8 minutes after the last touch instead of 2.
+
+No app can hold the backlight itself on; that is a watch setting. On the
+watch: **Settings → Display & Brightness → Always On: on**, and **Wake
+Duration: Wake for 70 seconds** (the default is 15). With both, the card
+never disappears — it dims with the wrist down and is bright on raise.
+
 ## Occupied machine (owner, first wrist session, 2026-08-31)
 
 A horizontal swipe on the set card rotates the PENDING machines: swipe

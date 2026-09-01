@@ -40,6 +40,31 @@ final class WorkoutManager: NSObject, ObservableObject {
         }
     }
 
+    /// After a relaunch mid-session (process killed, crash, reboot) the
+    /// in-memory HKWorkoutSession is gone but HealthKit may still hold the
+    /// live one. Reattach to it; otherwise start a fresh one. Either way
+    /// the wrist ends up with a RUNNING workout again — which is what
+    /// keeps the app frontmost and the always-on face on this screen
+    /// instead of the clock (owner, 2026-09-01: "app should prevent apple
+    /// watch go sleep").
+    func recoverOrBegin() async {
+        guard HKHealthStore.isHealthDataAvailable(), session == nil else { return }
+        let recovered: HKWorkoutSession? = await withCheckedContinuation { cont in
+            store.recoverActiveWorkoutSession { s, _ in cont.resume(returning: s) }
+        }
+        if let s = recovered, s.state == .running || s.state == .paused || s.state == .prepared {
+            let b = s.associatedWorkoutBuilder()
+            if b.dataSource == nil {
+                b.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: s.workoutConfiguration)
+            }
+            if s.state == .paused { s.resume() }
+            session = s
+            builder = b
+        } else {
+            begin()
+        }
+    }
+
     /// Ends the session and returns the recorded HKWorkout's uuid, or nil if
     /// HealthKit was unavailable the whole way through.
     func end() async -> String? {

@@ -37,6 +37,10 @@ final class SessionStore: ObservableObject {
         if let s = Store.loadSession() {
             session = s
             phase = s.currentIndex >= s.slots.count ? .summary : .active
+            keepAwake(true)
+            // The HKWorkoutSession died with the process; get one running
+            // again so the wrist behaves like a workout, not a launcher.
+            Task { await workout.recoverOrBegin() }
         }
         plan = Store.loadPlanCache()
         Task {
@@ -99,7 +103,26 @@ final class SessionStore: ObservableObject {
         Store.saveSession(s)
         await workout.requestAuthorization()
         workout.begin()
+        keepAwake(true)
         phase = .active
+    }
+
+    // MARK: - Staying on the wrist
+
+    /// Between sets the watch drops to the clock and the next raise lands
+    /// on the face, not the card — the owner's first gym session. Two
+    /// layers keep the app up for the whole session:
+    ///   1. the running HKWorkoutSession (begin/recoverOrBegin) — watchOS
+    ///      treats the app as the active workout: it stays frontmost with
+    ///      no timeout and the always-on display shows THIS screen dimmed
+    ///      when the wrist is down, rest countdown still ticking;
+    ///   2. the extended frontmost timeout — the belt to that suspender: if
+    ///      HealthKit refused the session, wrist-raise still returns to the
+    ///      app for 8 minutes after the last touch instead of 2.
+    /// Nothing can hold the backlight itself on; that is a watch setting
+    /// (Always On + Wake Duration 70 s — docs/WATCH.md).
+    private func keepAwake(_ on: Bool) {
+        WKApplication.shared().isFrontmostTimeoutExtended = on
     }
 
     // MARK: - The set flow
@@ -283,6 +306,7 @@ final class SessionStore: ObservableObject {
         if !sent { Store.enqueue(payload) }
         Store.saveSession(nil)
         session = nil
+        keepAwake(false)
         pendingCount = Store.loadOutbox().count
         phase = .done(banked: !sent)
         WKInterfaceDevice.current().play(sent ? .success : .directionUp)
@@ -296,6 +320,7 @@ final class SessionStore: ObservableObject {
         workout.abort()
         Store.saveSession(nil)
         session = nil
+        keepAwake(false)
         phase = .idle
     }
 
