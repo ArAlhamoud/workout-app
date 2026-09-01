@@ -101,6 +101,14 @@ with, and prefer pushing before a session rather than during one.
 
 ## Mac backlog (owner-approved, cloud session cannot build these)
 
+- **TestFlight build 8 is VALID (2026-09-02, Mac session) — ALL FOUR wrist
+  items are built, E2E-verified and shipped**, including item 4: the live
+  handoff was exercised on the Ultra sim with curl playing the phone
+  (Continue row shown, phone ticks honored, watch set synced back with
+  source "watch", finish produced one merged 3-set workout, live row
+  closed and pruned; synthetic rows deleted). The two-device field dance
+  (phone pill, 30 s tick sync, jump-to-saved) remains for the owner's
+  next real session. Superseded note follows:
 - **TestFlight build 7 is VALID (2026-09-02, Mac session)** — carries the
   three wrist features (occupied-machine swipe, keep-awake via the
   recovered HKWorkoutSession, crown init) plus a Mac-side fix: finish()
