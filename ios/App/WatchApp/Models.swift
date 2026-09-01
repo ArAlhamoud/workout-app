@@ -36,6 +36,9 @@ struct LogSet: Codable, Equatable {
     let weight: Double
     var rpe: Int?
     let isWarmup: Bool
+    /// "phone" when the set arrived through the live row rather than this
+    /// wrist — never rated here, dropped if the phone un-ticks or discards.
+    var origin: String? = nil
 }
 
 struct LogPayload: Codable, Equatable {
@@ -99,6 +102,9 @@ struct ActiveSession: Codable, Equatable {
     var slots: [SetSlot]
     var currentIndex: Int
     var logged: [LogSet]
+    /// The building the OPENING device tagged (rule 2). nil = this wrist
+    /// opened it; the server defaults to B_Fit.
+    var gym: String? = nil
 }
 
 // MARK: - Live session (phone ↔ watch handoff, docs/WATCH.md "Live session")

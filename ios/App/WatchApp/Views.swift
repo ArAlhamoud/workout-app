@@ -77,7 +77,7 @@ struct StartView: View {
                         VStack(spacing: 2) {
                             Text("Continue Day \(live.day ?? "?")")
                                 .font(.system(size: 18, weight: .black, design: .rounded))
-                            Text("\(live.sets.count) set\(live.sets.count == 1 ? "" : "s") on the phone")
+                            Text(live.sets.isEmpty ? "on the phone" : "\(live.sets.count) set\(live.sets.count == 1 ? "" : "s") on the phone")
                                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                                 .foregroundStyle(.secondary)
                         }

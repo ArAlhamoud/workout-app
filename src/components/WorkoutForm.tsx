@@ -452,18 +452,28 @@ export default function WorkoutForm({
     };
 
     // Live session precedence, decided once the draft question is settled:
-    //   same save id            → same session; overlay the live sets.
-    //   draft touched AFTER the live row moved → the phone is the truth; ignore live.
-    //   otherwise (no draft, or an older one) → the live session wins.
+    //   same save id                → same session; overlay the live sets.
+    //   draft with ANY ticked set   → the phone's own work is never binned
+    //                                 for a row from the wrist; ignore live.
+    //   otherwise (no draft, or an untouched one) → the live session wins,
+    //                                 and the draft's date/start/gym go too
+    //                                 (a week-old draft must not date today).
     const maybeLive = (draft: Draft | null) => {
       if (!liveSession || !liveEnabled) return;
       const sameId = draft?.saveId === liveSession.clientSaveId;
-      if (draft && !sameId && (draft.savedAt ?? 0) > Date.parse(liveSession.updatedAt)) return;
+      const draftTicked = Array.isArray(draft?.blocks)
+        && (draft!.blocks as ExerciseBlock[]).some((b) => b.sets?.some((st) => st.done));
+      if (draft && !sameId && draftTicked) return;
       if (draft && !sameId) {
         setName(initialName);
         setNotes('');
+        setDate(today);
+        lastGymRef.current = DEFAULT_GYM_ID;
+        setGym(DEFAULT_GYM_ID);
+        startRef.current = Date.now();
         setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints, rescueMode));
         setDraftRestored(false);
+        setDraftIsStale(false);
       }
       applyLive(liveSession);
     };
@@ -530,34 +540,70 @@ export default function WorkoutForm({
     saveIdRef.current = live.clientSaveId;
     const started = Date.parse(live.startedAt);
     if (Number.isFinite(started)) startRef.current = Math.min(startRef.current, started);
-    if (live.gym && live.gym !== gym) { lastGymRef.current = live.gym; setGym(live.gym); }
+    // The row's building wins; leave lastGymRef alone so the gym-change
+    // effect refetches THAT gym's memory (rule 2 — an Alrajhi row must not
+    // keep B_Fit prefills under a work tag).
+    if (live.gym && live.gym !== gym) setGym(live.gym);
     setBlocks((prev) => overlayLive(prev, live.sets));
     const n = live.sets.length;
-    setLiveNotice(
-      live.source === 'watch'
-        ? `Continuing from Watch · ${n} set${n === 1 ? '' : 's'} logged there`
-        : n ? `Live session · ${n} set${n === 1 ? '' : 's'} already logged` : null,
-    );
+    // A phone-born row says nothing the restored-draft card does not.
+    setLiveNotice(live.source === 'watch' ? `⌚ From Watch · ${n} set${n === 1 ? '' : 's'}` : null);
   }
 
+  /** Pushes stop for this id once the other device closed it. */
+  const liveDeadRef = useRef(false);
+
   /** The other device finished (or binned) this session. */
-  function liveClosedElsewhere(row: LiveSession) {
+  async function liveClosedElsewhere(row: LiveSession) {
+    liveDeadRef.current = true;
     if (row.workoutId) {
+      // The Watch finished first. Anything ticked here that never reached
+      // the row rides a save under the same id — the server adds what the
+      // workout lacks — BEFORE this copy is let go (adversary: three sets
+      // ticked in the basement must not vanish on the poll).
+      const own = collectSetsToSave();
+      if (own.length) {
+        try {
+          await createWorkout({
+            name: name.trim() || initialName,
+            date: date || localTodayStr(),
+            gym,
+            clientSaveId: row.clientSaveId,
+            finishSource: 'phone',
+            sets: own,
+          });
+        } catch { /* offline again — the row is closed; nothing more to do here */ }
+      }
       pendingDraftRef.current = null;
       void durableRemove(DRAFT_KEY);
       hapticSuccess();
       router.push(`/workouts/${row.workoutId}`);
     } else {
       // Discarded on the Watch: the phone copy is still his to keep or bin.
-      setLiveNotice('Watch discarded its copy — this one is still yours');
+      setLiveNotice('⌚ Discarded on Watch · kept here');
     }
+  }
+
+  /** The done sets as the save posts them — one shape for finish and handoff. */
+  function collectSetsToSave() {
+    return blocksRef.current.flatMap((b) =>
+      b.sets
+        .filter((st) => st.done)
+        .map(({ done: _d, notes: sn, rpe: r, completedAt: at, ...rest }) => ({
+          ...rest,
+          setNumber: rest.isWarmup ? 0 : rest.setNumber,
+          notes: sn || undefined,
+          rpe: r || undefined,
+          completedAt: at ?? undefined,
+        })),
+    );
   }
 
   /** Push every done-set change since the last push. Fire-and-forget: a
    *  failed push stays in the diff and rides the next change or poll. */
   const liveBusyRef = useRef(false);
   async function flushLive() {
-    if (!liveEnabled || liveBusyRef.current) return;
+    if (!liveEnabled || liveBusyRef.current || liveDeadRef.current) return;
     const current = new Map<string, LiveSetUpdate>();
     for (const b of blocksRef.current) {
       for (const st of b.sets) {
@@ -585,6 +631,10 @@ export default function WorkoutForm({
     }
     if (!updates.length) return;
     if (!saveIdRef.current) saveIdRef.current = newClientSaveId();
+    // The session started at the first tick, not when the page was opened
+    // (a logger left open since breakfast must not read as a stale row).
+    const firstTick = Math.min(...[...current.values()].map((u) => Date.parse((u as LiveSet).completedAt)));
+    const startedAt = Number.isFinite(firstTick) ? Math.min(firstTick, Date.now()) : startRef.current;
     liveBusyRef.current = true;
     try {
       const row = await pushLiveSets(
@@ -593,11 +643,11 @@ export default function WorkoutForm({
           day: dayAccent ?? null,
           durationMin: durationMin ?? null,
           gym,
-          startedAt: new Date(startRef.current).toISOString(),
+          startedAt: new Date(startedAt).toISOString(),
         },
         updates,
       );
-      if (row?.closedAt) { liveClosedElsewhere(row); return; }
+      if (row?.closedAt) { void liveClosedElsewhere(row); return; }
       if (row) {
         for (const [k, v] of serials) liveSnapRef.current.set(k, v);
         for (const u of updates) if ('remove' in u) liveSnapRef.current.delete(liveKey(u));
@@ -612,13 +662,14 @@ export default function WorkoutForm({
     if (!liveEnabled || document.visibilityState === 'hidden') return;
     try {
       if (saveIdRef.current) {
+        if (liveDeadRef.current) return;
         const row = await getLiveSession(saveIdRef.current);
-        if (row?.closedAt) { liveClosedElsewhere(row); return; }
+        if (row?.closedAt) { void liveClosedElsewhere(row); return; }
         if (row) {
-          const fresh = row.sets.filter((ls) => liveSnapRef.current.get(liveKey(ls)) !== liveSerial(ls));
+          const fresh = row.sets.filter((ls) => ls.source !== 'phone' && liveSnapRef.current.get(liveKey(ls)) !== liveSerial(ls));
           if (fresh.length) {
             setBlocks((prev) => overlayLive(prev, fresh));
-            if (fresh.some((ls) => ls.source === 'watch')) setLiveNotice(`Watch logged ${fresh.length} more set${fresh.length === 1 ? '' : 's'}`);
+            setLiveNotice(`⌚ +${fresh.length} set${fresh.length === 1 ? '' : 's'}`);
           }
         }
       } else if (!blocksRef.current.some((b) => b.sets.some((st) => st.done))) {
@@ -804,6 +855,7 @@ export default function WorkoutForm({
     // Binned here → the Watch must stop offering it as "Continue".
     if (saveIdRef.current && liveSnapRef.current.size) void closeLiveSession(saveIdRef.current).catch(() => {});
     liveSnapRef.current = new Map();
+    liveDeadRef.current = false;
     setLiveNotice(null);
     setName(initialName);
     setDate(today);
@@ -1132,9 +1184,13 @@ export default function WorkoutForm({
       sets: b.sets.filter((s) => (anyDone ? s.done : !isEmpty(b, s))),
     }));
     const setsToSave = submitBlocks.flatMap(({ sets }) =>
-      sets.map(({ done: _d, notes: sn, rpe: r, completedAt: at, ...rest }, i) => ({
+      sets.map(({ done: _d, notes: sn, rpe: r, completedAt: at, ...rest }) => ({
         ...rest,
-        setNumber: i + 1,
+        // The template number, never a fresh 1..n: the live row and the
+        // Watch key sets by it, and renumbering across a warm-up dropped
+        // the Watch's set and doubled the phone's (steward + adversary).
+        // Warm-ups are 0 and keyed apart.
+        setNumber: rest.isWarmup ? 0 : rest.setNumber,
         notes: sn || undefined,
         rpe: r || undefined,
         // Untouched sets (and drafts saved before this existed) carry no stamp.
@@ -1188,6 +1244,7 @@ export default function WorkoutForm({
       duration: Math.floor((Date.now() - startRef.current) / 1000),
       clientSaveId: saveIdRef.current,
       healthWorkoutUuid,
+      finishSource: 'phone' as const,
       sets: setsToSave,
     };
     // A restored multi-day draft carries an ancient startRef; without a clamp
@@ -1321,7 +1378,7 @@ export default function WorkoutForm({
 
         {/* Draft restored notice */}
         {liveNotice && (
-          <p className="text-acc-teal text-xs font-semibold px-1" aria-live="polite">⌚ {liveNotice}</p>
+          <p className="text-acc-teal text-xs font-semibold px-1" aria-live="polite">{liveNotice}</p>
         )}
         {draftRestored && (
           <div className="card rounded-card border-acc-teal/30 px-4 py-3 flex items-center justify-between">

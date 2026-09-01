@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { durableRemove } from '@/lib/native-store';
-import { getLiveSession } from '@/app/actions';
+import { closeLiveSession, getLiveSession } from '@/app/actions';
 
 const DRAFT_KEY = 'workout-draft';
 
@@ -70,8 +70,8 @@ export default function WorkoutDraftBanner() {
     return (
       <div className="fixed bottom-[calc(88px+env(safe-area-inset-bottom,0px))] left-0 right-0 z-40 flex justify-center px-4 print:hidden">
         <Link href={href} className={`${shell} border-acc-teal/40`}>
-          <span className="truncate">⌚ Day {watchLive.day ?? '?'} on the Watch · {watchLive.sets} set{watchLive.sets === 1 ? '' : 's'}</span>
-          <span className="flex-shrink-0 text-acc-teal text-xs font-bold">Continue here →</span>
+          <span className="truncate">⌚ Day {watchLive.day ?? '?'} · {watchLive.sets} set{watchLive.sets === 1 ? '' : 's'}</span>
+          <span className="flex-shrink-0 text-acc-teal text-xs font-bold">Continue →</span>
         </Link>
       </div>
     );
@@ -81,6 +81,13 @@ export default function WorkoutDraftBanner() {
    *  native Preferences as well as localStorage. Removing only one leaves a
    *  draft that reappears on the next cold start. */
   async function discard() {
+    // The live row goes with the draft, or the Watch keeps offering the
+    // binned session and the next logger open re-ticks it (steward).
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      const saveId = raw ? (JSON.parse(raw) as { saveId?: string }).saveId : undefined;
+      if (saveId) await closeLiveSession(saveId).catch(() => {});
+    } catch { /* no draft to read — nothing live to close */ }
     try {
       localStorage.removeItem(DRAFT_KEY);
     } catch { /* the durable remove below still runs */ }

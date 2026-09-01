@@ -3,7 +3,7 @@
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { liveKey, sanitizeLiveUpdate, unionForFinish, type LiveSetUpdate } from '@/lib/live-session';
+import { sanitizeLiveUpdate, setsMissingFrom, unionForFinish, type LiveSetUpdate, type LiveSource } from '@/lib/live-session';
 import { closeLive, readLive, upsertLive } from '@/lib/live-store';
 import {
   DEFAULT_GYM_ID,
@@ -134,21 +134,33 @@ export async function createWorkout(data: {
     /** Warm-up sets are logged but excluded from records/volume/plateaus. */
     isWarmup?: boolean;
   }>;
+  /** Which device is finishing — its own live sets are never re-added. */
+  finishSource?: LiveSource;
 }) {
   if (data.clientSaveId) {
-    const existing = await prisma.workout.findUnique({
-      where: { clientSaveId: data.clientSaveId },
-      select: { id: true, sets: { select: { exerciseId: true, setNumber: true } } },
-    });
-    if (existing) {
-      // The other half of a handed-off session: the Watch finished first
-      // and the phone (or the reverse) posts the same save id. Sets it
-      // logged that the saved workout lacks are added; keys already saved
-      // keep the first finisher's values. A plain outbox replay adds nothing.
-      const have = new Set(existing.sets.map(liveKey));
-      const missing = data.sets.filter((s) => !have.has(liveKey(s)));
+    // Any set must belong to a machine that exists, or the insert hits the
+    // FK and the session becomes unsaveable under its id (steward).
+    const knownIds = async (rows: Array<{ exerciseId: string }>) => {
+      const ids = [...new Set(rows.map((s) => s.exerciseId))];
+      if (!ids.length) return new Set<string>();
+      return new Set((await prisma.exercise.findMany({ where: { id: { in: ids } }, select: { id: true } })).map((e) => e.id));
+    };
+    // The other half of a handed-off session: the Watch finished first and
+    // the phone (or the reverse) posts the same save id. Sets it logged
+    // that the saved workout lacks are added; keys already saved keep the
+    // first finisher's values. A plain outbox replay adds nothing. Read
+    // and insert in ONE transaction so two overlapping replays cannot both
+    // add the same set (steward).
+    const merged = await prisma.$transaction(async (tx) => {
+      const existing = await tx.workout.findUnique({
+        where: { clientSaveId: data.clientSaveId },
+        select: { id: true, sets: { select: { exerciseId: true, setNumber: true, isWarmup: true } } },
+      });
+      if (!existing) return null;
+      const ok = await knownIds(data.sets);
+      const missing = setsMissingFrom(existing.sets, data.sets).filter((s) => ok.has(s.exerciseId));
       if (missing.length) {
-        await prisma.workoutSet.createMany({
+        await tx.workoutSet.createMany({
           data: missing.map((s) => ({
             workoutId: existing.id,
             exerciseId: s.exerciseId,
@@ -161,18 +173,27 @@ export async function createWorkout(data: {
             isWarmup: s.isWarmup === true,
           })),
         });
+      }
+      return { id: existing.id, merged: missing.length };
+    });
+    if (merged) {
+      if (merged.merged) {
         revalidatePath('/workouts');
-        revalidatePath(`/workouts/${existing.id}`);
+        revalidatePath(`/workouts/${merged.id}`);
         revalidatePath('/');
       }
-      await closeLive(data.clientSaveId, existing.id);
-      return { id: existing.id, deduped: true, merged: missing.length };
+      await closeLive(data.clientSaveId, merged.id);
+      return { id: merged.id, deduped: true, merged: merged.merged };
     }
     // Finishing a handed-off session: union in any set the OTHER device
-    // logged to the live row that this device never saw. Poster wins ties.
+    // logged to the live row that this device never saw. Poster wins ties;
+    // the poster's own live sets are never re-added (an un-tick whose
+    // remove never reached the server must stay un-ticked).
     const live = await readLive(data.clientSaveId);
     if (live && !live.closedAt && live.sets.length) {
-      data.sets = unionForFinish(data.sets, live.sets) as typeof data.sets;
+      const union = unionForFinish(data.sets, live.sets, data.finishSource);
+      const ok = await knownIds(union);
+      data.sets = union.filter((s) => ok.has(s.exerciseId)) as typeof data.sets;
     }
   }
   // Same guard for the HKWorkout identity: without it a re-save under a

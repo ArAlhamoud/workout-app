@@ -46,7 +46,7 @@ import {
   type DynamicPlan,
   type LoggedSession,
 } from '../src/lib/program';
-import { isLiveFresh, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, unionForFinish, type OverlaySet } from '../src/lib/live-session';
+import { isLiveFresh, liveKey, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, setsMissingFrom, unionForFinish, type OverlaySet } from '../src/lib/live-session';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
@@ -232,6 +232,32 @@ console.log('live session (phone ↔ watch handoff)');
   assert(!isLiveFresh({ ...fresh, closedAt: '2026-09-01T17:50:00Z' }, now), 'a closed session is not live');
   assert(!isLiveFresh({ ...fresh, startedAt: '2026-09-01T13:30:00Z' }, now), 'started 4.5 h ago → leftover');
   assert(!isLiveFresh({ ...fresh, updatedAt: '2026-09-01T15:30:00Z' }, now), 'idle 2.5 h → abandoned');
+
+  // Keys: warm-ups live apart from working set 1; the save must keep the
+  // template number (renumbering 1..n across a warm-up dropped the Watch's
+  // set 2 and doubled the phone's — steward + adversary).
+  assert(liveKey({ exerciseId: 'lp', setNumber: 0, isWarmup: true }) !== liveKey({ exerciseId: 'lp', setNumber: 1 }), 'warm-up key never collides with set 1');
+  {
+    const phone = [
+      { exerciseId: 'lp', setNumber: 0, reps: 10, weight: 20, isWarmup: true },
+      { exerciseId: 'lp', setNumber: 1, reps: 10, weight: 36 },
+    ];
+    const watch = [ls('lp', 2, 36, 5, 'watch'), ls('lp', 3, 36, 7, 'watch')];
+    const u1 = unionForFinish(phone, watch, 'phone');
+    assert(u1.length === 4 && u1.filter((s) => s.setNumber === 2).length === 1, `warm-up + phone set 1 + watch 2,3 → four sets (got ${u1.length})`);
+    // Second finisher: the phone posts the same four → nothing to add.
+    assert(setsMissingFrom(u1, u1).length === 0, 'a second finish with the same sets adds nothing');
+    // …but one the workout lacks is added exactly once.
+    assert(setsMissingFrom(u1, [...u1, { exerciseId: 'lp', setNumber: 4, reps: 8, weight: 36 }]).length === 1, 'a set the workout lacks is added once');
+    // The poster's own live sets are never re-added (a failed un-tick stays un-ticked).
+    const u2 = unionForFinish([{ exerciseId: 'lp', setNumber: 1, reps: 10, weight: 36 }], [ls('lp', 2, 36, 5, 'phone'), ls('lp', 3, 36, 7, 'watch')], 'phone');
+    assert(u2.length === 2 && u2[1].setNumber === 3, 'own-source live sets are not resurrected on finish');
+  }
+  // A row never grows past the cap.
+  {
+    const many = Array.from({ length: 250 }, (_, i) => ls(`ex${i}`, 1, 10, i));
+    assert(mergeLiveSets([], many).length === 200, 'merged sets are capped at 200');
+  }
 
   // Overlay onto logger blocks: by set NUMBER, never array index — the
   // warm-up entry (setNumber 0) at index 0 must stay a warm-up.

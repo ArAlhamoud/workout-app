@@ -56,12 +56,14 @@ export default async function NewWorkoutPage({
   // 30): header and content must agree. Only a Watch-born session redirects;
   // a phone-born one is already where it started. Never when confirming a
   // detected session (it has its own identity).
+  // Only a BARE open (no ?day) follows the row: an explicit day — the
+  // user's tap, or the client hopping to a draft's own day — must win, or
+  // a kept Day B draft plus a Watch Day A row ping-pongs forever
+  // (adversary). Never on a rescue or a detected-session confirmation.
   const rawDayForLive = Array.isArray(searchParams.day) ? searchParams.day[0] : searchParams.day;
   const hkForLive = Array.isArray(searchParams.hk) ? searchParams.hk[0] : searchParams.hk;
-  if (
-    liveRow && liveRow.source === 'watch' && liveRow.day && !hkForLive &&
-    (rawDayForLive !== liveRow.day || (liveRow.durationMin && durStr && Number(durStr) !== liveRow.durationMin))
-  ) {
+  const rescueForLive = Array.isArray(searchParams.rescue) ? searchParams.rescue[0] : searchParams.rescue;
+  if (liveRow && liveRow.source === 'watch' && liveRow.day && !hkForLive && rescueForLive !== '1' && !rawDayForLive) {
     redirect(`/workouts/new?day=${liveRow.day}&dur=${liveRow.durationMin ?? 45}`);
   }
 

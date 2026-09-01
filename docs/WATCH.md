@@ -201,11 +201,18 @@ Contract (`/api/live`, no auth — single user):
 - `POST /api/live/close` `{ clientSaveId }` — discarded on a device.
 
 Merge rule (`src/lib/live-session.ts`, tested): a device owns what it
-logs; same key (exercise + set number) → the LATER completion wins;
-keys the update never mentions are untouched. On finish, `createWorkout`
-unions any live set the poster never saw (poster wins ties) and closes
-the row; a second finish under the same id adds the sets the saved
-workout lacks and returns `deduped` — a success, not an error.
+logs; same key (exercise + TEMPLATE set number, warm-ups keyed apart as
+setNumber 0) → the LATER completion wins; keys the update never
+mentions are untouched; a row holds ≤ 200 keys and only sets whose
+exerciseId exists. The phone's save keeps the template numbers too —
+renumbering 1..n across a warm-up once dropped a Watch set and doubled a
+phone set. Gym and source are FIRST-writer-wins: the opening device
+tagged the building (rule 2); the Watch sends no gym. On finish,
+`createWorkout` unions any live set from the OTHER device the poster
+never saw (poster wins ties; its own live sets are never re-added, so a
+failed un-tick stays un-ticked) and closes the row; a second finish
+under the same id adds the sets the saved workout lacks — in one
+transaction — and returns `deduped`: a success, not an error.
 
 Watch side: the Start screen shows **Continue Day X · N sets on the
 phone** when a phone-born row is open; `continueLive` builds the slots
@@ -213,12 +220,20 @@ from the plan for that day/length, ticks the phone's sets (they move to
 the head), keeps the phone's save id, and backdates the HKWorkout to the
 phone's start (owner's call — the phone half has no HR curve). Every
 `logCurrentSet`/RPE posts its set; `refreshLive` on wrist-raise notices a
-row the phone finished and lands on Done without posting. Phone side:
-the logger applies a live row on open (draft precedence: same id →
-overlay; a draft touched after the row moved wins; else live wins),
-pushes a debounced diff of ticked sets, polls every 30 s / on
-visibility, and jumps to the saved workout if the Watch finished it.
-The draft pill offers **Day X on the Watch · Continue here** elsewhere.
+row the phone finished: it first posts its own sets under the same id
+(the server adds what the workout lacks), then lands on Done.
+Phone-origin sets are marked, never rated on the wrist, and dropped if
+the phone un-ticks or discards them. Phone side: the logger applies a
+live row on open (draft precedence: same id → overlay; a draft with ANY
+ticked set wins; else live wins and the draft's date/start/gym reset),
+pushes a debounced diff of ticked sets (started-at = first tick), polls
+every 30 s / on visibility, and when the Watch finished first it posts
+its own un-pushed sets under the same id before following to the
+workout. Only a bare `/workouts/new` open follows a Watch row's day; an
+explicit `?day=` wins (a kept other-day draft must not ping-pong). The
+draft pill offers **⌚ Day X · N sets · Continue →** elsewhere, and its
+Discard closes the live row too. Known gap: when the phone did a
+machine's last set the wrist never shows that machine's RPE strip.
 
 ## Staying on the wrist (owner, 2026-09-01)
 

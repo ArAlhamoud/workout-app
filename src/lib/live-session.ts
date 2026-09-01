@@ -41,7 +41,15 @@ export const LIVE_MAX_AGE_MS = 4 * 60 * 60 * 1000;
 /** …and one nobody has touched for this long has been abandoned. */
 export const LIVE_IDLE_MS = 2 * 60 * 60 * 1000;
 
-export const liveKey = (s: { exerciseId: string; setNumber: number }) => `${s.exerciseId}#${s.setNumber}`;
+/** Set identity across devices: exercise + set NUMBER — the template
+ *  number, never an array index — with warm-ups in their own key space so
+ *  a ticked warm-up can never collide with working set 1 (steward +
+ *  adversary: the save used to renumber 1..n including the warm-up). */
+export const liveKey = (s: { exerciseId: string; setNumber: number; isWarmup?: boolean }) =>
+  `${s.exerciseId}#${s.isWarmup ? 'w' : s.setNumber}`;
+
+/** Hard cap on keys a live row may hold — the public route must not grow one without bound. */
+export const LIVE_MAX_SETS = 200;
 
 /**
  * Merge incoming updates into the stored sets. A device owns what it logs:
@@ -65,7 +73,9 @@ export function mergeLiveSets(stored: LiveSet[], incoming: LiveSetUpdate[]): Liv
     if (prev && Date.parse(prev.completedAt) > Date.parse(set.completedAt)) continue;
     map.set(key, set);
   }
-  return [...map.values()].sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt));
+  return [...map.values()]
+    .sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt))
+    .slice(-LIVE_MAX_SETS);
 }
 
 /**
@@ -88,14 +98,17 @@ export function isLiveFresh(
  * The sets a finishing device should save: everything it knows, plus any
  * live set logged on the OTHER device that it never saw. The poster's own
  * copy of a key wins — it is the device that just watched the set happen.
+ * Live sets from the poster's OWN source are never re-added: what it does
+ * not post now it un-ticked (a failed `remove` push must not resurrect).
  */
-export function unionForFinish<T extends { exerciseId: string; setNumber: number }>(
+export function unionForFinish<T extends { exerciseId: string; setNumber: number; isWarmup?: boolean }>(
   posted: T[],
   live: LiveSet[],
+  posterSource?: LiveSource,
 ): Array<T | { exerciseId: string; setNumber: number; reps: number; weight: number; rpe?: number; isWarmup?: boolean; completedAt?: string }> {
   const have = new Set(posted.map(liveKey));
   const extra = live
-    .filter((s) => !have.has(liveKey(s)))
+    .filter((s) => !have.has(liveKey(s)) && (!posterSource || s.source !== posterSource))
     .map((s) => ({
       exerciseId: s.exerciseId,
       setNumber: s.setNumber,
@@ -106,6 +119,15 @@ export function unionForFinish<T extends { exerciseId: string; setNumber: number
       completedAt: s.completedAt,
     }));
   return [...posted, ...extra];
+}
+
+/** The second finisher's contribution: posted sets the saved workout lacks, by key. */
+export function setsMissingFrom<T extends { exerciseId: string; setNumber: number; isWarmup?: boolean }>(
+  saved: Array<{ exerciseId: string; setNumber: number; isWarmup?: boolean }>,
+  posted: T[],
+): T[] {
+  const have = new Set(saved.map(liveKey));
+  return posted.filter((s) => !have.has(liveKey(s)));
 }
 
 /** Bounds shared with the logger and the Watch route; junk is dropped, not fatal. */

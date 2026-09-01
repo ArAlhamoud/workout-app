@@ -68,20 +68,33 @@ final class SessionStore: ObservableObject {
     /// wrist copy is done too and must not be posted again.
     func refreshLive() async {
         if let s = session {
-            if let row = await API.fetchLive(id: s.clientSaveId), row.isClosed {
+            guard let row = await API.fetchLive(id: s.clientSaveId) else { phoneLive = nil; return }
+            if row.isClosed {
                 if row.workoutId != nil {
+                    // Finished on the phone. Anything logged HERE that the
+                    // phone never saw rides a finish under the same id first
+                    // — the server adds what the workout lacks — then this
+                    // copy is done (adversary: wrist sets after the phone's
+                    // finish must not vanish).
                     restTimer?.invalidate()
-                    _ = await workout.end()
+                    let uuid = await workout.end()
+                    let own = s.logged.filter { $0.origin != "phone" }
+                    if !own.isEmpty {
+                        var payload = buildPayload(s, uuid: uuid)
+                        payload.sets = own
+                        if !(await API.postLog(payload)) { Store.enqueue(payload) }
+                    }
                     Store.saveSession(nil)
                     session = nil
                     keepAwake(false)
+                    pendingCount = Store.loadOutbox().count
                     phase = .done(banked: false)
-                    notice = "Finished on the phone"
                     WKInterfaceDevice.current().play(.success)
+                } else {
+                    // Discarded on the phone: its sets go, the wrist's stay.
+                    dropPhoneSets(all: true)
                 }
-                // Closed WITHOUT a workout = discarded on the phone. The wrist
-                // copy stays his; finishing here still saves it.
-            } else if let row = await API.fetchLive(id: s.clientSaveId) {
+            } else {
                 mergeLive(row)
             }
             phoneLive = nil
@@ -91,13 +104,29 @@ final class SessionStore: ObservableObject {
         phoneLive = (row?.source == "phone" && row?.isClosed == false) ? row : nil
     }
 
+    /// Phone-origin sets no longer on the row (un-ticked there) — or all of
+    /// them after a phone discard — leave `logged` so the finish does not
+    /// resurrect them. Their slots stay in the head: the card never asks
+    /// for a set the phone chose to bin.
+    private func dropPhoneSets(all: Bool, keeping row: LiveSession? = nil) {
+        guard var s = session else { return }
+        let onRow = Set((row?.sets ?? []).map { "\($0.exerciseId)#\($0.setNumber)" })
+        let before = s.logged.count
+        s.logged.removeAll { $0.origin == "phone" && (all || !onRow.contains("\($0.exerciseId)#\($0.setNumber)")) }
+        guard s.logged.count != before else { return }
+        session = s
+        Store.saveSession(s)
+    }
+
     /// Sets the phone logged that this wrist has not seen: mark their slots
     /// logged so the card does not ask for them again. Logged slots move to
     /// the head (the invariant rotatePending relies on).
     private func mergeLive(_ row: LiveSession) {
+        dropPhoneSets(all: false, keeping: row)
         guard var s = session else { return }
         let known = Set(s.logged.map { "\($0.exerciseId)#\($0.setNumber)" })
-        let fresh = row.sets.filter { !known.contains("\($0.exerciseId)#\($0.setNumber)") }
+        // Only the phone's sets come in; our own are already here.
+        let fresh = row.sets.filter { $0.source != "watch" && !known.contains("\($0.exerciseId)#\($0.setNumber)") }
         guard !fresh.isEmpty else { return }
         var head = Array(s.slots[..<s.currentIndex])
         var tail = Array(s.slots[s.currentIndex...])
@@ -107,7 +136,7 @@ final class SessionStore: ObservableObject {
             slot.weightKg = ls.weight
             slot.reps = ls.reps
             head.append(slot)
-            s.logged.append(LogSet(exerciseId: ls.exerciseId, setNumber: ls.setNumber, reps: ls.reps, weight: ls.weight, rpe: ls.rpe, isWarmup: ls.isWarmup ?? false))
+            s.logged.append(LogSet(exerciseId: ls.exerciseId, setNumber: ls.setNumber, reps: ls.reps, weight: ls.weight, rpe: ls.rpe, isWarmup: ls.isWarmup ?? false, origin: "phone"))
         }
         s.slots = head + tail
         s.currentIndex = head.count
@@ -148,7 +177,8 @@ final class SessionStore: ObservableObject {
             }
         let s = ActiveSession(
             clientSaveId: row.clientSaveId, day: row.day ?? p.day, rpeCap: p.rpeCap,
-            startedAt: row.startedDate, slots: slots, currentIndex: 0, logged: []
+            startedAt: row.startedDate, slots: slots, currentIndex: 0, logged: [],
+            gym: row.gym
         )
         session = s
         Store.saveSession(s)
@@ -165,9 +195,11 @@ final class SessionStore: ObservableObject {
     private func postLive(_ sets: [LogSet]) {
         guard let s = session else { return }
         let now = ISO8601DateFormatter.fractional.string(from: Date())
+        // gym is nil on purpose: the OPENING device tagged the building and
+        // the server keeps the first writer (rule 2).
         let post = LivePost(
             clientSaveId: s.clientSaveId, source: "watch", day: s.day,
-            durationMin: plan?.durationMin, gym: "bfit",
+            durationMin: plan?.durationMin, gym: nil,
             startedAt: ISO8601DateFormatter.fractional.string(from: s.startedAt),
             sets: sets.map { LiveUpdate(exerciseId: $0.exerciseId, setNumber: $0.setNumber, reps: $0.reps, weight: $0.weight, rpe: $0.rpe, isWarmup: $0.isWarmup, completedAt: now, remove: nil) }
         )
@@ -312,7 +344,8 @@ final class SessionStore: ObservableObject {
     func setRPE(_ rpe: Int, exerciseId: String) {
         guard var s = session else { return }
         var rated: LogSet?
-        if let i = s.logged.lastIndex(where: { $0.exerciseId == exerciseId }) {
+        // Rate OUR last set of the machine, never one the phone logged.
+        if let i = s.logged.lastIndex(where: { $0.exerciseId == exerciseId && $0.origin != "phone" }) {
             s.logged[i].rpe = rpe
             rated = s.logged[i]
         }
@@ -403,10 +436,7 @@ final class SessionStore: ObservableObject {
 
     // MARK: - Finish
 
-    func finish() async {
-        guard let s = session, !s.logged.isEmpty else { discard(); return }
-        phase = .uploading
-        let uuid = await workout.end()
+    private func buildPayload(_ s: ActiveSession, uuid: String?) -> LogPayload {
         let fmt = ISO8601DateFormatter()
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US")
@@ -414,17 +444,24 @@ final class SessionStore: ObservableObject {
         let dayFmt = DateFormatter()
         dayFmt.locale = Locale(identifier: "en_US_POSIX")
         dayFmt.dateFormat = "yyyy-MM-dd" // wearer's local calendar day
-        let payload = LogPayload(
+        return LogPayload(
             day: s.day,
             name: "Day \(s.day) — Watch · \(df.string(from: s.startedAt))",
             startISO: fmt.string(from: s.startedAt),
             localDay: dayFmt.string(from: s.startedAt),
             durationSec: Int(Date().timeIntervalSince(s.startedAt)),
-            gym: "bfit",
+            gym: s.gym ?? "bfit",
             healthWorkoutUuid: uuid,
             clientSaveId: s.clientSaveId,
             sets: s.logged
         )
+    }
+
+    func finish() async {
+        guard let s = session, !s.logged.isEmpty else { discard(); return }
+        phase = .uploading
+        let uuid = await workout.end()
+        let payload = buildPayload(s, uuid: uuid)
         let sent = await API.postLog(payload)
         if !sent { Store.enqueue(payload) }
         Store.saveSession(nil)

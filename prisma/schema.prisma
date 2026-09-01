@@ -326,9 +326,10 @@ model HealthSample {
 // the finish dedupes/merges into ONE Workout. Single user → at most one
 // open row matters; opening a new one closes the rest. Sets are JSON
 // (exerciseId, setNumber, reps, weight, rpe?, isWarmup?, completedAt,
-// source) merged by exercise+set number, later completion wins. Rows are
-// small and short-lived; closed rows are kept for a while as an audit of
-// the handoff and pruned by the sync job. Additive — a new table.
+// source) merged by exercise+set number, later completion wins; a row
+// holds at most 200 keys. Every write also prunes leftovers — closed rows
+// older than 7 days, open rows idle for a day (live-store.ts). Ephemeral:
+// never exported or restored. Additive — a new table.
 model LiveSession {
   clientSaveId String    @id
   day          String?

@@ -83,11 +83,24 @@ export async function upsertLive(meta: LiveMeta, updates: LiveSetUpdate[]): Prom
     const existing = await prisma.liveSession.findUnique({ where: { clientSaveId: meta.clientSaveId } });
     if (existing?.closedAt) return toSession(existing);
     const startedAt = meta.startedAt ? new Date(meta.startedAt) : existing?.startedAt ?? new Date();
-    const sets = mergeLiveSets(existing ? toSession(existing).sets : [], updates);
+    // A set can only belong to a machine that exists: an unknown id would
+    // ride the finish union into the Workout insert, hit the FK and leave
+    // the session unsaveable under its id (steward).
+    const ids = new Set(
+      updates.filter((u) => !('remove' in u)).map((u) => u.exerciseId),
+    );
+    const known = ids.size
+      ? new Set((await prisma.exercise.findMany({ where: { id: { in: [...ids] } }, select: { id: true } })).map((e) => e.id))
+      : new Set<string>();
+    const clean = updates.filter((u) => 'remove' in u || known.has(u.exerciseId));
+    const sets = mergeLiveSets(existing ? toSession(existing).sets : [], clean);
     const data = {
       day: meta.day ?? existing?.day ?? null,
       durationMin: meta.durationMin ?? existing?.durationMin ?? null,
-      gym: meta.gym ?? existing?.gym ?? null,
+      // Gym is FIRST-writer-wins, like source: the device that opened the
+      // session tagged the building (rule 2 — the Watch has no gym toggle
+      // and must never relabel an Alrajhi session as B_Fit).
+      gym: existing?.gym ?? meta.gym ?? null,
       source: existing?.source ?? meta.source,
       startedAt: Number.isNaN(startedAt.getTime()) ? new Date() : startedAt,
       sets: sets as unknown as Prisma.InputJsonValue,
@@ -101,6 +114,17 @@ export async function upsertLive(meta: LiveMeta, updates: LiveSetUpdate[]): Prom
       prisma.liveSession.updateMany({
         where: { closedAt: null, clientSaveId: { not: meta.clientSaveId } },
         data: { closedAt: new Date() },
+      }),
+      // Housekeeping rides every write: closed rows older than a week and
+      // open rows nobody touched for a day are leftovers, not history.
+      prisma.liveSession.deleteMany({
+        where: {
+          clientSaveId: { not: meta.clientSaveId },
+          OR: [
+            { closedAt: { lt: new Date(Date.now() - 7 * 86400000) } },
+            { closedAt: null, updatedAt: { lt: new Date(Date.now() - 86400000) } },
+          ],
+        },
       }),
     ]);
     return toSession(row);
