@@ -247,9 +247,10 @@ the app up for the whole session (`SessionStore.keepAwake`):
    still ticking. After a relaunch mid-session `WorkoutManager.
    recoverOrBegin` reattaches to HealthKit's live session (or starts a
    fresh one) so a resumed session behaves the same.
-2. **Extended frontmost timeout** (`isFrontmostTimeoutExtended`) while a
-   session exists — if HealthKit refused the session, wrist-raise still
-   returns to the app for 8 minutes after the last touch instead of 2.
+2. ~~Extended frontmost timeout~~ — REMOVED (Mac session, build 7):
+   `frontmostTimeoutExtended` is deprecated since watchOS 7 and a no-op.
+   `keepAwake` is an explicit no-op kept as the seam; do not restore
+   the call. The running workout session is the one real mechanism.
 
 No app can hold the backlight itself on; that is a watch setting. On the
 watch: **Settings → Display & Brightness → Always On: on**, and **Wake
