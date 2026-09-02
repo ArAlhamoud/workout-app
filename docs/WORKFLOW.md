@@ -101,6 +101,23 @@ with, and prefer pushing before a session rather than during one.
 
 ## Mac backlog (owner-approved, cloud session cannot build these)
 
+- **Two-simulator handoff E2E PASSED (Mac session, 2026-09-02, iPhone 17
+  sim + Ultra sim, both real apps, production server).** Phone opened the
+  logger and ticked 2 sets → live row appeared → watch Start offered
+  "Continue Day B · 2 sets on the phone" → Continue reused the phone's
+  save id → watch logged 1 set and finished → ONE merged 3-set workout →
+  the phone auto-jumped to the saved workout page. Test row deleted.
+  **BUG FOR THE CLOUD (web-side): day-label collision on logger entry.**
+  Entering via /train "START DAY A" resumed the stale Day B draft
+  underneath: masthead said "DAY B WORKOUT", the live row went out as
+  day:B while carrying Day A machines (Leg Press). Consequence on the
+  wrist: continueLive builds slots for the row's day, so the phone's
+  ticks matched nothing and showed as unticked (mergeLive skips foreign
+  exerciseIds by design). No data was lost — unionForFinish rescued the
+  phone sets into the final workout — but the watch UI misrepresents
+  progress whenever the phone's draft day and the started day disagree.
+  Fix belongs where the draft is resumed vs the ?day= param.
+
 - **TestFlight build 8 is VALID (2026-09-02, Mac session) — ALL FOUR wrist
   items are built, E2E-verified and shipped**, including item 4: the live
   handoff was exercised on the Ultra sim with curl playing the phone
