@@ -230,7 +230,7 @@ export default async function WorkoutDetailPage({
                   return (
                     <div key={set.id} className="flex items-center gap-3 text-sm py-0.5">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-app-tx3 tabular-nums w-4 text-center">{set.setNumber}</span>
+                        <span className="text-app-tx3 tabular-nums w-4 text-center">{set.isWarmup ? 'W' : set.setNumber}</span>
                         {rpe && (
                           <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold leading-none ${rpe.cls}`}>
                             {rpe.label}
