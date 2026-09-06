@@ -58,6 +58,12 @@ async function main() {
   console.log(`snapshot   ${FILE}`);
   console.log(`exported   ${snap.exportedAt ?? 'unknown'}`);
   console.log(`contents   ${exercises.length} exercises · ${workouts.length} workouts · ${sets.length} sets · ${bodyStats.length} body stats · ${healthSamples.length} health samples`);
+  // Print the treatment record explicitly. It used to be invisible here, so a
+  // snapshot missing all of it looked identical to one carrying all of it.
+  const healthCounts = Object.entries(snap.health ?? {})
+    .map(([t, rows]) => `${(rows ?? []).length} ${t}`)
+    .join(' · ');
+  console.log(`health     ${healthCounts || 'NONE — no health section in this snapshot'}`);
 
   // ── Integrity checks — these are the point of the dry run ──────────────
   const problems = [];
@@ -78,6 +84,23 @@ async function main() {
   if (snap.totalHealthSamples && healthSamples.length !== snap.totalHealthSamples) {
     problems.push(
       `header says ${snap.totalHealthSamples} health samples, snapshot holds ${healthSamples.length} — pre-fix snapshot, those rows are not recoverable from this file`,
+    );
+  }
+  // A snapshot with no `health` section at all used to print "no issues
+  // found": the checks above only fire on a header/array MISMATCH, and a file
+  // carrying neither header nor rows mismatches nothing. Every iCloud backup
+  // taken before 2026-09-07 is such a file — no injections, labs, BP, CPAP,
+  // AF or nutrition. Absence has to be louder than a clean bill of health,
+  // because the treatment record is the one thing here that cannot be
+  // re-derived from anything else.
+  if (!snap.health) {
+    problems.push(
+      'snapshot carries NO health section (injections, labs, BP, CPAP, AF, nutrition, medications) — ' +
+        'pre-2026-09-07 iCloud backup; restoring it will leave the treatment record empty',
+    );
+  } else if (snap.totalInjections !== undefined && (snap.health.injection ?? []).length !== snap.totalInjections) {
+    problems.push(
+      `header says ${snap.totalInjections} injections, snapshot holds ${(snap.health.injection ?? []).length}`,
     );
   }
 
@@ -109,8 +132,32 @@ async function main() {
   // ── Write path ─────────────────────────────────────────────────────────
   if (!process.env.DATABASE_URL) die('--apply needs DATABASE_URL');
 
-  const { PrismaClient } = require('@prisma/client');
+  const { PrismaClient, Prisma } = require('@prisma/client');
   const prisma = new PrismaClient();
+
+  // A nullable Json column round-trips through JSON.stringify as `null`, and
+  // Prisma will NOT accept `null` there: the generated input type is
+  // `NullableJsonNullValueInput | InputJsonValue`, with no `| null`. Passing
+  // it through raw dies on the first workout (`hrSeries: null` — every row in
+  // the current snapshot) and again on nutritionLog (`flags: null`). The app
+  // already works around this in four places with Prisma.DbNull. Without this
+  // the restore is a hypothesis, not a backup.
+  const JSON_COLUMNS = {
+    workout: ['hrSeries'],
+    healthProfile: ['milestonesKg', 'conditions', 'dosePlan', 'targets', 'reminders'],
+    symptomLog: ['context'],
+    nutritionLog: ['flags'],
+    coachNote: ['directives', 'proposal'],
+    coachLadderCopy: ['copy'],
+  };
+  /** Row with its nullable-Json nulls swapped for the JSON null Prisma wants. */
+  const jsonSafe = (table, row) => {
+    const cols = JSON_COLUMNS[table];
+    if (!cols) return row;
+    const out = { ...row };
+    for (const c of cols) if (out[c] === null) out[c] = Prisma.DbNull;
+    return out;
+  };
 
   const existing = await prisma.workout.count();
   if (existing > 0 && !FORCE) {
@@ -130,7 +177,8 @@ async function main() {
   console.log(`  exercises   ${exercises.length}`);
 
   for (const w of workouts) {
-    const { sets: workoutSets = [], ...row } = w;
+    const { sets: workoutSets = [], ...raw } = w;
+    const row = jsonSafe('workout', raw);
     await prisma.workout.upsert({ where: { id: w.id }, update: row, create: row });
     for (const s of workoutSets) {
       const { exercise, ...setRow } = s;
@@ -179,7 +227,8 @@ async function main() {
   for (const [table, whereOf] of healthTables) {
     const rowsForTable = (snap.health && snap.health[table]) || [];
     for (const r of rowsForTable) {
-      await prisma[table].upsert({ where: whereOf(r), update: r, create: r });
+      const row = jsonSafe(table, r);
+      await prisma[table].upsert({ where: whereOf(r), update: row, create: row });
     }
     if (rowsForTable.length) console.log(`  ${table.padEnd(12)}${rowsForTable.length}`);
   }

@@ -1930,6 +1930,66 @@ console.log('health-insights');
   assert(split.since === null, 'two readings since treatment is not yet an average');
 }
 
+// ── rule 7, enforced on the SOURCE ───────────────────────────────────────
+// rampPrefillWeight's `pin` argument defaults to 2.5, so a call site that
+// forgets it still compiles, still returns a plausible number, and silently
+// stops being pin-aware. That is exactly what happened to the "↓ Return N kg"
+// chip: one of seven call sites omitted the pin, so the chip and the weight
+// box beside it disagreed on 8 of 14 machines. The unit tests above cannot
+// catch it — they test the function, and the function was never wrong.
+{
+  const callSites: { file: string; args: number; text: string }[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(p);
+      else if (/\.tsx?$/.test(entry.name)) {
+        const src = fs.readFileSync(p, 'utf8');
+        const needle = 'rampPrefillWeight(';
+        for (let i = src.indexOf(needle); i >= 0; i = src.indexOf(needle, i + 1)) {
+          // Skip the declaration itself.
+          if (/(function|const)\s+$/.test(src.slice(Math.max(0, i - 20), i))) continue;
+          let depth = 0;
+          let commas = 0;
+          let j = i + needle.length - 1;
+          // A TRAILING comma must not count as an argument: written
+          // multi-line with a dangling comma, a two-argument call otherwise
+          // scored 3 and sailed through the very check that exists to catch
+          // it (data-steward). Track the last comma and drop it if nothing
+          // but whitespace separates it from the closing paren.
+          let lastCommaAt = -1;
+          for (; j < src.length; j++) {
+            const c = src[j];
+            if (c === '(' || c === '[' || c === '{') depth++;
+            else if (c === ')' || c === ']' || c === '}') {
+              depth--;
+              if (depth === 0) break;
+            } else if (c === ',' && depth === 1) {
+              commas++;
+              lastCommaAt = j;
+            }
+          }
+          if (lastCommaAt !== -1 && src.slice(lastCommaAt + 1, j).trim() === '') commas--;
+          callSites.push({
+            file: path.relative(process.cwd(), p),
+            args: commas + 1,
+            text: src.slice(i, Math.min(j + 1, i + 90)).replace(/\s+/g, ' '),
+          });
+        }
+      }
+    }
+  };
+  walk(path.join(__dirname, '..', 'src'));
+
+  assert(callSites.length >= 6, `expected to find the rampPrefillWeight call sites, found ${callSites.length}`);
+  const pinless = callSites.filter((c) => c.args < 3);
+  assert(
+    pinless.length === 0,
+    `every rampPrefillWeight call must pass the machine's learned pin (rule 4/7) — ` +
+      `pinless: ${pinless.map((c) => `${c.file}: ${c.text}`).join(' | ') || 'none'}`,
+  );
+}
+
 // ── summary ──────────────────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

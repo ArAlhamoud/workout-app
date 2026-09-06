@@ -87,6 +87,33 @@ export function enqueueSave(payload: OutboxPayload): Promise<void> {
   });
 }
 
+/**
+ * Queue a save ONLY if this id is not already queued — atomically, inside the
+ * same mutex, so a check-then-enqueue cannot interleave.
+ *
+ * `enqueueSave` REPLACES by clientSaveId, which is right for a retry of the
+ * same submission and wrong for a background path racing the user's own Save.
+ * The handoff path (`liveClosedElsewhere`) snapshots its sets, then awaits a
+ * network call that can hang for a minute; if the user ticks more sets and
+ * taps Save meanwhile, the user's richer payload lands first and the hung
+ * call's stale snapshot would then replace it — deleting the later sets from
+ * the only copy that still exists, because Save cleared the draft.
+ *
+ * Returns true if it queued, false if an entry for that id was already there
+ * (in which case the caller's payload is the stale one and must not win).
+ */
+export function enqueueSaveIfAbsent(payload: OutboxPayload): Promise<boolean> {
+  return withLock(async () => {
+    const entries = await readQueue(OUTBOX_KEY);
+    if (entries.some((e) => e.payload.clientSaveId === payload.clientSaveId)) return false;
+    await writeQueue(OUTBOX_KEY, [
+      ...entries,
+      { payload, queuedAtISO: new Date().toISOString(), attempts: 0 },
+    ]);
+    return true;
+  });
+}
+
 export async function outboxCount(): Promise<number> {
   return (await readQueue(OUTBOX_KEY)).length;
 }

@@ -39,12 +39,22 @@ async function main() {
     ['medication', 'findMany', {}],
     ['nutritionLog', 'findMany', { orderBy: { day: 'asc' } }],
   ];
+  // A failed read used to become `[]`, and totalInjections was then derived
+  // from that same empty array — so header and array agreed and the restore
+  // dry run printed "integrity no issues found" over a snapshot with the
+  // treatment record silently removed. This script runs daily in
+  // sync-data.yml and COMMITS over data/workout-history.json, so one bad read
+  // on Neon would replace the git-tracked copy with an empty one. Record the
+  // failures and refuse to write; a missing snapshot is loud, a hollow one is
+  // not (data-steward).
+  const degraded = [];
   for (const [table, method, args] of healthTables) {
     try {
       health[table] = await prisma[table][method](args);
     } catch (e) {
-      console.warn(`${table} unavailable, skipping:`, e.message);
+      console.warn(`${table} unavailable:`, e.message);
       health[table] = [];
+      degraded.push(`${table}: ${e.message}`);
     }
   }
 
@@ -82,6 +92,13 @@ async function main() {
     bodyStats: stats,
     health,
   };
+
+  if (degraded.length) {
+    console.error('\n✗ refusing to write a degraded snapshot — these tables did not read:');
+    for (const d of degraded) console.error(`    ${d}`);
+    console.error('  The existing data/workout-history.json is left untouched.');
+    process.exit(1);
+  }
 
   const outPath = path.join(__dirname, '../data/workout-history.json');
   fs.writeFileSync(outPath, JSON.stringify(data, null, 2));

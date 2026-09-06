@@ -12,7 +12,7 @@ import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
-import { enqueueSave, newClientSaveId } from '@/lib/outbox';
+import { enqueueSave, enqueueSaveIfAbsent, newClientSaveId } from '@/lib/outbox';
 import { armGapGuard, clearComeback, rearmGapGuardFromServer } from '@/lib/gap-guard';
 import { readReadiness } from '@/lib/health-metrics';
 import type { ReadinessSignal } from '@/lib/coach';
@@ -565,18 +565,46 @@ export default function WorkoutForm({
       // workout lacks — BEFORE this copy is let go (adversary: three sets
       // ticked in the basement must not vanish on the poll).
       const own = collectSetsToSave();
+      let handedOff = true;
       if (own.length) {
+        const payload = {
+          name: name.trim() || initialName,
+          date: date || localTodayStr(),
+          gym,
+          clientSaveId: row.clientSaveId,
+          finishSource: 'phone' as const,
+          sets: own,
+        };
         try {
-          await createWorkout({
-            name: name.trim() || initialName,
-            date: date || localTodayStr(),
-            gym,
-            clientSaveId: row.clientSaveId,
-            finishSource: 'phone',
-            sets: own,
-          });
-        } catch { /* offline again — the row is closed; nothing more to do here */ }
+          await createWorkout(payload);
+        } catch {
+          // Was: swallow, drop the draft, buzz success. A network blip
+          // between noticing the Watch's finish and posting these sets threw
+          // away real work with a success haptic. Queue it durably instead —
+          // the outbox replays on restore and on every app open, and the
+          // shared clientSaveId makes the replay land on createWorkout's
+          // merge branch, adding only what the saved workout lacks.
+          //
+          // IfAbsent, not plain enqueueSave: this await can hang for a
+          // minute, and if he tapped Save meanwhile his richer payload is
+          // already queued under this same id. A plain enqueue REPLACES it,
+          // and since Save cleared the draft that would delete the newer
+          // sets from the only copy left.
+          try {
+            const queued = await enqueueSaveIfAbsent(payload);
+            if (queued) setQueuedOffline(true);
+          } catch {
+            // Even the queue write failed (storage full/blocked). Keep the
+            // draft and stay put: a recoverable copy on this screen beats a
+            // tidy navigation away from lost sets. Say so — this path is
+            // otherwise completely silent, and it most often fires seconds
+            // after a draft restore, while "Start fresh" is still on screen.
+            setError('The Watch finished this session. Tap Save to add the sets you logged here.');
+            handedOff = false;
+          }
+        }
       }
+      if (!handedOff) return;
       pendingDraftRef.current = null;
       void durableRemove(DRAFT_KEY);
       hapticSuccess();
@@ -611,9 +639,17 @@ export default function WorkoutForm({
       for (const st of b.sets) {
         // Warm-ups count for nothing and the wrist has no such set.
         if (!st.done || !st.completedAt || st.isWarmup) continue;
-        const key = liveKey({ exerciseId: b.exerciseId, setNumber: st.setNumber });
+        // The SET's exercise, never the block's. A swap leaves already-done
+        // sets on the exercise they were performed on, so the two diverge —
+        // and stamping the block's id here pushed a 60 kg Chest Press set to
+        // the live row labelled Pec Fly. A Watch finish then wrote it as a
+        // 60 kg Pec Fly PR, unbeatable and unrepairable (no per-set editor).
+        // Same class as the cross-gym PR bug, laundered through exerciseId
+        // instead of gym.
+        const exerciseId = st.exerciseId ?? b.exerciseId;
+        const key = liveKey({ exerciseId, setNumber: st.setNumber });
         current.set(key, {
-          exerciseId: b.exerciseId, setNumber: st.setNumber, reps: st.reps, weight: st.weight,
+          exerciseId, setNumber: st.setNumber, reps: st.reps, weight: st.weight,
           rpe: st.rpe || undefined, isWarmup: false, completedAt: st.completedAt, source: 'phone',
         });
       }
@@ -948,6 +984,18 @@ export default function WorkoutForm({
     // swapping an exercise while tagged to Alrajhi would prefill a B_Fit
     // weight off a different machine.
     const prev = sessionMemory[exerciseId];
+    // Scale like every other weight-writing handler. This one wrote
+    // `prev.weight` raw, so swapping in REBOOT week loaded 100% of pre-break
+    // (Lat Pulldown 40 kg) with the ember chip beside it saying "Return
+    // 21 kg" — rule 7, and the prefill IS the instruction. The warm-up keeps
+    // its 55%-of-working shape too; the gym switch learned that at :826 and
+    // this handler never did.
+    const swapInc = pinIncrements[exerciseId] ?? DEFAULT_PIN_INCREMENT;
+    const swapWorking = prev?.weight
+      ? rampPrefillWeight(prev, returnLoadPct ?? 100, swapInc)
+      : 0;
+    const swapWarm =
+      swapWorking > 0 ? Math.max(swapInc, Math.floor((swapWorking * 0.55) / swapInc) * swapInc) : 0;
     setBlocks((cur) =>
       cur.map((b) =>
         b.uid === uid
@@ -972,7 +1020,19 @@ export default function WorkoutForm({
               showCues: false,
               expandedNoteIdx: null,
               lastSession: prev,
-              sets: b.sets.map((s) => ({ ...s, exerciseId, weight: prev?.weight ?? 0 })),
+              // A DONE set is a fact: he lifted that weight on that machine.
+              // This used to rewrite every set, so swapping after two working
+              // sets stamped the new exerciseId over them and — when the new
+              // exercise is off-plan, so sessionMemory has no entry — wrote
+              // `?? 0`, turning real lifts into 0 kg rows. That then became
+              // next session's prefill through getLoggerMemory, and there is
+              // no per-set editor to repair it. Swap only what is still
+              // pending; completed sets keep the exercise they were performed
+              // on, which is also what makes them save correctly. The gym
+              // switch has guarded this since :822 — this handler did not.
+              sets: b.sets.map((s) =>
+                s.done ? s : { ...s, exerciseId, weight: s.isWarmup ? swapWarm : swapWorking },
+              ),
             }
           : b,
       ),
@@ -1641,14 +1701,33 @@ export default function WorkoutForm({
           const ex = exerciseById.get(block.exerciseId);
           const isTimed = block.unit === 'seconds';
           const pr = ex ? (gymRecords[block.exerciseId] ?? 0) : 0;
-          const hasNewPR = !isTimed && block.sets.some((s) => s.weight > 0 && s.weight > pr);
+          // Each set against ITS OWN exercise's record. A swap leaves done
+          // sets on the exercise they were performed on, so a 60 kg Chest
+          // Press set sitting in a swapped-to Pec Fly block was clearing Pec
+          // Fly's record and lighting a 🏆 he never earned. Rule 2's fake PR,
+          // one exercise over instead of one gym over.
+          const hasNewPR =
+            !isTimed &&
+            block.sets.some(
+              (s) => s.weight > 0 && s.weight > (gymRecords[s.exerciseId ?? block.exerciseId] ?? 0),
+            );
           const allDone = block.sets.length > 0 && block.sets.every((s) => s.done);
 
           const lastRpe = block.lastSession?.rpe ?? null;
           // While ramping back, the scaled target replaces the normal
           // progress/hold advice — that advice reads pre-break sessions.
+          // The pin is NOT optional here. This was the only one of seven
+          // rampPrefillWeight call sites that omitted it, so the chip fell
+          // back to the 2.5 kg default while the weight box beside it used
+          // the machine's learned pin — they disagreed on 8 of 14 machines
+          // (Lat Pulldown: box 21 kg, chip "Return 25 kg"). Rule 4: stacks
+          // move in pins, and the pin is per machine.
           const returnTarget = returnLoadPct && !isTimed && block.lastSession?.weight
-            ? rampPrefillWeight(block.lastSession, returnLoadPct)
+            ? rampPrefillWeight(
+                block.lastSession,
+                returnLoadPct,
+                pinIncrements[block.exerciseId] ?? DEFAULT_PIN_INCREMENT,
+              )
             : null;
           const deload = deloadHints[block.exerciseId];
           const readinessHold = readiness?.verdict === 'hold';
