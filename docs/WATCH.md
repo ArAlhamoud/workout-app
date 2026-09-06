@@ -309,9 +309,32 @@ LEFT edge of the row → still rotates (contentShape works); swipe right
 beats the button); rest-screen near-miss at the far right → rotates
 instead of killing the rest.
 
-Known, not fixed: the "End" toolbar badge occludes the machine label at
-the top of the set card — worst on the zero-weight card, where "Life
-Fitness" renders as "Lif⬤ess". Pre-existing, needs a layout pass.
+**The "End" badge vs the machine label (fixed 2026-09-07).** The badge
+is a fixed top-LEFT overlay at x 15.5…48 pt, y 21…53. The set card's
+VStack is vertically CENTRED, so it grows upward as content is added
+and the machine label drifts up into the badge: worst on the
+zero-weight card, which adds the "turn the crown" line and pushed the
+label to y 43.5, rendering "Lif⬤ess Dual Adjustable Pulley…".
+
+The fix is horizontal, and the reason matters. Content already ends at
+y 241 of 251, so pushing the card DOWN needs ~17 pt that does not
+exist; buying it back by tightening the stack would undo the hint-row
+clearance above the Log set button. Insetting the label past the
+badge's width (`.padding(.leading, 50)`, trailing 8) clears it at every
+vertical position, in every state, and costs zero vertical space. The
+tail that truncation now eats — "(seated Back Extension)" — is the part
+line 2 already says, so the readable information went UP.
+
+Measured before/after in all six states (normal, long name,
+zero-weight, zero-weight+single, seconds/Plank, single-machine): in the
+badge's own y band, ink now starts at x 15.5 (the badge's own edge)
+where it previously started at x 6.0 (the label's clipped glyphs). Hint
+row and Log set bands are byte-identical before and after.
+
+Sim states are staged by writing `Documents/active-session.json` into
+the app container and relaunching — `onLaunch` restores straight to
+`.active` and only issues GETs, so no card state needs a logged set and
+nothing touches the production database.
 
 
 A horizontal swipe on the set card rotates the PENDING machines: swipe

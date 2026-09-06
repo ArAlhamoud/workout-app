@@ -171,10 +171,22 @@ struct SetCardView: View {
 
     var body: some View {
         VStack(spacing: 6) {
+            // The "End" badge is a fixed top-LEFT overlay (x 15.5…48 pt,
+            // y 21…53). This VStack is vertically centred, so it grows
+            // UPWARD as content is added and the machine label drifts into
+            // the badge: on the zero-weight card (which adds the crown line)
+            // it rode to y 43.5 and rendered "Lif⬤ess Dual Adjustable…".
+            // The fix is horizontal, not vertical — content already ends at
+            // y 241 of 251, so there is nothing to spend on pushing it down,
+            // and taking it from the hint row would undo the Log-set
+            // clearance. Insetting past the badge's width clears it at EVERY
+            // vertical position, in every state, for free.
             Text(slot.machine)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .padding(.leading, 50)
+                .padding(.trailing, 8)
             Text("Set \(slot.setNumber)/\(slot.setsTotal) · \(slot.exerciseName)")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .lineLimit(1)
