@@ -525,7 +525,10 @@ assert(nextTarget(29, 4, 1.5).weight === 27.5 && nextTarget(29, 4, 1.5).action =
 // ── weeklyReport smoke test on real data ─────────────────────
 console.log('weeklyReport');
 const status = getTrainingStatus(preBreak, day('2026-07-29T12:00:00Z'));
-const report = weeklyReport(data.workouts, data.bodyStats, status, day('2026-07-29T12:00:00Z'));
+// Only history up to the pinned 'now': the morning sync appends sessions,
+// and a September session leaking into a July report emptied its focus list.
+const workoutsToJul29 = data.workouts.filter((w) => new Date(w.date).getTime() <= day('2026-07-29T12:00:00Z').getTime());
+const report = weeklyReport(workoutsToJul29, data.bodyStats, status, day('2026-07-29T12:00:00Z'));
 assert(report.headline.length > 0, 'headline present');
 assert(report.headline.includes('Return ramp week 1'), `headline reflects return week 1 (got "${report.headline}")`);
 // Whatever lane the live weigh-ins are in, the trend has to reach the report.
@@ -535,7 +538,7 @@ assert(
   `the live weight trend surfaces (${reportTrend.classification})`,
 );
 // …and the fat-loss lane specifically lands in wins, on a fixed series.
-const losingReport = weeklyReport(data.workouts, losingStats, status, day('2026-07-29T12:00:00Z'));
+const losingReport = weeklyReport(workoutsToJul29, losingStats, status, day('2026-07-29T12:00:00Z'));
 assert(losingReport.wins.some((w) => w.includes('on track')), 'weight trend win surfaces');
 assert(report.focus.length > 0, 'focus items present (sessions behind target)');
 assert(report.nextSession.some((n) => n.includes('60%')), 'return guidance carries the 60% load');
@@ -786,7 +789,8 @@ const allProgramExercises = [
   ...getDayTemplate('B').exercises,
 ];
 
-assert(allProgramExercises.length === 17, `the program still has 17 movements (got ${allProgramExercises.length})`);
+// 18 since 2026-09-06: Hip Adduction joined Hip Abduction (same combo machine, 2+2).
+assert(allProgramExercises.length === 18, `the program still has 18 movements (got ${allProgramExercises.length})`);
 
 for (const ex of allProgramExercises) {
   // Plank is floor work — it needs no machine at either gym.

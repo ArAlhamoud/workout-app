@@ -9,6 +9,7 @@ const exercises = [
   { name: 'Hip Thrust Machine', category: 'LEGS' },
   { name: 'Back Extension', category: 'BACK' },
   { name: 'Hip Abduction', category: 'LEGS' },
+  { name: 'Hip Adduction', category: 'LEGS' },
 ];
 
 async function main() {

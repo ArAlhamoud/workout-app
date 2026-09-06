@@ -1,0 +1,57 @@
+name: Run history script
+
+# The sanctioned way to run any scripts/*.js history repair against the
+# live database (data-steward rule: live-DB work ships as a manually
+# triggered Action with a preview step). The dry run ALWAYS prints first;
+# the write happens only when `apply` is checked. Scripts must default to
+# dry-run and accept --apply.
+
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Script file name under scripts/ (e.g. split-hip-adduction.js)'
+        type: string
+        required: true
+      apply:
+        description: 'Write the changes (leave unchecked to preview only)'
+        type: boolean
+        default: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: npm install --no-audit --progress=false
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Refuse anything outside scripts/
+        run: |
+          case "${{ inputs.script }}" in
+            *..*|*/*) echo "script must be a bare file name under scripts/"; exit 1;;
+          esac
+          test -f "scripts/${{ inputs.script }}"
+
+      - name: Preview (dry run)
+        run: node "scripts/${{ inputs.script }}"
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Apply
+        if: ${{ inputs.apply }}
+        run: node "scripts/${{ inputs.script }}" --apply
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

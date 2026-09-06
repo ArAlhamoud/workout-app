@@ -65,6 +65,11 @@ const ALRAJHI: GymEquipment = {
       cues: "There is no back extension machine here, so this becomes a pull-through — which trains the same thing the seated machine does: HIP extension with a neutral spine. Rope on the LOWEST pulley. Face away from the machine, straddle the cable, rope between your legs, hands gripping it behind you. Walk forward two steps. Hinge at the hips, pushing your butt back and letting the rope travel between your legs until you feel a strong hamstring stretch — knees only slightly bent, back flat the whole way. Then drive your hips FORWARD and squeeze your glutes hard to stand tall. Hold 1s. MISTAKE TO AVOID: turning it into a squat, or leaning back at the top. The spine never bends — the hips do all the moving.",
       youtubeUrl: 'https://www.youtube.com/watch?v=Uxo1cnpLE0I',
     },
+    'Hip Adduction': {
+      machine: `${CROSSOVER} (standing cable adduction)`,
+      cues: 'Ankle strap on the LOWEST pulley, fastened to the leg NEAREST the machine. Stand side-on, hold the frame with the far hand, tall on the supporting leg. Sweep the strapped leg across your midline in front of the other foot — feel it along the inner thigh. Straight leg, toes forward. Across 2s, hold 1s, return 3s without letting the stack touch down. All reps one side, then swap. MISTAKE TO AVOID: leaning away from the machine to add range — stay upright, small range, slow tempo.',
+      youtubeUrl: 'https://www.youtube.com/watch?v=CjAVezAggkI',
+    },
     'Hip Abduction': {
       machine: `${CROSSOVER} (standing cable abduction)`,
       cues: 'Ankle strap on the LOWEST pulley, fastened to the leg furthest from the machine. Stand side-on, hold the frame with the near hand for balance, stand tall on the supporting leg. Sweep the strapped leg out and away from your midline — you should feel it on the side of the hip, not the lower back. Keep the working leg straight and the toes pointing forward, not turned out. Out 2s, hold 1s at the widest point, return 3s without letting the stack touch down. Do all reps one side, then swap. MISTAKE TO AVOID: swinging the leg with momentum or twisting the torso to gain range — small range, slow tempo, light weight.',
