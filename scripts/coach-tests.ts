@@ -802,7 +802,7 @@ for (const ex of allProgramExercises) {
 
 // The five with no machine at all are rebuilt, so they must carry replacement
 // cues — the B_Fit cues describe hardware that does not exist there.
-for (const name of ['Pec Fly', 'Lateral Raise', 'Rear Delt Fly', 'Back Extension', 'Hip Abduction']) {
+for (const name of ['Pec Fly', 'Lateral Raise', 'Rear Delt Fly', 'Back Extension', 'Hip Abduction', 'Hip Adduction']) {
   const swap = gymSwap(name, 'work');
   assert(!!swap?.cues, `${name} is rebuilt at Alrajhi and carries its own cues`);
   assert(!!swap?.youtubeUrl, `${name} carries its own video for the rebuilt version`);

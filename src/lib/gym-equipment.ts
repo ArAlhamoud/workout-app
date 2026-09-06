@@ -3,8 +3,8 @@
 // Hammer Strength). Alrajhi Tower is an entirely different floor: a Precor
 // VSL selectorized line, one Cybex VR1, and one Hoist dual-pulley crossover.
 //
-// Twelve of the seventeen program movements have a direct Precor machine.
-// The remaining five have no machine at all — they are all rebuilt on the
+// Twelve of the eighteen program movements have a direct Precor machine.
+// The remaining six have no machine at all — they are all rebuilt on the
 // crossover, which is why that one station is the most important piece of
 // equipment in the room.
 //
@@ -67,13 +67,13 @@ const ALRAJHI: GymEquipment = {
     },
     'Hip Adduction': {
       machine: `${CROSSOVER} (standing cable adduction)`,
-      cues: 'Ankle strap on the LOWEST pulley, fastened to the leg NEAREST the machine. Stand side-on, hold the frame with the far hand, tall on the supporting leg. Sweep the strapped leg across your midline in front of the other foot — feel it along the inner thigh. Straight leg, toes forward. Across 2s, hold 1s, return 3s without letting the stack touch down. All reps one side, then swap. MISTAKE TO AVOID: leaning away from the machine to add range — stay upright, small range, slow tempo.',
-      youtubeUrl: 'https://www.youtube.com/watch?v=CjAVezAggkI',
+      cues: 'Ankle strap on the LOWEST pulley, fastened to the leg NEAREST the machine. Stand side-on, hold the frame with the hand nearest the machine, tall on the supporting leg, and start with the strapped leg only slightly out toward the stack — a comfortable width, not a stretch. Sweep the leg across your midline in front of the other foot — feel it along the inner thigh. Straight leg, toes forward. Across 2s, hold 1s, return 3s without letting the stack touch down. All reps one side, then swap. MISTAKE TO AVOID: letting the cable pull the leg out wide at the start, or hiking the hip to gain range — the stretched inner thigh is where the strain happens. Hand on the frame throughout, small range, slow tempo, light weight.',
+      youtubeUrl: 'https://www.youtube.com/watch?v=SIQrpq6YnT8',
     },
     'Hip Abduction': {
       machine: `${CROSSOVER} (standing cable abduction)`,
       cues: 'Ankle strap on the LOWEST pulley, fastened to the leg furthest from the machine. Stand side-on, hold the frame with the near hand for balance, stand tall on the supporting leg. Sweep the strapped leg out and away from your midline — you should feel it on the side of the hip, not the lower back. Keep the working leg straight and the toes pointing forward, not turned out. Out 2s, hold 1s at the widest point, return 3s without letting the stack touch down. Do all reps one side, then swap. MISTAKE TO AVOID: swinging the leg with momentum or twisting the torso to gain range — small range, slow tempo, light weight.',
-      youtubeUrl: 'https://www.youtube.com/watch?v=Nu6WVsyC9pk',
+      youtubeUrl: 'https://www.youtube.com/watch?v=bGlm-qTnfTI',
     },
   },
   extras: [
