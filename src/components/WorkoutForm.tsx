@@ -223,6 +223,7 @@ export default function WorkoutForm({
   detectedDurationMin,
   detectedStartISO,
   liveSession = null,
+  liveOpenElsewhere = false,
   durationMin,
 }: {
   exercises: Exercise[];
@@ -258,6 +259,8 @@ export default function WorkoutForm({
    *  fetched by the page. Applied on mount under the precedence rules in
    *  the restore effect; null when nothing is live. */
   liveSession?: LiveSession | null;
+  /** Some open row exists (maybe another day's): do not open a second one. */
+  liveOpenElsewhere?: boolean;
   /** The template length, so the live row can tell the Watch which plan to build. */
   durationMin?: number;
 }) {
@@ -578,10 +581,9 @@ export default function WorkoutForm({
       void durableRemove(DRAFT_KEY);
       hapticSuccess();
       router.push(`/workouts/${row.workoutId}`);
-    } else {
-      // Discarded on the Watch: the phone copy is still his to keep or bin.
-      setLiveNotice('⌚ Discarded on Watch · kept here');
     }
+    // Closed without a workout: discarded on the Watch, or the Watch began
+    // its own session. Either way this copy stays his; pushes just stop.
   }
 
   /** The done sets as the save posts them — one shape for finish and handoff. */
@@ -680,6 +682,27 @@ export default function WorkoutForm({
     } catch { /* offline — next poll */ }
     void flushLive();
   }
+
+  // Open the row as soon as the logger is up, before any tick: the Watch
+  // offers "Continue" from the row's existence, and the owner's first try
+  // ("no resume from iPhone session") had the phone open but nothing
+  // ticked yet. Never when a row is already open elsewhere (a new id
+  // would close the Watch's own session).
+  useEffect(() => {
+    if (!initialized || !liveEnabled || liveOpenElsewhere || saveIdRef.current) return;
+    saveIdRef.current = newClientSaveId();
+    void pushLiveSets(
+      {
+        clientSaveId: saveIdRef.current,
+        day: dayAccent ?? null,
+        durationMin: durationMin ?? null,
+        gym,
+        startedAt: new Date(startRef.current).toISOString(),
+      },
+      [],
+    ).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized]);
 
   // Debounced diff-push on every block change; poll while the page is up.
   useEffect(() => {

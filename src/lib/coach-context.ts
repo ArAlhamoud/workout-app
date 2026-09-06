@@ -5,7 +5,7 @@
 import prisma from '@/lib/prisma';
 import { buildCoachContext, type CoachContextInput } from './coach-ai';
 import { phaseForWeek } from './coach';
-import { getDynamicPlan, getTrainingStatus } from './program';
+import { isTrainingSession, getDynamicPlan, getTrainingStatus } from './program';
 import { holdWeekKeys, weekStreak } from './streak';
 
 const START_WEIGHT_FALLBACK = 135;
@@ -46,7 +46,7 @@ export async function assembleCoachContext(): Promise<{ context: string; todayLi
 
   const now = new Date();
   const trainingDates = sessionRows
-    .filter((w) => !w.name.startsWith('Rescue walk'))
+    .filter((w) => isTrainingSession(w))
     .map((w) => w.date);
   const status = getTrainingStatus(trainingDates, now);
   const plan = getDynamicPlan(sessionRows.map((w) => ({ date: w.date, name: w.name })), now);

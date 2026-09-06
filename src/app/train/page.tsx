@@ -15,6 +15,7 @@ import {
 import { combineIncrement, learnPinIncrements, phaseForWeek } from '@/lib/coach';
 import CoachCard from '@/components/CoachCard';
 import VoltLetter from '@/components/VoltLetter';
+import CardioQuickLog from '@/components/CardioQuickLog';
 import { formatRelative, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -389,6 +390,9 @@ export default async function TrainPage() {
         variant={suggestedDay ? 'muted' : 'neutral'}
         doneWhen={null}
       />
+
+      {/* ── Cardio as its own workout: streak yes, plan no ── */}
+      <CardioQuickLog />
     </div>
   );
 }

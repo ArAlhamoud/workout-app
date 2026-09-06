@@ -2,14 +2,37 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { durableRemove } from '@/lib/native-store';
 import { closeLiveSession, getLiveSession } from '@/app/actions';
 
 const DRAFT_KEY = 'workout-draft';
 
+const BOOT_KEY = 'ar-boot';
+
 export default function WorkoutDraftBanner() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  // A locked phone can drop the WebView; the shell then reloads at the
+  // site root — Home — while a session is mid-flight (owner, 2026-09-02).
+  // On a COLD start only (no boot flag in this tab session), a draft with
+  // ticked sets under four hours old sends him straight back to it.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(BOOT_KEY)) return;
+      sessionStorage.setItem(BOOT_KEY, '1');
+      if (pathname !== '/') return;
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as { name?: string; savedAt?: number; blocks?: Array<{ sets?: Array<{ done?: boolean }> }> };
+      const ticked = Array.isArray(draft.blocks) && draft.blocks.some((b) => b.sets?.some((s) => s.done));
+      const fresh = Date.now() - (draft.savedAt ?? 0) < 4 * 60 * 60 * 1000;
+      const m = draft.name?.match(/^Day ([AB]) (\d+)m/);
+      if (ticked && fresh && m) router.replace(`/workouts/new?day=${m[1]}&dur=${m[2]}`);
+    } catch { /* storage unavailable — the pill still shows */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [draftName, setDraftName] = useState<string | null>(null);
   // Discard is two taps on purpose: the pill is fixed above the nav bar, and a
   // single stray thumb should never bin a session that is mid-flight.

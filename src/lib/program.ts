@@ -129,7 +129,11 @@ export function recoveryActivity(lastDay: DayId | null | undefined): string {
  * a walk on layoff day 20 would silently hand back full pre-break weights).
  */
 export function isTrainingSession(s: { name?: string | null }): boolean {
-  return !(s.name ?? '').startsWith('Rescue walk');
+  const n = s.name ?? '';
+  // Cardio — a rescue walk, a logged walk, a swim (manual or imported from
+  // HealthKit) — keeps the streak alive and nothing else: it must never
+  // count as a ramp session or flip tomorrow into a recovery day.
+  return !(n.startsWith('Rescue walk') || n.startsWith('Walk ') || n.startsWith('Swim '));
 }
 
 /** A logged session, as little of it as the plan needs. */

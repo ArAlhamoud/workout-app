@@ -34,6 +34,7 @@ import {
   cardioForGym,
   getDayTemplate,
   getTrainingStatus,
+  isTrainingSession,
   pickRampMemory,
   rampBaseBefore,
   rampPrefillWeight,
@@ -199,6 +200,21 @@ assert(weightTrend([]).classification === 'no_data', 'empty stats → no_data');
 assert(weightTrend([data.bodyStats[0]]).classification === 'no_data', 'a single weigh-in → no_data');
 
 // ── session-based return ramp ────────────────────────────────
+console.log('cardio is not training (swim / walk keep the streak only)');
+{
+  assert(isTrainingSession({ name: 'Day A 45m — Sep 1' }), 'a lettered day is training');
+  assert(!isTrainingSession({ name: 'Rescue walk 15m — Sep 1' }), 'a rescue walk is not');
+  assert(!isTrainingSession({ name: 'Swim 15m — Sep 2' }), 'a logged swim is not');
+  assert(!isTrainingSession({ name: 'Swim 22m' }), 'an imported swim is not');
+  assert(!isTrainingSession({ name: 'Walk 20m — Sep 2' }), 'a logged walk is not');
+  // A swim yesterday must not turn today into a recovery day.
+  const p = getDynamicPlan(
+    [{ date: new Date('2026-08-30T00:00:00Z'), name: 'Day A 45m — Aug 30' }, { date: new Date('2026-09-01T00:00:00Z'), name: 'Swim 15m — Sep 1' }],
+    new Date('2026-09-02T12:00:00+03:00'),
+  );
+  assert(p.mode === 'train' && p.day === 'B', `swim yesterday → still train Day B today (got ${p.mode} ${p.day})`);
+}
+
 console.log('live session (phone ↔ watch handoff)');
 {
   const at = (min: number) => new Date(Date.UTC(2026, 8, 1, 16, min)).toISOString();

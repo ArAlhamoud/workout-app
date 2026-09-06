@@ -781,3 +781,34 @@ export async function pushLiveSets(
 export async function closeLiveSession(clientSaveId: string) {
   await closeLive(clientSaveId);
 }
+
+/**
+ * A swim or a walk as its own workout (owner, 2026-09-02: "typically swim
+ * for 15 minutes"). Cardio counts for the streak and nothing else —
+ * isTrainingSession keeps it out of the plan, the ramp and the coach's
+ * session maths. Idempotent per day and kind (steward: two phantom
+ * sessions on one day would falsely mend a streak); a swim HealthKit
+ * already imported today dedupes the same way.
+ */
+export async function logCardio(kind: 'swim' | 'walk', minutes: number) {
+  const mins = Math.max(5, Math.min(180, Math.round(minutes)));
+  const prefix = kind === 'swim' ? 'Swim ' : 'Walk ';
+  const dayStart = new Date();
+  dayStart.setHours(0, 0, 0, 0);
+  const existing = await prisma.workout.findFirst({
+    where: { name: { startsWith: prefix }, date: { gte: dayStart } },
+    select: { id: true },
+  });
+  if (existing) return { id: existing.id, deduped: true };
+  const workout = await prisma.workout.create({
+    data: {
+      name: `${prefix}${mins}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`,
+      duration: mins * 60,
+      notes: kind === 'swim' ? 'Swim — recovery, keeps the chain alive.' : 'Walk — recovery, keeps the chain alive.',
+    },
+  });
+  revalidatePath('/');
+  revalidatePath('/train');
+  revalidatePath('/workouts');
+  return { id: workout.id };
+}

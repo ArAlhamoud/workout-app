@@ -129,6 +129,14 @@ struct StartView: View {
             }
             .padding(.horizontal, 4)
         }
+        // A phone session opened while this screen is already up must show
+        // up without a wrist-down: poll the live row while idle here.
+        .task {
+            while !Task.isCancelled {
+                await store.refreshLive()
+                try? await Task.sleep(for: .seconds(20))
+            }
+        }
     }
 }
 
@@ -226,11 +234,23 @@ struct SetCardView: View {
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
             }
-            if store.pendingMachineCount > 1 {
-                // Occupied machine: swipe to the next one, come back later.
-                Text("‹ swipe · other machine ›")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
+            if store.pendingMachineCount > 1, let next = store.nextMachineName {
+                // Occupied machine: real buttons (a swipe alone was missed on
+                // the gym floor). ‹ brings the previous machine back, › the
+                // next one; the name says where › goes.
+                HStack(spacing: 6) {
+                    Button { store.backToPreviousMachine() } label: {
+                        Text("‹").font(.system(size: 16, weight: .black, design: .rounded)).frame(minWidth: 28, minHeight: 24)
+                    }
+                    .buttonStyle(.bordered)
+                    Button { store.skipToNextMachine() } label: {
+                        Text("\(next) ›")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: 24)
+                    }
+                    .buttonStyle(.bordered)
+                }
             }
             Button {
                 store.logCurrentSet()
@@ -247,7 +267,9 @@ struct SetCardView: View {
         // Occupied machine: a horizontal swipe rotates the pending machines.
         // 40 pt minimum so a crown nudge or a sleeve brush never triggers it
         // (the same accidental-input worry that removed the day detent).
-        .gesture(
+        // High priority so a drag that starts on the weight or a button is
+        // not swallowed by the child (the hidden-gesture failure, build 8).
+        .highPriorityGesture(
             DragGesture(minimumDistance: 40)
                 .onEnded { v in
                     guard abs(v.translation.width) > abs(v.translation.height) else { return }
@@ -288,9 +310,24 @@ struct RestView: View {
             Button("Skip") { store.skipRest() }
                 .buttonStyle(.bordered)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
+            if store.pendingMachineCount > 1, let nextMachine = store.nextMachineName {
+                // He walks to the next machine DURING the rest — this is where
+                // "it's taken" is discovered, so the switch lives here too.
+                Button("\(nextMachine) taken? ›") { store.switchMachineFromRest() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
         }
         .contentShape(Rectangle())
         .onTapGesture { store.skipRest() }
+        .highPriorityGesture(
+            DragGesture(minimumDistance: 40)
+                .onEnded { v in
+                    guard abs(v.translation.width) > abs(v.translation.height), v.translation.width < 0 else { return }
+                    store.switchMachineFromRest()
+                }
+        )
     }
 }
 

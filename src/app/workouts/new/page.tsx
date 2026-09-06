@@ -292,6 +292,7 @@ export default async function NewWorkoutPage({
         detectedDurationMin={detectedMins}
         detectedStartISO={detectedStartISO}
         liveSession={liveRow && (!liveRow.day || liveRow.day === validDay) ? liveRow : null}
+        liveOpenElsewhere={Boolean(liveRow)}
         durationMin={validDur}
         personalRecords={personalRecords}
         progressionHints={progressionHints}

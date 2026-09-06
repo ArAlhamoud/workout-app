@@ -385,6 +385,23 @@ final class SessionStore: ObservableObject {
         return Set(s.slots[s.currentIndex...].map(\.exerciseId)).count
     }
 
+    /// The machine a forward switch would bring up — named on the card so
+    /// the control is a real button, not a hidden gesture (owner, first
+    /// field use: "the watch did not let me switch machines").
+    var nextMachineName: String? {
+        guard let s = session, s.currentIndex < s.slots.count else { return nil }
+        let current = s.slots[s.currentIndex].exerciseId
+        return s.slots[s.currentIndex...].first { $0.exerciseId != current }?.exerciseName
+    }
+
+    /// From the rest screen: the machine he is walking to is taken. Skip
+    /// the rest and bring the next machine up in one tap.
+    func switchMachineFromRest() {
+        restTimer?.invalidate()
+        phase = .active
+        skipToNextMachine()
+    }
+
     private func rotatePending(forward: Bool) {
         guard var s = session, s.currentIndex < s.slots.count else { return }
         let head = Array(s.slots[..<s.currentIndex])

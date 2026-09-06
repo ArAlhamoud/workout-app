@@ -563,7 +563,9 @@ body.has-draft-banner main {
   position: absolute; right: 14px; top: 12px;
   width: 76px; height: 100px; pointer-events: none;
 }
-.volt-letter-svg--quiet { width: 74px; height: 98px; top: 4px; opacity: 0.55; }
+/* Quiet letter on the one-line day card: pushed off the right edge and clipped so
+   it never sits under the duration chips (device pass, 2026-09-02). */
+.volt-letter-svg--quiet { width: 74px; height: 98px; top: 4px; right: -22px; opacity: 0.3; pointer-events: none; }
 /* The masthead's square period — a box, not a glyph. */
 .volt-dot {
   display: inline-block;

@@ -267,6 +267,14 @@ rated last set — decide when the ramp ends (trainer note, 2026-09-01).
 
 ## Occupied machine (owner, first wrist session, 2026-08-31)
 
+Update 2026-09-02 (first field use): the swipe alone was missed on the
+gym floor, and the busy machine is discovered on the REST screen, not
+the set card. Both screens now carry a real control — set card: a "‹"
+button and a "<next machine> ›" button under the weight; rest screen:
+"<next machine> taken? ›" (skips the rest and rotates). The swipe stays
+as a high-priority gesture on both. `nextMachineName` names the target.
+
+
 A horizontal swipe on the set card rotates the PENDING machines: swipe
 left → the next machine's sets come up now and this one's remaining
 sets go to the back of the queue; swipe right → the reverse. Logged

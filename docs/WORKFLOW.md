@@ -145,6 +145,17 @@ with, and prefer pushing before a session rather than during one.
   a set → Watch shows it after wrist-raise → finish on the phone → Watch
   lands on "Finished on the phone". Then `npm run ios:testflight`.
 
+- **Build 9 — from the owner's first field use of build 8 (2026-09-02):**
+  (a) machine switch is now a BUTTON row on the set card ("‹" and
+  "<next machine> ›") and a "<next> taken? ›" line on the REST screen,
+  where he actually discovers the machine is busy; the swipe stays as
+  `highPriorityGesture` on both. (b) Start screen polls the live row
+  every 20 s while idle, so a phone session opened after the Watch is
+  already on Start still shows "Continue". Sim: log set 1, on the rest
+  screen tap "<next> taken? ›" → next machine's card; on a set card tap
+  "‹" → back. Open a phone logger (curl a live row) while the Watch sits
+  on Start → Continue appears within 20 s. Then `npm run ios:testflight`.
+
 - ~~Volt simulator pass~~ **DONE (Mac session, 2026-08-30, iPhone 17 sim
   / WKWebView on production).** All four checks passed: (1) status-bar
   text adapts per ground — white over Volt black on /train and /stats,
