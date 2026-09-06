@@ -1,20 +1,20 @@
 {
-  "exportedAt": "2026-09-01T09:48:08.671Z",
-  "totalWorkouts": 8,
-  "totalBodyStats": 16,
+  "exportedAt": "2026-09-06T09:11:33.775Z",
+  "totalWorkouts": 9,
+  "totalBodyStats": 20,
   "totalExercises": 20,
-  "totalHealthSamples": 108,
+  "totalHealthSamples": 138,
   "totalHolds": 0,
-  "totalInjections": 1,
+  "totalInjections": 2,
   "latestWeightSample": {
-    "id": "cmtfho92c000osfrmba8jnc5v",
+    "id": "cmtn6qoxt000utannhwk3ax8a",
     "type": "weight",
-    "date": "2026-08-30T05:52:37.000Z",
-    "value": 128.1,
+    "date": "2026-09-03T04:25:04.000Z",
+    "value": 128.8,
     "unit": "kg",
     "source": "apple-health",
     "meta": null,
-    "createdAt": "2026-08-30T07:29:35.460Z"
+    "createdAt": "2026-09-04T16:45:42.977Z"
   },
   "exercises": [
     {
@@ -190,16 +190,6 @@
       "createdAt": "2026-08-05T04:18:45.836Z"
     },
     {
-      "id": "cmsfkujtb0002xomd3owogrrd",
-      "type": "hrv_sdnn",
-      "date": "2026-07-31T00:00:00.000Z",
-      "value": 17.89297607253485,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-05T04:18:45.839Z"
-    },
-    {
       "id": "cmsfkujtr0005xomd5gjil8ud",
       "type": "steps",
       "date": "2026-07-31T00:00:00.000Z",
@@ -208,6 +198,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-05T04:18:45.856Z"
+    },
+    {
+      "id": "cmsfkujtb0002xomd3owogrrd",
+      "type": "hrv_sdnn",
+      "date": "2026-07-31T00:00:00.000Z",
+      "value": 17.89297607253485,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.839Z"
     },
     {
       "id": "cmsfkujtk0003xomdy4zekvz5",
@@ -310,16 +310,6 @@
       "createdAt": "2026-08-05T15:23:04.740Z"
     },
     {
-      "id": "cmsh896hw000emkeenzqe0ivw",
-      "type": "steps",
-      "date": "2026-08-06T00:00:00.000Z",
-      "value": 3985,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-06T08:01:45.764Z"
-    },
-    {
       "id": "cmsh896g50002mkeeh2ktumuk",
       "type": "resting_hr",
       "date": "2026-08-06T00:00:00.000Z",
@@ -328,6 +318,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-06T08:01:45.701Z"
+    },
+    {
+      "id": "cmsh896hw000emkeenzqe0ivw",
+      "type": "steps",
+      "date": "2026-08-06T00:00:00.000Z",
+      "value": 3985,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-06T08:01:45.764Z"
     },
     {
       "id": "cmsh896h00007mkeeitaksegj",
@@ -340,16 +340,6 @@
       "createdAt": "2026-08-06T08:01:45.732Z"
     },
     {
-      "id": "cmsoy7a4m000440cqu9eq73lf",
-      "type": "resting_hr",
-      "date": "2026-08-07T00:00:00.000Z",
-      "value": 76,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-11T17:42:30.406Z"
-    },
-    {
       "id": "cmsoy7a5b000d40cqbi0si5vv",
       "type": "steps",
       "date": "2026-08-07T00:00:00.000Z",
@@ -360,24 +350,14 @@
       "createdAt": "2026-08-11T17:42:30.431Z"
     },
     {
-      "id": "cmsoy7a50000940cqgcptafij",
-      "type": "hrv_sdnn",
-      "date": "2026-08-08T00:00:00.000Z",
-      "value": 67.13868305306113,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-11T17:42:30.420Z"
-    },
-    {
-      "id": "cmsoy7a4p000540cqgkorkop9",
+      "id": "cmsoy7a4m000440cqu9eq73lf",
       "type": "resting_hr",
-      "date": "2026-08-08T00:00:00.000Z",
-      "value": 65,
+      "date": "2026-08-07T00:00:00.000Z",
+      "value": 76,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-11T17:42:30.409Z"
+      "createdAt": "2026-08-11T17:42:30.406Z"
     },
     {
       "id": "cmsoy7a5d000e40cqjz30g2q7",
@@ -390,14 +370,34 @@
       "createdAt": "2026-08-11T17:42:30.434Z"
     },
     {
-      "id": "cmsoy7a4r000640cqpaf0925a",
+      "id": "cmsoy7a4p000540cqgkorkop9",
       "type": "resting_hr",
-      "date": "2026-08-09T00:00:00.000Z",
-      "value": 59,
+      "date": "2026-08-08T00:00:00.000Z",
+      "value": 65,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-11T17:42:30.412Z"
+      "createdAt": "2026-08-11T17:42:30.409Z"
+    },
+    {
+      "id": "cmsoy7a50000940cqgcptafij",
+      "type": "hrv_sdnn",
+      "date": "2026-08-08T00:00:00.000Z",
+      "value": 67.13868305306113,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-11T17:42:30.420Z"
+    },
+    {
+      "id": "cmsoy7a52000a40cqsnj7s92j",
+      "type": "hrv_sdnn",
+      "date": "2026-08-09T00:00:00.000Z",
+      "value": 110.9363147037408,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-11T17:42:30.423Z"
     },
     {
       "id": "cmsoy7a5g000f40cqqa4ktblf",
@@ -410,14 +410,14 @@
       "createdAt": "2026-08-11T17:42:30.437Z"
     },
     {
-      "id": "cmsoy7a52000a40cqsnj7s92j",
-      "type": "hrv_sdnn",
+      "id": "cmsoy7a4r000640cqpaf0925a",
+      "type": "resting_hr",
       "date": "2026-08-09T00:00:00.000Z",
-      "value": 110.9363147037408,
-      "unit": "ms",
+      "value": 59,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-11T17:42:30.423Z"
+      "createdAt": "2026-08-11T17:42:30.412Z"
     },
     {
       "id": "cmsoy7a5j000g40cqkcslgzm8",
@@ -460,16 +460,6 @@
       "createdAt": "2026-08-15T17:35:08.610Z"
     },
     {
-      "id": "cmsunp8fl000f6nl4c6x5jul4",
-      "type": "hrv_sdnn",
-      "date": "2026-08-11T00:00:00.000Z",
-      "value": 27.23312171553906,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-15T17:35:09.297Z"
-    },
-    {
       "id": "cmsoy7a5m000h40cqj9v2a4m0",
       "type": "steps",
       "date": "2026-08-11T00:00:00.000Z",
@@ -478,6 +468,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-11T17:42:30.442Z"
+    },
+    {
+      "id": "cmsunp8fl000f6nl4c6x5jul4",
+      "type": "hrv_sdnn",
+      "date": "2026-08-11T00:00:00.000Z",
+      "value": 27.23312171553906,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-15T17:35:09.297Z"
     },
     {
       "id": "cmsunp8fp000g6nl4rjj6jnnv",
@@ -540,6 +540,16 @@
       "createdAt": "2026-08-15T17:35:09.307Z"
     },
     {
+      "id": "cmsunp8f7000c6nl4lhncxsas",
+      "type": "resting_hr",
+      "date": "2026-08-14T00:00:00.000Z",
+      "value": 67,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-15T17:35:09.283Z"
+    },
+    {
       "id": "cmsunp8gm000n6nl4wo8i7p2t",
       "type": "steps",
       "date": "2026-08-14T00:00:00.000Z",
@@ -550,14 +560,14 @@
       "createdAt": "2026-08-15T17:35:09.334Z"
     },
     {
-      "id": "cmsunp8f7000c6nl4lhncxsas",
-      "type": "resting_hr",
-      "date": "2026-08-14T00:00:00.000Z",
-      "value": 67,
-      "unit": "count/min",
+      "id": "cmsunp8gq000o6nl4148w8olr",
+      "type": "steps",
+      "date": "2026-08-15T00:00:00.000Z",
+      "value": 900.8551293860572,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-15T17:35:09.283Z"
+      "createdAt": "2026-08-15T17:35:09.338Z"
     },
     {
       "id": "cmsyzghm7000ea52fvw7yc8yx",
@@ -580,16 +590,6 @@
       "createdAt": "2026-08-18T18:15:21.358Z"
     },
     {
-      "id": "cmsunp8gq000o6nl4148w8olr",
-      "type": "steps",
-      "date": "2026-08-15T00:00:00.000Z",
-      "value": 900.8551293860572,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-15T17:35:09.338Z"
-    },
-    {
       "id": "cmsunp7xb00076nl4uieda92o",
       "type": "weight",
       "date": "2026-08-15T17:08:05.000Z",
@@ -610,16 +610,6 @@
       "createdAt": "2026-08-18T18:15:21.438Z"
     },
     {
-      "id": "cmsyzghnl000ma52fi7dppbxc",
-      "type": "steps",
-      "date": "2026-08-17T00:00:00.000Z",
-      "value": 4755.328860274041,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-18T18:15:21.442Z"
-    },
-    {
       "id": "cmsyzghmi000fa52flb9zuzfe",
       "type": "hrv_sdnn",
       "date": "2026-08-17T00:00:00.000Z",
@@ -628,6 +618,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-18T18:15:21.402Z"
+    },
+    {
+      "id": "cmsyzghnl000ma52fi7dppbxc",
+      "type": "steps",
+      "date": "2026-08-17T00:00:00.000Z",
+      "value": 4755.328860274041,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-18T18:15:21.442Z"
     },
     {
       "id": "cmsyzghll000aa52fkx3kyf2y",
@@ -700,16 +700,6 @@
       "createdAt": "2026-08-20T16:07:26.349Z"
     },
     {
-      "id": "cmt1prov2000ay4h5jl9hqxt5",
-      "type": "hrv_sdnn",
-      "date": "2026-08-19T00:00:00.000Z",
-      "value": 29.60710610799945,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-20T16:07:26.366Z"
-    },
-    {
       "id": "cmt1provi000hy4h5578na2jg",
       "type": "steps",
       "date": "2026-08-19T00:00:00.000Z",
@@ -718,6 +708,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-20T16:07:26.382Z"
+    },
+    {
+      "id": "cmt1prov2000ay4h5jl9hqxt5",
+      "type": "hrv_sdnn",
+      "date": "2026-08-19T00:00:00.000Z",
+      "value": 29.60710610799945,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-20T16:07:26.366Z"
     },
     {
       "id": "cmt1provk000iy4h5868e8fil",
@@ -740,16 +740,6 @@
       "createdAt": "2026-08-20T16:07:26.354Z"
     },
     {
-      "id": "cmt1prov4000by4h5x7fdwpgi",
-      "type": "hrv_sdnn",
-      "date": "2026-08-20T00:00:00.000Z",
-      "value": 18.89575890872776,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-20T16:07:26.369Z"
-    },
-    {
       "id": "cmt8vpg2t000yaq17nd55s2o1",
       "type": "respiratory_rate",
       "date": "2026-08-20T00:00:00.000Z",
@@ -758,6 +748,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-25T16:28:02.597Z"
+    },
+    {
+      "id": "cmt1prov4000by4h5x7fdwpgi",
+      "type": "hrv_sdnn",
+      "date": "2026-08-20T00:00:00.000Z",
+      "value": 18.89575890872776,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-20T16:07:26.369Z"
     },
     {
       "id": "cmt8vpg330011aq170yp1s09q",
@@ -780,16 +780,6 @@
       "createdAt": "2026-08-25T16:28:02.045Z"
     },
     {
-      "id": "cmt8vpg380012aq17boga0l1g",
-      "type": "steps",
-      "date": "2026-08-22T00:00:00.000Z",
-      "value": 4353.424458893036,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-25T16:28:02.612Z"
-    },
-    {
       "id": "cmt8vpg2f000uaq17xmts3np1",
       "type": "hrv_sdnn",
       "date": "2026-08-22T00:00:00.000Z",
@@ -810,6 +800,16 @@
       "createdAt": "2026-08-25T16:28:02.566Z"
     },
     {
+      "id": "cmt8vpg380012aq17boga0l1g",
+      "type": "steps",
+      "date": "2026-08-22T00:00:00.000Z",
+      "value": 4353.424458893036,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.612Z"
+    },
+    {
       "id": "cmt8vpg2i000vaq171ps620j8",
       "type": "hrv_sdnn",
       "date": "2026-08-23T00:00:00.000Z",
@@ -820,16 +820,6 @@
       "createdAt": "2026-08-25T16:28:02.587Z"
     },
     {
-      "id": "cmt8vpg3c0013aq17uaxojpic",
-      "type": "steps",
-      "date": "2026-08-23T00:00:00.000Z",
-      "value": 3782.811395114969,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-25T16:28:02.616Z"
-    },
-    {
       "id": "cmt8vpg22000qaq17oos3ifdf",
       "type": "resting_hr",
       "date": "2026-08-23T00:00:00.000Z",
@@ -838,6 +828,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-25T16:28:02.570Z"
+    },
+    {
+      "id": "cmt8vpg3c0013aq17uaxojpic",
+      "type": "steps",
+      "date": "2026-08-23T00:00:00.000Z",
+      "value": 3782.811395114969,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.616Z"
     },
     {
       "id": "cmt8vpfnn000daq17pj1iws9l",
@@ -880,16 +880,6 @@
       "createdAt": "2026-08-25T16:28:02.068Z"
     },
     {
-      "id": "cmt8vpg3g0014aq17joclkkhb",
-      "type": "steps",
-      "date": "2026-08-24T00:00:00.000Z",
-      "value": 5362,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-25T16:28:02.620Z"
-    },
-    {
       "id": "cmt8vpg25000raq17d317l3pi",
       "type": "resting_hr",
       "date": "2026-08-24T00:00:00.000Z",
@@ -898,6 +888,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-25T16:28:02.573Z"
+    },
+    {
+      "id": "cmt8vpg3g0014aq17joclkkhb",
+      "type": "steps",
+      "date": "2026-08-24T00:00:00.000Z",
+      "value": 5362,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.620Z"
     },
     {
       "id": "cmt8vpg2m000waq17qhjqotoo",
@@ -990,16 +990,6 @@
       "createdAt": "2026-08-27T10:35:02.291Z"
     },
     {
-      "id": "cmtddyg6i001013183idmqzjj",
-      "type": "steps",
-      "date": "2026-08-28T00:00:00.000Z",
-      "value": 3052,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-28T20:10:00.427Z"
-    },
-    {
       "id": "cmtddyg5s000t1318ik2f5tfc",
       "type": "hrv_sdnn",
       "date": "2026-08-28T00:00:00.000Z",
@@ -1020,14 +1010,14 @@
       "createdAt": "2026-08-28T20:10:00.379Z"
     },
     {
-      "id": "cmtehnpdi000o6y9tczty7p10",
-      "type": "resting_hr",
-      "date": "2026-08-29T00:00:00.000Z",
-      "value": 63,
-      "unit": "count/min",
+      "id": "cmtddyg6i001013183idmqzjj",
+      "type": "steps",
+      "date": "2026-08-28T00:00:00.000Z",
+      "value": 3052,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-29T14:41:23.767Z"
+      "createdAt": "2026-08-28T20:10:00.427Z"
     },
     {
       "id": "cmtehnpe8000t6y9tnp2b19io",
@@ -1050,14 +1040,24 @@
       "createdAt": "2026-08-28T21:46:25.391Z"
     },
     {
-      "id": "cmtfoiecz000812r6rmf82wf1",
-      "type": "hrv_sdnn",
-      "date": "2026-08-30T00:00:00.000Z",
-      "value": 19.47273319165322,
-      "unit": "ms",
+      "id": "cmtehnpdi000o6y9tczty7p10",
+      "type": "resting_hr",
+      "date": "2026-08-29T00:00:00.000Z",
+      "value": 63,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-30T10:40:59.699Z"
+      "createdAt": "2026-08-29T14:41:23.767Z"
+    },
+    {
+      "id": "cmtflxki1000312pkm3oktnhd",
+      "type": "resting_hr",
+      "date": "2026-08-30T00:00:00.000Z",
+      "value": 64,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-30T09:28:48.650Z"
     },
     {
       "id": "cmtfho9jp0015sfrmtof85jcj",
@@ -1070,14 +1070,14 @@
       "createdAt": "2026-08-30T07:29:36.086Z"
     },
     {
-      "id": "cmtflxki1000312pkm3oktnhd",
-      "type": "resting_hr",
+      "id": "cmtfoiecz000812r6rmf82wf1",
+      "type": "hrv_sdnn",
       "date": "2026-08-30T00:00:00.000Z",
-      "value": 64,
-      "unit": "count/min",
+      "value": 19.47273319165322,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-30T09:28:48.650Z"
+      "createdAt": "2026-08-30T10:40:59.699Z"
     },
     {
       "id": "cmtfho92c000osfrmba8jnc5v",
@@ -1130,16 +1130,6 @@
       "createdAt": "2026-08-31T10:38:08.058Z"
     },
     {
-      "id": "cmth3ukkt000t131xdfwt4l0i",
-      "type": "bp_diastolic",
-      "date": "2026-08-30T20:41:20.000Z",
-      "value": 83,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-31T10:38:08.046Z"
-    },
-    {
       "id": "cmth3uklb000x131x7j8j4v4r",
       "type": "heart_rate",
       "date": "2026-08-30T20:41:20.000Z",
@@ -1160,14 +1150,14 @@
       "createdAt": "2026-08-31T10:38:08.034Z"
     },
     {
-      "id": "cmth3crmm00093uusiqp8ofhb",
-      "type": "respiratory_rate",
-      "date": "2026-08-31T00:00:00.000Z",
-      "value": 29.78571428571429,
-      "unit": "count/min",
+      "id": "cmth3ukkt000t131xdfwt4l0i",
+      "type": "bp_diastolic",
+      "date": "2026-08-30T20:41:20.000Z",
+      "value": 83,
+      "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-31T10:24:17.375Z"
+      "createdAt": "2026-08-31T10:38:08.046Z"
     },
     {
       "id": "cmtgytmat0003zye2eev5w6re",
@@ -1180,10 +1170,20 @@
       "createdAt": "2026-08-31T08:17:25.541Z"
     },
     {
+      "id": "cmth3crmm00093uusiqp8ofhb",
+      "type": "respiratory_rate",
+      "date": "2026-08-31T00:00:00.000Z",
+      "value": 29.78571428571429,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-31T10:24:17.375Z"
+    },
+    {
       "id": "cmtgytmbd0008zye20ijqj59t",
       "type": "hrv_sdnn",
       "date": "2026-08-31T00:00:00.000Z",
-      "value": 18.79602858850114,
+      "value": 20.55604059112996,
       "unit": "ms",
       "source": "apple-health",
       "meta": null,
@@ -1193,21 +1193,11 @@
       "id": "cmtgc3e410012uuocq8pbvh9s",
       "type": "steps",
       "date": "2026-08-31T00:00:00.000Z",
-      "value": 1086.024217304947,
+      "value": 8128.356090990445,
       "unit": "count",
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-30T21:41:10.322Z"
-    },
-    {
-      "id": "cmth3ukkm000r131xzmsyzi6g",
-      "type": "bp_systolic",
-      "date": "2026-08-31T08:07:47.000Z",
-      "value": 114,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-31T10:38:08.038Z"
     },
     {
       "id": "cmth3ukky000u131x9csn5v6w",
@@ -1230,6 +1220,16 @@
       "createdAt": "2026-08-31T10:38:08.067Z"
     },
     {
+      "id": "cmth3ukkm000r131xzmsyzi6g",
+      "type": "bp_systolic",
+      "date": "2026-08-31T08:07:47.000Z",
+      "value": 114,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-31T10:38:08.038Z"
+    },
+    {
       "id": "cmth3uklj000z131xx0v99gsn",
       "type": "heart_rate",
       "date": "2026-08-31T08:07:48.000Z",
@@ -1238,6 +1238,306 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-31T10:38:08.072Z"
+    },
+    {
+      "id": "cmtj13pbd000pz27czqrmda7p",
+      "type": "weight",
+      "date": "2026-08-31T09:52:47.000Z",
+      "value": 128,
+      "unit": "kg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-01T18:56:47.593Z"
+    },
+    {
+      "id": "cmtj13q63001nz27c73pzkczz",
+      "type": "steps",
+      "date": "2026-09-01T00:00:00.000Z",
+      "value": 5164,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-01T18:56:48.699Z"
+    },
+    {
+      "id": "cmtj13q50001az27cbmwlt83g",
+      "type": "resting_hr",
+      "date": "2026-09-01T00:00:00.000Z",
+      "value": 61,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-01T18:56:48.660Z"
+    },
+    {
+      "id": "cmtj13q5g001fz27c3324jw21",
+      "type": "hrv_sdnn",
+      "date": "2026-09-01T00:00:00.000Z",
+      "value": 21.7906395173029,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-01T18:56:48.676Z"
+    },
+    {
+      "id": "cmtj13pbm000rz27cf480ky85",
+      "type": "weight",
+      "date": "2026-09-01T05:50:01.000Z",
+      "value": 128.5,
+      "unit": "kg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-01T18:56:47.603Z"
+    },
+    {
+      "id": "cmtn6qpf2001gtannsq7a2xzm",
+      "type": "heart_rate",
+      "date": "2026-09-01T18:11:07.000Z",
+      "value": 74,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.598Z"
+    },
+    {
+      "id": "cmtn6qpd70010tann0oujvgzy",
+      "type": "bp_systolic",
+      "date": "2026-09-01T18:11:31.000Z",
+      "value": 131,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.532Z"
+    },
+    {
+      "id": "cmtn6qpe20017tannw86dmswz",
+      "type": "bp_diastolic",
+      "date": "2026-09-01T18:11:31.000Z",
+      "value": 81,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.562Z"
+    },
+    {
+      "id": "cmtn6qpf6001htannmk4vrjri",
+      "type": "heart_rate",
+      "date": "2026-09-01T18:11:31.000Z",
+      "value": 68,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.602Z"
+    },
+    {
+      "id": "cmtn6qpf9001itannu7l8j2ee",
+      "type": "heart_rate",
+      "date": "2026-09-01T18:11:44.000Z",
+      "value": 65,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.606Z"
+    },
+    {
+      "id": "cmtk1tszw0019l8vfaisxz896",
+      "type": "resting_hr",
+      "date": "2026-09-02T00:00:00.000Z",
+      "value": 61,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-02T12:04:51.596Z"
+    },
+    {
+      "id": "cmtjnapg1001mlua8lz8i1m2a",
+      "type": "steps",
+      "date": "2026-09-02T00:00:00.000Z",
+      "value": 4196.765652675517,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-02T05:18:05.905Z"
+    },
+    {
+      "id": "cmtjnapf4001elua8qcw53x7y",
+      "type": "hrv_sdnn",
+      "date": "2026-09-02T00:00:00.000Z",
+      "value": 26.80506116085957,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-02T05:18:05.873Z"
+    },
+    {
+      "id": "cmtn6qpe60018tannl2w166gn",
+      "type": "bp_diastolic",
+      "date": "2026-09-02T04:21:14.000Z",
+      "value": 78,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.567Z"
+    },
+    {
+      "id": "cmtn6qpdc0011tannkzchbqym",
+      "type": "bp_systolic",
+      "date": "2026-09-02T04:21:14.000Z",
+      "value": 124,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.536Z"
+    },
+    {
+      "id": "cmtn6qpfd001jtann6gvldhvg",
+      "type": "heart_rate",
+      "date": "2026-09-02T04:21:14.000Z",
+      "value": 68,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.610Z"
+    },
+    {
+      "id": "cmtn6qoxl000ttannx6p3j98n",
+      "type": "weight",
+      "date": "2026-09-02T05:06:18.000Z",
+      "value": 129.1,
+      "unit": "kg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:42.969Z"
+    },
+    {
+      "id": "cmtn6qpxv001vtannqj6gr1z2",
+      "type": "resting_hr",
+      "date": "2026-09-03T00:00:00.000Z",
+      "value": 61.99999999999999,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:44.276Z"
+    },
+    {
+      "id": "cmtn6qpyf0022tanndglfos10",
+      "type": "hrv_sdnn",
+      "date": "2026-09-03T00:00:00.000Z",
+      "value": 24.91246046468852,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:44.296Z"
+    },
+    {
+      "id": "cmtn6qpz3002atannnttrq79z",
+      "type": "steps",
+      "date": "2026-09-03T00:00:00.000Z",
+      "value": 4188,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:44.319Z"
+    },
+    {
+      "id": "cmtn6qpea0019tanntztia06r",
+      "type": "bp_diastolic",
+      "date": "2026-09-03T04:19:22.000Z",
+      "value": 90,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.571Z"
+    },
+    {
+      "id": "cmtn6qpdg0012tanna6ll3ybx",
+      "type": "bp_systolic",
+      "date": "2026-09-03T04:19:22.000Z",
+      "value": 132,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.540Z"
+    },
+    {
+      "id": "cmtn6qpfh001ktannh3udmxvw",
+      "type": "heart_rate",
+      "date": "2026-09-03T04:19:22.000Z",
+      "value": 71,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.614Z"
+    },
+    {
+      "id": "cmtn6qoxt000utannhwk3ax8a",
+      "type": "weight",
+      "date": "2026-09-03T04:25:04.000Z",
+      "value": 128.8,
+      "unit": "kg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:42.977Z"
+    },
+    {
+      "id": "cmtn6qpyi0023tannflii7xbi",
+      "type": "hrv_sdnn",
+      "date": "2026-09-04T00:00:00.000Z",
+      "value": 29.21135357542555,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:44.298Z"
+    },
+    {
+      "id": "cmtn6qpxy001wtannjzirct8q",
+      "type": "resting_hr",
+      "date": "2026-09-04T00:00:00.000Z",
+      "value": 67,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:44.278Z"
+    },
+    {
+      "id": "cmtn6qpz5002btannhf7xeyur",
+      "type": "steps",
+      "date": "2026-09-04T00:00:00.000Z",
+      "value": 1381,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:44.322Z"
+    },
+    {
+      "id": "cmtn6qpfl001ltanndd7gs6rb",
+      "type": "heart_rate",
+      "date": "2026-09-04T11:20:53.000Z",
+      "value": 77,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.617Z"
+    },
+    {
+      "id": "cmtn6qpee001atann7mmil1g4",
+      "type": "bp_diastolic",
+      "date": "2026-09-04T11:20:53.000Z",
+      "value": 80,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.575Z"
+    },
+    {
+      "id": "cmtn6qpdk0013tannolk3xqmy",
+      "type": "bp_systolic",
+      "date": "2026-09-04T11:20:53.000Z",
+      "value": 121,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.545Z"
     }
   ],
   "holds": [],
@@ -1412,6 +1712,25 @@
           }
         },
         {
+          "id": "cmp08dl8l00071n56kt0f75ox",
+          "workoutId": "cmp08dl8l00001n56x6935u5u",
+          "exerciseId": "cmo0gr45m000811bylyejpvpk",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 26,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45m000811bylyejpvpk",
+            "name": "Lat Pulldown",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.131Z"
+          }
+        },
+        {
           "id": "cmp08dl8l000d1n56g2tresfo",
           "workoutId": "cmp08dl8l00001n56x6935u5u",
           "exerciseId": "cmo0gr46p000f11byzmt808od",
@@ -1467,25 +1786,6 @@
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.114Z"
           }
-        },
-        {
-          "id": "cmp08dl8l00071n56kt0f75ox",
-          "workoutId": "cmp08dl8l00001n56x6935u5u",
-          "exerciseId": "cmo0gr45m000811bylyejpvpk",
-          "setNumber": 3,
-          "reps": 10,
-          "weight": 26,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr45m000811bylyejpvpk",
-            "name": "Lat Pulldown",
-            "category": "BACK",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.131Z"
-          }
         }
       ]
     },
@@ -1507,25 +1807,6 @@
       "createdAt": "2026-05-13T20:08:35.483Z",
       "sets": [
         {
-          "id": "cmp4hshb3000813ow5mw6mr23",
-          "workoutId": "cmp4hshb2000013owrgkgk9ik",
-          "exerciseId": "cmo0gr44o000211byjdmy1avq",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 26,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr44o000211byjdmy1avq",
-            "name": "Shoulder Press",
-            "category": "SHOULDERS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.097Z"
-          }
-        },
-        {
           "id": "cmp4hshb3000b13owudwqlop4",
           "workoutId": "cmp4hshb2000013owrgkgk9ik",
           "exerciseId": "cmo0gr44u000311bypxi03ywu",
@@ -1545,25 +1826,6 @@
           }
         },
         {
-          "id": "cmp4hshb3000e13owbmpxnax2",
-          "workoutId": "cmp4hshb2000013owrgkgk9ik",
-          "exerciseId": "cmo0gr456000511byjzz673fg",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr456000511byjzz673fg",
-            "name": "Pec Fly",
-            "category": "CHEST",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.114Z"
-          }
-        },
-        {
           "id": "cmp4hshb3000h13owfkqktzdp",
           "workoutId": "cmp4hshb2000013owrgkgk9ik",
           "exerciseId": "cmo0gr45h000711byn7tp5i02",
@@ -1580,6 +1842,25 @@
             "category": "CORE",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.125Z"
+          }
+        },
+        {
+          "id": "cmp4hshb3000e13owbmpxnax2",
+          "workoutId": "cmp4hshb2000013owrgkgk9ik",
+          "exerciseId": "cmo0gr456000511byjzz673fg",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 20,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr456000511byjzz673fg",
+            "name": "Pec Fly",
+            "category": "CHEST",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
         {
@@ -1618,6 +1899,25 @@
             "category": "CHEST",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
+          }
+        },
+        {
+          "id": "cmp4hshb3000813ow5mw6mr23",
+          "workoutId": "cmp4hshb2000013owrgkgk9ik",
+          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 26,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr44o000211byjdmy1avq",
+            "name": "Shoulder Press",
+            "category": "SHOULDERS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
         {
@@ -1735,22 +2035,22 @@
           }
         },
         {
-          "id": "cmp4hshb3000j13owq1wrsdmb",
+          "id": "cmp4hshb3000413owmbrqgviq",
           "workoutId": "cmp4hshb2000013owrgkgk9ik",
-          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "exerciseId": "cmo0gr447000011byrx817v5l",
           "setNumber": 3,
-          "reps": 10,
-          "weight": 0,
+          "reps": 12,
+          "weight": 20,
           "notes": null,
           "rpe": null,
           "completedAt": null,
           "isWarmup": false,
           "exercise": {
-            "id": "cmo0gr45h000711byn7tp5i02",
-            "name": "Plank",
-            "category": "CORE",
+            "id": "cmo0gr447000011byrx817v5l",
+            "name": "Leg Press",
+            "category": "LEGS",
             "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.125Z"
+            "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
         {
@@ -1792,6 +2092,25 @@
           }
         },
         {
+          "id": "cmp4hshb3000j13owq1wrsdmb",
+          "workoutId": "cmp4hshb2000013owrgkgk9ik",
+          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 0,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45h000711byn7tp5i02",
+            "name": "Plank",
+            "category": "CORE",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.125Z"
+          }
+        },
+        {
           "id": "cmp4hshb3000a13owe7l4csjj",
           "workoutId": "cmp4hshb2000013owrgkgk9ik",
           "exerciseId": "cmo0gr44o000211byjdmy1avq",
@@ -1827,25 +2146,6 @@
             "category": "CHEST",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
-          }
-        },
-        {
-          "id": "cmp4hshb3000413owmbrqgviq",
-          "workoutId": "cmp4hshb2000013owrgkgk9ik",
-          "exerciseId": "cmo0gr447000011byrx817v5l",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr447000011byrx817v5l",
-            "name": "Leg Press",
-            "category": "LEGS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.080Z"
           }
         }
       ]
@@ -2229,44 +2529,6 @@
       "createdAt": "2026-05-19T20:08:04.218Z",
       "sets": [
         {
-          "id": "cmpd2ex6k0005xuvo48o3wrf8",
-          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr45s000911by7xs3v5nq",
-            "name": "Mid Row",
-            "category": "BACK",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.137Z"
-          }
-        },
-        {
-          "id": "cmpd2ex6k0008xuvoslqxl0jb",
-          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr45h000711byn7tp5i02",
-          "setNumber": 1,
-          "reps": 16,
-          "weight": 0,
-          "notes": null,
-          "rpe": 2,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr45h000711byn7tp5i02",
-            "name": "Plank",
-            "category": "CORE",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.125Z"
-          }
-        },
-        {
           "id": "cmpd2ex6k000bxuvoh4hwj7re",
           "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
           "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
@@ -2340,6 +2602,44 @@
             "category": "BACK",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.131Z"
+          }
+        },
+        {
+          "id": "cmpd2ex6k0005xuvo48o3wrf8",
+          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 20,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.137Z"
+          }
+        },
+        {
+          "id": "cmpd2ex6k0008xuvoslqxl0jb",
+          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
+          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "setNumber": 1,
+          "reps": 16,
+          "weight": 0,
+          "notes": null,
+          "rpe": 2,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45h000711byn7tp5i02",
+            "name": "Plank",
+            "category": "CORE",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.125Z"
           }
         },
         {
@@ -2457,6 +2757,44 @@
           }
         },
         {
+          "id": "cmpd2ex6k000axuvojkitj2l3",
+          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
+          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "setNumber": 3,
+          "reps": 21,
+          "weight": 0,
+          "notes": null,
+          "rpe": 4,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45h000711byn7tp5i02",
+            "name": "Plank",
+            "category": "CORE",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.125Z"
+          }
+        },
+        {
+          "id": "cmpd2ex6k0007xuvogwwa7vop",
+          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 20,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.137Z"
+          }
+        },
+        {
           "id": "cmpd2ex6k0004xuvo3c8mms3b",
           "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
           "exerciseId": "cmo0gr45m000811bylyejpvpk",
@@ -2531,44 +2869,6 @@
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.142Z"
           }
-        },
-        {
-          "id": "cmpd2ex6k000axuvojkitj2l3",
-          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr45h000711byn7tp5i02",
-          "setNumber": 3,
-          "reps": 21,
-          "weight": 0,
-          "notes": null,
-          "rpe": 4,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr45h000711byn7tp5i02",
-            "name": "Plank",
-            "category": "CORE",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.125Z"
-          }
-        },
-        {
-          "id": "cmpd2ex6k0007xuvogwwa7vop",
-          "workoutId": "cmpd2ex6k0000xuvobzq3vso7",
-          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr45s000911by7xs3v5nq",
-            "name": "Mid Row",
-            "category": "BACK",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.137Z"
-          }
         }
       ]
     },
@@ -2609,25 +2909,6 @@
           }
         },
         {
-          "id": "cmpinz98n000git4drxfidt6t",
-          "workoutId": "cmpinz98m0000it4djbf3n4px",
-          "exerciseId": "cmo0gr46p000f11byzmt808od",
-          "setNumber": 1,
-          "reps": 15,
-          "weight": 29,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr46p000f11byzmt808od",
-            "name": "Ab Crunch",
-            "category": "CORE",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.170Z"
-          }
-        },
-        {
           "id": "cmpinz98n0005it4dqtl2lsb1",
           "workoutId": "cmpinz98m0000it4djbf3n4px",
           "exerciseId": "cmo0gr44i000111bygug550i3",
@@ -2644,25 +2925,6 @@
             "category": "CHEST",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
-          }
-        },
-        {
-          "id": "cmpinz98n000eit4dwiih63s5",
-          "workoutId": "cmpinz98m0000it4djbf3n4px",
-          "exerciseId": "cmo0gr456000511byjzz673fg",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 29,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr456000511byjzz673fg",
-            "name": "Pec Fly",
-            "category": "CHEST",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
         {
@@ -2701,6 +2963,44 @@
             "category": "LEGS",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
+          }
+        },
+        {
+          "id": "cmpinz98n000eit4dwiih63s5",
+          "workoutId": "cmpinz98m0000it4djbf3n4px",
+          "exerciseId": "cmo0gr456000511byjzz673fg",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 29,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr456000511byjzz673fg",
+            "name": "Pec Fly",
+            "category": "CHEST",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.114Z"
+          }
+        },
+        {
+          "id": "cmpinz98n000git4drxfidt6t",
+          "workoutId": "cmpinz98m0000it4djbf3n4px",
+          "exerciseId": "cmo0gr46p000f11byzmt808od",
+          "setNumber": 1,
+          "reps": 15,
+          "weight": 29,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr46p000f11byzmt808od",
+            "name": "Ab Crunch",
+            "category": "CORE",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
         {
@@ -2818,22 +3118,22 @@
           }
         },
         {
-          "id": "cmpinz98n000ait4dpfw8idgh",
+          "id": "cmpinz98n000iit4ddl3ym2lu",
           "workoutId": "cmpinz98m0000it4djbf3n4px",
-          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "exerciseId": "cmo0gr46p000f11byzmt808od",
           "setNumber": 3,
-          "reps": 12,
-          "weight": 26,
+          "reps": 15,
+          "weight": 29,
           "notes": null,
           "rpe": 2,
           "completedAt": null,
           "isWarmup": false,
           "exercise": {
-            "id": "cmo0gr44o000211byjdmy1avq",
-            "name": "Shoulder Press",
-            "category": "SHOULDERS",
+            "id": "cmo0gr46p000f11byzmt808od",
+            "name": "Ab Crunch",
+            "category": "CORE",
             "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.097Z"
+            "createdAt": "2026-04-15T19:48:45.170Z"
           }
         },
         {
@@ -2853,6 +3153,25 @@
             "category": "LEGS",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.103Z"
+          }
+        },
+        {
+          "id": "cmpinz98n000ait4dpfw8idgh",
+          "workoutId": "cmpinz98m0000it4djbf3n4px",
+          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 26,
+          "notes": null,
+          "rpe": 2,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr44o000211byjdmy1avq",
+            "name": "Shoulder Press",
+            "category": "SHOULDERS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
         {
@@ -2892,25 +3211,6 @@
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
           }
-        },
-        {
-          "id": "cmpinz98n000iit4ddl3ym2lu",
-          "workoutId": "cmpinz98m0000it4djbf3n4px",
-          "exerciseId": "cmo0gr46p000f11byzmt808od",
-          "setNumber": 3,
-          "reps": 15,
-          "weight": 29,
-          "notes": null,
-          "rpe": 2,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr46p000f11byzmt808od",
-            "name": "Ab Crunch",
-            "category": "CORE",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.170Z"
-          }
         }
       ]
     },
@@ -2931,6 +3231,44 @@
       "gapReason": null,
       "createdAt": "2026-05-30T18:02:10.301Z",
       "sets": [
+        {
+          "id": "cmpsnrdvl000n742qqnoun5fl",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr46k000e11by41cdclm9",
+          "setNumber": 1,
+          "reps": 15,
+          "weight": 7.5,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr46k000e11by41cdclm9",
+            "name": "Cable Face Pull",
+            "category": "SHOULDERS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.165Z"
+          }
+        },
+        {
+          "id": "cmpsnrdvl000k742q23qge125",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr464000b11byotiuejog",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 20,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr464000b11byotiuejog",
+            "name": "Rear Delt Fly",
+            "category": "SHOULDERS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.148Z"
+          }
+        },
         {
           "id": "cmpsnrdvl000h742qx5scd7j3",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
@@ -3008,25 +3346,6 @@
           }
         },
         {
-          "id": "cmpsnrdvl0005742qnhtv5ie8",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
-          "setNumber": 1,
-          "reps": 10,
-          "weight": 29,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr45s000911by7xs3v5nq",
-            "name": "Mid Row",
-            "category": "BACK",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.137Z"
-          }
-        },
-        {
           "id": "cmpsnrdvl0002742qp6m1oe57",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
           "exerciseId": "cmo0gr45m000811bylyejpvpk",
@@ -3046,41 +3365,22 @@
           }
         },
         {
-          "id": "cmpsnrdvl000n742qqnoun5fl",
+          "id": "cmpsnrdvl0005742qnhtv5ie8",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr46k000e11by41cdclm9",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
           "setNumber": 1,
-          "reps": 15,
-          "weight": 7.5,
+          "reps": 10,
+          "weight": 29,
           "notes": null,
           "rpe": 1,
           "completedAt": null,
           "isWarmup": false,
           "exercise": {
-            "id": "cmo0gr46k000e11by41cdclm9",
-            "name": "Cable Face Pull",
-            "category": "SHOULDERS",
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
             "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.165Z"
-          }
-        },
-        {
-          "id": "cmpsnrdvl000k742q23qge125",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr464000b11byotiuejog",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr464000b11byotiuejog",
-            "name": "Rear Delt Fly",
-            "category": "SHOULDERS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.148Z"
+            "createdAt": "2026-04-15T19:48:45.137Z"
           }
         },
         {
@@ -3236,82 +3536,6 @@
           }
         },
         {
-          "id": "cmpsnrdvl000g742qyxtvef4c",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 22.5,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr469000c11byf8hj8hzj",
-            "name": "Bicep Curl",
-            "category": "ARMS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.154Z"
-          }
-        },
-        {
-          "id": "cmpsnrdvl000j742qhdmk37tp",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
-          "setNumber": 3,
-          "reps": 10,
-          "weight": 27.5,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr46f000d11byrg1aizdn",
-            "name": "Triceps Extension",
-            "category": "ARMS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.159Z"
-          }
-        },
-        {
-          "id": "cmpsnrdvl000m742qmy1irih4",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr464000b11byotiuejog",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 20,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr464000b11byotiuejog",
-            "name": "Rear Delt Fly",
-            "category": "SHOULDERS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.148Z"
-          }
-        },
-        {
-          "id": "cmpsnrdvl000p742quoidh5y5",
-          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
-          "exerciseId": "cmo0gr46k000e11by41cdclm9",
-          "setNumber": 3,
-          "reps": 15,
-          "weight": 7.5,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr46k000e11by41cdclm9",
-            "name": "Cable Face Pull",
-            "category": "SHOULDERS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.165Z"
-          }
-        },
-        {
           "id": "cmpsnrdvl0004742qp4i1ovas",
           "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
           "exerciseId": "cmo0gr45m000811bylyejpvpk",
@@ -3386,6 +3610,82 @@
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.142Z"
           }
+        },
+        {
+          "id": "cmpsnrdvl000g742qyxtvef4c",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 22.5,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr469000c11byf8hj8hzj",
+            "name": "Bicep Curl",
+            "category": "ARMS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.154Z"
+          }
+        },
+        {
+          "id": "cmpsnrdvl000j742qhdmk37tp",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 27.5,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr46f000d11byrg1aizdn",
+            "name": "Triceps Extension",
+            "category": "ARMS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.159Z"
+          }
+        },
+        {
+          "id": "cmpsnrdvl000m742qmy1irih4",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr464000b11byotiuejog",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 20,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr464000b11byotiuejog",
+            "name": "Rear Delt Fly",
+            "category": "SHOULDERS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.148Z"
+          }
+        },
+        {
+          "id": "cmpsnrdvl000p742quoidh5y5",
+          "workoutId": "cmpsnrdvj0000742qqv8ar1s9",
+          "exerciseId": "cmo0gr46k000e11by41cdclm9",
+          "setNumber": 3,
+          "reps": 15,
+          "weight": 7.5,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr46k000e11by41cdclm9",
+            "name": "Cable Face Pull",
+            "category": "SHOULDERS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.165Z"
+          }
         }
       ]
     },
@@ -3406,44 +3706,6 @@
       "gapReason": null,
       "createdAt": "2026-06-16T06:24:57.691Z",
       "sets": [
-        {
-          "id": "cmqg9c8ym000bh62ahthg5v60",
-          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
-          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
-          "setNumber": 1,
-          "reps": 10,
-          "weight": 27,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr45s000911by7xs3v5nq",
-            "name": "Mid Row",
-            "category": "BACK",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.137Z"
-          }
-        },
-        {
-          "id": "cmqg9c8ym0008h62af1i3tv74",
-          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
-          "exerciseId": "cmo0gr44o000211byjdmy1avq",
-          "setNumber": 1,
-          "reps": 10,
-          "weight": 27,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr44o000211byjdmy1avq",
-            "name": "Shoulder Press",
-            "category": "SHOULDERS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.097Z"
-          }
-        },
         {
           "id": "cmqg9c8ym0005h62akmg9syc5",
           "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
@@ -3480,6 +3742,44 @@
             "category": "LEGS",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym000bh62ahthg5v60",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 27,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.137Z"
+          }
+        },
+        {
+          "id": "cmqg9c8ym0008h62af1i3tv74",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr44o000211byjdmy1avq",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 27,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr44o000211byjdmy1avq",
+            "name": "Shoulder Press",
+            "category": "SHOULDERS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.097Z"
           }
         },
         {
@@ -3559,25 +3859,6 @@
           }
         },
         {
-          "id": "cmqg9c8ym0004h62aqf202cr1",
-          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
-          "exerciseId": "cmo0gr447000011byrx817v5l",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 36,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr447000011byrx817v5l",
-            "name": "Leg Press",
-            "category": "LEGS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.080Z"
-          }
-        },
-        {
           "id": "cmqg9c8ym0007h62awv98um6k",
           "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
           "exerciseId": "cmo0gr44i000111bygug550i3",
@@ -3633,6 +3914,25 @@
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.137Z"
           }
+        },
+        {
+          "id": "cmqg9c8ym0004h62aqf202cr1",
+          "workoutId": "cmqg9c8yl0000h62ay3fd3y5o",
+          "exerciseId": "cmo0gr447000011byrx817v5l",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 36,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr447000011byrx817v5l",
+            "name": "Leg Press",
+            "category": "LEGS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.080Z"
+          }
         }
       ]
     },
@@ -3653,6 +3953,82 @@
       "gapReason": null,
       "createdAt": "2026-07-29T20:33:52.488Z",
       "sets": [
+        {
+          "id": "cms6jll64000k860w5u1z8il1",
+          "workoutId": "cms6jll620000860w6hz42rl5",
+          "exerciseId": "cmo0gr46p000f11byzmt808od",
+          "setNumber": 1,
+          "reps": 15,
+          "weight": 15,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr46p000f11byzmt808od",
+            "name": "Ab Crunch",
+            "category": "CORE",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.170Z"
+          }
+        },
+        {
+          "id": "cms6jll64000h860w8va5x80a",
+          "workoutId": "cms6jll620000860w6hz42rl5",
+          "exerciseId": "cmo0gr456000511byjzz673fg",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 15,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr456000511byjzz673fg",
+            "name": "Pec Fly",
+            "category": "CHEST",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.114Z"
+          }
+        },
+        {
+          "id": "cms6jll63000e860wi2l5cbco",
+          "workoutId": "cms6jll620000860w6hz42rl5",
+          "exerciseId": "cmo0gr44u000311bypxi03ywu",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 15,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr44u000311bypxi03ywu",
+            "name": "Leg Extension",
+            "category": "LEGS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.103Z"
+          }
+        },
+        {
+          "id": "cms6jll63000b860wty59w2ml",
+          "workoutId": "cms6jll620000860w6hz42rl5",
+          "exerciseId": "cmpsvzaa3000014d5squs5art",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 0,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmpsvzaa3000014d5squs5art",
+            "name": "Hip Thrust Machine",
+            "category": "LEGS",
+            "pinIncrement": null,
+            "createdAt": "2026-05-30T21:52:15.820Z"
+          }
+        },
         {
           "id": "cms6jll630008860weuirz8dy",
           "workoutId": "cms6jll620000860w6hz42rl5",
@@ -3692,105 +4068,10 @@
           }
         },
         {
-          "id": "cms6jll64000h860w8va5x80a",
-          "workoutId": "cms6jll620000860w6hz42rl5",
-          "exerciseId": "cmo0gr456000511byjzz673fg",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 15,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr456000511byjzz673fg",
-            "name": "Pec Fly",
-            "category": "CHEST",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.114Z"
-          }
-        },
-        {
           "id": "cms6jll630002860wlta92g9n",
           "workoutId": "cms6jll620000860w6hz42rl5",
           "exerciseId": "cmo0gr447000011byrx817v5l",
           "setNumber": 1,
-          "reps": 10,
-          "weight": 20,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr447000011byrx817v5l",
-            "name": "Leg Press",
-            "category": "LEGS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.080Z"
-          }
-        },
-        {
-          "id": "cms6jll63000e860wi2l5cbco",
-          "workoutId": "cms6jll620000860w6hz42rl5",
-          "exerciseId": "cmo0gr44u000311bypxi03ywu",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 15,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr44u000311bypxi03ywu",
-            "name": "Leg Extension",
-            "category": "LEGS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.103Z"
-          }
-        },
-        {
-          "id": "cms6jll64000k860w5u1z8il1",
-          "workoutId": "cms6jll620000860w6hz42rl5",
-          "exerciseId": "cmo0gr46p000f11byzmt808od",
-          "setNumber": 1,
-          "reps": 15,
-          "weight": 15,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr46p000f11byzmt808od",
-            "name": "Ab Crunch",
-            "category": "CORE",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.170Z"
-          }
-        },
-        {
-          "id": "cms6jll63000b860wty59w2ml",
-          "workoutId": "cms6jll620000860w6hz42rl5",
-          "exerciseId": "cmpsvzaa3000014d5squs5art",
-          "setNumber": 1,
-          "reps": 12,
-          "weight": 0,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmpsvzaa3000014d5squs5art",
-            "name": "Hip Thrust Machine",
-            "category": "LEGS",
-            "pinIncrement": null,
-            "createdAt": "2026-05-30T21:52:15.820Z"
-          }
-        },
-        {
-          "id": "cms6jll630003860w2pqtzxsz",
-          "workoutId": "cms6jll620000860w6hz42rl5",
-          "exerciseId": "cmo0gr447000011byrx817v5l",
-          "setNumber": 2,
           "reps": 10,
           "weight": 20,
           "notes": null,
@@ -3822,6 +4103,25 @@
             "category": "CHEST",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.091Z"
+          }
+        },
+        {
+          "id": "cms6jll630003860w2pqtzxsz",
+          "workoutId": "cms6jll620000860w6hz42rl5",
+          "exerciseId": "cmo0gr447000011byrx817v5l",
+          "setNumber": 2,
+          "reps": 10,
+          "weight": 20,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr447000011byrx817v5l",
+            "name": "Leg Press",
+            "category": "LEGS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.080Z"
           }
         },
         {
@@ -3920,63 +4220,6 @@
           }
         },
         {
-          "id": "cms6jll63000d860wszqwth0s",
-          "workoutId": "cms6jll620000860w6hz42rl5",
-          "exerciseId": "cmpsvzaa3000014d5squs5art",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 0,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmpsvzaa3000014d5squs5art",
-            "name": "Hip Thrust Machine",
-            "category": "LEGS",
-            "pinIncrement": null,
-            "createdAt": "2026-05-30T21:52:15.820Z"
-          }
-        },
-        {
-          "id": "cms6jll64000m860wd2bvle9e",
-          "workoutId": "cms6jll620000860w6hz42rl5",
-          "exerciseId": "cmo0gr46p000f11byzmt808od",
-          "setNumber": 3,
-          "reps": 15,
-          "weight": 15,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr46p000f11byzmt808od",
-            "name": "Ab Crunch",
-            "category": "CORE",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.170Z"
-          }
-        },
-        {
-          "id": "cms6jll63000g860wcrgp46bq",
-          "workoutId": "cms6jll620000860w6hz42rl5",
-          "exerciseId": "cmo0gr44u000311bypxi03ywu",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 15,
-          "notes": null,
-          "rpe": null,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr44u000311bypxi03ywu",
-            "name": "Leg Extension",
-            "category": "LEGS",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.103Z"
-          }
-        },
-        {
           "id": "cms6jll630004860wxi5u56oi",
           "workoutId": "cms6jll620000860w6hz42rl5",
           "exerciseId": "cmo0gr447000011byrx817v5l",
@@ -3993,25 +4236,6 @@
             "category": "LEGS",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.080Z"
-          }
-        },
-        {
-          "id": "cms6jll64000j860wazkt5x2d",
-          "workoutId": "cms6jll620000860w6hz42rl5",
-          "exerciseId": "cmo0gr456000511byjzz673fg",
-          "setNumber": 3,
-          "reps": 12,
-          "weight": 15,
-          "notes": null,
-          "rpe": 1,
-          "completedAt": null,
-          "isWarmup": false,
-          "exercise": {
-            "id": "cmo0gr456000511byjzz673fg",
-            "name": "Pec Fly",
-            "category": "CHEST",
-            "pinIncrement": null,
-            "createdAt": "2026-04-15T19:48:45.114Z"
           }
         },
         {
@@ -4050,6 +4274,500 @@
             "category": "SHOULDERS",
             "pinIncrement": null,
             "createdAt": "2026-04-15T19:48:45.097Z"
+          }
+        },
+        {
+          "id": "cms6jll63000d860wszqwth0s",
+          "workoutId": "cms6jll620000860w6hz42rl5",
+          "exerciseId": "cmpsvzaa3000014d5squs5art",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 0,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmpsvzaa3000014d5squs5art",
+            "name": "Hip Thrust Machine",
+            "category": "LEGS",
+            "pinIncrement": null,
+            "createdAt": "2026-05-30T21:52:15.820Z"
+          }
+        },
+        {
+          "id": "cms6jll63000g860wcrgp46bq",
+          "workoutId": "cms6jll620000860w6hz42rl5",
+          "exerciseId": "cmo0gr44u000311bypxi03ywu",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 15,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr44u000311bypxi03ywu",
+            "name": "Leg Extension",
+            "category": "LEGS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.103Z"
+          }
+        },
+        {
+          "id": "cms6jll64000j860wazkt5x2d",
+          "workoutId": "cms6jll620000860w6hz42rl5",
+          "exerciseId": "cmo0gr456000511byjzz673fg",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 15,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr456000511byjzz673fg",
+            "name": "Pec Fly",
+            "category": "CHEST",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.114Z"
+          }
+        },
+        {
+          "id": "cms6jll64000m860wd2bvle9e",
+          "workoutId": "cms6jll620000860w6hz42rl5",
+          "exerciseId": "cmo0gr46p000f11byzmt808od",
+          "setNumber": 3,
+          "reps": 15,
+          "weight": 15,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr46p000f11byzmt808od",
+            "name": "Ab Crunch",
+            "category": "CORE",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.170Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cmtj2pa8n00007zzoejfwqbl2",
+      "name": "Day B — Watch · Sep 1",
+      "date": "2026-09-01T00:00:00.000Z",
+      "gym": "bfit",
+      "notes": null,
+      "duration": 2411,
+      "avgHr": null,
+      "maxHr": null,
+      "activeKcal": null,
+      "healthSyncedAt": "2026-09-01T19:48:35.649Z",
+      "healthWorkoutUuid": null,
+      "clientSaveId": "4689157F-BE1D-4ADD-82B0-88709C60DE6F",
+      "hrSeries": null,
+      "gapReason": null,
+      "createdAt": "2026-09-01T19:41:34.103Z",
+      "sets": [
+        {
+          "id": "cmtj2pa8n00027zzol682gjya",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmpsvzab1000114d5pfwtnq3i",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 12.5,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmpsvzab1000114d5pfwtnq3i",
+            "name": "Back Extension",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-05-30T21:52:15.854Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000e7zzon6ngxsck",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 12.5,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45x000a11bygxz3rzq0",
+            "name": "Leg Curl",
+            "category": "LEGS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.142Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000k7zzovd1wr9bc",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 15,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr46f000d11byrg1aizdn",
+            "name": "Triceps Extension",
+            "category": "ARMS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.159Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000b7zzo9qlrxvtz",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 0,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45h000711byn7tp5i02",
+            "name": "Plank",
+            "category": "CORE",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.125Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000h7zzo2zxfkck3",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
+          "setNumber": 1,
+          "reps": 12,
+          "weight": 12.5,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr469000c11byf8hj8hzj",
+            "name": "Bicep Curl",
+            "category": "ARMS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.154Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n00087zzootm4pi0i",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 20,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.137Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n00057zzo3ynetesn",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45m000811bylyejpvpk",
+          "setNumber": 1,
+          "reps": 10,
+          "weight": 28,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45m000811bylyejpvpk",
+            "name": "Lat Pulldown",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.131Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n00037zzodoh8ihmd",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmpsvzab1000114d5pfwtnq3i",
+          "setNumber": 2,
+          "reps": 12,
+          "weight": 12.5,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmpsvzab1000114d5pfwtnq3i",
+            "name": "Back Extension",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-05-30T21:52:15.854Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n00067zzocgtdq64u",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45m000811bylyejpvpk",
+          "setNumber": 2,
+          "reps": 10,
+          "weight": 28,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45m000811bylyejpvpk",
+            "name": "Lat Pulldown",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.131Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n00097zzoldwrxu4t",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 2,
+          "reps": 10,
+          "weight": 20,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.137Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000c7zzoovq23pdo",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "setNumber": 2,
+          "reps": 10,
+          "weight": 0,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45h000711byn7tp5i02",
+            "name": "Plank",
+            "category": "CORE",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.125Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000f7zzofpyvq6fi",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
+          "setNumber": 2,
+          "reps": 12,
+          "weight": 12.5,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45x000a11bygxz3rzq0",
+            "name": "Leg Curl",
+            "category": "LEGS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.142Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000i7zzo7499gpsr",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
+          "setNumber": 2,
+          "reps": 12,
+          "weight": 12.5,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr469000c11byf8hj8hzj",
+            "name": "Bicep Curl",
+            "category": "ARMS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.154Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000l7zzom92dm6n8",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
+          "setNumber": 2,
+          "reps": 10,
+          "weight": 15,
+          "notes": null,
+          "rpe": null,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr46f000d11byrg1aizdn",
+            "name": "Triceps Extension",
+            "category": "ARMS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.159Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n00077zzo5jwf3wfb",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45m000811bylyejpvpk",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 28,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45m000811bylyejpvpk",
+            "name": "Lat Pulldown",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.131Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000m7zzo59hk3xo6",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr46f000d11byrg1aizdn",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 15,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr46f000d11byrg1aizdn",
+            "name": "Triceps Extension",
+            "category": "ARMS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.159Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000a7zzo69r43qxy",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45s000911by7xs3v5nq",
+          "setNumber": 3,
+          "reps": 10,
+          "weight": 20,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45s000911by7xs3v5nq",
+            "name": "Mid Row",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.137Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000j7zzoi82gqw4a",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr469000c11byf8hj8hzj",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 12.5,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr469000c11byf8hj8hzj",
+            "name": "Bicep Curl",
+            "category": "ARMS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.154Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000d7zzodb6mq1v0",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45h000711byn7tp5i02",
+          "setNumber": 3,
+          "reps": 15,
+          "weight": 0,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45h000711byn7tp5i02",
+            "name": "Plank",
+            "category": "CORE",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.125Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n000g7zzo18p840bz",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmo0gr45x000a11bygxz3rzq0",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 12.5,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmo0gr45x000a11bygxz3rzq0",
+            "name": "Leg Curl",
+            "category": "LEGS",
+            "pinIncrement": null,
+            "createdAt": "2026-04-15T19:48:45.142Z"
+          }
+        },
+        {
+          "id": "cmtj2pa8n00047zzovsh5s9pt",
+          "workoutId": "cmtj2pa8n00007zzoejfwqbl2",
+          "exerciseId": "cmpsvzab1000114d5pfwtnq3i",
+          "setNumber": 3,
+          "reps": 12,
+          "weight": 12.5,
+          "notes": null,
+          "rpe": 1,
+          "completedAt": null,
+          "isWarmup": false,
+          "exercise": {
+            "id": "cmpsvzab1000114d5pfwtnq3i",
+            "name": "Back Extension",
+            "category": "BACK",
+            "pinIncrement": null,
+            "createdAt": "2026-05-30T21:52:15.854Z"
           }
         }
       ]
@@ -4263,6 +4981,58 @@
       "visceralFat": null,
       "source": "apple-health",
       "createdAt": "2026-08-30T07:29:35.559Z"
+    },
+    {
+      "id": "cmtj13pdv000tz27cbanoe660",
+      "date": "2026-08-31T09:52:47.000Z",
+      "weight": 128,
+      "waist": null,
+      "arms": null,
+      "neckCm": null,
+      "bodyFatPct": null,
+      "muscleKg": null,
+      "visceralFat": null,
+      "source": "apple-health",
+      "createdAt": "2026-09-01T18:56:47.683Z"
+    },
+    {
+      "id": "cmtj13pe6000uz27cd5xu9pqp",
+      "date": "2026-09-01T05:50:01.000Z",
+      "weight": 128.5,
+      "waist": null,
+      "arms": null,
+      "neckCm": null,
+      "bodyFatPct": null,
+      "muscleKg": null,
+      "visceralFat": null,
+      "source": "apple-health",
+      "createdAt": "2026-09-01T18:56:47.695Z"
+    },
+    {
+      "id": "cmtn6qozg000vtann62t23hoh",
+      "date": "2026-09-02T05:06:18.000Z",
+      "weight": 129.1,
+      "waist": null,
+      "arms": null,
+      "neckCm": null,
+      "bodyFatPct": null,
+      "muscleKg": null,
+      "visceralFat": null,
+      "source": "apple-health",
+      "createdAt": "2026-09-04T16:45:43.037Z"
+    },
+    {
+      "id": "cmtn6qozr000wtannj53pix93",
+      "date": "2026-09-03T04:25:04.000Z",
+      "weight": 128.8,
+      "waist": null,
+      "arms": null,
+      "neckCm": null,
+      "bodyFatPct": null,
+      "muscleKg": null,
+      "visceralFat": null,
+      "source": "apple-health",
+      "createdAt": "2026-09-04T16:45:43.048Z"
     }
   ],
   "health": {
@@ -4349,6 +5119,19 @@
         "penId": null,
         "notes": null,
         "createdAt": "2026-08-25T19:06:04.124Z"
+      },
+      {
+        "id": "cmtj144mi0000q7oobq2s233d",
+        "at": "2026-09-01T18:57:07.231Z",
+        "doseMg": 2.5,
+        "penMg": null,
+        "clicks": null,
+        "site": "abdomen-left",
+        "onSchedule": true,
+        "needleInfo": null,
+        "penId": null,
+        "notes": null,
+        "createdAt": "2026-09-01T18:57:07.432Z"
       }
     ],
     "symptomLog": [],
@@ -4428,6 +5211,50 @@
         "seated": true,
         "notes": "Apple Health",
         "createdAt": "2026-08-31T10:38:08.123Z"
+      },
+      {
+        "id": "cmtn6qpgk001mtannny9oqdxs",
+        "at": "2026-09-01T18:11:31.000Z",
+        "systolic": 131,
+        "diastolic": 81,
+        "pulse": 68,
+        "context": null,
+        "seated": true,
+        "notes": "Apple Health",
+        "createdAt": "2026-09-04T16:45:43.652Z"
+      },
+      {
+        "id": "cmtn6qpgt001ntannjfr3ta6a",
+        "at": "2026-09-02T04:21:14.000Z",
+        "systolic": 124,
+        "diastolic": 78,
+        "pulse": 68,
+        "context": null,
+        "seated": true,
+        "notes": "Apple Health",
+        "createdAt": "2026-09-04T16:45:43.661Z"
+      },
+      {
+        "id": "cmtn6qpgx001otann54lssy0p",
+        "at": "2026-09-03T04:19:22.000Z",
+        "systolic": 132,
+        "diastolic": 90,
+        "pulse": 71,
+        "context": null,
+        "seated": true,
+        "notes": "Apple Health",
+        "createdAt": "2026-09-04T16:45:43.665Z"
+      },
+      {
+        "id": "cmtn6qph0001ptann7wowrby2",
+        "at": "2026-09-04T11:20:53.000Z",
+        "systolic": 121,
+        "diastolic": 80,
+        "pulse": 77,
+        "context": null,
+        "seated": true,
+        "notes": "Apple Health",
+        "createdAt": "2026-09-04T16:45:43.669Z"
       }
     ],
     "cpapNight": [
@@ -4613,6 +5440,20 @@
     ],
     "nutritionLog": [
       {
+        "id": "cmtj69se20000au30pjgwizls",
+        "day": "2026-09-01T00:00:00.000Z",
+        "proteinG": 40,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 692,
+        "carbsG": 45,
+        "fatG": 39,
+        "flags": null,
+        "notes": null,
+        "createdAt": "2026-09-01T21:21:29.595Z"
+      },
+      {
         "id": "cmtdqsqk70000wfc9kl83iugv",
         "day": "2026-09-02T00:00:00.000Z",
         "proteinG": 67,
@@ -4639,6 +5480,20 @@
         "flags": null,
         "notes": null,
         "createdAt": "2026-08-29T02:09:29.422Z"
+      },
+      {
+        "id": "cmtn6tc5b0000s0rkqrmfu3wv",
+        "day": "2026-09-04T00:00:00.000Z",
+        "proteinG": 0,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1057,
+        "carbsG": 0,
+        "fatG": 0,
+        "flags": null,
+        "notes": null,
+        "createdAt": "2026-09-04T16:47:46.367Z"
       },
       {
         "id": "cmtieopse00006gto21iow03a",
