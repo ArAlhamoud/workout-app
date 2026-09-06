@@ -38,10 +38,10 @@ prisma/*.db
 prisma/*.db-journal
 .env.local
 
-# xcode / capacitor build output (the pinned DerivedData and SPM's own)
-ios/App/.derived/
-ios/App/.derived-sim/
-ios/App/.derived-watch/
+# xcode / capacitor build output (the pinned DerivedData and SPM's own).
+# Wildcard, not one line per suffix: .derived-watchdev/ (423 MB) sat
+# untracked-but-unignored for days because the list named .derived-watch.
+ios/App/.derived*/
 ios/App/CapApp-SPM/build/
 
 # per-machine claude permissions

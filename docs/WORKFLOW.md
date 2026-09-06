@@ -167,16 +167,35 @@ with, and prefer pushing before a session rather than during one.
   a set → Watch shows it after wrist-raise → finish on the phone → Watch
   lands on "Finished on the phone". Then `npm run ios:testflight`.
 
-- **Build 9 — from the owner's first field use of build 8 (2026-09-02):**
-  (a) machine switch is now a BUTTON row on the set card ("‹" and
-  "<next machine> ›") and a "<next> taken? ›" line on the REST screen,
-  where he actually discovers the machine is busy; the swipe stays as
-  `highPriorityGesture` on both. (b) Start screen polls the live row
-  every 20 s while idle, so a phone session opened after the Watch is
-  already on Start still shows "Continue". Sim: log set 1, on the rest
-  screen tap "<next> taken? ›" → next machine's card; on a set card tap
-  "‹" → back. Open a phone logger (curl a live row) while the Watch sits
-  on Start → Continue appears within 20 s. Then `npm run ios:testflight`.
+- ~~**Build 9** — from the owner's first field use of build 8
+  (2026-09-02)~~ **BUILT (Mac session, 2026-09-07), with (a) redesigned
+  by the owner mid-build.** (a) The cloud's button row shipped as a
+  *tappable hint* instead: the owner's word is "I want to swipe", so the
+  gesture stays the interaction and the line that names the target is
+  `.plain`-tappable as the fallback the 09-02 failure actually needed —
+  see docs/WATCH.md "Occupied machine". Verified on the sim: tap the
+  hint → next machine; swipe right → back; a swipe STARTING on the hint
+  still swipes (highPriorityGesture beats the button); rest-screen
+  "<next> taken? ›" skips the rest AND rotates (child button beats the
+  parent's skip-rest tap). (b) Start-screen 20 s live poll is in the
+  code (`StartView.task` → `refreshLive`) but was **not** driven E2E —
+  see the production hazard below.
+
+- **Watch sim testing writes to PRODUCTION (learned 2026-09-07).**
+  `API.baseURL` falls back to the live Vercel URL, and `logCurrentSet`
+  calls `postLive` — so logging a set on the *simulator* opens a real
+  `LiveSession` row in the real database, and the owner's phone will
+  offer to "Continue" it. Always exit a sim test through **End →
+  Discard** (`discard()` calls `closeLive`), never by killing the app,
+  and confirm with `curl .../api/live` → `{"live":null}`. To point a sim
+  somewhere safe instead, pass `WATCH_BASE_URL=https://<preview>` on the
+  `xcodebuild` command line — command-line settings outrank the project.
+  Note the empty-string fallback in `API.baseURL` is DEAD code:
+  `WATCH_BASE_URL` is hardcoded to the production URL in both build
+  configs (`App.xcodeproj/project.pbxproj:483` and `:535`), so
+  `WatchBaseURL` is never empty. A sim always points at production
+  unless you override it. This is also why "curl a live row to test the
+  poll" is not a free test: it writes to the database he trains against.
 
 - ~~Volt simulator pass~~ **DONE (Mac session, 2026-08-30, iPhone 17 sim
   / WKWebView on production).** All four checks passed: (1) status-bar

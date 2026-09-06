@@ -269,10 +269,49 @@ rated last set — decide when the ramp ends (trainer note, 2026-09-01).
 
 Update 2026-09-02 (first field use): the swipe alone was missed on the
 gym floor, and the busy machine is discovered on the REST screen, not
-the set card. Both screens now carry a real control — set card: a "‹"
-button and a "<next machine> ›" button under the weight; rest screen:
-"<next machine> taken? ›" (skips the rest and rotates). The swipe stays
-as a high-priority gesture on both. `nextMachineName` names the target.
+the set card. Build 9 answered that with a real button row on the set
+card.
+
+**Update 2026-09-07 (owner, settled): the swipe IS the interaction —
+but every hint that names the target is tappable.** He asked for the
+gesture, not button chrome; the 09-02 failure was having no fallback
+when a swipe is missed, not the absence of buttons. So both screens
+carry one quiet `.plain` line, no chrome, that also works as a tap:
+set card `<next machine> ›`, rest screen `<machine he is walking to>
+taken? ›`. Tap always goes FORWARD; back is swipe-right only.
+
+Four things the review pass fixed, each worth not relearning:
+
+1. **ONE chevron, trailing.** The first cut read `‹ <next> ›`, and the
+   leading ‹ lied — the whole row goes forward, so the glyph meaning
+   "back" advanced him, and tapping again to undo advanced him again.
+2. **The rest screen names the machine AT RISK, not the destination.**
+   It labels with `currentSlot.exerciseName` — the machine he is
+   walking to. `nextMachineName` is where a switch LANDS him, so using
+   it asked "Plank taken?" while he stood at an occupied Mid Row.
+3. **`.id(slot.id)` on SetCardView** (RootView). A rotation changes the
+   slot without changing the phase, so SwiftUI reused the view and threw
+   away `init`'s crown seed. Rotating a 0 kg card into the seconds Plank
+   card left the crown at 0, outside the 5…180 range, and the clamp
+   wrote a phantom 5 s hold — the 10 s plank bug (e9be317) by another
+   road. Verified fixed: Mid Row → Plank now shows 21 s, not 5 s.
+4. **Hit regions.** `.plain` hit-tests the glyphs, not the frame, so the
+   padded row was dead at the edges and a near-miss on the rest screen
+   fell through to the parent's tap and destroyed the rest with no undo.
+   Both lines now carry `.contentShape(Rectangle())` over a full-width
+   frame; the rest-screen drag is gated on `pendingMachineCount > 1`
+   because `switchMachineFromRest` kills the timer BEFORE
+   `rotatePending`'s own guard runs.
+
+Sim-verified after the fixes: tap the hint → next machine; tap the far
+LEFT edge of the row → still rotates (contentShape works); swipe right
+→ back; a swipe STARTING on the hint still swipes (highPriorityGesture
+beats the button); rest-screen near-miss at the far right → rotates
+instead of killing the rest.
+
+Known, not fixed: the "End" toolbar badge occludes the machine label at
+the top of the set card — worst on the zero-weight card, where "Life
+Fitness" renders as "Lif⬤ess". Pre-existing, needs a layout pass.
 
 
 A horizontal swipe on the set card rotates the PENDING machines: swipe

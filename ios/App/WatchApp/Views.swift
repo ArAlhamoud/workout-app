@@ -15,7 +15,13 @@ struct RootView: View {
             ProgressView("Plan…")
         case .active:
             if let slot = store.currentSlot {
-                SetCardView(slot: slot)
+                // .id(slot.id) forces a FRESH SetCardView per slot. A machine
+                // rotation changes the slot without changing the phase, so
+                // SwiftUI would otherwise reuse the view and discard init's
+                // crown seed — carrying a kg value onto the seconds card,
+                // where the 5…180 range clamps it and writes a phantom short
+                // hold. That is the 10 s plank bug (e9be317) by another road.
+                SetCardView(slot: slot).id(slot.id)
             } else {
                 SummaryView()
             }
@@ -235,22 +241,31 @@ struct SetCardView: View {
                     .foregroundStyle(.secondary)
             }
             if store.pendingMachineCount > 1, let next = store.nextMachineName {
-                // Occupied machine: real buttons (a swipe alone was missed on
-                // the gym floor). ‹ brings the previous machine back, › the
-                // next one; the name says where › goes.
-                HStack(spacing: 6) {
-                    Button { store.backToPreviousMachine() } label: {
-                        Text("‹").font(.system(size: 16, weight: .black, design: .rounded)).frame(minWidth: 28, minHeight: 24)
-                    }
-                    .buttonStyle(.bordered)
-                    Button { store.skipToNextMachine() } label: {
-                        Text("\(next) ›")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, minHeight: 24)
-                    }
-                    .buttonStyle(.bordered)
+                // Occupied machine (owner, 2026-09-07): swipe is the gesture,
+                // but the hint that names the target is itself tappable — a
+                // swipe missed on the gym floor once left him stuck with no
+                // fallback (field report, 2026-09-02). Plain style: a line of
+                // text, not a button, so the card keeps its glance.
+                // Tap = forward, the "it's taken" case; swipe right comes back.
+                // ONE chevron, trailing, matching the rest screen. A leading
+                // ‹ was here and it lied: the whole row goes forward, so the
+                // glyph that means "back" advanced him — and tapping again to
+                // undo advanced him further (adversary + device-tester both,
+                // 2026-09-07). Back is swipe-right, which the card no longer
+                // promises as a tap. contentShape because .plain alone
+                // hit-tests the glyphs, not the padded frame.
+                Button { store.skipToNextMachine() } label: {
+                    Text("\(next) ›")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: 30)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                // Measured 5.75 pt to the green Log set button, whose mis-tap
+                // writes a set and starts a rest. Buy back clearance.
+                .padding(.bottom, 4)
             }
             Button {
                 store.logCurrentSet()
@@ -310,13 +325,27 @@ struct RestView: View {
             Button("Skip") { store.skipRest() }
                 .buttonStyle(.bordered)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
-            if store.pendingMachineCount > 1, let nextMachine = store.nextMachineName {
-                // He walks to the next machine DURING the rest — this is where
-                // "it's taken" is discovered, so the switch lives here too.
-                Button("\(nextMachine) taken? ›") { store.switchMachineFromRest() }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
+            // He walks to the next machine DURING the rest — this is where
+            // "it's taken" is discovered, so the switch lives here too. The
+            // machine AT RISK is the one he is walking to, i.e. the slot that
+            // is up next — NOT nextMachineName, which is the machine a switch
+            // would land him on. Naming the wrong one asked "Plank taken?"
+            // while he stood at an occupied Mid Row (adversary, 2026-09-07).
+            if store.pendingMachineCount > 1, store.nextMachineName != nil,
+               let walkingTo = store.currentSlot?.exerciseName {
+                Button { store.switchMachineFromRest() } label: {
+                    Text("\(walkingTo) taken? ›")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .lineLimit(1)
+                        // Full-width target: a near-miss used to fall through
+                        // to the parent's tap and kill the rest outright, with
+                        // no undo. A mis-fired rotation is recoverable; a
+                        // destroyed rest timer is not, so the row favours it.
+                        .frame(maxWidth: .infinity, minHeight: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
             }
         }
         .contentShape(Rectangle())
@@ -325,6 +354,10 @@ struct RestView: View {
             DragGesture(minimumDistance: 40)
                 .onEnded { v in
                     guard abs(v.translation.width) > abs(v.translation.height), v.translation.width < 0 else { return }
+                    // Gated: switchMachineFromRest kills the timer BEFORE
+                    // rotatePending's own guard runs, so an ungated sleeve
+                    // brush on the last machine ate the rest for nothing.
+                    guard store.pendingMachineCount > 1 else { return }
                     store.switchMachineFromRest()
                 }
         )
