@@ -117,6 +117,11 @@ with, and prefer pushing before a session rather than during one.
   phone sets into the final workout — but the watch UI misrepresents
   progress whenever the phone's draft day and the started day disagree.
   Fix belongs where the draft is resumed vs the ?day= param.
+  → FIXED (cloud, 2026-09-06): the hop to the draft's day re-rendered
+  the page but never remounted the form, so the mount effect that
+  restores the draft had already returned and the old day's template
+  blocks stayed. `WorkoutForm` is now keyed by day+dur, so the hop
+  remounts and the draft restores under its own masthead.
 
 - **TestFlight build 8 is VALID (2026-09-02, Mac session) — ALL FOUR wrist
   items are built, E2E-verified and shipped**, including item 4: the live

@@ -283,6 +283,11 @@ export default async function NewWorkoutPage({
         </div>
       )}
       <WorkoutForm
+        // Keyed by day+dur: the draft-day hop (router.replace to the draft's
+        // own ?day=) must REMOUNT the form, or the old day's template blocks
+        // survive under the new masthead and the draft never restores (Mac
+        // session's two-sim E2E, 2026-09-02: "DAY B" over Leg Press).
+        key={`${validDay}-${validDur}-${isRescue ? 'r' : 'n'}`}
         exercises={exercises}
         initialName={initialName}
         initialExercises={finalExercises}
