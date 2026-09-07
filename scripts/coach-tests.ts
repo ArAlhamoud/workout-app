@@ -62,6 +62,7 @@ import {
   afCorrelates,
   afStats,
   bpAverage,
+  ownerTodayUtc,
   cpapStats,
   dayRelativeSymptoms,
   nextSite,
@@ -1640,6 +1641,31 @@ console.log('health-insights');
     now,
   );
   assert(shortNight.deepSharePct === 20, 'two short nights can still read 20%');
+
+  // Planned days: the meal subscription publishes a week ahead, so rows
+  // dated in the future sit in the same table. Nothing that reports what
+  // HAS happened may count them (owner, 2026-09-07 — next week's schedule).
+  {
+    const t = { kcal: 2200, proteinG: 130, carbsG: 230, fatG: 85 };
+    const logs = [
+      { day: '2026-09-06', kcal: 1146, proteinG: 71 },
+      { day: '2026-09-07', kcal: 1102, proteinG: 69 },
+      { day: '2026-09-13', kcal: 1254, proteinG: 61 }, // next week's plan
+      { day: '2026-09-14', kcal: 1118, proteinG: 57 },
+    ];
+    const wk = fuelWeek(logs, t, 7, new Date('2026-09-07T21:00:00+03:00'));
+    assert(wk.daysLogged === 2, `planned days are not "logged" (got ${wk.daysLogged})`);
+    assert(wk.proteinLoggedDays === 2, 'protein days count what he ate, not what is scheduled');
+    // …and the owner-today bound the DB readers use is his day, not UTC's.
+    assert(
+      ownerTodayUtc(new Date('2026-09-07T22:30:00Z')).toISOString().slice(0, 10) === '2026-09-08',
+      'past midnight in Riyadh, "today" has already turned over',
+    );
+    assert(
+      ownerTodayUtc(new Date('2026-09-07T09:00:00Z')).toISOString().slice(0, 10) === '2026-09-07',
+      'midday UTC is the same Riyadh day',
+    );
+  }
 
   // BP refuses a "trend" from under 3 readings.
   assert(bpAverage([{ at: '2026-09-09', systolic: 128, diastolic: 78 }], 7, now) === null,

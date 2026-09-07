@@ -1090,6 +1090,18 @@ export function ownerDayKey(d: Date = new Date()): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
 }
 
+/**
+ * The last day a "so far" reader may look at: the owner's today, as the
+ * UTC-midnight key the day rows are stored under. His meal subscription
+ * publishes the plan a WEEK ahead and those days are logged when they
+ * arrive in the app, so "newest rows" queries would otherwise be filled
+ * with days he has not eaten yet (owner, 2026-09-07 — next week's
+ * schedule). Everything that reports what has happened stops here.
+ */
+export function ownerTodayUtc(now: Date = new Date()): Date {
+  return new Date(`${ownerDayKey(now)}T00:00:00.000Z`);
+}
+
 /** The most recent milestone crossed within `windowDays`: the first
  *  weigh-in at or under the mark, with the weigh-in before it still above.
  *  Returns the crossing with the LATEST date — while losing, lighter

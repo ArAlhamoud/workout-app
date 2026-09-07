@@ -7,7 +7,7 @@
 
 import prisma from '@/lib/prisma';
 import { calendarDaysBetween, getDynamicPlan, isTrainingSession, queuedDay } from '@/lib/program';
-import { DEFAULT_DOSE_PLAN, ownerDayKey, treatmentClock } from '@/lib/health-insights';
+import { DEFAULT_DOSE_PLAN, ownerDayKey, ownerTodayUtc, treatmentClock } from '@/lib/health-insights';
 
 export async function getRoomGlances(): Promise<Record<string, string>> {
   try {
@@ -23,7 +23,14 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
         prisma.bpReading.count({ where: { at: { gte: weekAgo } } }),
         prisma.bpReading.findFirst({ orderBy: { at: 'desc' }, select: { systolic: true, diastolic: true } }),
         prisma.injection.findFirst({ orderBy: { at: 'desc' }, select: { at: true, site: true } }),
-        prisma.nutritionLog.findFirst({ orderBy: { day: 'desc' }, select: { day: true, kcal: true, proteinG: true } }),
+        // Planned days (next week's delivery schedule) live in the same
+        // table — "the latest row" must mean the latest day he has EATEN,
+        // or today reads as unlogged while a future row exists.
+        prisma.nutritionLog.findFirst({
+          where: { day: { lte: ownerTodayUtc(now) } },
+          orderBy: { day: 'desc' },
+          select: { day: true, kcal: true, proteinG: true },
+        }),
       ]);
 
     const lastTraining = lastWorkouts.filter(isTrainingSession)[0];
@@ -75,7 +82,11 @@ export async function getNowDoors(): Promise<Array<{ href: string; label: string
       await Promise.all([
         prisma.injection.findFirst({ orderBy: { at: 'desc' }, select: { at: true } }),
         prisma.injection.count(),
-        prisma.nutritionLog.findFirst({ orderBy: { day: 'desc' }, select: { day: true } }),
+        prisma.nutritionLog.findFirst({
+          where: { day: { lte: ownerTodayUtc(now) } },
+          orderBy: { day: 'desc' },
+          select: { day: true },
+        }),
         prisma.bpReading.count({ where: { at: { gte: dayStart } } }),
         prisma.bpReading.count(),
         prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { dosePlan: true } }),

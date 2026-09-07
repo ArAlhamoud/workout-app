@@ -7,7 +7,7 @@
 
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, weightPace } from '@/lib/health-insights';
+import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, ownerTodayUtc, weightPace } from '@/lib/health-insights';
 import { importHealthSamples } from '@/lib/health-import';
 import { detectUnloggedWorkouts } from '@/lib/health-detect';
 import { storeHrSeries } from '@/lib/health-hr';
@@ -433,7 +433,14 @@ export async function getWeeklyDigest(): Promise<string | null> {
   const [bodyStats, sessions, nutrition, bp, cpap, profile] = await Promise.all([
     prisma.bodyStat.findMany({ orderBy: { date: 'desc' }, take: 30, select: { date: true, weight: true } }),
     prisma.workout.count({ where: { date: { gte: weekAgo }, NOT: { name: { startsWith: 'Rescue walk' } } } }),
-    prisma.nutritionLog.findMany({ orderBy: { day: 'desc' }, take: 10, select: { day: true, kcal: true, proteinG: true } }),
+    // Days he has actually eaten: planned days sit in the same table and
+    // would fill the take-10 window with next week (owner, 2026-09-07).
+    prisma.nutritionLog.findMany({
+      where: { day: { lte: ownerTodayUtc() } },
+      orderBy: { day: 'desc' },
+      take: 10,
+      select: { day: true, kcal: true, proteinG: true },
+    }),
     prisma.bpReading.findMany({ where: { at: { gte: weekAgo } }, select: { at: true, systolic: true, diastolic: true } }),
     prisma.cpapNight.findMany({ where: { night: { gte: weekAgo } }, select: { usageHours: true } }),
     prisma.healthProfile.findUnique({ where: { id: PROFILE_ID }, select: { targets: true } }),

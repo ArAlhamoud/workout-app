@@ -71,6 +71,12 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   exceeds the night's usage). The nightly check-in question is GONE —
   device truth beats a morning guess. Breath label shows 'report due'
   past the cadence; the Sunday digest nudges.
+- Planned vs eaten: the meal subscription publishes next week's macros
+  days ahead, and they are logged when he sends them — so rows dated in
+  the FUTURE are normal. Every "so far" reader stops at `ownerTodayUtc()`
+  (weekly digest, both nav glances); the pure helpers (`fuelWeek`,
+  `learnedMaintenance`, `deliveryDayPattern`) already refuse future days.
+  A new reader over NutritionLog must bound itself the same way.
 - Macros: meal-app screenshot → POST /api/health/fuel (same contract).
   THE SCREEN IS A BASELINE, NOT THE DAY: the subscription delivers
   breakfast+lunch+snack only — dinner (his own) stacks on top via
