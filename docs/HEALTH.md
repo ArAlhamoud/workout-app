@@ -81,6 +81,14 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   (weekly digest, both nav glances); the pure helpers (`fuelWeek`,
   `learnedMaintenance`, `deliveryDayPattern`) already refuse future days.
   A new reader over NutritionLog must bound itself the same way.
+- Targets: POST /api/health/targets {kcal, proteinG, carbsG, fatG,
+  waterMl, fiberG, dropLegacyProtein} — the Fuel tracker's own merge as a
+  pipe, so a reviewed plan lands without retyping four numbers on a
+  phone. Out-of-range LEAVES UNCHANGED, never clamps. `proteinG` writes
+  `fuelProteinG`, the only protein target anything reads; the check-in's
+  legacy `targets.proteinG` is dead and `dropLegacyProtein` removes it
+  (two protein targets in one record is how a stored 100 g contradicted a
+  displayed 130 g — panel review, 2026-09-07).
 - Macros: meal-app screenshot → POST /api/health/fuel (same contract).
   THE SCREEN IS A BASELINE, NOT THE DAY: the subscription delivers
   breakfast+lunch+snack only — dinner (his own) stacks on top via
