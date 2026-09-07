@@ -27,7 +27,10 @@ export async function POST(request: Request) {
   let removed = 0;
   const skipped: string[] = [];
   for (const raw of nights) {
-    const r = raw as { night?: string; usageHours?: number; ahi?: number; deepSleepMin?: number; remove?: boolean };
+    const r = raw as {
+      night?: string; usageHours?: number; ahi?: number; deepSleepMin?: number;
+      p95Pressure?: number; leak?: number; remove?: boolean;
+    };
     const night =
       typeof r.night === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.night)
         ? new Date(`${r.night}T00:00:00.000Z`)
@@ -54,6 +57,16 @@ export async function POST(request: Request) {
     };
     if (r.ahi != null && Number.isFinite(r.ahi) && r.ahi >= 0 && r.ahi < 150) {
       patch.ahi = Math.round(r.ahi * 10) / 10;
+    }
+    // The pressure the machine actually needed (the top of the night's
+    // range, hPa ≈ cmH2O on this device). On an auto-titrating machine AHI
+    // is treated to normal and has nowhere left to fall — the pressure
+    // required is the signal with room to move as weight comes off.
+    if (r.p95Pressure != null && Number.isFinite(r.p95Pressure) && r.p95Pressure > 0 && r.p95Pressure <= 30) {
+      patch.p95Pressure = Math.round(r.p95Pressure * 10) / 10;
+    }
+    if (r.leak != null && Number.isFinite(r.leak) && r.leak >= 0 && r.leak <= 200) {
+      patch.leak = Math.round(r.leak * 10) / 10;
     }
     // Deep sleep can never exceed the time the machine was worn, and a
     // report that omits the figure means "not measured" — never zero.

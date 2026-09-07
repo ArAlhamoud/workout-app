@@ -1609,6 +1609,18 @@ console.log('health-insights');
   assert(cpap.streak === 2, 'a missed night breaks the CPAP streak');
   assert(cpap.avgAhi30d === 1.6, 'AHI averages over logged nights');
 
+  // Pressure the machine had to reach: kept per night so the long game
+  // (does the apnea ease as weight falls?) has an un-floored signal —
+  // AHI is already treated to normal (owner's per-night screens).
+  const pressNights = cpapStats(
+    [
+      { night: '2026-09-08', usageHours: 5, ahi: 1, p95Pressure: 12.5 },
+      { night: '2026-09-07', usageHours: 4, ahi: 1, p95Pressure: 13 },
+    ],
+    now,
+  );
+  assert(pressNights.avgAhi30d === 1, 'pressure rows do not disturb the AHI average');
+
   // Deep sleep: a SHARE of time on the mask, never raw minutes, and never
   // from one night (owner, 2026-09-07 — "i dont see how its relevant").
   assert(cpap.deepSharePct === null && cpap.deepNights === 0, 'no reported deep sleep → no share');

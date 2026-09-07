@@ -68,7 +68,11 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
 - CPAP: the weekly prisma report PDF → POST /api/health/cpap (parsed by
   the cloud session; keyed by the morning a night ends, PATCH-upserts,
   {remove:true} rows correct; `deepSleepMin` optional, refused when it
-  exceeds the night's usage). The nightly check-in question is GONE —
+  exceeds the night's usage; `p95Pressure`/`leak` optional, from the
+  app's per-night screens — the report PDF only draws them as bars).
+  Pressure is the un-floored signal for the long game: AHI is already
+  treated to normal (~1.6), so it cannot fall further, while the pressure
+  the machine must reach can as weight comes off. The nightly check-in question is GONE —
   device truth beats a morning guess. Breath label shows 'report due'
   past the cadence; the Sunday digest nudges.
 - Planned vs eaten: the meal subscription publishes next week's macros

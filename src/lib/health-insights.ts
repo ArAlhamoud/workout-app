@@ -427,6 +427,8 @@ export interface CpapLite {
   usageHours: number;
   ahi?: number | null;
   deepSleepMin?: number | null;
+  /** Top of the night's auto-titrated range (hPa ≈ cmH2O on this device). */
+  p95Pressure?: number | null;
 }
 
 export interface CpapStats {

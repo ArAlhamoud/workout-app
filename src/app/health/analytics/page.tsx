@@ -51,6 +51,17 @@ export default async function HealthAnalyticsPage() {
     cur.total += n.ahi; cur.n += 1;
     ahiByMonth.set(k, cur);
   }
+  // The pressure the machine had to reach. AHI is already treated to
+  // normal, so it is a floored metric; required pressure still has room to
+  // fall as weight does (owner's per-night screens, 2026-09-07).
+  const pressByMonth = new Map<string, { total: number; n: number }>();
+  for (const n of data.cpapNights) {
+    if (n.p95Pressure == null) continue;
+    const k = monthKey(new Date(n.night));
+    const cur = pressByMonth.get(k) ?? { total: 0, n: 0 };
+    cur.total += n.p95Pressure; cur.n += 1;
+    pressByMonth.set(k, cur);
+  }
   const weightByMonth = new Map<string, { total: number; n: number }>();
   for (const b of data.bodyStats) {
     if (b.weight == null) continue;
@@ -67,6 +78,9 @@ export default async function HealthAnalyticsPage() {
       month: k,
       ahi: Math.round((ahiByMonth.get(k)!.total / ahiByMonth.get(k)!.n) * 10) / 10,
       weight: Math.round((weightByMonth.get(k)!.total / weightByMonth.get(k)!.n) * 10) / 10,
+      press: pressByMonth.has(k)
+        ? Math.round((pressByMonth.get(k)!.total / pressByMonth.get(k)!.n) * 10) / 10
+        : null,
     }));
 
   const relativeKinds = Object.entries(relative).filter(([, cells]) =>
@@ -220,7 +234,9 @@ export default async function HealthAnalyticsPage() {
         {cpapMonths.length < 2 ? (
           <p className="text-sm text-app-tx3">
             Appears after two months of CPAP nights alongside weigh-ins — the long-game
-            question: does AHI fall as weight falls?
+            question: does the apnea ease as the weight comes off? AHI is
+            already treated to normal, so watch the pressure the machine
+            needs — that is the number with room to fall.
           </p>
         ) : (
           <div className="space-y-1.5">
@@ -229,6 +245,9 @@ export default async function HealthAnalyticsPage() {
                 <span className="text-xs text-app-tx3">{m.month}</span>
                 <span className="tabular-nums text-app-tx1">{m.weight} kg</span>
                 <span className="tabular-nums text-app-tx2">AHI {m.ahi}</span>
+                {m.press != null && (
+                  <span className="tabular-nums text-app-tx3">{m.press} hPa</span>
+                )}
               </div>
             ))}
           </div>
