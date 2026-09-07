@@ -125,19 +125,16 @@ export default async function DoctorReportPage({
     ? Math.round((cpapAhis.reduce((s, n) => s + n.ahi, 0) / cpapAhis.length) * 10) / 10
     : null;
 
-  // Deep sleep is device-ESTIMATED from airflow, and the raw minutes track
-  // usage hours almost exactly — the SHARE of time on the mask is the only
-  // part that says something the hours do not. Two reporting nights minimum
-  // (owner, 2026-09-07). It is a corroborating number, never advice.
+  // Deep sleep is device-ESTIMATED from airflow. Reported in MINUTES, the
+  // unit the prisma app itself shows, so the two never disagree (owner,
+  // 2026-09-07). Two reporting nights minimum; a night the report did not
+  // measure is absent, never zero. A corroborating number, never advice.
   const cpapDeep = cpap.filter(
     (n) => n.deepSleepMin != null && n.usageHours > 0,
   ) as Array<{ deepSleepMin: number; usageHours: number }>;
-  const cpapDeepPct =
+  const cpapDeepMin =
     cpapDeep.length >= 2
-      ? Math.round(
-          (cpapDeep.reduce((s, n) => s + n.deepSleepMin, 0) /
-            (cpapDeep.reduce((s, n) => s + n.usageHours, 0) * 60)) * 100,
-        )
+      ? Math.round(cpapDeep.reduce((s, n) => s + n.deepSleepMin, 0) / cpapDeep.length)
       : null;
 
   // A range delta needs two weigh-ins — one row is a moment, not a change.
@@ -407,10 +404,10 @@ export default async function DoctorReportPage({
                 />
               )}
               {cpapAvgAhi != null && <Row label="Average AHI" value={String(cpapAvgAhi)} />}
-              {cpapDeepPct != null && (
+              {cpapDeepMin != null && (
                 <Row
                   label="Deep sleep (device estimate)"
-                  value={`${cpapDeepPct}% of time on mask · ${cpapDeep.length} nights`}
+                  value={`${cpapDeepMin} min/night · ${cpapDeep.length} nights`}
                 />
               )}
             </>

@@ -99,19 +99,16 @@ export async function GET(request: Request) {
   const cpapAvgAhi = cpapAhis.length
     ? Math.round((cpapAhis.reduce((s, n) => s + n.ahi, 0) / cpapAhis.length) * 10) / 10
     : null;
-  // Deep sleep is device-ESTIMATED from airflow, and the raw minutes track
-  // usage hours almost exactly — the SHARE of time on the mask is the only
-  // part that says something the hours do not. Two reporting nights minimum
-  // (owner, 2026-09-07). It is a corroborating number, never advice.
+  // Deep sleep is device-ESTIMATED from airflow. Reported in MINUTES, the
+  // unit the prisma app itself shows, so the two never disagree (owner,
+  // 2026-09-07). Two reporting nights minimum; a night the report did not
+  // measure is absent, never zero. A corroborating number, never advice.
   const cpapDeep = cpap.filter(
     (n) => n.deepSleepMin != null && n.usageHours > 0,
   ) as Array<{ deepSleepMin: number; usageHours: number }>;
-  const cpapDeepPct =
+  const cpapDeepMin =
     cpapDeep.length >= 2
-      ? Math.round(
-          (cpapDeep.reduce((s, n) => s + n.deepSleepMin, 0) /
-            (cpapDeep.reduce((s, n) => s + n.usageHours, 0) * 60)) * 100,
-        )
+      ? Math.round(cpapDeep.reduce((s, n) => s + n.deepSleepMin, 0) / cpapDeep.length)
       : null;
   const firstCpapNight = data.cpapNights.length
     ? [...data.cpapNights].sort((a, b) => new Date(a.night).getTime() - new Date(b.night).getTime())[0].night
@@ -268,8 +265,8 @@ export async function GET(request: Request) {
       row('Nights used', `${cpapUsed.length} of ${cpapElapsed} (${Math.round((cpapUsed.length / cpapElapsed) * 100)}%)`);
     }
     if (cpapAvgAhi != null) row('Average AHI', String(cpapAvgAhi));
-    if (cpapDeepPct != null) {
-      row('Deep sleep (device estimate)', `${cpapDeepPct}% of time on mask - ${cpapDeep.length} nights`);
+    if (cpapDeepMin != null) {
+      row('Deep sleep (device estimate)', `${cpapDeepMin} min/night - ${cpapDeep.length} nights`);
     }
   } else {
     note('No CPAP nights logged in this range.');

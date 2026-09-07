@@ -439,12 +439,12 @@ export interface CpapStats {
   /** Consecutive nights (ending at the most recent logged night) with any use. */
   streak: number;
   /**
-   * Deep sleep as a PERCENT of time on the mask, over the nights that
-   * reported it. The raw minutes track usageHours almost exactly — the
-   * share is the only part that says something the hours do not. Null
-   * under two reporting nights: one estimate is not a pattern.
+   * Average deep sleep MINUTES over the nights that reported it — the
+   * same unit the prisma app shows, so the two never disagree (owner,
+   * 2026-09-07). Null under two reporting nights: one estimate is not a
+   * pattern. Device-estimated from airflow, never a target.
    */
-  deepSharePct: number | null;
+  deepAvgMin: number | null;
   deepNights: number;
 }
 
@@ -467,15 +467,12 @@ export function cpapStats(nights: CpapLite[], now: Date = new Date()): CpapStats
   const deep = recent.filter(
     (n) => n.deepSleepMin != null && n.usageHours > 0,
   ) as Array<{ deepSleepMin: number; usageHours: number }>;
-  const deepShare =
+  const deepAvg =
     deep.length >= 2
-      ? Math.round(
-          (deep.reduce((s, n) => s + n.deepSleepMin, 0) /
-            (deep.reduce((s, n) => s + n.usageHours, 0) * 60)) * 100,
-        )
+      ? Math.round(deep.reduce((s, n) => s + n.deepSleepMin, 0) / deep.length)
       : null;
   return {
-    deepSharePct: deepShare,
+    deepAvgMin: deepAvg,
     deepNights: deep.length,
     avgHours30d: used.length
       ? Math.round((used.reduce((s, n) => s + n.usageHours, 0) / used.length) * 10) / 10

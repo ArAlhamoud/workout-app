@@ -207,10 +207,9 @@ model CpapNight {
   maskComfort  Int?
   sleepQuality Int?
   // Minutes of deep sleep the machine ESTIMATED from airflow — not EEG, and
-  // not the same figure the Watch reports. Stored because the prisma report
-  // prints it; shown only as a share of time on the mask, because the raw
-  // minutes are mostly a restatement of usageHours (owner, 2026-09-07:
-  // "i dont see how its relevant"). Never drives advice. Additive, nullable.
+  // not the same figure the Watch reports. Reported in MINUTES, the unit
+  // the prisma app shows, so the two never disagree (owner, 2026-09-07).
+  // Never drives advice or a target. Additive, nullable.
   deepSleepMin Int?
   notes        String?
   createdAt    DateTime @default(now())

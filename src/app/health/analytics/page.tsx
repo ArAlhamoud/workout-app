@@ -276,16 +276,16 @@ export default async function HealthAnalyticsPage() {
               <p className="metric-label">best streak</p>
             </div>
           </div>
-          {cpap.deepSharePct != null && (
+          {cpap.deepAvgMin != null && (
             <details className="mt-3 border-t border-ink/10 pt-2">
               <summary className="cursor-pointer text-[11px] font-bold text-app-tx3">
-                Deep sleep · {cpap.deepSharePct}% of time on the mask
+                Deep sleep · {cpap.deepAvgMin} min a night
               </summary>
               <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">
-                Estimated by the machine from your breathing, not measured like a sleep
-                study, and it will not match the Watch. The minutes mostly follow how long
-                you wore it, so the share is the part worth watching. Over {cpap.deepNights}{' '}
-                {cpap.deepNights === 1 ? 'night' : 'nights'}.
+                The same minutes the prisma app shows, averaged over the {cpap.deepNights}{' '}
+                {cpap.deepNights === 1 ? 'night' : 'nights'} it measured. Estimated by the
+                machine from your breathing, not measured like a sleep study, so it will not
+                match the Watch. It mostly follows how long you wore the mask.
               </p>
             </details>
           )}

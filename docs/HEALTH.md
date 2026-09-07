@@ -14,11 +14,11 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
    prescribe nothing — nothing auto-escalates past the doctor review.
 3. **Device estimates are labelled as such.** The prisma report's deep
    sleep is inferred from airflow, not staged like a sleep study, and it
-   disagrees with the Watch. It is stored (`CpapNight.deepSleepMin`) but
-   shown ONLY as a share of time on the mask, over ≥2 reporting nights,
-   behind a disclosure — the raw minutes restate `usageHours`. It never
-   drives advice or a target (owner, 2026-09-07: "i dont see how its
-   relevant"). A night the report omits is absent, never zero.
+   disagrees with the Watch. Stored as `CpapNight.deepSleepMin` and shown
+   in MINUTES — the unit the prisma app itself shows, so the two never
+   disagree (owner, 2026-09-07) — averaged over ≥2 reporting nights,
+   behind a disclosure. It never drives advice or a target. A night the
+   report omits is absent, never zero.
 4. **Guards over charts.** Below honest thresholds (4 weigh-ins for a
    projection, 5 answered episodes for an AF correlate, 3 readings for a
    BP average, 3 logs for a dose comparison) the answer is "not enough

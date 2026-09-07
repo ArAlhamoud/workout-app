@@ -1623,9 +1623,9 @@ console.log('health-insights');
 
   // Deep sleep: a SHARE of time on the mask, never raw minutes, and never
   // from one night (owner, 2026-09-07 — "i dont see how its relevant").
-  assert(cpap.deepSharePct === null && cpap.deepNights === 0, 'no reported deep sleep → no share');
+  assert(cpap.deepAvgMin === null && cpap.deepNights === 0, 'no reported deep sleep → no average');
   const oneNight = cpapStats([{ night: '2026-09-08', usageHours: 5, deepSleepMin: 60 }], now);
-  assert(oneNight.deepSharePct === null, 'one estimate is not a pattern');
+  assert(oneNight.deepAvgMin === null, 'one estimate is not a pattern');
   const twoNights = cpapStats(
     [
       { night: '2026-09-08', usageHours: 5, deepSleepMin: 60 },
@@ -1633,7 +1633,7 @@ console.log('health-insights');
     ],
     now,
   );
-  assert(twoNights.deepSharePct === 15 && twoNights.deepNights === 2, `90 min over 10 h → 15% (got ${twoNights.deepSharePct})`);
+  assert(twoNights.deepAvgMin === 45 && twoNights.deepNights === 2, `60 and 30 min → 45 min a night (got ${twoNights.deepAvgMin})`);
   // A night the report never measured is absent, not a zero dragging the share.
   const withGap = cpapStats(
     [
@@ -1643,16 +1643,16 @@ console.log('health-insights');
     ],
     now,
   );
-  assert(withGap.deepSharePct === 15, 'an unmeasured night does not change the share');
-  // The share is independent of hours worn — the whole reason it is kept.
+  assert(withGap.deepAvgMin === 45, 'an unmeasured night is absent, not a zero dragging the average down');
+  // Minutes, the unit the prisma app shows — the two must never disagree.
   const shortNight = cpapStats(
     [
       { night: '2026-09-08', usageHours: 1, deepSleepMin: 12 },
-      { night: '2026-09-07', usageHours: 1, deepSleepMin: 12 },
+      { night: '2026-09-07', usageHours: 1, deepSleepMin: 13 },
     ],
     now,
   );
-  assert(shortNight.deepSharePct === 20, 'two short nights can still read 20%');
+  assert(shortNight.deepAvgMin === 13, `12 and 13 min → 13 (got ${shortNight.deepAvgMin})`);
 
   // Planned days: the meal subscription publishes a week ahead, so rows
   // dated in the future sit in the same table. Nothing that reports what
