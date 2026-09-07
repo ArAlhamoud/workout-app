@@ -1608,6 +1608,39 @@ console.log('health-insights');
   assert(cpap.streak === 2, 'a missed night breaks the CPAP streak');
   assert(cpap.avgAhi30d === 1.6, 'AHI averages over logged nights');
 
+  // Deep sleep: a SHARE of time on the mask, never raw minutes, and never
+  // from one night (owner, 2026-09-07 — "i dont see how its relevant").
+  assert(cpap.deepSharePct === null && cpap.deepNights === 0, 'no reported deep sleep → no share');
+  const oneNight = cpapStats([{ night: '2026-09-08', usageHours: 5, deepSleepMin: 60 }], now);
+  assert(oneNight.deepSharePct === null, 'one estimate is not a pattern');
+  const twoNights = cpapStats(
+    [
+      { night: '2026-09-08', usageHours: 5, deepSleepMin: 60 },
+      { night: '2026-09-07', usageHours: 5, deepSleepMin: 30 },
+    ],
+    now,
+  );
+  assert(twoNights.deepSharePct === 15 && twoNights.deepNights === 2, `90 min over 10 h → 15% (got ${twoNights.deepSharePct})`);
+  // A night the report never measured is absent, not a zero dragging the share.
+  const withGap = cpapStats(
+    [
+      { night: '2026-09-08', usageHours: 5, deepSleepMin: 60 },
+      { night: '2026-09-07', usageHours: 5, deepSleepMin: 30 },
+      { night: '2026-09-06', usageHours: 1.1 },
+    ],
+    now,
+  );
+  assert(withGap.deepSharePct === 15, 'an unmeasured night does not change the share');
+  // The share is independent of hours worn — the whole reason it is kept.
+  const shortNight = cpapStats(
+    [
+      { night: '2026-09-08', usageHours: 1, deepSleepMin: 12 },
+      { night: '2026-09-07', usageHours: 1, deepSleepMin: 12 },
+    ],
+    now,
+  );
+  assert(shortNight.deepSharePct === 20, 'two short nights can still read 20%');
+
   // BP refuses a "trend" from under 3 readings.
   assert(bpAverage([{ at: '2026-09-09', systolic: 128, diastolic: 78 }], 7, now) === null,
     'one BP reading is a moment, not an average');

@@ -125,6 +125,21 @@ export default async function DoctorReportPage({
     ? Math.round((cpapAhis.reduce((s, n) => s + n.ahi, 0) / cpapAhis.length) * 10) / 10
     : null;
 
+  // Deep sleep is device-ESTIMATED from airflow, and the raw minutes track
+  // usage hours almost exactly — the SHARE of time on the mask is the only
+  // part that says something the hours do not. Two reporting nights minimum
+  // (owner, 2026-09-07). It is a corroborating number, never advice.
+  const cpapDeep = cpap.filter(
+    (n) => n.deepSleepMin != null && n.usageHours > 0,
+  ) as Array<{ deepSleepMin: number; usageHours: number }>;
+  const cpapDeepPct =
+    cpapDeep.length >= 2
+      ? Math.round(
+          (cpapDeep.reduce((s, n) => s + n.deepSleepMin, 0) /
+            (cpapDeep.reduce((s, n) => s + n.usageHours, 0) * 60)) * 100,
+        )
+      : null;
+
   // A range delta needs two weigh-ins — one row is a moment, not a change.
   const rangeStartW = weightsInRange.length >= 2 ? weightsInRange[0].weight : null;
   const rangeEndW = weightsInRange.length >= 2 ? weightsInRange[weightsInRange.length - 1].weight : null;
@@ -392,6 +407,12 @@ export default async function DoctorReportPage({
                 />
               )}
               {cpapAvgAhi != null && <Row label="Average AHI" value={String(cpapAvgAhi)} />}
+              {cpapDeepPct != null && (
+                <Row
+                  label="Deep sleep (device estimate)"
+                  value={`${cpapDeepPct}% of time on mask · ${cpapDeep.length} nights`}
+                />
+              )}
             </>
           ) : (
             <p className="text-sm text-app-tx3 print:text-gray-600">No CPAP nights logged in this range.</p>

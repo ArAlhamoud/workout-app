@@ -5,6 +5,7 @@ import { getHealthData } from '../../health-actions';
 import {
   afCorrelates,
   cpapCompliance,
+  cpapStats,
   afStats,
   dayRelativeSymptoms,
   severityByDose,
@@ -30,6 +31,8 @@ export default async function HealthAnalyticsPage() {
   const mask = cpapCompliance(
     data.cpapNights.map((n) => ({ night: n.night, usageHours: n.usageHours })),
   );
+  // Only for the deep-sleep share — the compliance numbers above own the rest.
+  const cpap = cpapStats(data.cpapNights);
   const correlates = afCorrelates(data.afEpisodes);
   const weight = weightSnapshot(
     data.profile,
@@ -254,6 +257,19 @@ export default async function HealthAnalyticsPage() {
               <p className="metric-label">best streak</p>
             </div>
           </div>
+          {cpap.deepSharePct != null && (
+            <details className="mt-3 border-t border-ink/10 pt-2">
+              <summary className="cursor-pointer text-[11px] font-bold text-app-tx3">
+                Deep sleep · {cpap.deepSharePct}% of time on the mask
+              </summary>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">
+                Estimated by the machine from your breathing, not measured like a sleep
+                study, and it will not match the Watch. The minutes mostly follow how long
+                you wore it, so the share is the part worth watching. Over {cpap.deepNights}{' '}
+                {cpap.deepNights === 1 ? 'night' : 'nights'}.
+              </p>
+            </details>
+          )}
         </div>
       )}
 

@@ -12,16 +12,23 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
 2. **The clock anchors at the first LOGGED injection.** Week 1 · day 0 is
    an event, never an assumed date. Checkpoint weeks in the dose plan
    prescribe nothing — nothing auto-escalates past the doctor review.
-3. **Guards over charts.** Below honest thresholds (4 weigh-ins for a
+3. **Device estimates are labelled as such.** The prisma report's deep
+   sleep is inferred from airflow, not staged like a sleep study, and it
+   disagrees with the Watch. It is stored (`CpapNight.deepSleepMin`) but
+   shown ONLY as a share of time on the mask, over ≥2 reporting nights,
+   behind a disclosure — the raw minutes restate `usageHours`. It never
+   drives advice or a target (owner, 2026-09-07: "i dont see how its
+   relevant"). A night the report omits is absent, never zero.
+4. **Guards over charts.** Below honest thresholds (4 weigh-ins for a
    projection, 5 answered episodes for an AF correlate, 3 readings for a
    BP average, 3 logs for a dose comparison) the answer is "not enough
    data yet" — a chart from 3 points is a lie with axes.
-4. **Ten-second logging.** Segmented controls, tri-state flags
+5. **Ten-second logging.** Segmented controls, tri-state flags
    (yes/no/skip — an unanswered flag never enters a denominator),
    last-value defaults, one row per CPAP night (upsert).
-5. **Deterministic and $0.** Every insight is transparent arithmetic in
+6. **Deterministic and $0.** Every insight is transparent arithmetic in
    `src/lib/health-insights.ts`, tested in `scripts/coach-tests.ts`.
-6. **Days are calendar days** — an evening dose on the 8th is 2 days back
+7. **Days are calendar days** — an evening dose on the 8th is 2 days back
    on the morning of the 10th (the dynamic-plan lesson, inherited).
 
 ## Map
@@ -60,7 +67,8 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   manual logging on the heart sheet; wrong-day undo on /health/plan.
 - CPAP: the weekly prisma report PDF → POST /api/health/cpap (parsed by
   the cloud session; keyed by the morning a night ends, PATCH-upserts,
-  {remove:true} rows correct). The nightly check-in question is GONE —
+  {remove:true} rows correct; `deepSleepMin` optional, refused when it
+  exceeds the night's usage). The nightly check-in question is GONE —
   device truth beats a morning guess. Breath label shows 'report due'
   past the cadence; the Sunday digest nudges.
 - Macros: meal-app screenshot → POST /api/health/fuel (same contract).

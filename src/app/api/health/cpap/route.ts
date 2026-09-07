@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   let removed = 0;
   const skipped: string[] = [];
   for (const raw of nights) {
-    const r = raw as { night?: string; usageHours?: number; ahi?: number; remove?: boolean };
+    const r = raw as { night?: string; usageHours?: number; ahi?: number; deepSleepMin?: number; remove?: boolean };
     const night =
       typeof r.night === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.night)
         ? new Date(`${r.night}T00:00:00.000Z`)
@@ -54,6 +54,15 @@ export async function POST(request: Request) {
     };
     if (r.ahi != null && Number.isFinite(r.ahi) && r.ahi >= 0 && r.ahi < 150) {
       patch.ahi = Math.round(r.ahi * 10) / 10;
+    }
+    // Deep sleep can never exceed the time the machine was worn, and a
+    // report that omits the figure means "not measured" — never zero.
+    if (
+      r.deepSleepMin != null && Number.isFinite(r.deepSleepMin) &&
+      r.deepSleepMin >= 0 && r.deepSleepMin <= 900 &&
+      r.deepSleepMin <= (r.usageHours as number) * 60 + 1
+    ) {
+      patch.deepSleepMin = Math.round(r.deepSleepMin);
     }
     await prisma.cpapNight.upsert({
       where: { night },

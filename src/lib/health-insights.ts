@@ -426,6 +426,7 @@ export interface CpapLite {
   night: Date | string;
   usageHours: number;
   ahi?: number | null;
+  deepSleepMin?: number | null;
 }
 
 export interface CpapStats {
@@ -435,6 +436,14 @@ export interface CpapStats {
   avgAhi30d: number | null;
   /** Consecutive nights (ending at the most recent logged night) with any use. */
   streak: number;
+  /**
+   * Deep sleep as a PERCENT of time on the mask, over the nights that
+   * reported it. The raw minutes track usageHours almost exactly — the
+   * share is the only part that says something the hours do not. Null
+   * under two reporting nights: one estimate is not a pattern.
+   */
+  deepSharePct: number | null;
+  deepNights: number;
 }
 
 export function cpapStats(nights: CpapLite[], now: Date = new Date()): CpapStats {
@@ -451,7 +460,21 @@ export function cpapStats(nights: CpapLite[], now: Date = new Date()): CpapStats
     streak += 1;
     cursor = t;
   }
+  // Device-ESTIMATED from airflow, not staged sleep. Nights with no
+  // reported figure are absent, never zero.
+  const deep = recent.filter(
+    (n) => n.deepSleepMin != null && n.usageHours > 0,
+  ) as Array<{ deepSleepMin: number; usageHours: number }>;
+  const deepShare =
+    deep.length >= 2
+      ? Math.round(
+          (deep.reduce((s, n) => s + n.deepSleepMin, 0) /
+            (deep.reduce((s, n) => s + n.usageHours, 0) * 60)) * 100,
+        )
+      : null;
   return {
+    deepSharePct: deepShare,
+    deepNights: deep.length,
     avgHours30d: used.length
       ? Math.round((used.reduce((s, n) => s + n.usageHours, 0) / used.length) * 10) / 10
       : null,
