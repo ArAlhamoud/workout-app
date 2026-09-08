@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   for (const raw of days) {
     const r = raw as {
       day?: string; kcal?: number; proteinG?: number; carbsG?: number; fatG?: number;
-      waterMl?: number; remove?: boolean;
+      waterMl?: number; remove?: boolean; notes?: string;
       /** Add on top of the day instead of setting it — dinner stacking
        *  onto the subscription baseline. */
       add?: boolean;
@@ -49,7 +49,12 @@ export async function POST(request: Request) {
       removed += (await prisma.nutritionLog.deleteMany({ where: { day } })).count;
       continue;
     }
-    const patch: Record<string, number> = {};
+    // Provenance, not commentary: a day is often a delivery baseline plus
+ // an estimated standing dinner, and without a note the record cannot say
+    // which numbers were measured and which were inferred (panel review,
+    // 2026-09-08 — three reviewers reasoned from a baseline as if it were a
+    // whole day). Appends on an `add` row so stacking keeps both halves.
+    const patch: Record<string, number | string> = {};
     const kc = bounded(r.kcal, 8000);
     const p = bounded(r.proteinG, 400);
     const c = bounded(r.carbsG, 900);
@@ -60,15 +65,22 @@ export async function POST(request: Request) {
     if (c !== undefined) patch.carbsG = c;
     if (f !== undefined) patch.fatG = f;
     if (w !== undefined) patch.waterMl = w;
+    const note = typeof r.notes === 'string' ? r.notes.trim().slice(0, 300) : undefined;
+    if (note && r.add !== true) patch.notes = note;
     if (!Object.keys(patch).length) {
       skipped.push(r.day as string);
       continue;
     }
     if (r.add === true) {
       const existing = await prisma.nutritionLog.findUnique({ where: { day } });
+      if (note) {
+        const prev = existing?.notes?.trim();
+        patch.notes = prev && !prev.includes(note) ? `${prev} · ${note}` : note;
+      }
       const caps: Record<string, number> = { kcal: 8000, proteinG: 400, carbsG: 900, fatG: 400, waterMl: 10_000 };
       for (const k of Object.keys(patch)) {
-        patch[k] = Math.min(((existing as Record<string, number | null> | null)?.[k] ?? 0) + patch[k], caps[k]);
+        if (typeof patch[k] !== 'number') continue; // notes append, never sum
+        patch[k] = Math.min(((existing as Record<string, number | null> | null)?.[k] ?? 0) + (patch[k] as number), caps[k]);
       }
     }
     await prisma.nutritionLog.upsert({ where: { day }, update: patch, create: { day, ...patch } as never });

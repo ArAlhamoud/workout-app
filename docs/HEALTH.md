@@ -81,6 +81,13 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   (weekly digest, both nav glances); the pure helpers (`fuelWeek`,
   `learnedMaintenance`, `deliveryDayPattern`) already refuse future days.
   A new reader over NutritionLog must bound itself the same way.
+- Provenance: /api/health/fuel takes `notes` (≤300 chars, appended on an
+  `add` row). A logged day is often a delivery BASELINE plus an estimated
+  standing dinner; without a note the record cannot say which numbers
+  were measured. Three reviewers once reasoned from a baseline as if it
+  were a whole day (panel, 2026-09-08) — the standing weekday dinner
+  (200 g chicken + rice ≈ 630 kcal / 67 P) is owner-confirmed, weekends
+  are eaten out and are NOT that dinner.
 - Targets: POST /api/health/targets {kcal, proteinG, carbsG, fatG,
   waterMl, fiberG, dropLegacyProtein} — the Fuel tracker's own merge as a
   pipe, so a reviewed plan lands without retyping four numbers on a
