@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-09-07T09:59:24.850Z",
+  "exportedAt": "2026-09-08T09:24:51.762Z",
   "totalWorkouts": 11,
   "totalBodyStats": 23,
   "totalExercises": 21,
@@ -6007,14 +6007,18 @@
           }
         ],
         "targets": {
-          "waterMl": 2500,
-          "proteinG": 100,
+          "fatG": 62,
+          "kcal": 1800,
+          "carbsG": 180,
+          "fiberG": 30,
+          "waterMl": 3000,
           "rotation": [
             "abdomen-right",
             "abdomen-left",
             "thigh-right",
             "thigh-left"
-          ]
+          ],
+          "fuelProteinG": 130
         },
         "reminders": {
           "missed": true,
@@ -6023,7 +6027,7 @@
           "daySymptoms": true
         },
         "createdAt": "2026-08-25T15:08:35.833Z",
-        "updatedAt": "2026-08-25T15:08:35.833Z"
+        "updatedAt": "2026-09-07T10:08:45.545Z"
       }
     ],
     "injection": [
@@ -6412,6 +6416,20 @@
         "deepSleepMin": 39,
         "notes": null,
         "createdAt": "2026-09-07T09:03:16.417Z"
+      },
+      {
+        "id": "cmts4mleq0000wy6bf7uecewf",
+        "night": "2026-09-08T00:00:00.000Z",
+        "usageHours": 6,
+        "ahi": 2,
+        "leak": 0,
+        "avgPressure": null,
+        "p95Pressure": 15,
+        "maskComfort": null,
+        "sleepQuality": null,
+        "deepSleepMin": 40,
+        "notes": null,
+        "createdAt": "2026-09-08T03:45:23.397Z"
       }
     ],
     "labResult": [
@@ -6507,18 +6525,18 @@
         "createdAt": "2026-08-29T02:09:29.422Z"
       },
       {
-        "id": "cmtn6tc5b0000s0rkqrmfu3wv",
+        "id": "cmtr2tbnd0000m106g73sg9ck",
         "day": "2026-09-04T00:00:00.000Z",
-        "proteinG": 0,
+        "proteinG": null,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
         "kcal": 1057,
-        "carbsG": 0,
-        "fatG": 0,
+        "carbsG": null,
+        "fatG": null,
         "flags": null,
         "notes": null,
-        "createdAt": "2026-09-04T16:47:46.367Z"
+        "createdAt": "2026-09-07T10:06:51.961Z"
       },
       {
         "id": "cmtieopse00006gto21iow03a",
