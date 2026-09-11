@@ -12,6 +12,10 @@ export const dynamic = 'force-dynamic';
  * a new row, which is the whole point of a trend.
  *   { date, test, value, unit, refLow?, refHigh?, lab?, notes? }
  *   { date, test, remove: true }
+ * The range is stored PER ROW because it belongs to the draw, not to the
+ * test: thresholds move with guideline revisions and with the patient's
+ * own risk over the years. Omit refHigh when the historical range is
+ * unknown rather than back-stamping today's (owner, 2026-09-11).
  */
 export async function POST(request: Request) {
   let body: unknown;

@@ -19,10 +19,16 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
    document's range, attributed to it ("lab ref < 2.59"), never "goal" or
    "target". His lab (Dr Sulaiman Al Habib) flags LDL against **2.59
    mmol/L**; the seed once said 3.4, so the app could disagree with the
-   paper report in his hand. Same class of error as law 4. Related fact,
-   so no copy ever implies otherwise: LDL moves little with weight loss
-   (typically 5–15%), so a projection tying it to falling weight would
-   mislead.
+   paper report in his hand. Same class of error as law 4.
+   **A range belongs to its DRAW, not to the test** (owner, 2026-09-11):
+   thresholds move with guideline revisions and with his own risk as he
+   ages and accumulates conditions. `LabResult.refHigh` is per-row for
+   exactly this reason — never back-stamp today's range onto an old
+   result. His 2022 LDL of 4.22 was flagged NORMAL by the same lab that
+   flags 4.54 high today, so its range is recorded as unknown rather
+   than assumed. Related fact, so no copy ever implies otherwise: LDL
+   moves little with weight loss (typically 5–15%), so a projection tying
+   it to falling weight would mislead.
 4. **Device estimates are labelled as such.** The prisma report's deep
    sleep is inferred from airflow, not staged like a sleep study, and it
    disagrees with the Watch. Stored as `CpapNight.deepSleepMin` and shown
