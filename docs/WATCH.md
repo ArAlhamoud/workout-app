@@ -336,6 +336,44 @@ the app container and relaunching — `onLaunch` restores straight to
 `.active` and only issues GETs, so no card state needs a logged set and
 nothing touches the production database.
 
+**Update 2026-09-12 — the swipe missed fast flicks (build 9 field
+report).** The owner reported the swipe still did not switch machines on
+the wrist. Reproduced on the sim: `DragGesture(minimumDistance: 40)`
+rotated on a slow 1 s drag and did NOTHING on a 0.3 s flick — whether
+the flick started on the crown-focused weight or on plain text. A quick
+flick is how a thumb swipes on a watch, so on the wrist the gesture was
+effectively dead. The 2026-09-02 "did not let me switch machines" was
+very likely this as well, not only the missing fallback.
+
+Fix: recognise at 20 pt (still above tap jitter) and judge on release
+with `machineSwipeDirection`, which takes the larger of the finger's
+actual travel and `predictedEndTranslation` — where the flick was
+heading — and still demands 40 pt plus horizontal dominance. The exact
+mechanism (a competing velocity-based recognizer claiming the flick
+before 40 pt) is a hypothesis; the before/after behaviour is not.
+
+Sim-verified after the fix: 0.3 s flick starting on the weight → next
+machine; 0.15 s flick on the "Set" line → next; fast right flick → back;
+a near-vertical wipe → ignored; tapping the hint → still rotates.
+
+NOT verified: the rest-screen flick (reaching `.resting` needs a logged
+set, which writes to production) and anything on real hardware — the sim
+injects synthetic touches, so the first wrist session is the real test.
+
+The lesson: **a "sim-verified swipe" must be a FAST flick.** A slow drag
+passes gestures that a thumb will fail, which is how build 9 shipped
+with this documented as verified.
+
+**Which build is on the wrist.** The Start screen's footer reads
+`build N` from `CFBundleVersion`. That is the TestFlight number on a
+TestFlight install, because `scripts/ExportOptions.plist` sets
+`manageAppVersionAndBuildNumber` and the export renumbers the whole
+bundle, Watch app included. A local sim/dev build shows the project's
+own number (currently 2), which is expected. Added because "the fix did
+not reach my watch" was unanswerable from the wrist: the Mac could not
+reach the watch (`ddiServicesAvailable: false`), and the phone was
+locked.
+
 
 A horizontal swipe on the set card rotates the PENDING machines: swipe
 left → the next machine's sets come up now and this one's remaining

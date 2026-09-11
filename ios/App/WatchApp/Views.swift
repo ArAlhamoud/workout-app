@@ -132,6 +132,14 @@ struct StartView: View {
                         .font(.system(size: 11, design: .rounded))
                         .foregroundStyle(.orange)
                 }
+                // Which build is on the wrist, readable without a Mac. A swipe
+                // fix "did not reach the watch" (owner, 2026-09-12) and there
+                // was no way to tell from the wrist whether the new build had
+                // installed at all. CFBundleVersion is the TestFlight number:
+                // the export renumbers it (manageAppVersionAndBuildNumber).
+                Text("build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?")")
+                    .font(.system(size: 9, design: .rounded))
+                    .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 4)
         }
@@ -292,15 +300,22 @@ struct SetCardView: View {
         .padding(.horizontal, 2)
         .contentShape(Rectangle())
         // Occupied machine: a horizontal swipe rotates the pending machines.
-        // 40 pt minimum so a crown nudge or a sleeve brush never triggers it
-        // (the same accidental-input worry that removed the day detent).
         // High priority so a drag that starts on the weight or a button is
         // not swallowed by the child (the hidden-gesture failure, build 8).
+        //
+        // It used to be DragGesture(minimumDistance: 40), and that MISSED
+        // FAST FLICKS: on the sim a 1 s drag rotated while a 0.3 s flick did
+        // nothing (2026-09-12). A quick flick is how a thumb swipes on a
+        // watch, so on the wrist the swipe simply did not work (owner, build
+        // 9) — and the 09-02 field failure was very likely the same thing.
+        // Begin recognising at 20 pt, still above tap jitter so Log set and
+        // × reps keep their taps, and judge on release with
+        // machineSwipeDirection, which counts where a flick was HEADING.
         .highPriorityGesture(
-            DragGesture(minimumDistance: 40)
+            DragGesture(minimumDistance: 20)
                 .onEnded { v in
-                    guard abs(v.translation.width) > abs(v.translation.height) else { return }
-                    if v.translation.width < 0 { store.skipToNextMachine() } else { store.backToPreviousMachine() }
+                    guard let dir = machineSwipeDirection(v) else { return }
+                    if dir < 0 { store.skipToNextMachine() } else { store.backToPreviousMachine() }
                 }
         )
         .toolbar {
@@ -310,6 +325,22 @@ struct SetCardView: View {
             }
         }
     }
+}
+
+/// A machine-switch swipe, judged on release: -1 = left, +1 = right, nil = not one.
+///
+/// A fast flick often lifts before covering much ground, so the finger's
+/// actual travel undersells it. SwiftUI's predicted end is where the flick
+/// was going; take whichever of the two travelled further horizontally.
+/// Still demands 40 pt of intent and clear horizontal dominance, so a sleeve
+/// brush or a vertical wrist wipe does not rotate machines — the same
+/// accidental-input worry that removed the day detent.
+private func machineSwipeDirection(_ v: DragGesture.Value) -> Int? {
+    let travelled = v.translation
+    let heading = v.predictedEndTranslation
+    let d = abs(heading.width) > abs(travelled.width) ? heading : travelled
+    guard abs(d.width) >= 40, abs(d.width) > abs(d.height) else { return nil }
+    return d.width < 0 ? -1 : 1
 }
 
 // MARK: - Rest
@@ -363,9 +394,11 @@ struct RestView: View {
         .contentShape(Rectangle())
         .onTapGesture { store.skipRest() }
         .highPriorityGesture(
-            DragGesture(minimumDistance: 40)
+            // Same flick fix as the set card: recognise at 20 pt (a tap to
+            // skip the rest moves far less), judge by where the flick went.
+            DragGesture(minimumDistance: 20)
                 .onEnded { v in
-                    guard abs(v.translation.width) > abs(v.translation.height), v.translation.width < 0 else { return }
+                    guard machineSwipeDirection(v) == -1 else { return }
                     // Gated: switchMachineFromRest kills the timer BEFORE
                     // rotatePending's own guard runs, so an ungated sleeve
                     // brush on the last machine ate the rest for nothing.
