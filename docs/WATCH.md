@@ -373,6 +373,38 @@ Lessons:
 3. **What is still unverified is the 40 pt swipe on real hardware.**
    That needs his wrist, now that the build is actually there.
 
+**The machine counter (owner, 2026-09-12; build 12).** The set card's top
+line reads `2/6 · Hoist ROC-IT`: which machine of TODAY'S plan is up. The
+total comes from the plan, so it grows with session length. It is also
+the fastest confirmation that a swipe landed — the number moves.
+
+It is indexed by `ActiveSession.planOrder`, captured once when the
+session opens, and there is deliberately **no fallback** for sessions
+saved before that field existed. Deriving the order from the live slots
+looks reasonable and is broken twice over: rotation keeps the current
+machine at the head of the tail, so it reads 1/N forever (seen on the
+sim — a swipe moved the card and the number did not); and `mergeLive`
+hoisting phone-logged slots into the head makes the number climb while
+the wrist sits on one machine (adversary). Those sessions show no
+counter until the next one starts.
+
+Three trade-offs that were accepted, not missed:
+1. **It is plan POSITION, not progress.** Skip machine 1 at the start and
+   the session ends on it, reading `1/6` while nothing is left. That is
+   honest — he really is on plan-machine 1 — but it is not a progress bar
+   and must not be read as one.
+2. **The prefix costs about 21% of that line** and re-truncates names the
+   badge fix at `0da6345` had just rescued. Day A's Hip Abduction and Hip
+   Adduction now render identically on this line; the exercise name on
+   the line below still tells them apart.
+3. **Two unlabelled ratios stack** — `2/6` above `Set 1/3`. Only the
+   lower one is labelled.
+
+Correction to the premise: more time does not always mean more machines.
+Day A is 5/8/9 machines for 30/45/60 min, but **Day B is 4/9/9** — 45 and
+60 are identical. An in-ramp fetch defaults to 45 min, so the totals he
+actually sees mid-ramp are /8 and /9.
+
 **Which build is on the wrist.** The Start screen's footer reads
 `build N` from `CFBundleVersion`. That is the TestFlight number on a
 TestFlight install, because `scripts/ExportOptions.plist` sets

@@ -105,6 +105,15 @@ struct ActiveSession: Codable, Equatable {
     /// The building the OPENING device tagged (rule 2). nil = this wrist
     /// opened it; the server defaults to B_Fit.
     var gym: String? = nil
+    /// Today's machines in PLAN order, captured once when the session opens.
+    /// The card numbers a machine by its place HERE ("2/6"), never by its
+    /// place in the queue: a rotation moves the current machine to the back,
+    /// so queue position would still read 1/6 straight after a swipe — the
+    /// opposite of what the number is for. Optional so sessions persisted
+    /// before 2026-09-12 still decode (synthesised Codable throws on a
+    /// missing key unless the property is optional; `gym` is optional for
+    /// the same reason).
+    var planOrder: [String]? = nil
 }
 
 // MARK: - Live session (phone ↔ watch handoff, docs/WATCH.md "Live session")

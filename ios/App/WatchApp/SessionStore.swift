@@ -178,7 +178,7 @@ final class SessionStore: ObservableObject {
         let s = ActiveSession(
             clientSaveId: row.clientSaveId, day: row.day ?? p.day, rpeCap: p.rpeCap,
             startedAt: row.startedDate, slots: slots, currentIndex: 0, logged: [],
-            gym: row.gym
+            gym: row.gym, planOrder: planMachineOrder(slots)
         )
         session = s
         Store.saveSession(s)
@@ -247,7 +247,8 @@ final class SessionStore: ObservableObject {
             }
         let s = ActiveSession(
             clientSaveId: UUID().uuidString, day: p.day, rpeCap: p.rpeCap,
-            startedAt: Date(), slots: slots, currentIndex: 0, logged: []
+            startedAt: Date(), slots: slots, currentIndex: 0, logged: [],
+            planOrder: planMachineOrder(slots)
         )
         session = s
         Store.saveSession(s)
@@ -256,6 +257,39 @@ final class SessionStore: ObservableObject {
         keepAwake(true)
         phase = .active
         postLive([]) // open the live row so the phone can offer "Continue"
+    }
+
+    /// Today's machines in plan order, de-duplicated, first appearance wins.
+    private func planMachineOrder(_ slots: [SetSlot]) -> [String] {
+        var seen = Set<String>()
+        return slots.compactMap { seen.insert($0.exerciseId).inserted ? $0.exerciseId : nil }
+    }
+
+    /// "2/6" for the card: which machine of TODAY'S PLAN is up. The total
+    /// grows with the session length — a 60 min day carries more machines
+    /// than a 30 min one — so it is read off the plan, not a constant.
+    ///
+    /// Indexed by planOrder, NEVER by queue position: a rotation moves the
+    /// current machine to the back, so a queue index would read 1/6 again
+    /// immediately after a swipe, which is exactly when the number has to
+    /// move.
+    ///
+    /// There is deliberately NO fallback for a session that predates
+    /// planOrder. Deriving the order from the live slots looks reasonable
+    /// and is wrong for the same reason: after a rotation the current
+    /// machine is the head of the tail, so the counter reads 1/N forever —
+    /// caught on the sim, 2026-09-12, where a swipe moved the card from
+    /// Back Extension to Lat Pulldown and the number stayed at 1/3. A wrong
+    /// number on the gym floor is worse than none, so those sessions simply
+    /// show no counter until the next one starts.
+    ///
+    /// nil also when there is only one machine (a "1/1" says nothing) or
+    /// when the current machine is not in the plan, which a phone-origin set
+    /// merged in from the live row can do.
+    var machinePosition: (index: Int, total: Int)? {
+        guard let s = session, let slot = currentSlot, let order = s.planOrder else { return nil }
+        guard order.count > 1, let i = order.firstIndex(of: slot.exerciseId) else { return nil }
+        return (i + 1, order.count)
     }
 
     // MARK: - Staying on the wrist
