@@ -88,6 +88,11 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   were a whole day (panel, 2026-09-08) — the standing weekday dinner
   (200 g chicken + rice ≈ 630 kcal / 67 P) is owner-confirmed, weekends
   are eaten out and are NOT that dinner.
+- Profile lists: POST /api/health/profile {conditions?, familyHistory?} —
+  string arrays, each key REPLACES its list, omitting one leaves it. Family
+  history is a SEPARATE column from `conditions`: his diagnoses are not his
+  parents' illnesses, and a cardiologist reads both on the doctor report
+  (added 2026-09-11, both parents had strokes).
 - Targets: POST /api/health/targets {kcal, proteinG, carbsG, fatG,
   waterMl, fiberG, dropLegacyProtein} — the Fuel tracker's own merge as a
   pipe, so a reviewed plan lands without retyping four numbers on a

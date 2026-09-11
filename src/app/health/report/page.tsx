@@ -161,6 +161,9 @@ export default async function DoctorReportPage({
   const conditions = ((data.profile.conditions as string[] | null) ?? []).filter(
     (c): c is string => typeof c === 'string',
   );
+  const familyHistory = ((data.profile.familyHistory as string[] | null) ?? []).filter(
+    (c) => typeof c === 'string' && c.trim(),
+  );
   const firstCpapNight = data.cpapNights.length
     ? [...data.cpapNights].sort((a, b) => new Date(a.night).getTime() - new Date(b.night).getTime())[0].night
     : null;
@@ -237,6 +240,11 @@ export default async function DoctorReportPage({
           {conditions.length > 0 && (
             <p className="pt-1 text-xs leading-relaxed text-app-tx2 print:text-gray-700">
               {conditions.join(' · ')}
+            </p>
+          )}
+          {familyHistory.length > 0 && (
+            <p className="pt-1 text-xs leading-relaxed text-app-tx2 print:text-gray-700">
+              <span className="font-semibold">Family history:</span> {familyHistory.join(' · ')}
             </p>
           )}
         </div>

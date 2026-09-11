@@ -106,6 +106,12 @@ model HealthProfile {
   goalWeightKg  Float
   milestonesKg  Json?
   conditions    Json?
+  // First-degree family events, as strings. A cardiologist reading the
+  // doctor report needs this and the app had nowhere to put it (2026-09-11:
+  // both parents had strokes, the mother's premature). Kept SEPARATE from
+  // `conditions`, which is his own diagnoses — merging them would put his
+  // parents' illnesses in his problem list. Additive, nullable.
+  familyHistory Json?
   dosePlan      Json?
   targets       Json?
   reminders     Json?
