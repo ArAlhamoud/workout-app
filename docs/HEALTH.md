@@ -88,6 +88,12 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   were a whole day (panel, 2026-09-08) — the standing weekday dinner
   (200 g chicken + rice ≈ 630 kcal / 67 P) is owner-confirmed, weekends
   are eaten out and are NOT that dinner.
+- Labs: POST /api/health/labs {labs:[{date, test, value, unit, refLow?,
+  refHigh?, lab?, notes?}|{date, test, remove}]} — keyed by TEST + calendar
+  day, so re-posting a panel corrects it while the same test on a later day
+  starts a trend. They arrive as screenshots of the lab's own app, like the
+  CPAP report. Store the LAB'S reference range, not a textbook one: his
+  lab's LDL ceiling is 2.59 mmol/L where the app had assumed 3.4.
 - Profile lists: POST /api/health/profile {conditions?, familyHistory?} —
   string arrays, each key REPLACES its list, omitting one leaves it. Family
   history is a SEPARATE column from `conditions`: his diagnoses are not his
