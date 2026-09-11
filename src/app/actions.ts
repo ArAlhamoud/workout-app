@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { sanitizeLiveUpdate, setsMissingFrom, unionForFinish, type LiveSetUpdate, type LiveSource } from '@/lib/live-session';
+import { ownerTodayUtc } from '@/lib/health-insights';
 import { closeLive, readLive, upsertLive } from '@/lib/live-store';
 import {
   DEFAULT_GYM_ID,
@@ -793,8 +794,12 @@ export async function closeLiveSession(clientSaveId: string) {
 export async function logCardio(kind: 'swim' | 'walk', minutes: number) {
   const mins = Math.max(5, Math.min(180, Math.round(minutes)));
   const prefix = kind === 'swim' ? 'Swim ' : 'Walk ';
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
+  // Every workout row sits at UTC midnight of the OWNER'S calendar day —
+  // letting `date` default to now() stored a real instant, so a swim
+  // logged at 00:38 Riyadh filed itself under the previous day while its
+  // own name said the right one (found 2026-09-11). The dedupe window has
+  // to be his day too, not the server's UTC day.
+  const dayStart = ownerTodayUtc();
   const existing = await prisma.workout.findFirst({
     where: { name: { startsWith: prefix }, date: { gte: dayStart } },
     select: { id: true },
@@ -803,6 +808,7 @@ export async function logCardio(kind: 'swim' | 'walk', minutes: number) {
   const workout = await prisma.workout.create({
     data: {
       name: `${prefix}${mins}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`,
+      date: dayStart,
       duration: mins * 60,
       notes: kind === 'swim' ? 'Swim — recovery, keeps the chain alive.' : 'Walk — recovery, keeps the chain alive.',
     },
