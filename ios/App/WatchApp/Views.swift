@@ -300,22 +300,27 @@ struct SetCardView: View {
         .padding(.horizontal, 2)
         .contentShape(Rectangle())
         // Occupied machine: a horizontal swipe rotates the pending machines.
+        // 40 pt minimum so a crown nudge or a sleeve brush never triggers it
+        // (the same accidental-input worry that removed the day detent).
         // High priority so a drag that starts on the weight or a button is
         // not swallowed by the child (the hidden-gesture failure, build 8).
         //
-        // It used to be DragGesture(minimumDistance: 40), and that MISSED
-        // FAST FLICKS: on the sim a 1 s drag rotated while a 0.3 s flick did
-        // nothing (2026-09-12). A quick flick is how a thumb swipes on a
-        // watch, so on the wrist the swipe simply did not work (owner, build
-        // 9) — and the 09-02 field failure was very likely the same thing.
-        // Begin recognising at 20 pt, still above tap jitter so Log set and
-        // × reps keep their taps, and judge on release with
-        // machineSwipeDirection, which counts where a flick was HEADING.
+        // Do NOT lower the minimum or judge by predictedEndTranslation to
+        // "catch fast flicks" — tried 2026-09-12, reverted the same night.
+        // Because this gesture outranks the buttons, a 20 pt minimum let a
+        // sideways press on Log set switch machines instead of logging, and a
+        // reflexive second tap then logged the set under the WRONG machine at
+        // the wrong weight, unrecoverable from the wrist. The predicted
+        // vector also turned curled flicks, hooked vertical wipes and
+        // rebounds into wrong rotations (adversary, reproduced in SwiftUI's
+        // gesture engine). The sim's "0.3 s flick does nothing" that
+        // motivated it was most likely how the tool injects touches: a
+        // straight swipe that ends ≥ 40 pt from where it started fires here.
         .highPriorityGesture(
-            DragGesture(minimumDistance: 20)
+            DragGesture(minimumDistance: 40)
                 .onEnded { v in
-                    guard let dir = machineSwipeDirection(v) else { return }
-                    if dir < 0 { store.skipToNextMachine() } else { store.backToPreviousMachine() }
+                    guard abs(v.translation.width) > abs(v.translation.height) else { return }
+                    if v.translation.width < 0 { store.skipToNextMachine() } else { store.backToPreviousMachine() }
                 }
         )
         .toolbar {
@@ -325,22 +330,6 @@ struct SetCardView: View {
             }
         }
     }
-}
-
-/// A machine-switch swipe, judged on release: -1 = left, +1 = right, nil = not one.
-///
-/// A fast flick often lifts before covering much ground, so the finger's
-/// actual travel undersells it. SwiftUI's predicted end is where the flick
-/// was going; take whichever of the two travelled further horizontally.
-/// Still demands 40 pt of intent and clear horizontal dominance, so a sleeve
-/// brush or a vertical wrist wipe does not rotate machines — the same
-/// accidental-input worry that removed the day detent.
-private func machineSwipeDirection(_ v: DragGesture.Value) -> Int? {
-    let travelled = v.translation
-    let heading = v.predictedEndTranslation
-    let d = abs(heading.width) > abs(travelled.width) ? heading : travelled
-    guard abs(d.width) >= 40, abs(d.width) > abs(d.height) else { return nil }
-    return d.width < 0 ? -1 : 1
 }
 
 // MARK: - Rest
@@ -394,11 +383,13 @@ struct RestView: View {
         .contentShape(Rectangle())
         .onTapGesture { store.skipRest() }
         .highPriorityGesture(
-            // Same flick fix as the set card: recognise at 20 pt (a tap to
-            // skip the rest moves far less), judge by where the flick went.
-            DragGesture(minimumDistance: 20)
+            // 40 pt, translation only — see the set card for why the 20 pt
+            // predicted-flick version was reverted. Here it also mattered
+            // more: a hooked vertical wipe with that version cancelled the
+            // rest timer.
+            DragGesture(minimumDistance: 40)
                 .onEnded { v in
-                    guard machineSwipeDirection(v) == -1 else { return }
+                    guard abs(v.translation.width) > abs(v.translation.height), v.translation.width < 0 else { return }
                     // Gated: switchMachineFromRest kills the timer BEFORE
                     // rotatePending's own guard runs, so an ungated sleeve
                     // brush on the last machine ate the rest for nothing.

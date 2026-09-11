@@ -336,33 +336,42 @@ the app container and relaunching — `onLaunch` restores straight to
 `.active` and only issues GETs, so no card state needs a logged set and
 nothing touches the production database.
 
-**Update 2026-09-12 — the swipe missed fast flicks (build 9 field
-report).** The owner reported the swipe still did not switch machines on
-the wrist. Reproduced on the sim: `DragGesture(minimumDistance: 40)`
-rotated on a slow 1 s drag and did NOTHING on a 0.3 s flick — whether
-the flick started on the crown-focused weight or on plain text. A quick
-flick is how a thumb swipes on a watch, so on the wrist the gesture was
-effectively dead. The 2026-09-02 "did not let me switch machines" was
-very likely this as well, not only the missing fallback.
+**Update 2026-09-12 — "the swipe does not work on my watch": it was
+delivery, not the gesture.** The owner reported build 9's swipe did
+nothing on the wrist. The real cause: **no TestFlight build had ever
+reached his devices.** The sole tester (ar.alhamoud@gmail.com) was still
+`state=INVITED` with no devices, so builds 5–10 uploaded and went
+nowhere, and the phone and watch were still on the 2026-08-31 dev
+install (phone `CFBundleVersion` 2). Build 9's gesture was never on his
+wrist. Delivered by `npm run ios:deploy` over the network instead.
 
-Fix: recognise at 20 pt (still above tap jitter) and judge on release
-with `machineSwipeDirection`, which takes the larger of the finger's
-actual travel and `predictedEndTranslation` — where the flick was
-heading — and still demands 40 pt plus horizontal dominance. The exact
-mechanism (a competing velocity-based recognizer claiming the flick
-before 40 pt) is a hypothesis; the before/after behaviour is not.
+A detour worth not repeating. On the sim, the build 9 gesture
+(`DragGesture(minimumDistance: 40)`) rotated on a slow 1 s drag but not
+on a 0.3 s injected flick. That was read as "fast flicks fail", and the
+gesture was changed to a 20 pt minimum judged by
+`predictedEndTranslation`. The adversary then reproduced, in SwiftUI's
+real gesture engine:
+- Because the drag is HIGH priority over the buttons, a sideways press
+  on Log set switched machines instead of logging, and a reflexive
+  second tap logged the set under the wrong machine at the wrong weight.
+- The predicted vector turned curled flicks, hooked vertical wipes
+  (which on the rest screen also kill the rest) and rebounds into wrong
+  rotations.
 
-Sim-verified after the fix: 0.3 s flick starting on the weight → next
-machine; 0.15 s flick on the "Set" line → next; fast right flick → back;
-a near-vertical wipe → ignored; tapping the hint → still rotates.
+It also showed that a straight swipe ending ≥ 40 pt from its start DOES
+fire with the 40 pt gesture, so the sim result was most likely an
+artifact of how the tool injects touches. Reverted the same night, back
+to build 9's gesture.
 
-NOT verified: the rest-screen flick (reaching `.resting` needs a logged
-set, which writes to production) and anything on real hardware — the sim
-injects synthetic touches, so the first wrist session is the real test.
-
-The lesson: **a "sim-verified swipe" must be a FAST flick.** A slow drag
-passes gestures that a thumb will fail, which is how build 9 shipped
-with this documented as verified.
+Lessons:
+1. **Before blaming the code for "the update didn't change anything",
+   prove the update arrived** (tester state, installed build number,
+   the footer below).
+2. **A simulator swipe tool is not a thumb.** Don't loosen a
+   high-priority gesture that sits over a data-writing button on the
+   strength of an injected flick.
+3. **What is still unverified is the 40 pt swipe on real hardware.**
+   That needs his wrist, now that the build is actually there.
 
 **Which build is on the wrist.** The Start screen's footer reads
 `build N` from `CFBundleVersion`. That is the TestFlight number on a
