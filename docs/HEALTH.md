@@ -94,11 +94,13 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   starts a trend. They arrive as screenshots of the lab's own app, like the
   CPAP report. Store the LAB'S reference range, not a textbook one: his
   lab's LDL ceiling is 2.59 mmol/L where the app had assumed 3.4.
-- Profile lists: POST /api/health/profile {conditions?, familyHistory?} —
-  string arrays, each key REPLACES its list, omitting one leaves it. Family
-  history is a SEPARATE column from `conditions`: his diagnoses are not his
-  parents' illnesses, and a cardiologist reads both on the doctor report
-  (added 2026-09-11, both parents had strokes).
+- Profile lists: POST /api/health/profile {conditions?, familyHistory?,
+  investigations?} — string arrays, each key REPLACES its list, omitting one
+  leaves it. Three separate columns on purpose: `conditions` is his own
+  diagnoses, `familyHistory` is his parents' (merging them would print their
+  illnesses in his problem list), and `investigations` is tests with no
+  numeric result — echo, ECG, Holter — which a lab value cannot carry.
+  A cardiologist reads all three on the doctor report.
 - Targets: POST /api/health/targets {kcal, proteinG, carbsG, fatG,
   waterMl, fiberG, dropLegacyProtein} — the Fuel tracker's own merge as a
   pipe, so a reviewed plan lands without retyping four numbers on a

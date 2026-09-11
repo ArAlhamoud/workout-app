@@ -139,6 +139,9 @@ export async function GET(request: Request) {
   const familyHistory = ((data.profile.familyHistory as string[] | null) ?? []).filter(
     (c): c is string => typeof c === 'string' && Boolean(c.trim()),
   );
+  const investigations = ((data.profile.investigations as string[] | null) ?? []).filter(
+    (c): c is string => typeof c === 'string' && Boolean(c.trim()),
+  );
   const signedKg = (lost: number) => (lost >= 0 ? `-${Math.abs(lost)}` : `+${Math.abs(lost)}`);
 
   // ── draw ──────────────────────────────────────────────────
@@ -195,6 +198,7 @@ export async function GET(request: Request) {
   row('Height', `${data.profile.heightCm} cm`);
   if (conditions.length) note(conditions.join(' · '));
   if (familyHistory.length) note(`Family history: ${familyHistory.join(' · ')}`);
+  if (investigations.length) note(`Investigations: ${investigations.join(' · ')}`);
   // No at-a-glance strip: the sections carry these numbers once each
   // (owner removed it as redundant, 2026-08-30 — say each thing once).
 

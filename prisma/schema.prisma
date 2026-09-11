@@ -112,6 +112,11 @@ model HealthProfile {
   // `conditions`, which is his own diagnoses — merging them would put his
   // parents' illnesses in his problem list. Additive, nullable.
   familyHistory Json?
+  // Investigations with no numeric result — echo, ECG, Holter, imaging.
+  // A cardiologist needs to know what has already been done and what it
+  // showed, and a lab value cannot carry "normal" (2026-09-11: echo + ECG
+  // + 24 h Holter, reported normal). Additive, nullable.
+  investigations Json?
   dosePlan      Json?
   targets       Json?
   reminders     Json?
