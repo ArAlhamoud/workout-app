@@ -51,7 +51,9 @@ export async function ensureHealthProfile() {
         'Recurrent bloating / gas',
       ],
       dosePlan: DEFAULT_DOSE_PLAN as unknown as object[],
-      targets: { proteinG: 100, waterMl: 2500, rotation: DEFAULT_ROTATION },
+      // fuelProteinG is the protein target the Fuel tracker reads; a second
+      // `proteinG` key here is read by nothing and contradicted the display.
+      targets: { kcal: 1800, fuelProteinG: 130, carbsG: 180, fatG: 62, fiberG: 30, waterMl: 3000, rotation: DEFAULT_ROTATION },
       reminders: { injection: true, missed: true, daySymptoms: true, cpapBedtime: false },
     },
   });
@@ -66,8 +68,16 @@ export async function ensureHealthProfile() {
         { name: 'Nebilet (nebivolol)', doseLabel: '10 mg', frequency: 'daily' },
       ],
     });
+    // The real draw and the LAB'S OWN ceiling, not a textbook one: his lab
+    // reports LDL against 2.59 mmol/L, and a seed that says 3.4 makes the
+    // app disagree with the paper report in his hand (2026-09-11). Dated
+    // to the actual collection, which also predates his first injection.
     await prisma.labResult.create({
-      data: { date: new Date(), test: 'ldl', value: 4.54, unit: 'mmol/L', refHigh: 3.4, notes: 'baseline (pre-app)' },
+      data: {
+        date: new Date('2026-08-20T00:00:00.000Z'),
+        test: 'ldl', value: 4.54, unit: 'mmol/L', refHigh: 2.59,
+        notes: 'baseline (pre-app, pre-treatment)',
+      },
     });
   } catch {
     /* seeds are conveniences; the profile is the contract */

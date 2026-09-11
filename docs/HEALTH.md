@@ -12,23 +12,34 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
 2. **The clock anchors at the first LOGGED injection.** Week 1 · day 0 is
    an event, never an assumed date. Checkpoint weeks in the dose plan
    prescribe nothing — nothing auto-escalates past the doctor review.
-3. **Device estimates are labelled as such.** The prisma report's deep
+3. **Never display a threshold the app invented.** A lab's "reference
+   range" is a generic decision line it imported from a guideline, not a
+   personal target — a target is a clinical decision his doctor makes, and
+   showing an inferred one crosses law 1. Store and show the SOURCE
+   document's range, attributed to it ("lab ref < 2.59"), never "goal" or
+   "target". His lab (Dr Sulaiman Al Habib) flags LDL against **2.59
+   mmol/L**; the seed once said 3.4, so the app could disagree with the
+   paper report in his hand. Same class of error as law 4. Related fact,
+   so no copy ever implies otherwise: LDL moves little with weight loss
+   (typically 5–15%), so a projection tying it to falling weight would
+   mislead.
+4. **Device estimates are labelled as such.** The prisma report's deep
    sleep is inferred from airflow, not staged like a sleep study, and it
    disagrees with the Watch. Stored as `CpapNight.deepSleepMin` and shown
    in MINUTES — the unit the prisma app itself shows, so the two never
    disagree (owner, 2026-09-07) — averaged over ≥2 reporting nights,
    behind a disclosure. It never drives advice or a target. A night the
    report omits is absent, never zero.
-4. **Guards over charts.** Below honest thresholds (4 weigh-ins for a
+5. **Guards over charts.** Below honest thresholds (4 weigh-ins for a
    projection, 5 answered episodes for an AF correlate, 3 readings for a
    BP average, 3 logs for a dose comparison) the answer is "not enough
    data yet" — a chart from 3 points is a lie with axes.
-5. **Ten-second logging.** Segmented controls, tri-state flags
+6. **Ten-second logging.** Segmented controls, tri-state flags
    (yes/no/skip — an unanswered flag never enters a denominator),
    last-value defaults, one row per CPAP night (upsert).
-6. **Deterministic and $0.** Every insight is transparent arithmetic in
+7. **Deterministic and $0.** Every insight is transparent arithmetic in
    `src/lib/health-insights.ts`, tested in `scripts/coach-tests.ts`.
-7. **Days are calendar days** — an evening dose on the 8th is 2 days back
+8. **Days are calendar days** — an evening dose on the 8th is 2 days back
    on the morning of the 10th (the dynamic-plan lesson, inherited).
 
 ## Map
