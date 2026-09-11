@@ -373,9 +373,12 @@ Lessons:
 3. **What is still unverified is the 40 pt swipe on real hardware.**
    That needs his wrist, now that the build is actually there.
 
-**The machine counter (owner, 2026-09-12; build 12).** The set card's top
-line reads `2/6 · Hoist ROC-IT`: which machine of TODAY'S plan is up. The
-total comes from the plan, so it grows with session length. It is also
+**The machine counter (owner, 2026-09-12; builds 12-13).** The set card's
+top line reads just `2/6`: which machine of TODAY'S plan is up. The total
+comes from the plan, so it grows with session length. Build 12 rendered it
+as `2/6 · Hoist ROC-IT`; the owner asked for the number alone in build 13,
+and the machine name is now absent from the watch entirely — the exercise
+name on the line below is what he actually reads. It is also
 the fastest confirmation that a swipe landed — the number moves.
 
 It is indexed by `ActiveSession.planOrder`, captured once when the
@@ -388,17 +391,20 @@ hoisting phone-logged slots into the head makes the number climb while
 the wrist sits on one machine (adversary). Those sessions show no
 counter until the next one starts.
 
-Three trade-offs that were accepted, not missed:
+Trade-offs that were accepted, not missed:
 1. **It is plan POSITION, not progress.** Skip machine 1 at the start and
    the session ends on it, reading `1/6` while nothing is left. That is
    honest — he really is on plan-machine 1 — but it is not a progress bar
    and must not be read as one.
-2. **The prefix costs about 21% of that line** and re-truncates names the
-   badge fix at `0da6345` had just rescued. Day A's Hip Abduction and Hip
-   Adduction now render identically on this line; the exercise name on
-   the line below still tells them apart.
-3. **Two unlabelled ratios stack** — `2/6` above `Set 1/3`. Only the
-   lower one is labelled.
+2. **Two unlabelled ratios stack** — `2/6` above `Set 1/3`. Only the
+   lower one says what it counts.
+
+Dropping the machine name in build 13 retired a third one: the `2/6 · `
+prefix had cost about 21% of that line, re-truncating names the badge fix
+at `0da6345` had just rescued, and had made Day A's Hip Abduction and Hip
+Adduction render identically there. It also retired the
+`.padding(.leading, 50)` that held a long name clear of the End badge — a
+short centred number clears it at any height.
 
 Correction to the premise: more time does not always mean more machines.
 Day A is 5/8/9 machines for 30/45/60 min, but **Day B is 4/9/9** — 45 and

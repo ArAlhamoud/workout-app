@@ -179,29 +179,28 @@ struct SetCardView: View {
 
     var body: some View {
         VStack(spacing: 6) {
-            // The "End" badge is a fixed top-LEFT overlay (x 15.5…48 pt,
-            // y 21…53). This VStack is vertically centred, so it grows
-            // UPWARD as content is added and the machine label drifts into
-            // the badge: on the zero-weight card (which adds the crown line)
-            // it rode to y 43.5 and rendered "Lif⬤ess Dual Adjustable…".
-            // The fix is horizontal, not vertical — content already ends at
-            // y 241 of 251, so there is nothing to spend on pushing it down,
-            // and taking it from the hint row would undo the Log-set
-            // clearance. Insetting past the badge's width clears it at EVERY
-            // vertical position, in every state, for free.
-            // "2/6 · Hoist ROC-IT" — which machine of today's plan he is on
-            // (owner, 2026-09-12; the count grows with the session length,
-            // since a 60 min day has more machines than a 30 min one). It is
-            // also the fastest confirmation that a swipe landed: the number
-            // moves. Not the same counter as "Set 1/3" below, which counts
-            // sets within THIS machine. Hidden on a one-machine session,
-            // where "1/1" is noise.
-            Text(store.machinePosition.map { "\($0.index)/\($0.total) · \(slot.machine)" } ?? slot.machine)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .padding(.leading, 50)
-                .padding(.trailing, 8)
+            // Just the counter — "2/6" — with no machine name (owner,
+            // 2026-09-12: "remove the machine name just keep 1/6"). Dropping
+            // the name also ends two things the review flagged: the "2/6 · "
+            // prefix re-truncated names that used to fit, and Day A's Hip
+            // Abduction / Hip Adduction rendered identically on this line.
+            // The exercise name still sits on the line below.
+            //
+            // The old .padding(.leading, 50) went with it. That inset existed
+            // only to hold a long machine name clear of the "End" badge, a
+            // fixed top-LEFT overlay at x 15.5…48 pt; a short centred number
+            // clears it at any height, and this VStack is centred so it does
+            // drift upward as content grows.
+            //
+            // Nothing renders when there is no counter: a one-machine session
+            // ("1/1" says nothing), or a session started before planOrder
+            // existed, where any number would be a lie.
+            if let pos = store.machinePosition {
+                Text("\(pos.index)/\(pos.total)")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
             Text("Set \(slot.setNumber)/\(slot.setsTotal) · \(slot.exerciseName)")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .lineLimit(1)
