@@ -246,7 +246,7 @@ export default async function DoctorReportPage({
           <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
             <p className="metric-value print:text-black">{snapshot ? snapshot.currentKg : '—'}</p>
             <p className="metric-label print:text-gray-700">
-              kg now{snapshot ? ` · from ${snapshot.startKg} (${signedKg(snapshot.lostKg)})` : ''}
+              kg now{snapshot ? ` · from ${snapshot.startKg} at first clinic visit (${signedKg(snapshot.lostKg)})` : ''}
             </p>
           </div>
           <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
@@ -274,7 +274,11 @@ export default async function DoctorReportPage({
         <Section title="Weight">
           {snapshot ? (
             <>
-              <Row label="Start → now" value={`${snapshot.startKg} → ${snapshot.currentKg} kg`} />
+              {/* "Start" alone is ambiguous in a doctor-facing document: his
+                  pre-programme peak was 135 kg, his weight at the first clinic
+                  visit 133 kg, and the percentage below hangs off the latter
+                  (owner, 2026-09-11; physician review flagged it). */}
+              <Row label="First clinic visit → now" value={`${snapshot.startKg} → ${snapshot.currentKg} kg`} />
               <Row label="Change" value={`${signedKg(snapshot.lostKg)} kg (${snapshot.pctLost}%)`} />
               <Row label="BMI" value={`${snapshot.startBmi} → ${snapshot.bmi}`} />
               {rangeDelta != null && (
@@ -443,7 +447,7 @@ export default async function DoctorReportPage({
           <p className="section-label mb-1 print:font-bold print:text-black">الملخّص — {rangeLabelAr}</p>
           <div className="space-y-1 text-sm leading-relaxed text-app-tx1 print:text-black">
             <p>
-              الوزن: {snapshot ? `${snapshot.startKg} كجم ← ${snapshot.currentKg} كجم (${snapshot.lostKg >= 0 ? 'نقص' : 'زيادة'} ${Math.abs(snapshot.lostKg)} كجم، ${snapshot.pctLost}٪)` : 'لا يوجد'}
+              الوزن منذ أول زيارة للعيادة: {snapshot ? `${snapshot.startKg} كجم ← ${snapshot.currentKg} كجم (${snapshot.lostKg >= 0 ? 'نقص' : 'زيادة'} ${Math.abs(snapshot.lostKg)} كجم، ${snapshot.pctLost}٪)` : 'لا يوجد'}
             </p>
             <p>
               مونجارو: {clock ? `الأسبوع ${clock.week} · الجرعة الحالية ${clock.lastDoseMg} ملغ أسبوعيًا` : 'لم يبدأ بعد'} · عدد الحقن في الفترة: {injections.length}

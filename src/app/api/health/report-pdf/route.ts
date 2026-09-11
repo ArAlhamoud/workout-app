@@ -196,7 +196,7 @@ export async function GET(request: Request) {
 
   section('Weight');
   if (snapshot) {
-    row('Start -> now', `${snapshot.startKg} -> ${snapshot.currentKg} kg`);
+    row('First clinic visit -> now', `${snapshot.startKg} -> ${snapshot.currentKg} kg`);
     row('Change', `${signedKg(snapshot.lostKg)} kg (${snapshot.pctLost}%)`);
     row('BMI', `${snapshot.startBmi} -> ${snapshot.bmi}`);
     if (pace) row('Current pace', `${pace.kgPerWeek > 0 ? '+' : ''}${pace.kgPerWeek} kg/week`);
