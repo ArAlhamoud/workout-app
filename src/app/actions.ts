@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { sanitizeLiveUpdate, setsMissingFrom, unionForFinish, type LiveSetUpdate, type LiveSource } from '@/lib/live-session';
-import { ownerTodayUtc } from '@/lib/health-insights';
+import { ownerActivityDayUtc } from '@/lib/health-insights';
 import { closeLive, readLive, upsertLive } from '@/lib/live-store';
 import {
   DEFAULT_GYM_ID,
@@ -794,12 +794,12 @@ export async function closeLiveSession(clientSaveId: string) {
 export async function logCardio(kind: 'swim' | 'walk', minutes: number) {
   const mins = Math.max(5, Math.min(180, Math.round(minutes)));
   const prefix = kind === 'swim' ? 'Swim ' : 'Walk ';
-  // Every workout row sits at UTC midnight of the OWNER'S calendar day —
-  // letting `date` default to now() stored a real instant, so a swim
-  // logged at 00:38 Riyadh filed itself under the previous day while its
-  // own name said the right one (found 2026-09-11). The dedupe window has
-  // to be his day too, not the server's UTC day.
-  const dayStart = ownerTodayUtc();
+  // The day the activity BELONGS to, which rolls over at 04:00 Riyadh —
+  // he logs from the sofa after training, and a swim at 21:00 tapped in at
+  // 00:30 was filing itself under the next date (2026-09-13). Also keeps
+  // the row at UTC midnight of that day, like every other workout: letting
+  // `date` default to now() stored a real instant (found 2026-09-11).
+  const dayStart = ownerActivityDayUtc();
   const existing = await prisma.workout.findFirst({
     where: { name: { startsWith: prefix }, date: { gte: dayStart } },
     select: { id: true },

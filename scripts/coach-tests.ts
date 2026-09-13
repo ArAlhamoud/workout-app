@@ -62,6 +62,7 @@ import {
   afCorrelates,
   afStats,
   bpAverage,
+  ownerActivityDayUtc,
   ownerTodayUtc,
   cpapStats,
   dayRelativeSymptoms,
@@ -1676,6 +1677,20 @@ console.log('health-insights');
     assert(
       ownerTodayUtc(new Date('2026-09-07T09:00:00Z')).toISOString().slice(0, 10) === '2026-09-07',
       'midday UTC is the same Riyadh day',
+    );
+    // An ACTIVITY logged in the small hours belongs to the evening before:
+    // the owner tapped a swim in at 00:30 and it filed under the next date.
+    assert(
+      ownerActivityDayUtc(new Date('2026-09-12T21:30:00Z')).toISOString().slice(0, 10) === '2026-09-12',
+      '00:30 Riyadh belongs to the evening that just ended, not the new date',
+    );
+    assert(
+      ownerActivityDayUtc(new Date('2026-09-12T18:00:00Z')).toISOString().slice(0, 10) === '2026-09-12',
+      '21:00 Riyadh is its own day',
+    );
+    assert(
+      ownerActivityDayUtc(new Date('2026-09-13T02:00:00Z')).toISOString().slice(0, 10) === '2026-09-13',
+      '05:00 Riyadh is past the 04:00 rollover — a morning walk is today',
     );
   }
 

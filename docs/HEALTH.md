@@ -105,6 +105,12 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   were a whole day (panel, 2026-09-08) — the standing weekday dinner
   (200 g chicken + rice ≈ 630 kcal / 67 P) is owner-confirmed, weekends
   are eaten out and are NOT that dinner.
+- Activity days roll over at 04:00 Riyadh, not midnight
+  (`ownerActivityDayUtc`). He logs a swim from the sofa after training, and
+  at 00:30 that was filing under the next date. Same reasoning as keying a
+  CPAP night by the morning it ended: nobody swims at 02:00, so a log then
+  is last night's. Applies to `logCardio`; a workout SAVED from the logger
+  carries its own date field and is unaffected.
 - Labs: POST /api/health/labs {labs:[{date, test, value, unit, refLow?,
   refHigh?, lab?, notes?}|{date, test, remove}]} — keyed by TEST + calendar
   day, so re-posting a panel corrects it while the same test on a later day

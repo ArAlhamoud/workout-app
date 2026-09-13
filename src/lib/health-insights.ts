@@ -1101,6 +1101,23 @@ export function ownerTodayUtc(now: Date = new Date()): Date {
   return new Date(`${ownerDayKey(now)}T00:00:00.000Z`);
 }
 
+/**
+ * The day an ACTIVITY belongs to. A swim at 21:00 logged at 00:30 belongs
+ * to the evening just past, not to the small hours of the next date — the
+ * owner logs from the sofa after training (2026-09-13). The day rolls over
+ * at 04:00 Riyadh, the same reasoning as keying a CPAP night by the morning
+ * it ended: nobody swims at 02:00, so a log then is last night's.
+ */
+export function ownerActivityDayUtc(now: Date = new Date()): Date {
+  const hour = Number(
+    now.toLocaleString('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', hour12: false }),
+  );
+  const key = ownerDayKey(now);
+  const d = new Date(`${key}T00:00:00.000Z`);
+  if (hour < 4) d.setUTCDate(d.getUTCDate() - 1);
+  return d;
+}
+
 /** The most recent milestone crossed within `windowDays`: the first
  *  weigh-in at or under the mark, with the weigh-in before it still above.
  *  Returns the crossing with the LATEST date — while losing, lighter
