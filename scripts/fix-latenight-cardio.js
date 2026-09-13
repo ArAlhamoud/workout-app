@@ -6,8 +6,16 @@
  * activity day over at 04:00; these two rows predate the fix.
  *
  * Moves Swim/Walk rows created between 00:00 and 04:00 Riyadh back to the
- * previous day. Idempotent: a row already on its created-day minus one is
- * left alone, so a second run finds nothing.
+ * previous day, AND rewrites the "— Sep 7" suffix in the name, which was
+ * generated from the same wrong day. Leaving the name would swap one
+ * self-contradicting row for another.
+ *
+ * NOTE on the Sep 7 swim: a 2026-09-11 script moved it from Sep 6 to Sep 7
+ * to agree with its name. That was the wrong direction — the name was the
+ * thing in error. This puts it back, for the right reason this time.
+ *
+ * Idempotent: a row already on its created-day minus one is left alone, so
+ * a second run finds nothing.
  *
  * DRY RUN IS THE DEFAULT.
  *   node scripts/fix-latenight-cardio.js           # preview
@@ -31,15 +39,18 @@ async function main() {
     if (hour >= 4) continue; // logged in daylight — the date it carries is right
     const want = new Date(`${riyadhDay(w.createdAt)}T00:00:00.000Z`);
     want.setUTCDate(want.getUTCDate() - 1);
-    if (want.getTime() !== w.date.getTime()) fixes.push({ w, want, hour });
+    // The name carries the same wrong day; rebuild its suffix from `want`.
+    const label = want.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+    const name = w.name.replace(/ — .*$/, ` — ${label}`);
+    if (want.getTime() !== w.date.getTime() || name !== w.name) fixes.push({ w, want, name, hour });
   }
   console.log(`${APPLY ? 'APPLYING' : 'DRY RUN'} — ${rows.length} cardio row(s), ${fixes.length} logged before 04:00 and mis-dated`);
-  for (const { w, want, hour } of fixes) {
-    console.log(`  "${w.name}"  created ${String(hour).padStart(2, '0')}:xx Riyadh  ${w.date.toISOString().slice(0, 10)} -> ${want.toISOString().slice(0, 10)}`);
+  for (const { w, want, name, hour } of fixes) {
+    console.log(`  "${w.name}"  created ${String(hour).padStart(2, '0')}:xx Riyadh  ${w.date.toISOString().slice(0, 10)} -> ${want.toISOString().slice(0, 10)}  name -> "${name}"`);
   }
   if (!fixes.length) { console.log('Nothing to change.'); await prisma.$disconnect(); return; }
   if (APPLY) {
-    await prisma.$transaction(fixes.map(({ w, want }) => prisma.workout.update({ where: { id: w.id }, data: { date: want } })));
+    await prisma.$transaction(fixes.map(({ w, want, name }) => prisma.workout.update({ where: { id: w.id }, data: { date: want, name } })));
     console.log('  ✓ re-dated');
   } else {
     console.log('Dry run — nothing written. Re-run with --apply.');
