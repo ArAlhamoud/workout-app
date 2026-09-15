@@ -169,6 +169,11 @@ what he actually ate. Portions he does not state are estimated and the
 estimate is written into `notes`; asking for grams on every plate is the
 friction that stops the logging.
 
+**Kefir is a probiotic, not a protein source (owner, 2026-09-15).** He
+buys it for the gut, knows it carries ~5 g of protein a bottle, and has
+been told three times that Greek yoghurt would carry more. Log it and
+move on; do not re-pitch yoghurt against it.
+
 ## Deliberately not built
 
 ECG interpretation (validated-integration
