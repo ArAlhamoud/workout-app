@@ -2,14 +2,14 @@ import type { Metadata } from 'next';
 import BackLink from '@/components/BackLink';
 import prisma from '@/lib/prisma';
 import { getHealthData } from '../../health-actions';
-import { siteLabel } from '@/lib/health-insights';
+import { ownerTodayUtc, siteLabel } from '@/lib/health-insights';
 
 export const metadata: Metadata = { title: 'Health Timeline' };
 export const dynamic = 'force-dynamic';
 
 interface TimelineEvent {
   at: Date;
-  kind: 'injection' | 'weight' | 'symptom' | 'af' | 'bp' | 'cpap' | 'lab' | 'workout';
+  kind: 'injection' | 'weight' | 'symptom' | 'af' | 'bp' | 'cpap' | 'lab' | 'workout' | 'fuel';
   text: string;
   accent: string;
 }
@@ -23,9 +23,37 @@ const ACCENTS: Record<TimelineEvent['kind'], string> = {
   cpap: 'bg-app-tx3',
   lab: 'bg-acc-ember',
   workout: 'bg-acc-violet',
+  // Gold, not indigo: indigo sat a shade off the violet that BP and
+  // workouts use, and those two appear on nearly every day card.
+  fuel: 'bg-acc-gold',
 };
 
 const SEVERITY_WORD = ['', 'mild', 'moderate', 'severe'];
+
+/**
+ * The day's macros as one glanceable line — "1763 kcal · 128P / 155C / 68F",
+ * the same shorthand /health/diet already uses, so the two screens read as
+ * one app (owner asked for it on the timeline, 2026-09-15). A day that only
+ * ever got a protein number still renders; missing columns are dropped
+ * rather than shown as zeroes, because a blank is not a fast. But a row
+ * needs an anchor: calories or protein. A lone "164C" is a number with
+ * nothing to hold on to (editor, 2026-09-15).
+ */
+function fuelLine(n: {
+  kcal: number | null; proteinG: number | null; carbsG: number | null; fatG: number | null;
+}): string | null {
+  if (n.kcal == null && n.proteinG == null) return null;
+  const macros = [
+    n.proteinG != null ? `${n.proteinG}P` : null,
+    n.carbsG != null ? `${n.carbsG}C` : null,
+    n.fatG != null ? `${n.fatG}F` : null,
+  ].filter(Boolean);
+  const parts = [
+    n.kcal != null ? `${n.kcal} kcal` : null,
+    macros.length ? macros.join(' / ') : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(' \u00b7 ') : null;
+}
 
 export default async function HealthTimelinePage() {
   const [data, workouts] = await Promise.all([
@@ -83,6 +111,16 @@ export default async function HealthTimelinePage() {
       text: `${l.test.toUpperCase()} ${l.value} ${l.unit}`,
       accent: ACCENTS.lab,
     })),
+    // Planned delivery days are logged AHEAD of time (the subscription
+    // prints its macros for the week), so unfiltered they would open day
+    // cards for dates that have not happened yet. The timeline is a record,
+    // not a schedule — cut it at today.
+    ...data.nutrition
+      .filter((n) => new Date(n.day) <= ownerTodayUtc())
+      .flatMap((n) => {
+        const text = fuelLine(n);
+        return text ? [{ at: new Date(n.day), kind: 'fuel' as const, text, accent: ACCENTS.fuel }] : [];
+      }),
     ...workouts.map((w) => ({
       at: new Date(w.date),
       kind: 'workout' as const,
