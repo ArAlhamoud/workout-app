@@ -159,6 +159,16 @@ FUEL_DEFAULTS), a 3-day-guarded week summary, and counts-not-grades
 copy: a light day on a GLP-1 is the medicine working. Protein is framed
 as the number to defend.
 
+**Silence means the plan was eaten (owner, 2026-09-15).** He is on a
+macro-printed subscription, so the planned rows ARE the log unless he
+says otherwise. If he does not mention a meal, it was the plan — do not
+ask, do not leave the day half-logged, and do not treat the untouched
+planned row as a gap. When he DOES replace a day he says so, and then the
+planned row is wiped (`{day, remove:true}`) and rebuilt meal by meal from
+what he actually ate. Portions he does not state are estimated and the
+estimate is written into `notes`; asking for grams on every plate is the
+friction that stops the logging.
+
 ## Deliberately not built
 
 ECG interpretation (validated-integration
