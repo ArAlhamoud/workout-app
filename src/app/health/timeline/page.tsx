@@ -23,9 +23,14 @@ const ACCENTS: Record<TimelineEvent['kind'], string> = {
   cpap: 'bg-app-tx3',
   lab: 'bg-acc-ember',
   workout: 'bg-acc-violet',
-  // Gold, not indigo: indigo sat a shade off the violet that BP and
-  // workouts use, and those two appear on nearly every day card.
-  fuel: 'bg-acc-gold',
+  // Measured, not eyeballed — two guesses missed (device-tester,
+  // 2026-09-15). At 6px the dot is the only non-textual cue and this
+  // screen has no legend, so the number that matters is the distance to
+  // the NEAREST kind in use: indigo 14.8 from violet, gold 16.3 from the
+  // symptom/lab amber (rpe-med and acc-ember are the same hex), green
+  // 35.3 from the weight teal. Pink is 49.7, and its nearest neighbour is
+  // the AF dot, which shows on one day in forty-five.
+  fuel: 'bg-rpe-grind',
 };
 
 const SEVERITY_WORD = ['', 'mild', 'moderate', 'severe'];
