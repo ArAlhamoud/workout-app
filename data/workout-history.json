@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-09-14T10:22:20.222Z",
+  "exportedAt": "2026-09-15T09:48:52.904Z",
   "totalWorkouts": 14,
   "totalBodyStats": 28,
   "totalExercises": 21,
@@ -8222,15 +8222,15 @@
       {
         "id": "cmu0wpwe00001oqloczd6gnrb",
         "day": "2026-09-14T00:00:00.000Z",
-        "proteinG": 32,
+        "proteinG": 84,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 543,
-        "carbsG": 38,
-        "fatG": 29,
+        "kcal": 1313,
+        "carbsG": 108,
+        "fatG": 60,
         "flags": null,
-        "notes": "Actual, not plan. Breakfast: bab Turkey Club (turkey, egg, cheese, lettuce, tomato, sauce, toast) 543 kcal per menu; macro split estimated",
+        "notes": "Actual, not plan. Breakfast: bab Turkey Club (turkey, egg, cheese, lettuce, tomato, sauce, toast) 543 kcal per menu; macro split estimated · Lunch: chicken rice bowl w/ sour cream + cheese, menu range 420-910; estimated at 770 from build",
         "createdAt": "2026-09-14T07:13:56.281Z"
       },
       {
