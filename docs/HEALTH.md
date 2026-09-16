@@ -176,6 +176,14 @@ move on; do not re-pitch yoghurt against it.
 
 ## Deliberately not built
 
+**Saturated fat in the Diet tracker (owner, 2026-09-16).** Offered and
+declined. Total fat 62 g is the remainder after protein 130 g and carbs
+180 g are taken out of 1800 kcal — 31% of calories, well above any
+floor — and saturated fat is the number that actually drives his LDL.
+He chose to keep the tracker as it is and treat cheese, cream sauces
+and mayo as the thing to cut. Do not re-propose the column.
+
+
 ECG interpretation (validated-integration
 territory), medication adjustment suggestions of any kind. AFib
 auto-LOGGING stays not built by design — but the bridge now reads BOTH
