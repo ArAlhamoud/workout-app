@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, pushLiveSets } from '@/app/actions';
+import { activityDayStr } from '@/lib/health-insights';
 import { liveKey, overlayLiveSets, type LiveSession, type LiveSet, type LiveSetUpdate } from '@/lib/live-session';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
@@ -100,10 +101,7 @@ function epley1RM(weight: number, reps: number): number {
   return Math.round(weight * (1 + reps / 30));
 }
 
-function localTodayStr(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -277,7 +275,7 @@ export default function WorkoutForm({
   durationMin?: number;
 }) {
   const router = useRouter();
-  const today = localTodayStr();
+  const today = activityDayStr();
   const [name, setName] = useState(initialName);
   const [date, setDate] = useState(initialDate ?? today);
   const [gym, setGym] = useState(DEFAULT_GYM_ID);
@@ -581,7 +579,7 @@ export default function WorkoutForm({
       if (own.length) {
         const payload = {
           name: name.trim() || initialName,
-          date: date || localTodayStr(),
+          date: date || activityDayStr(),
           gym,
           clientSaveId: row.clientSaveId,
           finishSource: 'phone' as const,
@@ -1333,7 +1331,7 @@ export default function WorkoutForm({
     if (!saveIdRef.current) saveIdRef.current = newClientSaveId();
     const payload = {
       name: name.trim(),
-      date: date || localTodayStr(),
+      date: date || activityDayStr(),
       gym,
       notes: fullNotes || undefined,
       duration: Math.floor((Date.now() - startRef.current) / 1000),

@@ -1108,6 +1108,22 @@ export function ownerTodayUtc(now: Date = new Date()): Date {
  * at 04:00 Riyadh, the same reasoning as keying a CPAP night by the morning
  * it ended: nobody swims at 02:00, so a log then is last night's.
  */
+/**
+ * The same 04:00 rollover as ownerActivityDayUtc, but as a local
+ * YYYY-MM-DD for the logger, which runs on HIS phone in HIS timezone and
+ * so needs no conversion. A Thursday session finished at 00:30 was being
+ * dated Friday, because the logger stamped the SAVE moment rather than
+ * the session (owner, 2026-09-18). The Watch already got this right — it
+ * dates by startISO — so the two devices disagreed about what day a
+ * handed-off session belonged to.
+ */
+export function activityDayStr(now: Date = new Date()): string {
+  const d = new Date(now.getTime());
+  if (d.getHours() < 4) d.setDate(d.getDate() - 1);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 export function ownerActivityDayUtc(now: Date = new Date()): Date {
   const hour = Number(
     now.toLocaleString('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', hour12: false }),

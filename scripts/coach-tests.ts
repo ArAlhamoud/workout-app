@@ -62,6 +62,7 @@ import { lastMonthRecap, yearRecap } from '../src/lib/recap';
 import { buildCoachContext, parseCoachBrief, COACH_SYSTEM } from '../src/lib/coach-ai';
 import { buildLadderFacts, validateLadderCopy } from '../src/lib/coach-ladder';
 import {
+  activityDayStr,
   afCorrelates,
   afStats,
   bpAverage,
@@ -2149,6 +2150,26 @@ console.log('health-insights');
     }
   }
   assert(checked > 500, `the sweep must actually cover something, covered ${checked}`);
+}
+
+// ── a session belongs to the day it was TRAINED ──────────────────────────
+// The logger stamped the save moment, so Thursday's session finished at
+// 00:30 saved as Friday (owner, 2026-09-18). The Watch already dated by
+// startISO, so a handed-off session had two answers. Same 04:00 rollover
+// as ownerActivityDayUtc; local clock, no conversion — it runs on his
+// phone in his timezone.
+{
+  const at = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m - 1, d, h, min);
+  assert(activityDayStr(at(2026, 9, 18, 0, 33)) === '2026-09-17', 'a 00:33 finish belongs to the evening before');
+  assert(activityDayStr(at(2026, 9, 18, 3, 59)) === '2026-09-17', 'still the previous day at 03:59');
+  assert(activityDayStr(at(2026, 9, 18, 4, 0)) === '2026-09-18', 'the day turns over at 04:00');
+  assert(activityDayStr(at(2026, 9, 17, 19, 30)) === '2026-09-17', 'an evening session is its own day');
+  assert(activityDayStr(at(2026, 9, 17, 12, 0)) === '2026-09-17', 'midday is unremarkable');
+  // Month and year edges: setDate(0) must roll the month back, not produce a 0.
+  assert(activityDayStr(at(2026, 10, 1, 1, 0)) === '2026-09-30', 'the 1st at 01:00 is the last day of the previous month');
+  assert(activityDayStr(at(2027, 1, 1, 2, 0)) === '2026-12-31', 'new year at 02:00 belongs to the old one');
+  assert(activityDayStr(at(2028, 3, 1, 1, 0)) === '2028-02-29', 'leap day is handled by the Date, not by us');
+  assert(/^\d{4}-\d{2}-\d{2}$/.test(activityDayStr(at(2026, 1, 5, 1, 0))), 'single-digit months and days are padded');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────
