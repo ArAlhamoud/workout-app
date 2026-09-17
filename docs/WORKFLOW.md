@@ -132,9 +132,10 @@ shipped; the other two are pure UI and unstarted.
    carries `pinKg` per machine, so one crown detent should equal exactly
    one pin, with no acceleration and no snap-back. Look at crown
    sensitivity/`digitalCrownRotation` step and whether an animation is
-   fighting the value. Worth a `+`/`−` pin button pair beside the crown
-   as the reliable fallback — the crown is a nice-to-have, hitting the
-   number is not.
+   fighting the value.
+   **No `+`/`−` buttons — the owner rejected that fallback explicitly
+   (2026-09-18): "the digital crown is what i need". Fix the crown
+   itself; do not work around it with taps.**
 
 3. **Siri / App Intents, side by side with the buttons (iOS 27).** He
    upgraded and wants a hands-free lane: Siri announces the next set,
