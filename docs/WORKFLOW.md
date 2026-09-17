@@ -101,6 +101,55 @@ with, and prefer pushing before a session rather than during one.
 
 ## Mac backlog (owner-approved, cloud session cannot build these)
 
+### Build 10 — from the owner's Thursday session (2026-09-18)
+
+Three items, all Watch-side. The first has its server half already
+shipped; the other two are pure UI and unstarted.
+
+1. **Warm-up sets on the wrist.** The phone opens the first two
+   movements of a day with a ramp-in set at ~55% of the working weight,
+   floored to the machine's pin. The Watch built its slots straight from
+   `sets`, so a wrist session skipped the warm-ups entirely — and when
+   the owner resumed on the phone, the phone rendered them and he saw
+   "4 sets where the watch showed 3". Nothing was wrong with the data;
+   the wrist was simply missing a feature.
+   → **CLOUD SIDE DONE.** `/api/watch/plan` now sends `warmupKg` per
+   exercise — a weight, or `null` when that movement has no warm-up, so
+   the Watch never re-implements the rule. Verified against the real
+   plan: Leg Press 30 → 15, Chest Press 20 → 11, everything after null.
+   → **MAC SIDE:** when `warmupKg != nil`, prepend a slot with
+   `setNumber: 0`, `isWarmup: true`, `weightKg: warmupKg`. `LogSet`
+   already carries `isWarmup`; `SessionStore` currently hardcodes it
+   `false` (SessionStore.swift ~line 355) and generates `1...ex.sets`
+   (~line 236). Label it "warm-up", not "set 0". The merge and save
+   paths need no change — warm-ups are already keyed apart in
+   `liveKey`.
+
+2. **Digital Crown weight adjustment is unusable.** Owner's words: it
+   "keeps pulling me to the current number", and a slightly faster turn
+   "goes way up to the farther number". He wants to land on a chosen
+   weight smoothly and be able to nudge it at any time. The plan already
+   carries `pinKg` per machine, so one crown detent should equal exactly
+   one pin, with no acceleration and no snap-back. Look at crown
+   sensitivity/`digitalCrownRotation` step and whether an animation is
+   fighting the value. Worth a `+`/`−` pin button pair beside the crown
+   as the reliable fallback — the crown is a nice-to-have, hitting the
+   number is not.
+
+3. **Siri / App Intents, side by side with the buttons (iOS 27).** He
+   upgraded and wants a hands-free lane: Siri announces the next set,
+   he says "done", it logs and starts the rest timer, announces the
+   rest, then announces the next set. **It must not replace the current
+   UI** — his explicit requirement is that both work and he picks per
+   moment. `StartTrainingIntent.swift` already exists as a starting
+   point. Design notes: every spoken log goes through the same
+   `SessionStore` path as a tap (so the live row, the merge and the RPE
+   cap behave identically), and a spoken "done" with no RPE should log
+   the set and leave the RPE unrated rather than inventing one — an
+   unrated set is already excluded from the clean-session ramp count,
+   which is the honest outcome.
+
+
 - **Two-simulator handoff E2E PASSED (Mac session, 2026-09-02, iPhone 17
   sim + Ultra sim, both real apps, production server).** Phone opened the
   logger and ticked 2 sets → live row appeared → watch Start offered

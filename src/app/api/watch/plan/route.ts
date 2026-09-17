@@ -5,10 +5,12 @@ import {
   getDynamicPlan,
   getExercisesForDuration,
   getTrainingStatus,
+  hasWarmupSet,
   isTrainingSession,
   queuedDay,
   rampBaseBefore,
   rampPrefillWeight,
+  warmupWeight,
   type DayId,
 } from '@/lib/program';
 import { combineIncrement, learnPinIncrements } from '@/lib/coach';
@@ -108,6 +110,12 @@ export async function GET(request: Request) {
         prefillKg: scaled,
         prefillReps,
         pinKg: pin,
+        // The phone opens the first two movements with a ramp-in set; the
+        // Watch built its slots straight from `sets` and never offered one,
+        // so wrist sessions skipped the warm-ups entirely (owner,
+        // 2026-09-18). Sent as a weight rather than a flag so the rule
+        // stays in one place — null means this movement has no warm-up.
+        warmupKg: hasWarmupSet(order, t.unit, scaled) ? warmupWeight(scaled!, pin) : null,
       }];
     }),
   };

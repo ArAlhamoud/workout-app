@@ -65,6 +65,15 @@ Each of these broke something real. Do not relearn them.
    merges. `deduped` from `createWorkout` is a SUCCESS (sets merged),
    not an error. Contract and merge rules: docs/WATCH.md "Live session".
 
+9. **A rule the phone applies, the Watch must be TOLD — not taught.**
+   The warm-up set (first two movements, ~55% of working, floored to the
+   pin) lived only in `WorkoutForm`, so the wrist never offered one and
+   a Watch-run session silently skipped it. `/api/watch/plan` now sends
+   `warmupKg` per exercise, computed by `hasWarmupSet` +
+   `warmupWeight` in `src/lib/program.ts`. Same shape as rule 7: when
+   both devices need a derived number, the server derives it once and
+   ships the answer. Never re-implement a program rule in Swift.
+
 ## The coach layer is deliberately dormant
 
 Waves 3–4 built an AI coach (brief, chat, coach-written gap

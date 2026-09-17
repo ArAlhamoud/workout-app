@@ -34,6 +34,7 @@ import {
   cardioForGym,
   getDayTemplate,
   getTrainingStatus,
+  hasWarmupSet,
   isTrainingSession,
   pickRampMemory,
   rampBaseBefore,
@@ -44,6 +45,8 @@ import {
   projectPlan,
   queuedDay,
   recoveryActivity,
+  warmupWeight,
+  WARMUP_BLOCKS,
   type DynamicPlan,
   type LoggedSession,
 } from '../src/lib/program';
@@ -2074,6 +2077,32 @@ console.log('health-insights');
     `every rampPrefillWeight call must pass the machine's learned pin (rule 4/7) — ` +
       `pinless: ${pinless.map((c) => `${c.file}: ${c.text}`).join(' | ') || 'none'}`,
   );
+}
+
+// ── warm-up sets: one rule for the phone and the wrist ───────────────────
+// The Watch built its slots from `sets` alone and never offered a warm-up,
+// so a wrist session skipped them and the phone then showed "4 sets" where
+// the wrist had shown 3 (owner, 2026-09-18).
+{
+  assert(WARMUP_BLOCKS === 2, 'only the first two movements of a day warm up');
+
+  assert(hasWarmupSet(0, 'reps', 40), 'first movement with a known weight warms up');
+  assert(hasWarmupSet(1, 'reps', 40), 'second movement warms up');
+  assert(!hasWarmupSet(2, 'reps', 40), 'the third movement does not — the body is warm by then');
+  assert(!hasWarmupSet(0, 'seconds', 40), 'a timed hold has no warm-up set');
+  assert(!hasWarmupSet(0, 'reps', null), 'no previous weight, nothing to scale a warm-up from');
+  assert(!hasWarmupSet(0, 'reps', 0), 'a zero working weight is not a warm-up either');
+
+  // 55% floored to a whole pin, never below one pin.
+  assert(warmupWeight(40, 2.5) === 20, `40kg on 2.5 pins warms at 20 (55% = 22, floored), got ${warmupWeight(40, 2.5)}`);
+  assert(warmupWeight(29, 7) === 14, `29kg on 7kg pins warms at 14, got ${warmupWeight(29, 7)}`);
+  assert(warmupWeight(3, 5) === 5, 'never below a single pin');
+  assert(warmupWeight(40, 0) === 20, 'a missing pin falls back to 2.5, not a divide by zero');
+  for (const [w, pin] of [[40, 2.5], [29, 7], [60, 5], [12, 2.5]] as [number, number][]) {
+    const warm = warmupWeight(w, pin);
+    assert(warm <= w, `a warm-up never exceeds the working weight (${warm} vs ${w})`);
+    assert(Math.abs(warm / pin - Math.round(warm / pin)) < 1e-9, `${warm} lands on a whole ${pin}kg pin`);
+  }
 }
 
 // ── summary ──────────────────────────────────────────────────────────────

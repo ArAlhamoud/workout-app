@@ -7,7 +7,10 @@ import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecen
 import { liveKey, overlayLiveSets, type LiveSession, type LiveSet, type LiveSetUpdate } from '@/lib/live-session';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
-import { rampPrefillWeight, GYMS, DEFAULT_GYM_ID } from '@/lib/program';
+import { rampPrefillWeight, GYMS, DEFAULT_GYM_ID,
+  hasWarmupSet,
+  warmupWeight,
+} from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -163,10 +166,10 @@ function buildBlocks(
       // meet the day's two heaviest compound movements first; later machines
       // arrive warm. Flagged so it never touches records, volume or plateaus.
       sets: [
-        ...(blockIdx < 2 && !isTimed && prev?.weight
+        ...(hasWarmupSet(blockIdx, isTimed ? 'seconds' : 'reps', prev?.weight)
           ? (() => {
               const working = seededWeight ?? rampPrefillWeight(prev, returnLoadPct ?? 100, inc);
-              const warm = Math.max(inc, Math.floor((working * 0.55) / inc) * inc);
+              const warm = warmupWeight(working, inc);
               return [{
                 exerciseId: ie.exerciseId,
                 setNumber: 0,

@@ -78,6 +78,31 @@ export function getExerciseCountForDuration(day: 'A' | 'B', duration: Duration):
   return getExercisesForDuration(day, duration).length;
 }
 
+// ── Warm-up sets ─────────────────────────────────────────────
+// The first two movements of a day get a ramp-in set at ~55% of the
+// working weight, floored to the machine's pin. Only the first two: by
+// the third the body is warm and an extra set is just fatigue.
+//
+// This lived only in WorkoutForm, so the Watch — which builds its slots
+// from /api/watch/plan — never offered one. Training from the wrist
+// silently skipped the warm-ups, and resuming on the phone then showed
+// "4 sets" where the wrist had shown 3 (owner, 2026-09-18). One rule,
+// one home, same lesson as rule 7.
+
+/** How many movements of a day open with a warm-up set. */
+export const WARMUP_BLOCKS = 2;
+
+/** Does this position in the day get a warm-up set? */
+export function hasWarmupSet(order: number, unit: 'reps' | 'seconds', workingKg: number | null | undefined): boolean {
+  return order < WARMUP_BLOCKS && unit !== 'seconds' && !!workingKg;
+}
+
+/** ~55% of the working weight, floored to a whole pin, never below one pin. */
+export function warmupWeight(workingKg: number, pin: number): number {
+  const step = pin > 0 ? pin : 2.5;
+  return Math.max(step, Math.floor((workingKg * 0.55) / step) * step);
+}
+
 export function getPlankTarget(week: number): { min: number; max: number } {
   if (week <= 2) return { min: 20, max: 30 };
   if (week <= 4) return { min: 30, max: 45 };
