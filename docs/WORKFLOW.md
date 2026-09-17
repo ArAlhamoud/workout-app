@@ -118,12 +118,33 @@ shipped; the other two are pure UI and unstarted.
    the Watch never re-implements the rule. Verified against the real
    plan: Leg Press 30 → 15, Chest Press 20 → 11, everything after null.
    → **MAC SIDE:** when `warmupKg != nil`, prepend a slot with
-   `setNumber: 0`, `isWarmup: true`, `weightKg: warmupKg`. `LogSet`
-   already carries `isWarmup`; `SessionStore` currently hardcodes it
-   `false` (SessionStore.swift ~line 355) and generates `1...ex.sets`
-   (~line 236). Label it "warm-up", not "set 0". The merge and save
-   paths need no change — warm-ups are already keyed apart in
-   `liveKey`.
+   `setNumber: 0`, `isWarmup: true`, `weightKg: warmupKg` — and **send
+   `isWarmup: true` on the live post**, or the server drops it.
+   `LogSet` already carries `isWarmup`; `SessionStore` currently
+   hardcodes it `false` (SessionStore.swift ~line 355) and generates
+   `1...ex.sets` (~line 236). Label it "warm-up", not "set 0".
+   → I first wrote here that "the merge and save paths need no change".
+   That was **wrong** and the adversary caught it: only `liveKey` kept
+   warm-ups apart. `sanitizeLiveUpdate` had a floor of `setNumber >= 1`,
+   so a warm-up posted to `/api/live` was silently dropped (200, set
+   missing) and the resuming device showed it unticked — reproducing the
+   exact complaint. Worse, posting it as `setNumber: 1` instead would
+   have overwritten working set 1 with the ramp-in weight and saved that
+   half-load row to history as real work. **Both are fixed server-side
+   now** (set 0 accepted when and only when `isWarmup` is true; the
+   overlay matches a warm-up to the warm-up row), so the Mac side is
+   just the slot and the flag.
+   → **Known gaps, deliberately not closed here.** (a) The phone's
+   working weight can be the Overload seed (+1 pin) or a plateau deload,
+   neither of which `/api/watch/plan` models, so on an Overload session
+   the two devices show warm-ups one pin apart (Leg Press: phone 20,
+   wrist 17.5). The prefills themselves already diverge the same way —
+   this is the older gap, not a new one, and closing it means teaching
+   the route about Overload and deload. (b) Swapping a movement or
+   switching gym re-weights the warm-up row but never adds or removes
+   one, so swapping a weighted movement for a timed hold leaves a
+   weighted warm-up behind. Both are phone-side and worth their own
+   pass.
 
 2. **Digital Crown weight adjustment is unusable.** Owner's words: it
    "keeps pulling me to the current number", and a slightly faster turn

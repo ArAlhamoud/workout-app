@@ -166,10 +166,19 @@ function buildBlocks(
       // meet the day's two heaviest compound movements first; later machines
       // arrive warm. Flagged so it never touches records, volume or plateaus.
       sets: [
-        ...(hasWarmupSet(blockIdx, isTimed ? 'seconds' : 'reps', prev?.weight)
+        // A 15-minute rescue session opens no warm-ups, for the same
+        // reason compressSession strips them: a short session warms up on
+        // its first work set. Without this the rescue put three sets on
+        // Leg Press at ~33% of normal load (adversary, 2026-09-18).
+        ...((() => {
+          if (isRescue) return false;
+          if (!hasWarmupSet(blockIdx, isTimed ? 'seconds' : 'reps', prev?.weight)) return false;
+          const working = seededWeight ?? rampPrefillWeight(prev, returnLoadPct ?? 100, inc);
+          return warmupWeight(working, inc) !== null;
+        })()
           ? (() => {
               const working = seededWeight ?? rampPrefillWeight(prev, returnLoadPct ?? 100, inc);
-              const warm = warmupWeight(working, inc);
+              const warm = warmupWeight(working, inc)!;
               return [{
                 exerciseId: ie.exerciseId,
                 setNumber: 0,
@@ -380,7 +389,7 @@ export default function WorkoutForm({
         if (!b.overloadApplied) return b;
         const from = b.overloadApplied.from;
         const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
-        const warm = Math.max(inc, Math.floor((from * 0.55) / inc) * inc);
+        const warm = warmupWeight(from, inc) ?? from;
         return {
           ...b,
           overloadApplied: undefined,
@@ -846,7 +855,7 @@ export default function WorkoutForm({
             // The warm-up stays a warm-up across a gym switch: 55% floored
             // to a pin — mapping it to the other gym's FULL working weight
             // made the cold first set the heaviest of the day (adversary).
-            const warm = working > 0 ? Math.max(inc, Math.floor((working * 0.55) / inc) * inc) : 0;
+            const warm = working > 0 ? warmupWeight(working, inc) ?? working : 0;
             return {
               ...b,
               lastSession: prevSession,
@@ -952,7 +961,7 @@ export default function WorkoutForm({
         if (b.uid !== uid || !b.overloadApplied) return b;
         const from = b.overloadApplied.from;
         const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
-        const warm = Math.max(inc, Math.floor((from * 0.55) / inc) * inc);
+        const warm = warmupWeight(from, inc) ?? from;
         return {
           ...b,
           overloadApplied: undefined,
@@ -998,7 +1007,7 @@ export default function WorkoutForm({
       ? rampPrefillWeight(prev, returnLoadPct ?? 100, swapInc)
       : 0;
     const swapWarm =
-      swapWorking > 0 ? Math.max(swapInc, Math.floor((swapWorking * 0.55) / swapInc) * swapInc) : 0;
+      swapWorking > 0 ? warmupWeight(swapWorking, swapInc) ?? swapWorking : 0;
     setBlocks((cur) =>
       cur.map((b) =>
         b.uid === uid

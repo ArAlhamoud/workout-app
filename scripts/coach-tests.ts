@@ -305,6 +305,36 @@ console.log('live session (phone ↔ watch handoff)');
   assert(sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 2, remove: true }, 'phone')?.exerciseId === 'lat', 'remove passes through');
   const st = sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 0 }, 'watch');
   assert(st !== null && !('remove' in st) && st.source === 'watch' && st.weight === 0, 'bodyweight 0 kg is a valid live set');
+
+  // ── A warm-up has to survive the round trip ──────────────────────────
+  // The sanitizer's floor was 1, so a warm-up posted to /api/live was
+  // dropped and the resuming device showed it unticked — reproducing the
+  // "4 sets where the watch showed 3" the warm-up work set out to fix.
+  // Both docs claimed warm-ups were already keyed apart end to end; only
+  // liveKey was (adversary, 2026-09-18).
+  const warm = sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 0, reps: 10, weight: 15, isWarmup: true }, 'watch');
+  assert(warm !== null && !('remove' in warm) && warm.isWarmup === true && warm.setNumber === 0, 'a warm-up posts at set 0');
+  assert(sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 0, reps: 10, weight: 15 }, 'watch') === null, 'set 0 is still junk when it is NOT a warm-up');
+  const wAny = sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 3, reps: 10, weight: 15, isWarmup: true }, 'watch');
+  assert(wAny !== null && !('remove' in wAny) && wAny.setNumber === 0, 'a warm-up is pinned to 0 whatever number it arrives with');
+  assert(liveKey({ exerciseId: 'lat', setNumber: 0, isWarmup: true }) !== liveKey({ exerciseId: 'lat', setNumber: 1 }), 'warm-up and set 1 are different keys');
+
+  // Overlay: a warm-up ticks the WARM-UP row. Matching it by number would
+  // overwrite working set 1 with the 15 kg ramp-in and then save that
+  // half-load row to history as real work.
+  const wBlocks = [{ exerciseId: 'lat', sets: [mk(0, { isWarmup: true, weight: 15 }), mk(1), mk(2), mk(3)] }];
+  const ovW = overlayLiveSets(wBlocks, [{ ...ls('lat', 0, 15, 1, 'watch'), isWarmup: true }], (id) => ({ exerciseId: id, sets: [] }));
+  const wl = ovW.blocks[0].sets;
+  assert(wl[0].isWarmup === true && wl[0].done && wl[0].weight === 15, 'the warm-up row is the one that ticks');
+  assert(!wl[1].done && wl[1].weight === 40, 'working set 1 keeps its own weight and stays untouched');
+  assert(ovW.blocks[0].sets.length === 4, 'no phantom row is appended');
+
+  // The other device warmed up on a movement this one has no warm-up row
+  // for: keep it rather than drop it, and keep it a warm-up.
+  const noWarm = [{ exerciseId: 'lat', sets: [mk(1), mk(2)] }];
+  const ovN = overlayLiveSets(noWarm, [{ ...ls('lat', 0, 15, 1, 'watch'), isWarmup: true }], (id) => ({ exerciseId: id, sets: [] }));
+  assert(ovN.blocks[0].sets.length === 3 && ovN.blocks[0].sets[0].isWarmup === true && ovN.blocks[0].sets[0].done, 'a warm-up with no row gets one, at the front');
+  assert(ovN.blocks[0].sets[1].setNumber === 1 && !ovN.blocks[0].sets[1].done, 'the working sets are not disturbed by it');
 }
 
 console.log('getTrainingStatus (session-based ramp)');
@@ -2096,13 +2126,29 @@ console.log('health-insights');
   // 55% floored to a whole pin, never below one pin.
   assert(warmupWeight(40, 2.5) === 20, `40kg on 2.5 pins warms at 20 (55% = 22, floored), got ${warmupWeight(40, 2.5)}`);
   assert(warmupWeight(29, 7) === 14, `29kg on 7kg pins warms at 14, got ${warmupWeight(29, 7)}`);
-  assert(warmupWeight(3, 5) === 5, 'never below a single pin');
   assert(warmupWeight(40, 0) === 20, 'a missing pin falls back to 2.5, not a divide by zero');
-  for (const [w, pin] of [[40, 2.5], [29, 7], [60, 5], [12, 2.5]] as [number, number][]) {
-    const warm = warmupWeight(w, pin);
-    assert(warm <= w, `a warm-up never exceeds the working weight (${warm} vs ${w})`);
-    assert(Math.abs(warm / pin - Math.round(warm / pin)) < 1e-9, `${warm} lands on a whole ${pin}kg pin`);
+
+  // A warm-up that is not LIGHTER is not a warm-up. On a coarse stack the
+  // 55% floor can land on — or above — the working weight, which turned
+  // Back Extension's REBOOT week into a fourth full-load set under an
+  // RPE-2 cap (adversary, 2026-09-18). null means: no warm-up row.
+  assert(warmupWeight(15, 15) === null, 'one-pin working weight has no lighter warm-up');
+  assert(warmupWeight(3, 5) === null, 'a pin heavier than the work has no warm-up');
+  assert(warmupWeight(27.5, 15) === 15, 'Back Extension at full load still warms up at 15');
+
+  // Exhaustive: never heavier than, never equal to, always on a pin.
+  const pins = [0.25, 0.5, 1, 2.5, 5, 7, 9, 15, 20];
+  let checked = 0;
+  for (const pin of pins) {
+    for (let w = pin; w <= 200; w += pin) {
+      const warm = warmupWeight(w, pin);
+      if (warm === null) continue;
+      checked++;
+      assert(warm < w, `a warm-up is always lighter than the work (${warm} vs ${w} on ${pin}kg pins)`);
+      assert(Math.abs(warm / pin - Math.round(warm / pin)) < 1e-6, `${warm} lands on a whole ${pin}kg pin`);
+    }
   }
+  assert(checked > 500, `the sweep must actually cover something, covered ${checked}`);
 }
 
 // ── summary ──────────────────────────────────────────────────────────────

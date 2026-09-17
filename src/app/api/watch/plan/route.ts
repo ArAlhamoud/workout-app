@@ -82,9 +82,17 @@ export async function GET(request: Request) {
     durationMin: dur,
     loadPct,
     rpeCap,
-    exercises: template.flatMap((t, order) => {
-      const ex = byName.get(t.name);
-      if (!ex) return [];
+    // `order` must index the SAME list the phone's blocks do. The phone
+    // filters out template names with no Exercise row FIRST and then
+    // numbers what is left; numbering before the filter would make the
+    // two devices warm up different movements the moment a newly named
+    // movement ships ahead of its seed row — which is exactly the window
+    // Hip Adduction and Back Extension went through (adversary,
+    // 2026-09-18). Filter, then number.
+    exercises: template
+      .filter((t) => byName.has(t.name))
+      .map((t, order) => {
+      const ex = byName.get(t.name)!;
       const last = memory[ex.id];
       // Manual per-machine override outranks the learned spacing, exactly
       // as on the phone.
@@ -97,7 +105,7 @@ export async function GET(request: Request) {
       // the 10 s planks on the first wrist session).
       const prefillReps =
         t.unit === 'seconds' ? Math.max(t.repsMin, last?.reps ?? t.repsMin) : last?.reps ?? t.repsMin;
-      return [{
+      return {
         exerciseId: ex.id,
         name: t.name,
         machine: t.machine,
@@ -116,7 +124,7 @@ export async function GET(request: Request) {
         // 2026-09-18). Sent as a weight rather than a flag so the rule
         // stays in one place — null means this movement has no warm-up.
         warmupKg: hasWarmupSet(order, t.unit, scaled) ? warmupWeight(scaled!, pin) : null,
-      }];
+      };
     }),
   };
 

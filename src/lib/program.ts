@@ -97,10 +97,19 @@ export function hasWarmupSet(order: number, unit: 'reps' | 'seconds', workingKg:
   return order < WARMUP_BLOCKS && unit !== 'seconds' && !!workingKg;
 }
 
-/** ~55% of the working weight, floored to a whole pin, never below one pin. */
-export function warmupWeight(workingKg: number, pin: number): number {
+/**
+ * ~55% of the working weight, floored to a whole pin, never below one
+ * pin — and null when that floor lands ON or above the working weight.
+ * Back Extension learned a 15 kg pin, so at REBOOT (60% of 27.5 → 15)
+ * the "ramp-in" came out at exactly the prescribed working weight: a
+ * fourth full-load set under a week-1 RPE cap, on both devices
+ * (adversary, 2026-09-18). A warm-up that is not lighter is not a
+ * warm-up; on a coarse stack the honest answer is no warm-up set.
+ */
+export function warmupWeight(workingKg: number, pin: number): number | null {
   const step = pin > 0 ? pin : 2.5;
-  return Math.max(step, Math.floor((workingKg * 0.55) / step) * step);
+  const warm = Math.max(step, Math.floor((workingKg * 0.55) / step) * step);
+  return warm < workingKg ? warm : null;
 }
 
 export function getPlankTarget(week: number): { min: number; max: number } {

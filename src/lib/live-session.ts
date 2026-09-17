@@ -134,8 +134,16 @@ export function setsMissingFrom<T extends { exerciseId: string; setNumber: numbe
 export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date = new Date()): LiveSetUpdate | null {
   const r = raw as Partial<LiveSet> & { remove?: boolean };
   if (!r || typeof r.exerciseId !== 'string' || r.exerciseId.length > 64) return null;
-  if (!Number.isFinite(r.setNumber) || (r.setNumber as number) < 1 || (r.setNumber as number) > 20) return null;
-  const setNumber = Math.round(r.setNumber as number);
+  // A warm-up is set 0 by convention (the phone's template row, and now
+  // the Watch's first slot). The floor was 1, so a warm-up posted to
+  // /api/live was silently dropped and the resuming device showed it
+  // unticked — the very "4 sets where the watch showed 3" this was meant
+  // to fix (adversary, 2026-09-18). Warm-ups are pinned to 0; a working
+  // set still has to be 1–20.
+  const isWarmup = r.isWarmup === true;
+  const floor = isWarmup ? 0 : 1;
+  if (!Number.isFinite(r.setNumber) || (r.setNumber as number) < floor || (r.setNumber as number) > 20) return null;
+  const setNumber = isWarmup ? 0 : Math.round(r.setNumber as number);
   if (r.remove === true) return { exerciseId: r.exerciseId, setNumber, remove: true };
   if (!Number.isFinite(r.reps) || (r.reps as number) < 1 || (r.reps as number) > 200) return null;
   if (!Number.isFinite(r.weight) || (r.weight as number) < 0 || (r.weight as number) > 500) return null;
@@ -147,7 +155,7 @@ export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date =
     reps: Math.round(r.reps as number),
     weight: r.weight as number,
     rpe: Number.isFinite(r.rpe) && (r.rpe as number) >= 1 && (r.rpe as number) <= 4 ? Math.round(r.rpe as number) : undefined,
-    isWarmup: r.isWarmup === true,
+    isWarmup,
     completedAt,
     source,
   };
@@ -194,8 +202,22 @@ export function overlayLiveSets<B extends OverlayBlock>(
       bi = next.length - 1;
     }
     const b = next[bi];
-    let si = b.sets.findIndex((x) => !x.isWarmup && x.setNumber === ls.setNumber);
-    if (si < 0) {
+    // A warm-up matches the block's ONE warm-up row. Matching it by number
+    // would land on working set 1 and overwrite a 30 kg set with the 15 kg
+    // ramp-in — and that half-load row then saves to history as real work.
+    let si = ls.isWarmup
+      ? b.sets.findIndex((x) => x.isWarmup)
+      : b.sets.findIndex((x) => !x.isWarmup && x.setNumber === ls.setNumber);
+    if (si < 0 && ls.isWarmup) {
+      // The other device warmed up on a movement this one did not open a
+      // warm-up row for. Keep it — it happened.
+      b.sets.unshift({
+        exerciseId: ls.exerciseId, setNumber: 0,
+        reps: ls.reps, weight: ls.weight,
+        done: false, notes: '', rpe: 0, completedAt: null, isWarmup: true,
+      });
+      si = 0;
+    } else if (si < 0) {
       const working = b.sets.filter((x) => !x.isWarmup);
       let n = working.length ? Math.max(...working.map((x) => x.setNumber)) : 0;
       while (n < ls.setNumber) {
@@ -213,7 +235,7 @@ export function overlayLiveSets<B extends OverlayBlock>(
     if (cur.done && cur.completedAt && Date.parse(cur.completedAt) > Date.parse(ls.completedAt)) continue;
     b.sets[si] = {
       ...cur, reps: ls.reps, weight: ls.weight, rpe: ls.rpe ?? cur.rpe ?? 0,
-      done: true, completedAt: ls.completedAt, isWarmup: false,
+      done: true, completedAt: ls.completedAt, isWarmup: ls.isWarmup === true,
     };
     applied.push(ls);
   }

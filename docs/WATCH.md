@@ -60,7 +60,8 @@ returns 60 (45 during a return ramp). Response:
       "unit": "reps",
       "prefillKg": 55,
       "prefillReps": 10,
-      "pinKg": 2.5
+      "pinKg": 2.5,
+      "warmupKg": 30
     }
   ]
 }
@@ -75,6 +76,13 @@ returns 60 (45 during a return ramp). Response:
 - `pinKg` is that machine's **learned pin increment** (CLAUDE.md rule 4:
   stacks move in pins, not kilograms — the crown must step by `pinKg`,
   never by a fixed 2.5).
+- `warmupKg` is the **ramp-in set** for this movement, or `null` when it
+  has none — only the first two movements of a day get one, timed holds
+  never do, and a stack too coarse for a lighter pin gets `null` rather
+  than a "warm-up" at the working weight. Prepend it as `setNumber: 0`,
+  `isWarmup: true`, labelled *warm-up* rather than *set 0*. The rule
+  itself (55% of working, floored to the pin) lives in
+  `src/lib/program.ts`; do not reimplement it in Swift — CLAUDE.md rule 9.
 - `rpeCap` < 4 during a ramp: grey out RPE buttons above the cap.
 - Fetch the plan when the session starts; **cache the last plan on the
   watch** so a dead-signal gym still opens with yesterday's numbers.
@@ -202,7 +210,8 @@ Contract (`/api/live`, no auth — single user):
 
 Merge rule (`src/lib/live-session.ts`, tested): a device owns what it
 logs; same key (exercise + TEMPLATE set number, warm-ups keyed apart as
-setNumber 0) → the LATER completion wins; keys the update never
+setNumber 0 — `sanitizeLiveUpdate` accepts 0 ONLY with `isWarmup: true`,
+and pins any warm-up to 0 whatever number it arrives with) → the LATER completion wins; keys the update never
 mentions are untouched; a row holds ≤ 200 keys and only sets whose
 exerciseId exists. The phone's save keeps the template numbers too —
 renumbering 1..n across a warm-up once dropped a Watch set and doubled a
