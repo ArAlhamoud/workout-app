@@ -144,7 +144,11 @@ async function main() {
   // the restore is a hypothesis, not a backup.
   const JSON_COLUMNS = {
     workout: ['hrSeries'],
-    healthProfile: ['milestonesKg', 'conditions', 'dosePlan', 'targets', 'reminders'],
+    // familyHistory and investigations were missing here until 2026-09-18:
+    // both are non-null in every snapshot so far, so the restore worked by
+    // luck — the day either is cleared, the profile upsert dies AFTER the
+    // workouts and samples are already written (data-steward).
+    healthProfile: ['milestonesKg', 'conditions', 'familyHistory', 'investigations', 'dosePlan', 'targets', 'reminders'],
     symptomLog: ['context'],
     nutritionLog: ['flags'],
     coachNote: ['directives', 'proposal'],
@@ -196,8 +200,16 @@ async function main() {
   }
   console.log(`  body stats  ${bodyStats.length}`);
 
+  // Keyed by the table's real identity (type, date, source), not id — a
+  // --force restore over a database that already holds the same sample under
+  // a different id hit the unique index mid-run (data-steward, 2026-09-18).
   for (const h of healthSamples) {
-    await prisma.healthSample.upsert({ where: { id: h.id }, update: h, create: h });
+    const { id, ...rest } = h;
+    await prisma.healthSample.upsert({
+      where: { type_date_source: { type: h.type, date: h.date, source: h.source } },
+      update: rest,
+      create: { id, ...rest },
+    });
   }
   if (healthSamples.length) console.log(`  health      ${healthSamples.length}`);
 
@@ -224,14 +236,20 @@ async function main() {
     ['medication', (r) => ({ id: r.id })],
     ['nutritionLog', (r) => ({ day: r.day })],
   ];
-  for (const [table, whereOf] of healthTables) {
-    const rowsForTable = (snap.health && snap.health[table]) || [];
-    for (const r of rowsForTable) {
-      const row = jsonSafe(table, r);
-      await prisma[table].upsert({ where: whereOf(r), update: row, create: row });
+  // One transaction for the treatment record: either every health table
+  // lands or none does. A failure on the ninth table used to leave the
+  // first eight written and the restore half-done (data-steward,
+  // 2026-09-18). ~100 rows, well inside the timeout.
+  await prisma.$transaction(async (tx) => {
+    for (const [table, whereOf] of healthTables) {
+      const rowsForTable = (snap.health && snap.health[table]) || [];
+      for (const r of rowsForTable) {
+        const row = jsonSafe(table, r);
+        await tx[table].upsert({ where: whereOf(r), update: row, create: row });
+      }
+      if (rowsForTable.length) console.log(`  ${table.padEnd(12)}${rowsForTable.length}`);
     }
-    if (rowsForTable.length) console.log(`  ${table.padEnd(12)}${rowsForTable.length}`);
-  }
+  }, { timeout: 120_000 });
 
   const after = await prisma.workout.count();
   console.log(`\ndone — target now holds ${after} workouts.`);
