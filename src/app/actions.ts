@@ -1,5 +1,6 @@
 'use server';
 
+import { pinMapFor } from '@/lib/coach';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -245,6 +246,8 @@ export type ExerciseMemory = {
    *  takes one learned pin (Overload by default). Never set during a ramp
    *  (the client guards that; the flag only reports history). */
   overload?: boolean;
+  /** Every rated set of the LAST session on this machine was Easy. */
+  allEasy?: boolean;
   /** Ramp only: this machine has no pre-break record, so the weight is the
    *  latest in-block one and must NOT be scaled again (pickRampMemory). */
   rampHold?: boolean;
@@ -283,10 +286,10 @@ async function rampBase(): Promise<string | null | undefined> {
   const rows = await prisma.workout.findMany({
     orderBy: { date: 'desc' },
     take: 120,
-    select: { date: true, name: true, sets: { select: { rpe: true, isWarmup: true } } },
+    select: { date: true, name: true, gym: true, duration: true, sets: { select: { rpe: true, isWarmup: true, exerciseId: true, weight: true } } },
   });
   const training = rows.filter((w) => isTrainingSession(w));
-  const clean = cleanRampSessionDates(training);
+  const clean = cleanRampSessionDates(training, pinMapFor(training.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID) as never));
   const status = getTrainingStatus(training.map((w) => w.date), new Date(), clean);
   return status.mode === 'return' ? rampBaseBefore(training, clean) : undefined;
 }
@@ -320,13 +323,19 @@ export async function getLastSessionForExercises(
       },
     },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
-    select: { exerciseId: true, weight: true, reps: true, rpe: true, workout: { select: { date: true } } },
+    select: {
+      exerciseId: true, weight: true, reps: true, rpe: true,
+      workout: { select: { date: true, duration: true, _count: { select: { sets: true } } } },
+    },
     take: Math.min(2000, exerciseIds.length * 40),
   });
 
   const out: Record<string, ExerciseMemory> = {};
   const byExercise = new Map<string, typeof rows>();
   for (const r of rows) {
+    // A mis-tap row (seconds long, a handful of sets) is not memory: with
+    // it the ramp base walked onto a junk row's own prefills (adversary).
+    if (!isTrainingSession({ name: 'Day', duration: r.workout.duration, sets: Array.from({ length: r.workout._count.sets }, () => ({ rpe: null, isWarmup: false })) }) && (r.workout.duration ?? 0) < 600) continue;
     const list = byExercise.get(r.exerciseId);
     if (list) list.push(r);
     else byExercise.set(r.exerciseId, [r]);
@@ -363,7 +372,7 @@ export async function getLastSessionForExercises(
       allEasy(sessions[1]) &&
       top(sessions[0]) === top(sessions[1]) &&
       top(sessions[0]) > 0;
-    out[exId] = { weight: first.weight, reps: first.reps, rpe: first.rpe, overload };
+    out[exId] = { weight: first.weight, reps: first.reps, rpe: first.rpe, overload, allEasy: allEasy(sessions[0]) };
   }
   return out;
 }

@@ -137,7 +137,8 @@ export default async function HomePage() {
       }
     : { dots: roadDots, caption: roadCaption, captionDim: roadCaptionDim, hitLandmark: null, aheadLandmarks: [] };
 
-  const trainPlan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
+  // Judged rows only: a 6-second mis-tap must not make Home say done-today.
+  const trainPlan = getDynamicPlan(workouts.filter(isTrainingSession).map((w) => ({ date: w.date, name: w.name })));
   const trainDay = queuedDay(trainPlan);
   const trainedToday = workouts.some(
     (w) => isTrainingSession(w) && new Date(w.date) >= todayStart,

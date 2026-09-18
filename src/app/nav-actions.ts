@@ -15,7 +15,7 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
     const weekAgo = new Date(now.getTime() - 7 * 86400000);
     const [lastWorkouts, sessionCount, exerciseCount, latestLab, latestDose, bpWeek, latestBp, latestInjection, latestFuel] =
       await Promise.all([
-        prisma.workout.findMany({ orderBy: { date: 'desc' }, take: 12, select: { date: true, name: true } }),
+        prisma.workout.findMany({ orderBy: { date: 'desc' }, take: 12, select: { date: true, name: true, duration: true, sets: { select: { rpe: true, isWarmup: true } } } }),
         prisma.workout.count(),
         prisma.exercise.count(),
         prisma.labResult.findFirst({ orderBy: { date: 'desc' }, select: { date: true } }),
@@ -39,7 +39,7 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
     // the Train door grades him precisely when he comes back from a gap
     // (editor, zero-shame). The glance answers "what do I do" — the day's
     // name — not "how long have you been gone".
-    const nextDay = queuedDay(getDynamicPlan(lastWorkouts.map((w) => ({ date: w.date, name: w.name })), now));
+    const nextDay = queuedDay(getDynamicPlan(lastWorkouts.filter(isTrainingSession).map((w) => ({ date: w.date, name: w.name })), now));
 
     const glances: Record<string, string> = {
       '/train': trainDays === 0 ? 'trained today' : `Day ${nextDay ?? 'A'} next`,

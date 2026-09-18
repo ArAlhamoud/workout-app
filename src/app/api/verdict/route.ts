@@ -8,8 +8,8 @@
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { homeVerdict } from '@/lib/coach';
-import { calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay, rampContract } from '@/lib/program';
+import { homeVerdict, pinMapFor } from '@/lib/coach';
+import { calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay, rampContract, DEFAULT_GYM_ID } from '@/lib/program';
 import { holdWeekKeys, weekStreak } from '@/lib/streak';
 
 export const runtime = 'nodejs';
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
       // sets feed cleanRampSessionDates — the Earned Ramp needs effort data.
-      select: { date: true, name: true, sets: { select: { rpe: true, isWarmup: true } } },
+      select: { date: true, name: true, gym: true, duration: true, sets: { select: { rpe: true, isWarmup: true, exerciseId: true, weight: true } } },
       take: 400,
     }),
     prisma.hold.findMany({ select: { startsAt: true, endsAt: true } }),
@@ -34,7 +34,8 @@ export async function GET(request: Request) {
   ]);
 
   const trainingOnly = workouts.filter(isTrainingSession);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly));
+  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID) as never);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly, pinFor));
 
   // The Comeback Contract's payoff line — computed by the SAME gates that
   // pay it (spacing + day floor), PROJECTED to the rung's fire time (day 2

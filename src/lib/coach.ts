@@ -49,6 +49,8 @@ interface SessionTop {
   date: number;
   top: number;
   topRpe: number | null; // hardest RPE recorded at the session's top weight
+  /** Any set on this machine rated that session — an untouched prefill is not evidence of a jump. */
+  rated: boolean;
 }
 
 /** Chronological per-session top weights (and their RPE) for every exercise. */
@@ -57,9 +59,11 @@ function sessionTops(workouts: CoachWorkout[]): Record<string, SessionTop[]> {
   const tops: Record<string, SessionTop[]> = {};
   for (const w of chrono) {
     const perSession: Record<string, { top: number; topRpe: number | null }> = {};
+    const ratedIn: Record<string, boolean> = {};
     for (const s of w.sets) {
       if (s.weight <= 0 || s.isWarmup) continue;
       const rpe = s.rpe != null && s.rpe > 0 ? s.rpe : null;
+      if (rpe != null) ratedIn[s.exerciseId] = true;
       const cur = perSession[s.exerciseId];
       if (!cur || s.weight > cur.top) {
         perSession[s.exerciseId] = { top: s.weight, topRpe: rpe };
@@ -68,7 +72,7 @@ function sessionTops(workouts: CoachWorkout[]): Record<string, SessionTop[]> {
       }
     }
     for (const [id, entry] of Object.entries(perSession)) {
-      (tops[id] ??= []).push({ date: time(w.date), top: entry.top, topRpe: entry.topRpe });
+      (tops[id] ??= []).push({ date: time(w.date), top: entry.top, topRpe: entry.topRpe, rated: ratedIn[id] === true });
     }
   }
   return tops;
@@ -81,7 +85,11 @@ function sessionTops(workouts: CoachWorkout[]): Record<string, SessionTop[]> {
  */
 export function learnPinIncrements(workouts: CoachWorkout[]): Record<string, number> {
   const learned: Record<string, number> = {};
-  for (const [id, tops] of Object.entries(sessionTops(workouts))) {
+  for (const [id, allTops] of Object.entries(sessionTops(workouts))) {
+    // A session where nothing on this machine was rated is an untouched
+    // prefill, not a jump he made — ramp-scaled prefills were teaching
+    // the learner their own steps (trainer, 2026-09-18).
+    const tops = allTops.filter((t) => t.rated);
     const jumps: number[] = [];
     for (let i = 1; i < tops.length; i++) {
       const diff = round2(Math.abs(tops[i].top - tops[i - 1].top));
@@ -96,10 +104,28 @@ export function learnPinIncrements(workouts: CoachWorkout[]): Record<string, num
     const count = new Map<number, number>();
     for (const j of jumps) count.set(j, (count.get(j) ?? 0) + 1);
     const ranked = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+    // No credible jump → learn nothing; combineIncrement falls back to
+    // 2.5 rather than to a 0.5 typo.
     const credible = ranked.filter(([j, n]) => j >= 2 || n >= 2);
-    learned[id] = (credible.length ? credible : ranked)[0][0];
+    if (credible.length) learned[id] = credible[0][0];
   }
   return learned;
+}
+
+/**
+ * The ONE pin map every consumer must share — the prefill, the Watch plan
+ * and the over-ramp judge. Learned from judged training rows of ONE gym
+ * (rule 2), manual override wins. The judge and the prescription using
+ * different pins made following the app's own prefill "over-ramp"
+ * (trainer + adversary, 2026-09-18).
+ */
+export function pinMapFor(
+  rows: CoachWorkout[],
+  overrides: Array<{ id: string; pinIncrement?: number | null }> = [],
+): (exerciseId: string) => number {
+  const learned = learnPinIncrements(rows);
+  const override = new Map(overrides.map((e) => [e.id, e.pinIncrement ?? null]));
+  return (id) => combineIncrement(learned[id], override.get(id));
 }
 
 /** Manual override on the exercise wins, else the learned value, else 2.5 kg. */
@@ -262,12 +288,9 @@ export function weightTrend(bodyStats: CoachBodyStat[], options: WeightTrendOpti
   } else if (kgPerWeek >= -1.3) {
     classification = 'on_track';
     message = `Down ${Math.abs(kgPerWeek)} kg/week — on track for fat loss.`;
-  } else if (options.returning) {
-    // The early-ramp water swing distorts the losing side too; the
-    // "too fast" call waits until the ramp is over (trainer, 2026-09-18).
-    classification = 'on_track';
-    message = `Down ${Math.abs(kgPerWeek)} kg/week — includes the post-break water swing; judge the trend in 2 weeks.`;
   } else {
+    // Stands during the ramp too: refilled glycogen MASKS a loss, it cannot
+    // exaggerate one (trainer, reversing the review's own item).
     classification = 'too_fast';
     // What he controls. The deficit is the physician's; never a calorie number.
     message = `Down ${Math.abs(kgPerWeek)} kg/week — fast. Protect muscle: protein at every meal, keep every lifting session.`;
@@ -440,18 +463,21 @@ export function weeklyReport(
     focus.push(`${sessionsThisWeek}/${targetLabel} sessions so far this week — schedule the next one.`);
   }
 
-  // Volume week over week
-  const thisVol = volume(thisWeek);
-  const lastVol = volume(lastWeek);
+  // Volume PER SESSION week over week: three sessions at the same load
+  // after one is not a 200% jump (adversary). Not judged during the ramp —
+  // the prescription moves the volume there (trainer, 2026-09-18).
+  const perSession = (ws: CoachWorkout[]) => (ws.length ? volume(ws) / ws.length : 0);
+  const thisVol = perSession(thisWeek);
+  const lastVol = perSession(lastWeek);
   let volPct: number | null = null;
-  if (lastVol > 0 && thisVol > 0) {
+  if (lastVol > 0 && thisVol > 0 && status.mode !== 'return') {
     const pct = Math.round(((thisVol - lastVol) / lastVol) * 100);
     volPct = pct;
-    // A +50% week on a deficit after a layoff is the overuse trigger, not a
-    // win; above a quarter the honest read is "hold" (trainer, 2026-09-18).
-    if (pct >= 25) focus.push(`Volume up ${pct}% week over week — big jump; hold this level next week.`);
-    else if (pct >= 0) wins.push(`Volume up ${pct}% week over week.`);
-    else focus.push(`Volume down ${Math.abs(pct)}% week over week.`);
+    // A +50% session on a deficit after a layoff is the overuse trigger, not
+    // a win; above a quarter the honest read is "hold".
+    if (pct >= 25) focus.push(`Volume per session up ${pct}% on last week — big jump; hold this level next week.`);
+    else if (pct >= 0) wins.push(`Volume per session up ${pct}% on last week.`);
+    else focus.push(`Volume per session down ${Math.abs(pct)}% on last week.`);
   }
 
   // Plateaus

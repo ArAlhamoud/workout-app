@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { getExercises, getLiveSession, getLoggerMemory, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
 import RescueWalkButton from '@/components/RescueWalkButton';
 import WorkoutForm from '@/components/WorkoutForm';
-import { combineIncrement, deloadTarget, detectPlateau, learnPinIncrements } from '@/lib/coach';
+import { combineIncrement, deloadTarget, detectPlateau, learnPinIncrements, pinMapFor } from '@/lib/coach';
 import {
   DEFAULT_GYM_ID,
   getDayTemplate,
@@ -81,7 +81,10 @@ export default async function NewWorkoutPage({
   // logger MUST agree with the unlock — this page's returnLoadPct is what
   // pre-scales every prefit weight, so a stale calendar week here would
   // keep the loads at 60% after the sessions earned 70.
-  const cleanDates = cleanRampSessionDates(trainingOnly);
+  // ONE pin map for the prefill, the chip and the over-ramp judge (rule 4;
+  // judged home-gym rows only, rule 2).
+  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises);
+  const cleanDates = cleanRampSessionDates(trainingOnly, pinFor);
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
   const inRamp = status.mode === 'return';
   const validDur: Duration =
@@ -181,13 +184,8 @@ export default async function NewWorkoutPage({
   // Home gym only. Pin spacing is a property of one physical stack, so
   // learning it from a mix of buildings would infer a step size that exists
   // on neither machine.
-  const learnedIncrements = learnPinIncrements(
-    allWorkouts.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID),
-  );
   const pinIncrements: Record<string, number> = {};
-  for (const ex of exercises) {
-    pinIncrements[ex.id] = combineIncrement(learnedIncrements[ex.id], ex.pinIncrement);
-  }
+  for (const ex of exercises) pinIncrements[ex.id] = pinFor(ex.id);
 
   // "Ready to progress" is derived from pre-break sessions, so it is
   // actively wrong while ramping back — the return target replaces it.

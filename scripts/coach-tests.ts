@@ -55,7 +55,7 @@ import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
 import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
-import { CARDIO_RULE, afOnChart, clampTimedReps, effortCeiling, getExercisesForDuration, getPlankTarget, nextTryWeight, repeatToEarn, isOverRamp } from '../src/lib/program';
+import { CARDIO_RULE, afOnChart, clampTimedReps, effortCeiling, getExercisesForDuration, getPlankTarget, nextTryWeight, repeatToEarn, isOverRamp, rampSessionVerdicts } from '../src/lib/program';
 import { routeForDeepLink } from '../src/lib/deep-links';
 import { binHeartRate } from '../src/lib/hr-capture';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
@@ -384,7 +384,9 @@ assert(
   // Pin-floored, same on wrist and phone: Lat Pulldown's learned 7 kg pin.
   const lat = { weight: 40, reps: 10, rpe: null as number | null };
   assert(rampPrefillWeight(lat, 60, 7) === 21 && rampPrefillWeight(lat, 70, 7) === 28 && rampPrefillWeight(lat, 85, 7) === 35, `pin 7: 60→21, 70→28, 85→35 — four distinct steps (got ${rampPrefillWeight(lat, 60, 7)}, ${rampPrefillWeight(lat, 70, 7)}, ${rampPrefillWeight(lat, 85, 7)})`);
-  assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 18, `9 kg pin: 60% of 29 → 18, not floored to 9 (got ${rampPrefillWeight({ weight: 29 }, 60, 9)})`);
+  // Since 2026-09-18 an unrated 29 kg base on 9 kg pins holds at three pins (27) — see Tier 1b.
+  assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 27, `9 kg pin: 60% of 29 = 18 but the three-pin floor holds 27 (got ${rampPrefillWeight({ weight: 29 }, 60, 9)})`);
+  assert(rampPrefillWeight({ weight: 29, rpe: 3 }, 60, 9) === 18, '…unless the base was Hard: then it scales to 18');
   assert(rampPrefillWeight({ weight: 2.5 }, 60, 2.5) === 2.5, 'never below one pin');
   assert(rampPrefillWeight({ weight: 27.5 }, 60) === 17.5, `27.5 × 60% = 16.5 → nearest 2.5 = 17.5 (got ${rampPrefillWeight({ weight: 27.5 }, 60)})`);
 
@@ -2235,10 +2237,17 @@ console.log('Tier 1b — program logic');
 {
   // 1.7 A base within three pins of the stack's bottom is a learn-phase
   // weight; scaling it produces sets with nothing in them. Hold instead.
-  assert(rampPrefillWeight({ weight: 15 }, 60, 7.5) === 15, 'two-pin base holds rather than scales to one pin');
-  assert(rampPrefillWeight({ weight: 22.5 }, 60, 7.5) === 22.5, 'three-pin base still holds');
-  assert(rampPrefillWeight({ weight: 30 }, 60, 7.5) === 15, `four-pin base scales (60% of 30 = 18 → nearest 7.5 = 15) (got ${rampPrefillWeight({ weight: 30 }, 60, 7.5)})`);
-  assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 18, 'unchanged: 9 kg pin, 29 kg base → 18');
+  // Hold on HOW the base was rated, not where it sits on the stack (trainer):
+  // his whole pre-break history is learn-phase weights rated Easy.
+  assert(rampPrefillWeight({ weight: 36, rpe: 1 }, 60, 7.5) === 36, 'an Easy-rated base holds at 60% — Leg Press 36, the case the rule was written for');
+  assert(rampPrefillWeight({ weight: 23, rpe: 1 }, 70, 4.5) === 23, 'Chest Press 23 @Easy holds');
+  assert(rampPrefillWeight({ weight: 36, rpe: 2 }, 60, 7.5) === 22.5, 'a Med-rated base scales, floored at three pins');
+  assert(rampPrefillWeight({ weight: 20, rpe: 4 }, 60, 7.5) === 15, 'a Grind-rated base is NEVER held — it scales past the floor');
+  assert(rampPrefillWeight({ weight: 20, rpe: 3 }, 60, 7.5) === 15, 'a Hard-rated base is never held either');
+  // The floor is monotonic: a heavier base can never open lighter than a lighter one (adversary).
+  assert(rampPrefillWeight({ weight: 15 }, 60, 7.5) === 15 && rampPrefillWeight({ weight: 22.5 }, 60, 7.5) === 22.5 && rampPrefillWeight({ weight: 30 }, 60, 7.5) === 22.5 && rampPrefillWeight({ weight: 45 }, 60, 7.5) === 30, `floor is monotonic (got ${[15, 22.5, 30, 45].map((w) => rampPrefillWeight({ weight: w }, 60, 7.5)).join(',')})`);
+  assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 27, `9 kg pin, 29 kg base, no rating → 60% = 18 but the three-pin floor (27) holds it (got ${rampPrefillWeight({ weight: 29 }, 60, 9)})`);
+  assert(rampPrefillWeight({ weight: 29, rpe: 2 }, 60, 9) === 27 && rampPrefillWeight({ weight: 45, rpe: 2 }, 60, 9) === 27, 'floor applies to Med bases too');
 
   // 1.8 The pin learner takes the most frequent jump, not the smallest
   // ever seen: a 27.5 → 27 correction taught it a 0.5 kg pin.
@@ -2249,20 +2258,32 @@ console.log('Tier 1b — program logic');
   const halfPlate = [sess('2026-06-01', 7.5), sess('2026-06-08', 8.75), sess('2026-06-15', 10), sess('2026-06-22', 11.25)];
   assert(learnPinIncrements(halfPlate)[ex.id] === 1.25, `a genuine 1.25 half-plate that REPEATS survives (got ${learnPinIncrements(halfPlate)[ex.id]})`);
   const oneSmall = [sess('2026-07-01', 20), sess('2026-07-08', 21)];
-  assert(learnPinIncrements(oneSmall)[ex.id] === 1, 'with a single jump there is nothing else to learn from');
+  assert(learnPinIncrements(oneSmall)[ex.id] === undefined, 'a lone sub-2 kg jump teaches nothing (combineIncrement falls back to 2.5)');
+  const lone = [sess('2026-07-01', 27.5), sess('2026-07-08', 27)];
+  assert(learnPinIncrements(lone)[ex.id] === undefined, 'a lone 0.5 correction teaches nothing');
+  // An untouched ramp prefill (no set rated) is not a jump he made (trainer).
+  const unrated = (date: string, w: number): CoachWorkout => ({ date, sets: [{ exerciseId: ex.id, reps: 10, weight: w, rpe: null, exercise: ex }] });
+  const prefills = [sess('2026-05-01', 27), unrated('2026-07-29', 15), unrated('2026-09-01', 20), sess('2026-09-12', 36)];
+  assert(learnPinIncrements(prefills)[ex.id] === 9, `unrated sessions are skipped: 27 → 36 is the only real jump (got ${learnPinIncrements(prefills)[ex.id]})`);
   const real = learnPinIncrements(data.workouts);
   for (const [id, pin] of Object.entries(real)) {
     const name = data.exercises.find((e) => e.id === id)?.name ?? id;
-    assert(pin >= 1.25 || pin === 1, `${name}: learned pin ${pin} is a step a stack can actually take`);
+    assert(pin >= 1.25, `${name}: learned pin ${pin} is a step a stack can actually take`);
   }
+  const legExt = data.exercises.find((e) => e.name === 'Leg Extension')!.id;
+  assert(real[legExt] === 9, `Leg Extension learns its 9 kg pin once untouched prefills are ignored (got ${real[legExt]})`);
 
   // 1.9 A 6-second mis-tap is not a training session.
-  const junk = { name: 'Day A 45m — Sep 2', duration: 6, sets: [{ rpe: null, isWarmup: false }, { rpe: null, isWarmup: false }, { rpe: null, isWarmup: false }, { rpe: null, isWarmup: false }] };
+  const un = (n: number) => Array.from({ length: n }, () => ({ rpe: null, isWarmup: false }));
+  const junk = { name: 'Day A 45m — Sep 2', duration: 6, sets: un(4) };
   assert(!isTrainingSession(junk), 'a 6-second save with nothing rated does not count');
-  assert(isTrainingSession({ name: 'Rescue Day A', duration: 15 * 60, sets: [{ rpe: null, isWarmup: false }] }), 'a 15-minute rescue counts');
-  assert(isTrainingSession({ name: 'Day A 45m — Sep 17', duration: 52 * 60, sets: [] }), 'a real session counts on duration alone');
-  assert(isTrainingSession({ name: 'Day B — Watch · Sep 1', duration: 300, sets: [{ rpe: 1, isWarmup: false }, { rpe: 2, isWarmup: false }] }), 'a short session with two rated sets still counts');
-  assert(isTrainingSession({ name: 'Day A 45m' }), 'a bare name (no duration known) is not judged');
+  assert(!isTrainingSession({ name: 'Day B — Watch · Sep 1', duration: 700, sets: [{ rpe: 1, isWarmup: false }, ...un(2)] }), 'a 700-second Watch replay stub (3 sets, 1 rated) does not count either (adversary)');
+  assert(isTrainingSession({ name: 'Rescue Day A', duration: 15 * 60, sets: un(8) }), 'a 15-minute rescue (4 machines × 2 sets) counts');
+  assert(isTrainingSession({ name: 'Day A 45m — Sep 17', duration: 52 * 60, sets: un(25) }), 'a real session counts');
+  assert(isTrainingSession({ name: 'Day A 45m', duration: 5 * 60, sets: un(20) }), 'a session typed in from memory in five minutes still counts — it has the sets');
+  assert(isTrainingSession({ name: 'Day B — Watch · Sep 1', duration: 300, sets: [{ rpe: 1, isWarmup: false }, { rpe: 2, isWarmup: false }] }), 'two rated sets count whatever the clock says');
+  assert(isTrainingSession({ name: 'Day A 45m' }), 'a bare name (no duration, no sets) is not judged');
+  assert(isTrainingSession({ name: 'Day A 45m', duration: 40 * 60 }), 'duration alone, no sets known: judged on time');
   const realTraining = data.workouts.filter((w) => w.name.startsWith('Day'));
   assert(realTraining.every((w) => isTrainingSession(w)), 'every real training row in the export still counts');
 
@@ -2276,22 +2297,49 @@ console.log('Tier 1b — program logic');
     { mode: 'active', week: 3 } as never,
     new Date('2026-09-15T12:00:00Z'),
   );
-  assert(big.focus.some((l) => /Volume up 50%/.test(l) && /hold/i.test(l)) && !big.wins.some((l) => /Volume up/.test(l)), `a 50% volume jump reads as a caution (focus: ${big.focus.join(' | ')})`);
+  assert(big.focus.some((l) => /Volume per session up 50%/.test(l) && /hold/i.test(l)) && !big.wins.some((l) => /Volume/.test(l)), `a 50% volume jump reads as a caution (focus: ${big.focus.join(' | ')})`);
   const fast = weightTrend([{ date: '2026-09-01', weight: 130 }, { date: '2026-09-15', weight: 126 }]);
   assert(fast.classification === 'too_fast' && !/calorie/i.test(fast.message) && /protein/i.test(fast.message), `too-fast never names calories (got "${fast.message}")`);
+  // Refilled glycogen MASKS a loss; it cannot exaggerate one — the too-fast
+  // line stands during the ramp (trainer, reversing the review's own item).
   const fastRamp = weightTrend([{ date: '2026-09-01', weight: 130 }, { date: '2026-09-15', weight: 126 }], { returning: true });
-  assert(fastRamp.classification === 'on_track' && /water|2 weeks/i.test(fastRamp.message), `during the ramp the too-fast call waits (got "${fastRamp.message}")`);
+  assert(fastRamp.classification === 'too_fast' && /protein/i.test(fastRamp.message), `during the ramp the too-fast call still stands (got "${fastRamp.message}")`);
+  // Volume: three sessions at the same weight after one is not a 200% jump.
+  const three = weeklyReport(
+    [
+      { date: '2026-09-07', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-14', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-16', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-18', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+    ],
+    [],
+    { mode: 'active', week: 3 } as never,
+    new Date('2026-09-18T12:00:00Z'),
+  );
+  assert(!three.focus.some((l) => /Volume up/.test(l)), `more sessions at the same load is not a volume jump (focus: ${three.focus.join(' | ')})`);
+  const rampWeek = weeklyReport(
+    [
+      { date: '2026-09-07', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-14', sets: [{ exerciseId: ex.id, reps: 10, weight: 30, rpe: 1, exercise: ex }] },
+    ],
+    [],
+    { mode: 'return', week: 2, returnWeek: { week: 2, phase: 'REBUILD', loadPct: 70, sessions: '3', rpeCap: 2, desc: '' } } as never,
+    new Date('2026-09-15T12:00:00Z'),
+  );
+  assert(!rampWeek.focus.some((l) => /Volume up/.test(l)) && !rampWeek.wins.some((l) => /Volume up/.test(l)), 'during the ramp the prescription moves the volume — no line either way');
 
   // 1.11 Cues.
   const A = getDayTemplate('A').exercises, B = getDayTemplate('B').exercises;
   const curl = B.find((e) => e.name === 'Leg Curl')!;
   assert(/seated/i.test(curl.cues.slice(0, 80)) && !/^Adjust seat so your knee joint aligns with the machine pivot\. Lie face down/.test(curl.cues), 'leg curl leads with the SEATED machine');
-  assert(/prone|face.?down/i.test(curl.cues), 'and still tells him what to do on the prone one');
+  assert(/no face-down|not face-down|never face-down/i.test(curl.cues) && !/hips pressed into the pad/i.test(curl.cues), 'the prone machine is refused, not coached (trainer)');
+  assert(/handles/i.test(curl.cues), 'hold the handles — they keep the hips down on the seated machine');
   for (const name of ['Chest Press', 'Pec Fly', 'Shoulder Press']) {
     const e = A.find((x) => x.name === name)!;
     assert(/seat.*move|moves? as you|designed to move|let it rock/i.test(e.cues), `${name}: the Hoist moving-seat sentence is there`);
   }
-  assert(/seat.*move|designed to move|let it rock/i.test(B.find((x) => x.name === 'Mid Row')!.cues), 'Mid Row: the Hoist moving-seat sentence is there');
+  assert(/chest against the pad/i.test(B.find((x) => x.name === 'Mid Row')!.cues) && !/back on the pad/i.test(B.find((x) => x.name === 'Mid Row')!.cues), 'Mid Row: the moving-seat sentence is written for a CHEST pad (you face it)');
+  for (const name of ['Chest Press', 'Pec Fly', 'Shoulder Press']) assert(!/IMPORTANT —[A-Za-z]/.test(A.find((x) => x.name === name)!.cues), `${name}: no glued "IMPORTANT —This"`);
   assert(!/a injury/.test(A.find((x) => x.name === 'Leg Press')!.cues), 'Leg Press typo fixed');
   assert(!/under the ramp/i.test(A.find((x) => x.name === 'Hip Adduction')!.cues), 'Hip Adduction cue carries no ramp instruction');
   const swap = gymSwap('Leg Curl', 'work');
@@ -2305,22 +2353,31 @@ console.log('Tier 1b — chip + over-ramp');
   // all-Easy sessions the overload seed waits for. One Easy session at a
   // new weight reads "repeat, earn it" — Face Pull 8.75 → "Try 13.75" was
   // a +57% suggestion on a machine whose own cue says light and strict.
-  assert(nextTryWeight({ weight: 8.75, rpe: 1, overload: true }, 1.25) === 10, `one learned pin on top (got ${nextTryWeight({ weight: 8.75, rpe: 1, overload: true }, 1.25)})`);
-  assert(nextTryWeight({ weight: 8.75, rpe: 1, overload: false }, 1.25) === null, 'one Easy session earns nothing yet');
-  assert(nextTryWeight({ weight: 30, rpe: 2, overload: true }, 2.5) === 32.5, 'Med last time but two clean sessions behind it still steps one pin');
-  assert(nextTryWeight({ weight: 30, rpe: 3, overload: true }, 2.5) === null, 'a Hard last set never suggests more');
-  assert(nextTryWeight({ weight: 30, rpe: 1, overload: true }, 0) === 32.5, 'a missing pin falls back to 2.5');
-  assert(repeatToEarn({ weight: 30, rpe: 1, overload: false }) && !repeatToEarn({ weight: 30, rpe: 1, overload: true }) && !repeatToEarn({ weight: 30, rpe: 2, overload: false }), 'repeat-to-earn only after a single Easy session');
+  assert(nextTryWeight({ weight: 8.75, reps: 15, rpe: 1, overload: true }, 1.25, 15) === 10, `one learned pin on top (got ${nextTryWeight({ weight: 8.75, reps: 15, rpe: 1, overload: true }, 1.25, 15)})`);
+  assert(nextTryWeight({ weight: 8.75, reps: 15, rpe: 1, overload: false }, 1.25, 15) === null, 'one Easy session earns nothing yet');
+  assert(nextTryWeight({ weight: 30, reps: 6, rpe: 1, overload: true }, 2.5, 10) === null, 'reps first, then the pin: under the minimum reps there is no number (the seed declines the same case)');
+  assert(nextTryWeight({ weight: 30, reps: 10, rpe: 3, overload: true }, 2.5, 10) === null, 'a Hard last set never suggests more');
+  assert(nextTryWeight({ weight: 30, reps: 10, rpe: 1, overload: true }, 0, 10) === 32.5, 'a missing pin falls back to 2.5');
+  assert(repeatToEarn({ weight: 30, rpe: 1, allEasy: true, overload: false }) && !repeatToEarn({ weight: 30, rpe: 1, allEasy: true, overload: true }) && !repeatToEarn({ weight: 30, rpe: 1, allEasy: false, overload: false }), 'repeat-to-earn needs the whole last session Easy, not one stray tap');
 
   // 1.6 A ramp session lifted above prescription + one pin is "over-ramp":
   // it still counts for calendar pacing, it does not EARN a phase. Thursday
   // was prescribed 70% and lifted 96–117% of base, rated Easy — and that
   // advanced the ramp.
-  assert(isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: 23 }, 70, 2.5), 'Chest Press 27 vs 70% of a 23 base (15 + 2.5 tolerance) is over-ramp');
-  assert(!isOverRamp([{ exerciseId: 'cp', weight: 17.5, isWarmup: false }], { cp: 23 }, 70, 2.5), '17.5 (one pin over the 15 prescription) is inside tolerance');
-  assert(!isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: true }], { cp: 23 }, 70, 2.5), 'warm-ups are never judged');
-  assert(!isOverRamp([{ exerciseId: 'new', weight: 40, isWarmup: false }], { cp: 23 }, 70, 2.5), 'a machine with no pre-break base cannot be over-ramp (held)');
-  assert(!isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: 23 }, 100, 2.5), 'at 100% nothing is over-ramp');
+  // The judge uses the SAME pin and the SAME prescription as the prefill
+  // (trainer + adversary: with a hard-coded 2.5 the app's own prefill was
+  // over-ramp on every session and the earned ramp could never fire).
+  const pin = (id: string) => ({ cp: 4.5, mr: 9, lp: 7.5 })[id] ?? 2.5;
+  assert(isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: { weight: 23, rpe: 2 } }, 70, pin) !== null, 'Chest Press 27 vs a Med 23 base at 70% (18 + one 4.5 pin = 22.5) is over-ramp');
+  assert(isOverRamp([{ exerciseId: 'cp', weight: 22.5, isWarmup: false }], { cp: { weight: 23, rpe: 2 } }, 70, pin) === null, 'one learned pin over the prescription is inside tolerance');
+  assert(isOverRamp([{ exerciseId: 'mr', weight: 27, isWarmup: false }], { mr: { weight: 27, rpe: 1 } }, 70, pin) === null, 'a HELD machine (Easy base) lifted at exactly its prefill is legal — following the box is never over-ramp');
+  assert(isOverRamp([{ exerciseId: 'mr', weight: 36, isWarmup: false }], { mr: { weight: 27, rpe: 1 } }, 70, pin) !== null, 'but one pin ABOVE the pre-break base before RESTORE always is — the tolerance never passes the base');
+  assert(isOverRamp([{ exerciseId: 'lp', weight: 37.5, isWarmup: false }], { lp: { weight: 36, rpe: 1 } }, 85, pin) !== null, 'Leg Press 37.5 past a 36 base at 85% is over-ramp');
+  assert(isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: true }], { cp: { weight: 23 } }, 70, pin) === null, 'warm-ups are never judged');
+  assert(isOverRamp([{ exerciseId: 'new', weight: 40, isWarmup: false }], { cp: { weight: 23 } }, 70, pin) === null, 'a machine with no pre-break base cannot be over-ramp (held)');
+  assert(isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: { weight: 23 } }, 100, pin) === null, 'at 100% nothing is over-ramp');
+  const why = isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: { weight: 23, rpe: 2 } }, 70, pin)!;
+  assert(why.exerciseId === 'cp' && why.lifted === 27 && why.allowed === 22.5, `the verdict says which machine and by how much (got ${JSON.stringify(why)})`);
 
   // End to end on his real history plus Thursday: the session that lifted
   // full pre-break loads in a 70% week is not a clean (earning) session.
@@ -2331,9 +2388,33 @@ console.log('Tier 1b — chip + over-ramp');
     sets: [set('Leg Press', 37.5, 1), set('Chest Press', 27, 2), set('Shoulder Press', 26, null), set('Leg Extension', 30, 1), set('Pec Fly', 30, 2), set('Ab Crunch', 27, 1)],
   };
   const history = [...data.workouts.filter((w) => w.name.startsWith('Day')), thursday];
-  const clean = cleanRampSessionDates(history).map((d) => d.toISOString().slice(0, 10));
+  const realPins = learnPinIncrements(data.workouts);
+  const pinFor = (id: string) => realPins[id] ?? 2.5;
+  const clean = cleanRampSessionDates(history, pinFor).map((d) => d.toISOString().slice(0, 10));
   assert(!clean.includes('2026-09-17'), `Thursday earned nothing — it was over-ramp (clean: ${clean.join(', ')})`);
-  const stillCounts = getTrainingStatus(history.map((w) => new Date(w.date)), new Date('2026-09-18T12:00:00Z'), cleanRampSessionDates(history));
+  const verdicts = rampSessionVerdicts(history, pinFor);
+  const thu = verdicts.find((v) => v.date.toISOString().startsWith('2026-09-17'))!;
+  assert(!!thu && !thu.clean && !!thu.overRamp && thu.overRamp.lifted > thu.overRamp.allowed, `the verdict names the machine (got ${JSON.stringify(thu?.overRamp)})`);
+  // Following the app's own prefill is never over-ramp: the next Day B lifted at
+  // exactly the prescribed (learned-pin) weights must earn.
+  const prescribed = (name: string, base: number, rpe: number | null) => rampPrefillWeight({ weight: base, rpe }, 85, pinFor(byName.get(name)!));
+  const dayB = {
+    date: '2026-09-20T00:00:00.000Z', name: 'Day B 45m — Sep 20', duration: 40 * 60,
+    sets: [set('Mid Row', prescribed('Mid Row', 27, 1), 1), set('Lat Pulldown', prescribed('Lat Pulldown', 40, 2), 1), set('Leg Curl', prescribed('Leg Curl', 20, 1), 2)],
+  };
+  const v2 = rampSessionVerdicts([...history, dayB], pinFor).find((v) => v.date.toISOString().startsWith('2026-09-20'))!;
+  assert(v2 && v2.clean, `a session at exactly the prefill earns (got ${JSON.stringify(v2?.overRamp)})`);
+  // Two rows on one day are one session's evidence (adversary: a split save earned through its clean half).
+  const halfA = { date: '2026-09-21T10:00:00.000Z', name: 'Day A 45m — Sep 21', duration: 600, sets: [set('Pec Fly', 12.5, 1), set('Pec Fly', 12.5, 1)] };
+  const halfB = { date: '2026-09-21T10:00:01.000Z', name: 'Day A 45m — Sep 21', duration: 600, sets: [set('Chest Press', 30, 1), set('Leg Press', 45, 1)] };
+  const split = rampSessionVerdicts([...history, halfA, halfB], pinFor).filter((v) => v.date.toISOString().startsWith('2026-09-21'));
+  assert(split.length === 1 && !split[0].clean, 'a split save is judged as one session — the heavy half decides');
+  // The base is per gym (rule 2): an Alrajhi ramp session is judged against Alrajhi bases only.
+  const workPre = { date: '2026-06-20T00:00:00.000Z', name: 'Day A 45m — Jun 20', gym: 'work', duration: 2400, sets: [set('Chest Press', 12.5, 2), set('Leg Press', 20, 2)] };
+  const workRamp = { date: '2026-09-22T00:00:00.000Z', name: 'Day A 45m — Sep 22', gym: 'work', duration: 2400, sets: [set('Chest Press', 27.5, 1), set('Leg Press', 35, 1)] };
+  const vw = rampSessionVerdicts([...history, workPre, workRamp], pinFor).find((v) => v.date.toISOString().startsWith('2026-09-22'))!;
+  assert(vw && !vw.clean, 'an Alrajhi session far over its OWN (lighter) base is over-ramp even though it is under the B_Fit base');
+  const stillCounts = getTrainingStatus(history.map((w) => new Date(w.date)), new Date('2026-09-18T12:00:00Z'), cleanRampSessionDates(history, pinFor));
   assert(stillCounts.mode === 'return' && stillCounts.sessionsInBlock >= 4, 'it still counts as a session for calendar pacing — over-ramp is not punished');
 }
 

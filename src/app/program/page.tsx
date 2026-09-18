@@ -1,3 +1,4 @@
+import { pinMapFor } from '@/lib/coach';
 import { readChart } from '@/lib/chart';
 import Link from 'next/link';
 import type { Metadata } from 'next';
@@ -17,8 +18,7 @@ import {
   cleanRampSessionDates,
   getTrainingStatus,
   projectPlan,
-  type Priority,
-} from '@/lib/program';
+  type Priority, DEFAULT_GYM_ID } from '@/lib/program';
 import { getExercises, getBodyStats, getWorkouts } from '@/app/actions';
 import CollapsibleSection from '@/components/CollapsibleSection';
 import { getMondayOfWeek, RPE_LABELS } from '@/lib/format';
@@ -143,7 +143,8 @@ export default async function ProgramPage() {
 
   // Where the lifter actually is this week
   const trainingOnly = workouts.filter(isTrainingSession);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
+  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises);
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly, pinFor));
   const weekStart = getMondayOfWeek(new Date());
   // TRAINING sessions only (trainer veto in program.ts: a rescue walk must
   // never count as a ramp session). Unfiltered, two walks "spent" the ramp

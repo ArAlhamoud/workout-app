@@ -11,8 +11,8 @@ import {
   isTrainingSession,
   rampBaseBefore,
   rampPrefillWeight,
-  DEFAULT_GYM_ID, effortCeiling } from '@/lib/program';
-import { combineIncrement, learnPinIncrements, phaseForWeek } from '@/lib/coach';
+  DEFAULT_GYM_ID, effortCeiling, rampSessionVerdicts } from '@/lib/program';
+import { combineIncrement, phaseForWeek, pinMapFor } from '@/lib/coach';
 import CoachCard from '@/components/CoachCard';
 import VoltLetter from '@/components/VoltLetter';
 import CardioQuickLog from '@/components/CardioQuickLog';
@@ -186,7 +186,7 @@ export default async function TrainPage() {
 
   // What his own log says to do today: train (alternating A/B), recover the
   // day after a session, or nothing at all because it's already logged.
-  const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
+  const plan = getDynamicPlan(workouts.filter(isTrainingSession).map((w) => ({ date: w.date, name: w.name })));
   const isDoneToday = plan.mode === 'done-today';
   const suggestedDay: DayId | null = isDoneToday ? null : plan.day;
   const nextDay: DayId = queuedDay(plan);
@@ -194,7 +194,11 @@ export default async function TrainPage() {
 
   // Where the lifter actually is: fresh, ramping back, or mid-program.
   const trainingOnly = workouts.filter(isTrainingSession);
-  const cleanDates = cleanRampSessionDates(trainingOnly);
+  // ONE pin map for the preview, the prefill and the over-ramp judge
+  // (rule 4; judged home-gym rows only, rule 2).
+  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises);
+  const verdicts = rampSessionVerdicts(trainingOnly, pinFor);
+  const cleanDates = verdicts.filter((v) => v.clean).map((v) => v.date);
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
   const currentPhase = phaseForWeek(status.week);
   const returnLoadPct = status.mode === 'return' ? status.returnWeek.loadPct : null;
@@ -228,12 +232,11 @@ export default async function TrainPage() {
     DEFAULT_GYM_ID,
     returnLoadPct != null ? rampBaseBefore(trainingOnly, cleanDates) : undefined,
   );
-  const learnedPins = learnPinIncrements(workouts.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID));
   const preview = template.map((te) => {
     const ex = exerciseByName.get(te.name);
     const last = ex ? lastByExercise[ex.id] : undefined;
     const lastW = last && last.weight > 0 ? last.weight : null;
-    const pin = ex ? combineIncrement(learnedPins[ex.id], ex.pinIncrement) : 2.5;
+    const pin = ex ? pinFor(ex.id) : 2.5;
     const shownW =
       last && lastW != null && returnLoadPct != null ? rampPrefillWeight(last, returnLoadPct, pin) : lastW;
     return {
@@ -298,6 +301,21 @@ export default async function TrainPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.13em]">
               <span className="glow-amber">We rebuild. We don&apos;t test.</span>
             </p>
+            {/* Why the clean count is what it is: an over-ramp session still
+                counts, it just does not earn — say which machine, once
+                (trainer, 2026-09-18). */}
+            {(() => {
+              const since = status.blockStartISO ? new Date(status.blockStartISO).getTime() : 0;
+              const over = [...verdicts].reverse().find((v) => v.overRamp && v.date.getTime() >= since);
+              if (!over || !over.overRamp) return null;
+              const name = exercises.find((e) => e.id === over.overRamp!.exerciseId)?.name ?? 'a machine';
+              const when = over.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' });
+              return (
+                <p className="mt-1.5 text-[11px] text-app-tx2">
+                  {when} counted but didn&apos;t earn — {name} {over.overRamp.lifted} kg, ramp allowed {over.overRamp.allowed}.
+                </p>
+              );
+            })()}
             <p className="mt-2.5 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
               {status.daysOff} days off. Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
               <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.

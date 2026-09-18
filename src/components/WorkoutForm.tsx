@@ -70,9 +70,13 @@ interface ExerciseBlock {
   unit?: 'reps' | 'seconds';
   showCues: boolean;
   expandedNoteIdx: number | null;
-  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; rampHold?: boolean };
+  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean };
   /** Overload by default took one learned pin at seed time; tap undoes it. */
   overloadApplied?: { from: number; to: number };
+  /** He undid the seed: do not re-offer the same number as a chip. */
+  overloadDeclined?: true;
+  /** Template minimum reps — the chip never offers a pin under it. */
+  defaultReps?: number;
 }
 
 const DRAFT_KEY = 'workout-draft';
@@ -112,7 +116,7 @@ function formatElapsed(seconds: number): string {
 
 function buildBlocks(
   initialExercises: InitialExercise[],
-  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; rampHold?: boolean }>,
+  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean }>,
   returnLoadPct?: number,
   pinIncrements: Record<string, number> = {},
   deloadHints: Record<string, { weight: number; note: string }> = {},
@@ -159,6 +163,7 @@ function buildBlocks(
       showCues: false,
       expandedNoteIdx: null,
       lastSession: prev,
+      defaultReps: ie.defaultReps,
       overloadApplied: seededWeight && prev?.weight ? { from: prev.weight, to: seededWeight } : undefined,
       // One auto warm-up set on the first two machines of the session, at
       // ~55% of the working weight rounded DOWN to a real pin. Cold joints
@@ -968,6 +973,7 @@ export default function WorkoutForm({
         return {
           ...b,
           overloadApplied: undefined,
+          overloadDeclined: true,
           sets: b.sets.map((st) =>
             st.done ? st : { ...st, weight: st.isWarmup ? warm : from },
           ),
@@ -1753,10 +1759,10 @@ export default function WorkoutForm({
           // nextTryWeight) — never a hard-coded 5 kg after one Easy session.
           const suggestWeight =
             !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload &&
-            !block.overloadApplied
-              ? nextTryWeight(block.lastSession, pinIncrements[block.exerciseId] ?? DEFAULT_PIN_INCREMENT)
+            !block.overloadApplied && !block.overloadDeclined
+              ? nextTryWeight(block.lastSession, pinIncrements[block.exerciseId] ?? DEFAULT_PIN_INCREMENT, block.defaultReps ?? 0)
               : null;
-          const earnIt = !returnTarget && !isTimed && !shouldHold && !deload && !block.overloadApplied && repeatToEarn(block.lastSession);
+          const earnIt = !returnTarget && !isTimed && !shouldHold && !deload && !block.overloadApplied && !block.overloadDeclined && repeatToEarn(block.lastSession);
 
           const est1RM = !isTimed
             ? block.sets.reduce((best, s) => Math.max(best, epley1RM(s.weight, s.reps)), 0)

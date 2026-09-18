@@ -29,7 +29,7 @@ export async function assembleCoachContext(): Promise<{ context: string; todayLi
     prisma.workout.findMany({
       orderBy: [{ date: 'desc' }, { id: 'desc' }],
       take: 400,
-      select: { date: true, name: true },
+      select: { date: true, name: true, duration: true, sets: { select: { rpe: true, isWarmup: true } } },
     }),
     prisma.workout.count({
       where: { ...walkFilter, date: { gte: new Date(Date.now() - 30 * 86_400_000) } },
@@ -49,7 +49,8 @@ export async function assembleCoachContext(): Promise<{ context: string; todayLi
     .filter((w) => isTrainingSession(w))
     .map((w) => w.date);
   const status = getTrainingStatus(trainingDates, now);
-  const plan = getDynamicPlan(sessionRows.map((w) => ({ date: w.date, name: w.name })), now);
+  // Judged rows only — a mis-tap must not queue tomorrow's day (adversary).
+  const plan = getDynamicPlan(sessionRows.filter((w) => isTrainingSession(w)).map((w) => ({ date: w.date, name: w.name })), now);
   const streak = weekStreak({
     sessionDates: sessionRows.map((w) => w.date),
     excusedWeeks: holdWeekKeys(holds),
