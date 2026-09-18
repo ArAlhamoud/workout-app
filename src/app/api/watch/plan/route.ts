@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { readChart } from '@/lib/chart';
 import {
   cleanRampSessionDates,
+  clampTimedReps,
   effortCeiling,
   getDynamicPlan,
   getExercisesForDuration,
@@ -38,7 +40,7 @@ export async function GET(request: Request) {
   // Weights and pins are per building (rule 2) — default gym unless asked.
   const gym = url.searchParams.get('gym') === 'work' ? 'work' : DEFAULT_GYM_ID;
 
-  const [exercises, workoutRows, profile] = await Promise.all([
+  const [exercises, workoutRows, chart] = await Promise.all([
     prisma.exercise.findMany({ select: { id: true, name: true, pinIncrement: true } }),
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
@@ -47,7 +49,7 @@ export async function GET(request: Request) {
     }),
     // The chart's effort ceiling rides with the plan (rule 9: told, not
     // taught) — the wrist greys RPE above it exactly as the phone does.
-    prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { conditions: true } }).catch(() => null),
+    readChart(),
   ]);
 
   const training = workoutRows.filter((w) => isTrainingSession(w));
@@ -61,7 +63,7 @@ export async function GET(request: Request) {
   );
   const inRamp = status.mode === 'return';
   const loadPct = inRamp ? status.returnWeek.loadPct : 100;
-  const ceiling = effortCeiling(profile?.conditions as string[] | null | undefined);
+  const ceiling = effortCeiling(chart.conditions, chart.medications);
   const rpeCap = Math.min(inRamp ? status.returnWeek.rpeCap : 4, ceiling);
   const dur = durParam === 30 || durParam === 45 || durParam === 60 ? durParam : inRamp ? 45 : 60;
 
@@ -109,7 +111,7 @@ export async function GET(request: Request) {
       // every ramp week — and never open below the program floor (trainer:
       // the 10 s planks on the first wrist session).
       const prefillReps =
-        t.unit === 'seconds' ? Math.max(t.repsMin, last?.reps ?? t.repsMin) : last?.reps ?? t.repsMin;
+        t.unit === 'seconds' ? clampTimedReps(last?.reps ?? t.repsMin, t.repsMin, t.repsMax) : last?.reps ?? t.repsMin;
       return {
         exerciseId: ex.id,
         name: t.name,

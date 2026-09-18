@@ -10,8 +10,7 @@ import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
 import { rampPrefillWeight, GYMS, DEFAULT_GYM_ID,
   hasWarmupSet,
-  warmupWeight,
-} from '@/lib/program';
+  warmupWeight, clampTimedReps } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -39,6 +38,8 @@ interface InitialExercise {
   rest?: string;
   targetReps?: string;
   unit?: 'reps' | 'seconds';
+  /** Ceiling for a timed hold (plank 30 s); reps prefill never exceeds it. */
+  maxReps?: number;
 }
 
 interface SetEntry {
@@ -196,7 +197,8 @@ function buildBlocks(
         // Last session's reps, same as weight on the line below. The template's
         // repsMin is only a floor; starting every set there means stepping up to
         // what you actually did, once per set, ~27 times a session.
-        reps: prev?.reps ?? ie.defaultReps,
+        // A timed hold never opens past its ceiling (plank: 30 s).
+        reps: isTimed && ie.maxReps ? clampTimedReps(prev?.reps ?? ie.defaultReps, ie.defaultReps, ie.maxReps) : prev?.reps ?? ie.defaultReps,
         weight: isTimed
           ? 0
           : deload
@@ -223,6 +225,7 @@ export default function WorkoutForm({
   progressionHints = {},
   returnLoadPct,
   returnRpeCap,
+  afOnChart = false,
   pinIncrements = {},
   repRecords = {},
   deloadHints = {},
@@ -244,6 +247,8 @@ export default function WorkoutForm({
   progressionHints?: Record<string, boolean>;
   returnLoadPct?: number;
   returnRpeCap?: number;
+  /** AF on his chart — silences the HRV readiness clause (server-derived). */
+  afOnChart?: boolean;
   pinIncrements?: Record<string, number>;
   /** exerciseId → reps → best kg at this gym. Drives the rep-record toast. */
   repRecords?: Record<string, Record<number, number>>;
@@ -372,9 +377,9 @@ export default function WorkoutForm({
   // suggestions and offers the rescue session instead — shrink, don't skip.
   useEffect(() => {
     let cancelled = false;
-    readReadiness().then((r) => { if (!cancelled && r) setReadiness(r); }).catch(() => {});
+    readReadiness({ afOnChart }).then((r) => { if (!cancelled && r) setReadiness(r); }).catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [afOnChart]);
 
   // The readiness verdict lands AFTER the overload seeds were applied at
   // build time. On a red-recovery morning the app that quiets try-more

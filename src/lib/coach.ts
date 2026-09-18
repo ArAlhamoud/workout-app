@@ -473,7 +473,7 @@ export function weeklyReport(
     if (effortCap < 4) {
       // The ramp is over but the chart is not: the cap does not lift at
       // ramp exit while AF / flecainide / hypertension stand (trainer).
-      nextSession.push(`Cap effort at ${RPE_LABELS[effortCap]} — no harder until the cardiologist clears it.`);
+      nextSession.push(`Cap effort at ${RPE_LABELS[effortCap]} — Grind stays off the table while AF or blood pressure is on your chart. Leave 1–2 reps in reserve.`);
     } else {
       nextSession.push('Leave 1–2 reps in reserve — Grind sets are a signal, not a goal.');
     }

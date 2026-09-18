@@ -55,7 +55,7 @@ export const DAY_B: DayTemplate = {
     { name: 'Back Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '75s', machine: 'Life Fitness (seated Back Extension)', cues: 'This is the SEATED machine, not a roman chair — you sit upright, not face-down. Set the back pad so it sits across your upper back / shoulder blades, and the seat so your hips sit at the machine pivot. Cross arms on your chest or hold the handles. Press BACKWARD by driving your hips down into the seat and squeezing your glutes — the movement is a hip extension, the spine stays neutral and travels as one piece. Push back 2s, hold 1s, return 3s under control, stopping before the stack touches down. Range: only as far back as you can go without your ribs flaring or your chin lifting. MISTAKE TO AVOID: cranking backward with the lower back to chase range — a shorter, controlled rep with the glutes doing the work is the whole point, and at your bodyweight the seated version is far kinder to your spine than a roman chair.', youtubeUrl: 'https://www.youtube.com/watch?v=gLT-WLH84B4', priority: 1 },
     { name: 'Lat Pulldown', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hammer Strength', cues: 'Grip just outside shoulder width — wider is NOT better. Lock thighs under the pad. BEFORE pulling: depress your shoulder blades (pull shoulders away from ears). Then pull the bar to your upper chest by driving elbows straight DOWN and BACK toward your hips. Lean back 10–15° naturally. Hold 1s at bottom with lats squeezed. Return with arms fully extending for a full lat stretch at the top. MISTAKE TO AVOID: leaning back 45°+ turns this into a row — keep the lean minimal and feel your lats, not your biceps.', youtubeUrl: 'https://www.youtube.com/watch?v=NYQ-o3ffxOc', priority: 1 },
     { name: 'Mid Row', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hoist ROC-IT', cues: 'Adjust seat so handles are at mid-abdomen height. Sit upright with a slight forward lean at the hips — chest up, not hunched. Neutral grip (palms facing each other). BEFORE pulling: depress and slightly retract shoulder blades. Then row by driving elbows past your torso — aim for 90° elbow angle at full contraction. Squeeze shoulder blades together hard and hold 1s. Return 3s to a full arm extension and feel the lats stretch. MISTAKE TO AVOID: shrugging shoulders up toward ears during the row — keep them down throughout.', youtubeUrl: 'https://www.youtube.com/watch?v=GZbfZ033f74', priority: 1 },
-    { name: 'Plank', sets: 3, repsMin: 20, repsMax: 30, unit: 'seconds', repsDisplay: '20–30s', rest: '45s', machine: 'Floor / mat', cues: "KNEE PLANK is the default at your bodyweight — or dead bugs, which are as good for the spine. Knees and forearms on the mat, elbows directly under shoulders, a straight line from knees to head. BREATHE: exhale slowly the whole hold, never hold your breath — a held breath under load spikes blood pressure. Squeeze glutes, draw the belly button toward the spine, push the floor away with the forearms. Hold 20–30 s and stop while the line is still straight; to progress, add a SET, not seconds. MISTAKE TO AVOID: the full toes-down plank at this bodyweight drags the pelvis into a tilt and loads the lumbar spine — it is a back test, not core work. Stay on the knees until the weight is well down.", youtubeUrl: 'https://www.youtube.com/watch?v=A2b2EmIg0dA', priority: 2 },
+    { name: 'Plank', sets: 3, repsMin: 20, repsMax: 30, unit: 'seconds', repsDisplay: '20–30s', rest: '45s', machine: 'Floor / mat', cues: "KNEE PLANK is the default at your bodyweight — or dead bugs, which are as good for the spine. Knees and forearms on the mat, elbows directly under shoulders, a straight line from knees to head. KEEP BREATHING — slow, steady breaths in and out for the whole hold, 4–6 breaths per 30 s. Never hold your breath: a held breath under load spikes blood pressure. Squeeze glutes, draw the belly button toward the spine, push the floor away with the forearms. Hold 20–30 s; to progress, add a SET, not seconds. MISTAKE TO AVOID: hips piked up, or hips sagging — the moment the hips drop, the set is over. And no toes-down plank yet: at this bodyweight it drags the pelvis into a tilt and loads the lumbar spine.", youtubeUrl: 'https://www.youtube.com/watch?v=A2b2EmIg0dA', priority: 2 },
     { name: 'Leg Curl', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness', cues: 'Adjust seat so your knee joint aligns with the machine pivot. Lie face down, pad resting just above the heels (lower Achilles area). Grip the handles. Curl legs fully — the pad should nearly touch your glutes. Squeeze hamstrings hard and hold 1s at peak. Return 3s — CRITICAL: let the weight fully extend and stretch the hamstrings at the bottom before the next rep. MISTAKE TO AVOID: letting hips lift off the pad means the weight is too heavy — keep hips pressed down the whole set.', youtubeUrl: 'https://www.youtube.com/watch?v=S367qaHeYWU', priority: 1 },
     { name: 'Bicep Curl', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Hammer Strength Select (or Life Fitness)', cues: 'Set the pad so your upper arms rest FLAT along it and your elbows align with the machine pivot. Palms up (supinated grip). Start from fully extended arms — feel the bicep stretch at the bottom. Curl until forearms go just past vertical, squeeze the bicep hard and hold 1s. Return 3s to FULL extension — never cut the range of motion short. MISTAKE TO AVOID: the whole point of the pad is to eliminate swinging — if your upper arms are lifting off the pad, you are cheating and the exercise is not working.', youtubeUrl: 'https://www.youtube.com/watch?v=fcziDNsUWPM', priority: 2 },
     { name: 'Triceps Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit facing the machine, upper arms resting on the pad. Grip handles with palms down, elbows shoulder-width — do NOT let them flare out. Start with forearms vertical (90° elbow angle). Press DOWN and FORWARD to FULL lockout at the bottom — full extension is required to fully contract the tricep. Hold 1s. Return 3s — this slow eccentric is the growth stimulus. MISTAKE TO AVOID: elbows drifting wide, and not fully locking out. Upper arms stay pinned to the pad throughout — only forearms move.', youtubeUrl: 'https://www.youtube.com/watch?v=fcziDNsUWPM', priority: 2 },
@@ -114,9 +114,10 @@ export function warmupWeight(workingKg: number, pin: number): number | null {
 
 // Capped at 30 s (trainer, 2026-09-18): at 126 kg a longer isometric is a
 // breath-held BP spike and a lumbar test. Progress by adding a set.
-export function getPlankTarget(week: number): { min: number; max: number } {
-  if (week <= 2) return { min: 20, max: 30 };
-  return { min: 30, max: 30 };
+export function getPlankTarget(_week: number): { min: number; max: number } {
+  // Same every week: he has never held past 21 s, and "progress by sets"
+  // means the seconds do not climb (trainer, 2026-09-18).
+  return { min: 20, max: 30 };
 }
 
 
@@ -674,7 +675,7 @@ export interface CardioOption {
 // Everything above the treadmill is non-impact — that is the whole ordering
 // principle, not preference.
 export const CARDIO: CardioOption[] = [
-  { rank: 1, name: 'Swimming', badge: 'BEST', desc: 'Zero joint impact. Highest calorie burn. 20–30 min any stroke. Not alone, and no breath-hold lengths, until the cardiologist clears it.', gyms: ['bfit'] },
+  { rank: 1, name: 'Swimming', badge: 'BEST', desc: 'Zero joint impact. Highest calorie burn. 20–30 min any stroke. Not alone, no breath-hold lengths, no cold pool or cold plunge — cold water is a known AF trigger — until the cardiologist clears it.', gyms: ['bfit'] },
   { rank: 2, name: 'Rowing', badge: 'GREAT', desc: 'Zero impact and the biggest burn on land — you are seated, so none of your bodyweight loads the knees or hips. FORM: legs drive first, then lean back, then pull; reverse it on the way in. Never round your lower back at the catch. 15–20 min steady.' },
   { rank: 3, name: 'Upright Bike', badge: 'GREAT', desc: 'No weight on joints. Best for warm-ups and cardio finishers.' },
   { rank: 4, name: 'Elliptical', badge: 'GOOD', desc: 'Low impact — distributes load across arms and legs.' },
@@ -688,21 +689,59 @@ export const CARDIO: CardioOption[] = [
  * so nothing here may ask for peak exertion until the cardiologist does.
  */
 export const CARDIO_RULE =
-  'Conversational pace only — you should be able to talk in full sentences — until the cardiologist clears harder work.';
+  'Conversational pace only — you should be able to talk in full sentences — while AF or an antiarrhythmic is on your chart.';
+
+/**
+ * What the chart says, read from the profile's own conditions list and the
+ * ACTIVE medications (adversary + trainer, 2026-09-18: "AFib" / "A-fib"
+ * missed the first regex, "no hypertension" matched it, and flecainide
+ * lives in Medication, not in conditions). Free text he edits himself, so:
+ *   - a negated or historical entry is skipped ("no …", "resolved",
+ *     "stopped", "ex-", "family history of", "pre…");
+ *   - anything that is not a list is treated as a list of one string.
+ * Nothing here diagnoses; it reads what he wrote.
+ */
+const NEGATED = /\b(no|not|never|resolved|stopped|ex|former|prior|history of|family|pre|prehypertens\w*)\b|\bex-|\bpre-|\bprehypertens/i;
+const AF_RX = /atrial|\ba-?fib\b|afib|fibrillat|flutter/i;
+const ARRHYTHMIA_RX = /arrhythm|tachycard|\bsvt\b|\bwpw\b/i;
+const HYPERTENSION_RX = /hypertens|high blood pressure|\bhigh bp\b|\bbp\b.*\bhigh\b|\bhbp\b/i;
+const CARDIAC_DRUG_RX = /flecainide|propafenone|amiodarone|sotalol|dronedarone|nebivolol|bisoprolol|metoprolol|atenolol|carvedilol|propranolol|beta.?blocker|\bnebilet\b|\bconcor\b/i;
+
+const asList = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : typeof v === 'string' ? [v] : [];
+const live = (entries: unknown): string[] => asList(entries).filter((c) => !NEGATED.test(c));
+
+/** AF on his chart — what silences the HRV readiness clause. */
+export function afOnChart(conditions: unknown): boolean {
+  return live(conditions).some((c) => AF_RX.test(c));
+}
 
 /**
  * The effort ceiling the CHART sets, independent of the ramp. AF, an
- * antiarrhythmic, or treated hypertension → Hard (3): a Grind set on a
- * machine is a breath-held Valsalva, exactly the pressure spike a
- * flecainide/AF/hypertension patient must not produce. The ramp's own
- * cap already sits at or below this; the point is that it does not LIFT
- * to 4 the week the ramp exits — which was the week of his cardiology
- * review (trainer, 2026-09-18). Reads the profile's conditions list,
- * which he maintains himself; nothing here diagnoses.
+ * arrhythmia, treated hypertension, or an active antiarrhythmic /
+ * beta-blocker → Hard (3): a Grind set on a machine is a breath-held
+ * Valsalva, exactly the pressure spike that patient must not produce. The
+ * ramp's own cap already sits at or below this; the point is that it does
+ * not LIFT to 4 the week the ramp exits — which was the week of his
+ * cardiology review (trainer, 2026-09-18). `medications` are the names of
+ * ACTIVE rows (stoppedOn null). Pass `'unknown'` when the chart could not
+ * be read: a medical cap fails closed.
  */
-export function effortCeiling(conditions: readonly string[] | null | undefined): 3 | 4 {
-  if (!conditions || !conditions.length) return 4;
-  return conditions.some((c) => /atrial|\baf\b|fibrillat|flecainide|arrhythm|hypertens/i.test(c)) ? 3 : 4;
+export function effortCeiling(
+  conditions: unknown,
+  medications: unknown = [],
+): 3 | 4 {
+  if (conditions === 'unknown' || medications === 'unknown') return 3;
+  const flagged =
+    live(conditions).some((c) => AF_RX.test(c) || ARRHYTHMIA_RX.test(c) || HYPERTENSION_RX.test(c)) ||
+    live(medications).some((m) => CARDIAC_DRUG_RX.test(m));
+  return flagged ? 3 : 4;
+}
+
+/** A timed hold never prefills past its ceiling — the 30 s plank cap is a
+ *  number, not a sentence (adversary, 2026-09-18). */
+export function clampTimedReps(reps: number, repsMin: number, repsMax: number): number {
+  return Math.min(Math.max(repsMin, reps), repsMax);
 }
 
 /** Cardio actually available in one building. */

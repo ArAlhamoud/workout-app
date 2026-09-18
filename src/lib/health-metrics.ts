@@ -398,7 +398,7 @@ export function hoursSince(iso: string | null | undefined): number | null {
  * clause; the resting-HR and sleep clauses still stand on their own.
  */
 export async function readReadiness(
-  options: { lastSessionISO?: string | null } = {},
+  options: { lastSessionISO?: string | null; afOnChart?: boolean } = {},
 ): Promise<ReadinessSignal | null> {
   if (!isNativeApp()) return null;
   const [rhr, sleepHours, hrv] = await Promise.all([
@@ -411,5 +411,8 @@ export async function readReadiness(
     sleepHours,
     hoursSinceLastSession: hoursSince(options.lastSessionISO),
     hrvRatio: hrv?.ratio ?? null,
+    // Shipped from the server page (the bridge has no profile): AF on the
+    // chart silences the HRV clause — see computeReadiness.
+    afOnChart: options.afOnChart === true,
   });
 }

@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import { readChart } from '@/lib/chart';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getActiveHold, getAllHolds, getBodyStats, getDailyHealthValues, getWorkouts } from '../actions';
@@ -335,16 +335,16 @@ function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; r
 }
 
 export default async function StatsPage() {
-  const [stats, workouts, holds, activeHold, profile] = await Promise.all([
+  const [stats, workouts, holds, activeHold, chart] = await Promise.all([
     getBodyStats(),
     getWorkouts(),
     getAllHolds(),
     getActiveHold(),
-    prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { conditions: true } }).catch(() => null),
+    readChart(),
   ]);
-  // The chart's effort ceiling: AF / flecainide / hypertension hold the cap
-  // at Hard after the ramp exits (trainer, 2026-09-18).
-  const effortCap = effortCeiling(profile?.conditions as string[] | null | undefined);
+  // The chart's effort ceiling: AF / antiarrhythmic / hypertension hold the
+  // cap at Hard after the ramp exits (trainer, 2026-09-18).
+  const effortCap = effortCeiling(chart.conditions, chart.medications);
 
   const latestWeight = [...stats].reverse().find((s) => s.weight !== null)?.weight ?? null;
   const firstWeight = stats.find((s) => s.weight !== null)?.weight ?? null;

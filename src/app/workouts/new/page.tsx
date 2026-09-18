@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import { readChart } from '@/lib/chart';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
@@ -17,7 +17,7 @@ import {
   queuedDay,
   type Duration,
   cleanRampSessionDates,
-  rampBaseBefore, effortCeiling } from '@/lib/program';
+  rampBaseBefore, effortCeiling, afOnChart } from '@/lib/program';
 
 export const metadata: Metadata = { title: 'Log Workout' };
 
@@ -44,17 +44,18 @@ export default async function NewWorkoutPage({
   // constant default gym, so making them wait behind the template math was
   // pure serial latency — worst exactly on the Neon-cold-resume open at the
   // gym. Only lastSession genuinely needs exerciseIds (below).
-  const [exercises, allWorkouts, personalRecords, repRecords, liveRow, profile] = await Promise.all([
+  const [exercises, allWorkouts, personalRecords, repRecords, liveRow, chart] = await Promise.all([
     getExercises(),
     getWorkouts(),
     getPersonalRecords(DEFAULT_GYM_ID),
     getRepRecords(DEFAULT_GYM_ID),
     getLiveSession(),
-    prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { conditions: true } }).catch(() => null),
+    readChart(),
   ]);
-  // The chart's effort ceiling (AF / flecainide / hypertension → Hard) holds
-  // after the ramp exits — the logger greys RPE above it either way.
-  const effortCap = effortCeiling(profile?.conditions as string[] | null | undefined);
+  // The chart's effort ceiling (AF / antiarrhythmic / hypertension → Hard)
+  // holds after the ramp exits — the logger greys RPE above it either way.
+  const effortCap = effortCeiling(chart.conditions, chart.medications);
+  const afFlag = afOnChart(chart.conditions);
   // A session in progress on the Watch opens HERE under its own day and
   // length — same rule as a draft from the other day (device-tester, Aug
   // 30): header and content must agree. Only a Watch-born session redirects;
@@ -135,6 +136,7 @@ export default async function NewWorkoutPage({
           exerciseId: ex.id,
           sets: te.sets,
           defaultReps: te.repsMin,
+          maxReps: te.repsMax,
           name: te.name,
           machine: te.machine,
           cues: te.cues,
@@ -322,6 +324,7 @@ export default async function NewWorkoutPage({
           return cap < 4 ? cap : undefined;
         })()}
         pinIncrements={pinIncrements}
+        afOnChart={afFlag}
         dayAccent={validDay}
       />
     </div>

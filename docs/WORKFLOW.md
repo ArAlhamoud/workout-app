@@ -145,6 +145,9 @@ shipped; the other two are pure UI and unstarted.
    now** (set 0 accepted when and only when `isWarmup` is true; the
    overlay matches a warm-up to the warm-up row), so the Mac side is
    just the slot and the flag.
+   → Also from 18 Sep: `rpeCap` can now be 3 with `loadPct` 100 (the chart's
+   effort ceiling, see docs/WATCH.md). Views.swift ~431 labels any cap
+   "Ramp target: ≤ …"; outside a ramp it should read "Ceiling: ≤ Hard".
    → **Known gaps, deliberately not closed here.** (a) The phone's
    working weight can be the Overload seed (+1 pin) or a plateau deload,
    neither of which `/api/watch/plan` models, so on an Overload session

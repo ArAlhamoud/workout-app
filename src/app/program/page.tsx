@@ -1,3 +1,4 @@
+import { readChart } from '@/lib/chart';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import {
@@ -8,6 +9,7 @@ import {
   BREAK_THRESHOLD_DAYS,
   CARDIO,
   CARDIO_RULE,
+  effortCeiling,
   gymLabel,
   isTrainingSession,
   WEEKLY_SESSION_TARGET,
@@ -130,11 +132,13 @@ const RPE_CAP_FLAG = [
 ] as const;
 
 export default async function ProgramPage() {
-  const [exercises, bodyStats, workouts] = await Promise.all([
+  const [exercises, bodyStats, workouts, chart] = await Promise.all([
     getExercises(),
     getBodyStats(),
     getWorkouts(),
+    readChart(),
   ]);
+  const chartCapsEffort = effortCeiling(chart.conditions, chart.medications) < 4;
   const exerciseIdByName = new Map(exercises.map((e) => [e.name, e.id]));
 
   // Where the lifter actually is this week
@@ -556,7 +560,7 @@ export default async function ProgramPage() {
       <CollapsibleSection title="Cardio Rankings">
         <div className="space-y-2">
           {/* The standing rule while his chart says AF on flecainide — one line, above every option (trainer, 2026-09-18). */}
-          <p className="mb-3 text-xs leading-relaxed text-acc-ember">{CARDIO_RULE}</p>
+          {chartCapsEffort && <p className="mb-3 text-xs leading-relaxed text-acc-ember">{CARDIO_RULE}</p>}
           {CARDIO.map((c) => (
             <div
               key={c.name}

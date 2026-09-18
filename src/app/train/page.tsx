@@ -1,3 +1,4 @@
+import { readChart } from '@/lib/chart';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getExercises, getLoggerMemory, getWorkouts } from '../actions';
@@ -10,8 +11,7 @@ import {
   isTrainingSession,
   rampBaseBefore,
   rampPrefillWeight,
-  DEFAULT_GYM_ID,
-} from '@/lib/program';
+  DEFAULT_GYM_ID, effortCeiling } from '@/lib/program';
 import { combineIncrement, learnPinIncrements, phaseForWeek } from '@/lib/coach';
 import CoachCard from '@/components/CoachCard';
 import VoltLetter from '@/components/VoltLetter';
@@ -181,7 +181,8 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
 export const metadata: Metadata = { title: 'Train' };
 
 export default async function TrainPage() {
-  const [workouts, exercises] = await Promise.all([getWorkouts(), getExercises()]);
+  const [workouts, exercises, chart] = await Promise.all([getWorkouts(), getExercises(), readChart()]);
+  const chartCapsEffort = effortCeiling(chart.conditions, chart.medications) < 4;
 
   // What his own log says to do today: train (alternating A/B), recover the
   // day after a session, or nothing at all because it's already logged.
@@ -268,6 +269,14 @@ export default async function TrainPage() {
       {/* ── Return Protocol — one ember line while the ramp runs; the
           slab and preview already carry the scaled targets, so the strip
           states the regime once and keeps the rules a tap away. */}
+      {/* After the ramp the chart still caps effort: say it once, where he
+          decides (trainer, 2026-09-18). The logger's RPE lock is the teeth. */}
+      {status.mode !== 'return' && chartCapsEffort && (
+        <p className="flex items-center gap-2 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">
+          <span className="h-2 w-2 flex-none bg-acc-ember-deep" aria-hidden="true" />
+          Effort ceiling · Hard · chart
+        </p>
+      )}
       {status.mode === 'return' && (
         <details className="group">
           <summary className="flex cursor-pointer select-none list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
