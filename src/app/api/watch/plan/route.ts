@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
       take: 60,
-      include: { sets: { select: { exerciseId: true, weight: true, reps: true, rpe: true, isWarmup: true } } },
+      include: { sets: { select: { exerciseId: true, weight: true, reps: true, rpe: true, isWarmup: true, allowedKg: true } } },
     }),
     // The chart's effort ceiling rides with the plan (rule 9: told, not
     // taught) — the wrist greys RPE above it exactly as the phone does.

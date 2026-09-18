@@ -4,7 +4,7 @@ import { pinMapFor } from '@/lib/coach';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { sanitizeLiveUpdate, setsMissingFrom, unionForFinish, type LiveSetUpdate, type LiveSource, dropRemovedSets } from '@/lib/live-session';
+import { sanitizeLiveUpdate, unionForFinish, type LiveSetUpdate, type LiveSource, dropRemovedSets, mergeCandidates } from '@/lib/live-session';
 import { ownerActivityDayUtc } from '@/lib/health-insights';
 import { closeLive, readLive, upsertLive } from '@/lib/live-store';
 import {
@@ -162,6 +162,17 @@ export async function createWorkout(data: {
     // first finisher's values. A plain outbox replay adds nothing. Read
     // and insert in ONE transaction so two overlapping replays cannot both
     // add the same set (steward).
+    // Everything that queries runs BEFORE the transaction opens: the live
+    // row (read regardless of closedAt — the first finisher closed it) and
+    // the ramp allowances (up to seven round-trips on the global client,
+    // which inside the tx held its connection against Prisma's 5 s
+    // timeout; steward). The transaction itself is read-then-insert only.
+    const priorRow = await prisma.workout.findUnique({
+      where: { clientSaveId: data.clientSaveId },
+      select: { gym: true },
+    });
+    const liveForMerge = priorRow ? await readLive(data.clientSaveId) : null;
+    const allowedForMerge = priorRow ? await rampAllowances(data.sets, priorRow.gym, data.name) : {};
     const merged = await prisma.$transaction(async (tx) => {
       const existing = await tx.workout.findUnique({
         where: { clientSaveId: data.clientSaveId },
@@ -169,12 +180,13 @@ export async function createWorkout(data: {
       });
       if (!existing) return null;
       const ok = await knownIds(data.sets);
-      const missing = setsMissingFrom(existing.sets, data.sets).filter((s) => ok.has(s.exerciseId));
+      // Minus anything the other device un-ticked after it was logged: the
+      // Watch re-posts everything it ever logged at finish (steward B1).
+      const missing = mergeCandidates(existing.sets, data.sets, liveForMerge?.sets).filter((s) => ok.has(s.exerciseId));
       if (missing.length) {
         // With the (workoutId, exerciseId, setNumber, isWarmup) unique index
-        // two overlapping finishers cannot both insert the same set; without
-        // it (schema not yet applied) this is a plain insert.
-        const allowed = await rampAllowances(missing, existing.gym, data.name);
+        // two overlapping finishers cannot both insert the same set.
+        const allowed = allowedForMerge;
         await tx.workoutSet.createMany({
           skipDuplicates: true,
           data: missing.map((s) => ({
@@ -207,12 +219,16 @@ export async function createWorkout(data: {
     // the poster's own live sets are never re-added (an un-tick whose
     // remove never reached the server must stay un-ticked).
     const live = await readLive(data.clientSaveId);
-    if (live && !live.closedAt && live.sets.length) {
+    if (live && live.sets.length) {
       // A set the OTHER device un-ticked after this one logged it is gone
       // for good — the Watch re-posts everything it ever logged at finish.
-      const union = unionForFinish(dropRemovedSets(data.sets, live.sets), live.sets, data.finishSource);
-      const ok = await knownIds(union);
-      data.sets = union.filter((s) => ok.has(s.exerciseId)) as typeof data.sets;
+      // Honoured whether or not the row is still open.
+      data.sets = dropRemovedSets(data.sets, live.sets) as typeof data.sets;
+      if (!live.closedAt) {
+        const union = unionForFinish(data.sets, live.sets, data.finishSource);
+        const ok = await knownIds(union);
+        data.sets = union.filter((s) => ok.has(s.exerciseId)) as typeof data.sets;
+      }
     }
   }
   // Same guard for the HKWorkout identity: without it a re-save under a
@@ -339,13 +355,22 @@ async function rampAllowances(
 ): Promise<Record<string, number | null>> {
   const out: Record<string, number | null> = {};
   if (name.startsWith('Rescue')) return out;
-  const { status, cut, pinFor } = await rampSnapshot();
-  if (status.mode !== 'return' || status.returnWeek.loadPct >= 100) return out;
-  const ids = [...new Set(sets.filter((s) => !s.isWarmup).map((s) => s.exerciseId))];
-  const memory = await getLoggerMemory(ids, gym ?? DEFAULT_GYM_ID, cut);
-  for (const id of ids) {
-    const m = memory[id];
-    out[id] = m && m.weight > 0 ? allowedRampKg(m, status.returnWeek.loadPct, pinFor(id)) : null;
+  // Never blocks a save: null means "judged on effort alone", which is the
+  // fallback the design already accepts for historical rows. A column not
+  // yet applied, a cold Neon, a transient error — the workout still lands
+  // (steward, 2026-09-18).
+  try {
+    const { status, cut, pinFor } = await rampSnapshot();
+    if (status.mode !== 'return' || status.returnWeek.loadPct >= 100) return out;
+    const ids = [...new Set(sets.filter((s) => !s.isWarmup).map((s) => s.exerciseId))];
+    const memory = await getLoggerMemory(ids, gym ?? DEFAULT_GYM_ID, cut);
+    for (const id of ids) {
+      const m = memory[id];
+      out[id] = m && m.weight > 0 ? allowedRampKg(m, status.returnWeek.loadPct, pinFor(id)) : null;
+    }
+  } catch (e) {
+    console.warn('rampAllowances: skipped —', e instanceof Error ? e.message : e);
+    return {};
   }
   return out;
 }

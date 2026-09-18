@@ -139,6 +139,21 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   as planned baseline; re-posting corrects.
 - Daily check-in: body → heart → extras. ~5 seconds.
 
+## Pipe limits (2026-09-18)
+
+- `/api/health/bp` and `/api/health/af` `remove` windows are at most seven
+  days; a wider window is reported in `skipped`, never applied. One POST
+  could otherwise erase the whole table.
+- `/api/health/profile` refuses an empty array for `conditions`,
+  `familyHistory` or `investigations` unless the body also carries
+  `clear: true` — the family-history line the cardiologist needs exists
+  nowhere else.
+- A manual BP log within five minutes of an identical reading (same
+  systolic/diastolic — an import, or a second tap) fills that reading's
+  blanks (pulse, context) instead of adding a twin. A genuinely repeated
+  reading five minutes apart is the home-monitor protocol; one row is the
+  honest count.
+
 ## The one static safety line
 
 Two or more severity-3 logs of vomiting / abdominal pain / dizziness

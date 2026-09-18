@@ -182,6 +182,22 @@ export function unionForFinish<T extends { exerciseId: string; setNumber: number
   return [...posted, ...extra];
 }
 
+/**
+ * The second finisher's contribution, minus anything the OTHER device
+ * removed after it was logged: posted sets the saved workout lacks, by
+ * key, filtered through the live row's tombstones. The first finisher
+ * closes the row, so this must read the row regardless of closedAt — the
+ * un-ticked set came back through exactly this path (steward, 2026-09-18).
+ */
+export function mergeCandidates<T extends { exerciseId: string; setNumber: number; isWarmup?: boolean; completedAt?: string | null }>(
+  saved: Array<{ exerciseId: string; setNumber: number; isWarmup?: boolean }>,
+  posted: T[],
+  live: LiveSet[] | null | undefined,
+): T[] {
+  const missing = setsMissingFrom(saved, posted);
+  return live && live.length ? dropRemovedSets(missing, live) : missing;
+}
+
 /** The second finisher's contribution: posted sets the saved workout lacks, by key. */
 export function setsMissingFrom<T extends { exerciseId: string; setNumber: number; isWarmup?: boolean }>(
   saved: Array<{ exerciseId: string; setNumber: number; isWarmup?: boolean }>,

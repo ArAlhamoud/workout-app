@@ -1,5 +1,6 @@
 'use client';
 
+import { visibleSets } from '@/lib/live-session';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -45,7 +46,7 @@ export default function WorkoutDraftBanner() {
     getLiveSession()
       .then((row) => {
         if (cancelled) return;
-        setWatchLive(row && row.source === 'watch' ? { day: row.day, dur: row.durationMin, sets: row.sets.length } : null);
+        setWatchLive(row && row.source === 'watch' ? { day: row.day, dur: row.durationMin, sets: visibleSets(row.sets).length } : null);
       })
       .catch(() => { if (!cancelled) setWatchLive(null); });
     return () => { cancelled = true; };

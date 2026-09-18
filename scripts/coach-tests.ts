@@ -50,7 +50,7 @@ import {
   type DynamicPlan,
   type LoggedSession,
 } from '../src/lib/program';
-import { isLiveFresh, liveKey, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, setsMissingFrom, unionForFinish, visibleSets, dropRemovedSets, type OverlaySet } from '../src/lib/live-session';
+import { isLiveFresh, liveKey, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, setsMissingFrom, unionForFinish, visibleSets, dropRemovedSets, mergeCandidates, type OverlaySet } from '../src/lib/live-session';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
@@ -2453,6 +2453,13 @@ console.log('Tier 2 — live tombstones');
   assert(ovA.blocks[0].sets[0].done === false, 'a newer tombstone un-ticks the local set');
   const ovB = overlayLiveSets([{ exerciseId: 'lat', sets: [mk(1, { done: true, completedAt: at(9) }), mk(2)] }], s2, (id) => ({ exerciseId: id, sets: [] }));
   assert(ovB.blocks[0].sets[0].done === true, 'a local tick newer than the tombstone stays');
+  // The MERGE path (second finisher after the row is closed): the Watch
+  // re-posts set 1, which the phone un-ticked at :05 — it must not come back.
+  const savedByPhone = [{ exerciseId: 'lat', setNumber: 2 }];
+  const watchFinish = [{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 40, completedAt: at(0) }, { exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, completedAt: at(2) }, { exerciseId: 'lat', setNumber: 3, reps: 10, weight: 40, completedAt: at(3) }];
+  const cand = mergeCandidates(savedByPhone, watchFinish, s2);
+  assert(cand.length === 1 && cand[0].setNumber === 3, `the merge adds only set 3 — set 2 is saved, set 1 was removed (got ${cand.map((c) => c.setNumber).join(',')})`);
+  assert(mergeCandidates(savedByPhone, watchFinish, null).length === 2, 'with no live row the merge falls back to plain missing-by-key');
   // Tombstones count toward the cap but never past it; sanitizer still refuses a bare set 0 remove.
   assert(sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 2, remove: true }, 'phone') !== null, 'remove still passes the sanitizer');
 }

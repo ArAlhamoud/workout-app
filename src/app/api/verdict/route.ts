@@ -22,7 +22,7 @@ export async function GET(request: Request) {
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
       // sets feed cleanRampSessionDates — the Earned Ramp needs effort data.
-      select: { date: true, name: true, gym: true, duration: true, sets: { select: { rpe: true, isWarmup: true, exerciseId: true, weight: true } } },
+      select: { date: true, name: true, gym: true, duration: true, sets: { select: { rpe: true, isWarmup: true, exerciseId: true, weight: true, allowedKg: true } } },
       take: 400,
     }),
     prisma.hold.findMany({ select: { startsAt: true, endsAt: true } }),
