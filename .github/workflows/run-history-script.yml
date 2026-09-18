@@ -45,6 +45,16 @@ jobs:
           esac
           test -f "scripts/${{ inputs.script }}"
 
+      - name: Refuse a script that has no dry run
+        # The contract ("scripts default to dry-run and accept --apply") was a
+        # comment, not a check: backfill-gym.js and add-missing-exercises.js
+        # WROTE on the "preview" step (data-steward, 2026-09-18).
+        run: |
+          if ! grep -q -- '--apply' "scripts/${{ inputs.script }}"; then
+            echo "::error::scripts/${{ inputs.script }} never reads --apply, so its 'preview' would write. Refusing."
+            exit 1
+          fi
+
       - name: Preview (dry run)
         run: node "scripts/${{ inputs.script }}"
         env:
