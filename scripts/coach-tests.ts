@@ -2498,5 +2498,52 @@ console.log('Tier 3 — progress compares to the last full-load row');
   assert(lastFullLoad([], null) === undefined, 'no history, no figure');
 }
 
+// ── Week 4 of the ramp: one machine's 100% session must not null the cut for the others ──
+console.log('Ramp cut — week 4 (adversary, 2026-09-18)');
+{
+  const sess = (date: string, name: string, w: number) => ({
+    date: day(date + 'T00:00:00Z'), name, gym: 'bfit', duration: 2400,
+    sets: [1, 2, 3, 4, 5, 6].map(() => ({ rpe: 2, isWarmup: false, weight: w, exerciseId: 'lat' })),
+  });
+  const pre = [
+    sess('2026-05-10', 'Day B 30m — May 10', 26), sess('2026-05-13', 'Day A 45m — May 13', 0),
+    sess('2026-05-19', 'Day B 45m — May 19', 40), sess('2026-05-23', 'Day A 45m — May 23', 0),
+    sess('2026-05-30', 'Day B 45m — May 30', 40), sess('2026-06-16', 'Day A 30m — Jun 16', 0),
+  ];
+  const ramp = [
+    sess('2026-09-01', 'Day B — Sep 1', 24), sess('2026-09-04', 'Day A — Sep 4', 0),
+    sess('2026-09-08', 'Day B — Sep 8', 28), sess('2026-09-11', 'Day A — Sep 11', 0),
+    sess('2026-09-15', 'Day B — Sep 15', 32), sess('2026-09-18', 'Day A — Sep 18', 0),
+  ];
+  const cutOn = (rows: ReturnType<typeof sess>[], now: Date) => {
+    const training = rows.filter((w) => isTrainingSession(w));
+    const clean = cleanRampSessionDates(training);
+    const status = getTrainingStatus(training.map((w) => w.date), now, clean);
+    return { status, cut: rampBaseBefore(training, clean, now) };
+  };
+  const before = cutOn([...pre, ...ramp], day('2026-09-22T00:00:00Z'));
+  assert(before.status.mode === 'return' && before.status.returnWeek.loadPct === 100, `week 4 at 100% (got ${before.status.mode} ${before.status.mode === 'return' ? before.status.returnWeek.loadPct : ''})`);
+  assert(before.cut === day('2026-09-01T00:00:00Z').toISOString(), `before the first week-4 session the cut is the first ramp session (got ${before.cut})`);
+  const after = cutOn([...pre, ...ramp, sess('2026-09-22', 'Day A — Sep 22', 0)], day('2026-09-23T00:00:00Z'));
+  assert(after.status.mode === 'return', 'one week-4 session does not end the ramp');
+  assert(after.cut === day('2026-09-01T00:00:00Z').toISOString(), `Day A at 100% keeps the cut for Day B's machines — Lat Pulldown still reads 40, not its 85% row (got ${after.cut})`);
+  const latHist = [
+    { date: day('2026-05-19T00:00:00Z'), maxWeight: 40 }, { date: day('2026-05-30T00:00:00Z'), maxWeight: 40 },
+    { date: day('2026-09-01T00:00:00Z'), maxWeight: 24 }, { date: day('2026-09-15T00:00:00Z'), maxWeight: 32 },
+  ];
+  assert(lastFullLoad(latHist, after.cut)?.maxWeight === 40, 'the progress tile compares to 40 the morning after');
+  const done = cutOn([...pre, ...ramp, sess('2026-09-22', 'Day A — Sep 22', 0), sess('2026-09-25', 'Day B — Sep 25', 40)], day('2026-09-27T00:00:00Z'));
+  assert(done.status.mode === 'normal', `two week-4 sessions finish the ramp (got ${done.status.mode})`);
+  assert(done.cut === day('2026-09-01T00:00:00Z').toISOString(), 'the cut stands until a session is logged OUTSIDE the block — a machine skipped in week 4 must not read its 85% row');
+  const later = cutOn([...pre, ...ramp, sess('2026-09-22', 'Day A — Sep 22', 0), sess('2026-09-25', 'Day B — Sep 25', 40), sess('2026-09-29', 'Day A — Sep 29', 0)], day('2026-09-30T00:00:00Z'));
+  assert(later.cut === null, 'the first normal-mode session clears it — plain memory is right again');
+  // A rescue logged in normal mode is 60% by construction and never a base.
+  const rescue = cutOn([
+    sess('2026-08-01', 'Day B 45m — Aug 1', 40), sess('2026-08-05', 'Day A 45m — Aug 5', 0),
+    sess('2026-08-09', 'Day B 45m — Aug 9', 42.5), sess('2026-08-13', 'Rescue 15m — Aug 13', 25),
+  ], day('2026-08-15T00:00:00Z'));
+  assert(rescue.status.mode === 'normal' && rescue.cut === day('2026-08-13T00:00:00Z').toISOString(), `outside a ramp a trailing rescue is still cut out of memory (got ${rescue.status.mode} ${rescue.cut})`);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

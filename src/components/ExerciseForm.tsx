@@ -25,13 +25,13 @@ export default function ExerciseForm({ categories }: { categories: string[] }) {
   return (
     <form onSubmit={handleSubmit} className="card-lg p-4">
       <p className="section-label mb-3">Add Exercise</p>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Exercise name..."
-          className={`flex-1 min-w-0 ${inputCls}`}
+          className={`flex-1 min-w-[140px] ${inputCls}`}
         />
         <select
           value={category}

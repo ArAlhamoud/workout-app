@@ -748,8 +748,15 @@ export function rampBaseBefore(
     const cleanBefore = cleanDates.filter((d) => new Date(d).getTime() < s.date.getTime());
     const at = getTrainingStatus(before, s.date, cleanBefore);
     const scaled = s.name.startsWith('Rescue') || (at.mode === 'return' && at.returnWeek.loadPct < 100);
-    if (!scaled) return firstScaled ? firstScaled.toISOString() : null;
-    firstScaled = s.date;
+    // A RESTORE-week (100%) session is full-load for the machines it
+    // touched, but it must not end the walk: the other day's machines are
+    // still on their 85% rows, and a null cut would hand them that row as
+    // memory — the Day B logger at week 4 opening at week-3 weights
+    // (adversary, 2026-09-18). Keep walking until a session logged OUTSIDE
+    // the ramp block.
+    const inBlock = at.mode === 'return' && at.returnWeek.loadPct >= 100;
+    if (!scaled && !inBlock) return firstScaled ? firstScaled.toISOString() : null;
+    if (scaled) firstScaled = s.date;
   }
   return firstScaled ? firstScaled.toISOString() : null;
 }

@@ -336,7 +336,10 @@ async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: 
   const training = rows.filter((w) => isTrainingSession(w));
   const clean = cleanRampSessionDates(training);
   const status = getTrainingStatus(training.map((w) => w.date), new Date(), clean);
-  const cut = status.mode === 'return' ? rampBaseBefore(training, clean) : undefined;
+  // No mode gate: outside a ramp rampBaseBefore is null unless the latest
+  // sessions are Rescues, which are 60% by construction and never a base
+  // (adversary, 2026-09-18) — memory then reads from before them.
+  const cut = rampBaseBefore(training, clean);
   // Pins are a property of ONE building's stacks (rules 2 and 4) — the
   // session's own, exactly as the Watch plan learns them.
   const pinFor = pinMapFor(training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym) as never, exercises);

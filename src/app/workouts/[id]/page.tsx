@@ -151,7 +151,7 @@ export default async function WorkoutDetailPage({
         </div>
         <DeleteButton
           workoutId={workout.id}
-          summary={totalVolume > 0 ? `${workout.sets.length} sets · ${kgCompact(totalVolume)} kg` : workout.duration ? formatDuration(workout.duration) : `${workout.sets.length} sets`}
+          summary={totalVolume > 0 ? `${workout.sets.length} sets · ${kgCompact(totalVolume)} kg` : workout.duration ? formatDuration(workout.duration) : `${workout.sets.filter((s) => !s.isWarmup).length} sets`}
         />
       </div>
 
@@ -163,9 +163,9 @@ export default async function WorkoutDetailPage({
       <div className="card-lg p-4">
         <div className="flex items-baseline gap-2.5">
           <span className="font-round text-3xl font-light tabular-nums glow-teal">
-            {totalVolume > 0 ? `${kgCompact(totalVolume)} kg` : workout.duration ? formatDuration(workout.duration) : `${workout.sets.length} sets`}
+            {totalVolume > 0 ? `${kgCompact(totalVolume)} kg` : workout.duration ? formatDuration(workout.duration) : `${workout.sets.filter((s) => !s.isWarmup).length} sets`}
           </span>
-          {previous && previous.volume > 0 && (() => {
+          {totalVolume > 0 && previous && previous.volume > 0 && (() => {
             const pct = Math.round(((totalVolume - previous.volume) / previous.volume) * 100);
             const up = pct > 0;
             const flat = pct === 0;

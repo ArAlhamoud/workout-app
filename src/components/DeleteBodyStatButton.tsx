@@ -10,7 +10,7 @@ export default function DeleteBodyStatButton({ statId }: { statId: string }) {
     <button
       onClick={() => startTransition(() => deleteBodyStat(statId))}
       disabled={pending}
-      className="text-app-tx3 hover:text-red-400 transition-colors text-sm disabled:opacity-40"
+      className="w-8 h-8 -mr-2 flex items-center justify-center text-app-tx3 hover:text-red-400 transition-colors text-sm disabled:opacity-40"
     >
       {pending ? '…' : '×'}
     </button>

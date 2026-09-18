@@ -228,7 +228,7 @@ export default async function ProgramPage() {
             {/* The load and session tiles below carry the numbers; prose lives one tap away */}
             <Details label="More" className="mt-1">
               <p className="text-[11px] leading-relaxed text-app-tx3">
-                Of pre-break weights — nothing heavier, nothing longer.
+                Percentages are of pre-break weights. Nothing heavier, nothing longer.
               </p>
               <p className="mt-1 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
             </Details>
@@ -350,7 +350,7 @@ export default async function ProgramPage() {
 
       {/* Day A */}
       <CollapsibleSection title="Day A" badge={DAY_A.focus} defaultOpen>
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3">
           <Link
             href="/workouts/new?day=A&dur=45"
             className={`px-4 py-2 rounded-card text-sm font-bold transition-all pressable ${dayAccent.A.start}`}
@@ -414,7 +414,7 @@ export default async function ProgramPage() {
 
       {/* Day B */}
       <CollapsibleSection title="Day B" badge={DAY_B.focus} defaultOpen>
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3">
           <Link
             href="/workouts/new?day=B&dur=45"
             className={`px-4 py-2 rounded-card text-sm font-bold transition-all pressable ${dayAccent.B.start}`}
