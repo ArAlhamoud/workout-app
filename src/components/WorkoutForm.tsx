@@ -684,7 +684,13 @@ export default function WorkoutForm({
     for (const key of liveSnapRef.current.keys()) {
       if (!current.has(key)) {
         const [exerciseId, n] = key.split('#');
-        updates.push({ exerciseId, setNumber: Number(n), remove: true });
+        // Stamped HERE, at the un-tick: a tombstone stamped on arrival
+        // (0.4 s debounce + gym LTE) beat his own re-tick a second later
+        // and dropped the set from history (adversary pass 4). Warm-ups
+        // travel as set 0 with the flag — `Number('w')` was NaN and the
+        // sanitizer dropped the removal, so a Watch warm-up came back.
+        const isWarmup = n === 'w';
+        updates.push({ exerciseId, setNumber: isWarmup ? 0 : Number(n), isWarmup, remove: true, completedAt: new Date().toISOString() });
       }
     }
     if (!updates.length) return;

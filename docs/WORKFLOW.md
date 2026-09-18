@@ -148,6 +148,11 @@ shipped; the other two are pure UI and unstarted.
    → Also from 18 Sep: `rpeCap` can now be 3 with `loadPct` 100 (the chart's
    effort ceiling, see docs/WATCH.md). Views.swift ~431 labels any cap
    "Ramp target: ≤ …"; outside a ramp it should read "Ceiling: ≤ Hard".
+   → And (2026-09-18, adversary): rating a set on the wrist re-posts it
+   with `completedAt = now` (SessionStore.swift ~197/389). A later stamp
+   beats a phone-side removal of that set (tombstones, docs/WATCH.md), so
+   an un-ticked set comes back when he rates it. Keep the ORIGINAL log
+   time on a rating re-post; only a genuine re-log gets a new stamp.
    → **Known gaps, deliberately not closed here.** (a) The phone's
    working weight can be the Overload seed (+1 pin) or a plateau deload,
    neither of which `/api/watch/plan` models, so on an Overload session

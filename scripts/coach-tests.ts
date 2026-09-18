@@ -2369,7 +2369,7 @@ console.log('Tier 1b — chip + over-ramp');
   assert(allowedRampKg({ weight: 36, rpe: 1 }, 85, 7.5) === 36, 'one pin past pre-break before RESTORE is never allowed');
   assert(allowedRampKg({ weight: 40, rpe: 2 }, 60, 7) === 28, 'Lat Pulldown Med 40 at 60% on 7 kg pins: prescribed 21, allowed 28');
   assert(allowedRampKg({ weight: 40, rpe: 2 }, 100, 7) === null && allowedRampKg({ weight: 0 }, 60, 7) === null, 'no allowance at 100% or with no base');
-  assert(allowedRampKg({ weight: 27, rampHold: true }, 60, 9) === 27, 'a held machine (no pre-break record) is allowed its own weight');
+  assert(allowedRampKg({ weight: 27, rampHold: true }, 60, 9) === 36, 'a held machine is allowed the Overload prefill the logger itself gives it during a ramp — one pin up (adversary pass 4)');
   // The judge reads the set.
   const w = (exerciseId: string, weight: number, allowedKg: number | null, rpe: number | null = 1, isWarmup = false) => ({ exerciseId, weight, allowedKg, rpe, isWarmup });
   assert(isOverRamp([w('cp', 27, 22.5)])?.lifted === 27, 'lifted above the recorded allowance is over-ramp');
@@ -2399,6 +2399,15 @@ console.log('Tier 1b — chip + over-ramp');
     { date: '2026-07-21T00:00:00.000Z', gym: 'work', sets: [w('a', 12.5, 15), w('a', 12.5, 15)] },
   ]);
   assert(twoGyms.length === 2, 'two buildings on one day are two sessions');
+  // Keyed grouping: a bare-midnight row of day D sorts BEFORE a timestamped
+  // 00:59Z row of day D-1, so adjacency alone left day D's later rows
+  // ungrouped (adversary pass 4).
+  const keyed = rampSessionVerdicts([
+    { date: '2026-09-18T00:00:00.000Z', sets: [w('a', 20, 25), w('a', 20, 25)] },
+    { date: '2026-09-18T00:59:59.000Z', sets: [w('b', 40, 45), w('b', 40, 45)] },
+    { date: '2026-09-18T01:00:00.000Z', sets: [w('c', 60, 30), w('c', 60, 30)] },
+  ]);
+  assert(keyed.length === 2 && keyed.some((x) => x.overRamp?.exerciseId === 'c'), `rows of one day group by key, not adjacency (got ${keyed.length} groups)`);
   // Thursday, as it would be saved today: the server records what each set was allowed.
   const byName = new Map(data.exercises.map((e) => [e.name, e.id]));
   const set = (name: string, weight: number, allowed: number | null, rpe: number | null) => ({ exerciseId: byName.get(name)!, weight, reps: 10, rpe, isWarmup: false, allowedKg: allowed });
@@ -2460,6 +2469,13 @@ console.log('Tier 2 — live tombstones');
   const cand = mergeCandidates(savedByPhone, watchFinish, s2);
   assert(cand.length === 1 && cand[0].setNumber === 3, `the merge adds only set 3 — set 2 is saved, set 1 was removed (got ${cand.map((c) => c.setNumber).join(',')})`);
   assert(mergeCandidates(savedByPhone, watchFinish, null).length === 2, 'with no live row the merge falls back to plain missing-by-key');
+  // The client stamps a removal at the un-tick, so a same-device re-tick a second later wins.
+  const stampedRemove = sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 2, remove: true, completedAt: at(10) }, 'phone')!;
+  const afterRemove = mergeLiveSets([logged(2, 0, 'phone')], [stampedRemove]);
+  const reTicked = mergeLiveSets(afterRemove, [{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, completedAt: at(11), source: 'phone' } as never]);
+  assert(afterRemove[0].completedAt === at(10) && visibleSets(reTicked).length === 1, 'a client-stamped removal is dated at the un-tick and yields to the later re-tick');
+  const warmRemove = sanitizeLiveUpdate({ exerciseId: 'a', setNumber: 0, isWarmup: true, remove: true }, 'phone');
+  assert(warmRemove !== null && 'remove' in warmRemove && warmRemove.isWarmup === true, 'a warm-up removal passes as set 0 with the flag');
   // Tombstones count toward the cap but never past it; sanitizer still refuses a bare set 0 remove.
   assert(sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 2, remove: true }, 'phone') !== null, 'remove still passes the sanitizer');
 }

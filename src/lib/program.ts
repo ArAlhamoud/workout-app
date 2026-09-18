@@ -453,6 +453,11 @@ export function allowedRampKg(
 ): number | null {
   if (loadPct >= 100 || memory.weight <= 0) return null;
   const p = pin > 0 ? pin : 2.5;
+  // A held machine (no pre-break record) is the one place the logger
+  // applies Overload DURING a ramp so it does not sit frozen for four
+  // weeks: its allowance is that prefill, one pin above its weight
+  // (adversary pass 4).
+  if (memory.rampHold) return +(memory.weight + p).toFixed(2);
   const prescribed = rampPrefillWeight(memory, loadPct, p);
   return +Math.min(prescribed + p, Math.max(prescribed, memory.weight)).toFixed(2);
 }
@@ -519,15 +524,17 @@ export function rampSessionVerdicts(sessions: RampSession[]): RampVerdict[] {
   const rows = sessions
     .map((s) => ({ at: new Date(s.date), gym: s.gym ?? DEFAULT_GYM_ID, sets: s.sets ?? [] }))
     .sort((a, b) => a.at.getTime() - b.at.getTime());
-  const grouped: Array<{ at: Date; gym: string; sets: NonNullable<RampSession['sets']> }> = [];
+  // Keyed, not adjacency-based: a bare-midnight row sorts before a
+  // timestamped row of the previous activity day, so neighbours are not
+  // enough to find a day's rows (adversary pass 4).
+  const byKey = new Map<string, { at: Date; gym: string; sets: NonNullable<RampSession['sets']> }>();
   for (const r of rows) {
-    const last = grouped[grouped.length - 1];
-    if (last && sessionDayKey(last.at) === sessionDayKey(r.at) && last.gym === r.gym) {
-      last.sets = [...last.sets, ...r.sets];
-      continue;
-    }
-    grouped.push({ at: r.at, gym: r.gym, sets: [...r.sets] });
+    const k = `${sessionDayKey(r.at)}|${r.gym}`;
+    const g = byKey.get(k);
+    if (g) g.sets = [...g.sets, ...r.sets];
+    else byKey.set(k, { at: r.at, gym: r.gym, sets: [...r.sets] });
   }
+  const grouped = [...byKey.values()].sort((a, b) => a.at.getTime() - b.at.getTime());
   return grouped.map((s) => {
     const rated = s.sets.filter((x) => !x.isWarmup && x.rpe != null);
     const effortClean = rated.length >= 2 && rated.every((x) => (x.rpe as number) <= 2);

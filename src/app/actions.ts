@@ -172,7 +172,7 @@ export async function createWorkout(data: {
       select: { gym: true },
     });
     const liveForMerge = priorRow ? await readLive(data.clientSaveId) : null;
-    const allowedForMerge = priorRow ? await rampAllowances(data.sets, priorRow.gym, data.name) : {};
+    const allowedForMerge = priorRow ? await rampAllowances(data.sets, priorRow.gym, data.name, data.clientSaveId) : {};
     const merged = await prisma.$transaction(async (tx) => {
       const existing = await tx.workout.findUnique({
         where: { clientSaveId: data.clientSaveId },
@@ -319,20 +319,26 @@ export async function getLoggerMemory(
 
 /** Where the ramp stands right now, from judged rows: status, the pre-break
  *  cut-off, and the ONE pin map (judged home-gym rows + manual overrides). */
-async function rampSnapshot() {
-  const [rows, exercises] = await Promise.all([
+async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: string) {
+  const [allRows, exercises] = await Promise.all([
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
       take: 120,
-      select: { date: true, name: true, gym: true, duration: true, sets: { select: { rpe: true, isWarmup: true, exerciseId: true, weight: true, allowedKg: true } } },
+      select: { date: true, name: true, gym: true, duration: true, clientSaveId: true, sets: { select: { rpe: true, isWarmup: true, exerciseId: true, weight: true, allowedKg: true } } },
     }),
     prisma.exercise.findMany({ select: { id: true, pinIncrement: true } }),
   ]);
+  // The workout being merged into is NOT history for its own allowance:
+  // the first half must not step the ramp or become its own machine's
+  // memory (adversary pass 4).
+  const rows = excludeClientSaveId ? allRows.filter((w) => w.clientSaveId !== excludeClientSaveId) : allRows;
   const training = rows.filter((w) => isTrainingSession(w));
   const clean = cleanRampSessionDates(training);
   const status = getTrainingStatus(training.map((w) => w.date), new Date(), clean);
   const cut = status.mode === 'return' ? rampBaseBefore(training, clean) : undefined;
-  const pinFor = pinMapFor(training.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID) as never, exercises);
+  // Pins are a property of ONE building's stacks (rules 2 and 4) — the
+  // session's own, exactly as the Watch plan learns them.
+  const pinFor = pinMapFor(training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym) as never, exercises);
   return { status, cut, pinFor };
 }
 
@@ -352,6 +358,7 @@ async function rampAllowances(
   sets: Array<{ exerciseId: string; isWarmup?: boolean }>,
   gym: string | null | undefined,
   name: string,
+  excludeClientSaveId?: string,
 ): Promise<Record<string, number | null>> {
   const out: Record<string, number | null> = {};
   if (name.startsWith('Rescue')) return out;
@@ -360,7 +367,7 @@ async function rampAllowances(
   // yet applied, a cold Neon, a transient error — the workout still lands
   // (steward, 2026-09-18).
   try {
-    const { status, cut, pinFor } = await rampSnapshot();
+    const { status, cut, pinFor } = await rampSnapshot(gym ?? DEFAULT_GYM_ID, excludeClientSaveId);
     if (status.mode !== 'return' || status.returnWeek.loadPct >= 100) return out;
     const ids = [...new Set(sets.filter((s) => !s.isWarmup).map((s) => s.exerciseId))];
     const memory = await getLoggerMemory(ids, gym ?? DEFAULT_GYM_ID, cut);
