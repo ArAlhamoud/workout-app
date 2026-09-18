@@ -191,6 +191,12 @@ what he actually ate. Portions he does not state are estimated and the
 estimate is written into `notes`; asking for grams on every plate is the
 friction that stops the logging.
 
+**Friday has no planned meals (owner, 2026-09-18).** The subscription
+does not deliver on Friday, so there is no planned row to assume. A
+Friday is logged only from what he says he ate, meal by meal with
+estimated portions in `notes`; silence on a Friday means nothing was
+logged yet, not that a plan was eaten. Do not pre-log a Friday.
+
 **Kefir is a probiotic, not a protein source (owner, 2026-09-15).** He
 buys it for the gut, knows it carries ~5 g of protein a bottle, and has
 been told three times that Greek yoghurt would carry more. Log it and
