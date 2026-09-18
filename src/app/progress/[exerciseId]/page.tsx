@@ -19,13 +19,14 @@ export default async function ProgressPage({
   const result = await getExerciseHistory(params.exerciseId, gym);
   if (!result) notFound();
 
-  const { exercise, history, pr, totalSessions } = result;
+  const { exercise, history, pr, totalSessions, latestWeight } = result;
   const colorClass = CATEGORY_BADGE[exercise.category] ?? 'text-app-tx2 bg-app-surface2 border-app-border';
 
-  const latestWeight = history.at(-1)?.maxWeight ?? 0;
   const firstWeight = history[0]?.maxWeight ?? 0;
   const improvement =
-    firstWeight > 0 ? Math.round(((latestWeight - firstWeight) / firstWeight) * 100) : 0;
+    firstWeight > 0 && latestWeight !== null
+      ? Math.round(((latestWeight - firstWeight) / firstWeight) * 100)
+      : null;
 
   return (
     <div className="space-y-4">
@@ -67,8 +68,8 @@ export default async function ProgressPage({
           <div className="metric-label">Sessions</div>
         </div>
         <div className="card p-3.5 text-center">
-          <div className={`text-xl font-light font-round tabular-nums ${improvement > 0 ? 'glow-teal' : 'text-app-tx3'}`}>
-            {firstWeight > 0 ? `${improvement > 0 ? '+' : ''}${improvement}%` : '—'}
+          <div className={`text-xl font-light font-round tabular-nums ${improvement !== null && improvement > 0 ? 'glow-teal' : 'text-app-tx3'}`}>
+            {improvement !== null ? `${improvement > 0 ? '+' : ''}${improvement}%` : '—'}
           </div>
           <div className="metric-label">Improvement</div>
         </div>

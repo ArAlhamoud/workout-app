@@ -38,6 +38,7 @@ import {
   isTrainingSession,
   pickRampMemory,
   rampBaseBefore,
+  lastFullLoad,
   rampPrefillWeight,
   cleanRampSessionDates,
   rampContract,
@@ -2481,5 +2482,21 @@ console.log('Tier 2 — live tombstones');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────
+// ── Tier 3 — progress compares to the last FULL-LOAD row (review 3.6) ──
+console.log('Tier 3 — progress compares to the last full-load row');
+{
+  const rows = [
+    { date: day('2026-06-01T12:00:00Z'), maxWeight: 40 },
+    { date: day('2026-06-08T12:00:00Z'), maxWeight: 45 },
+    { date: day('2026-09-06T12:00:00Z'), maxWeight: 27 }, // ramp, 60%
+    { date: day('2026-09-12T12:00:00Z'), maxWeight: 32 }, // ramp, 70%
+  ];
+  const cut = day('2026-09-06T12:00:00Z').toISOString();
+  assert(lastFullLoad(rows, cut)?.maxWeight === 45, 'during a ramp the figure compares to the last pre-break row, not the scaled one');
+  assert(lastFullLoad(rows, null)?.maxWeight === 32, 'outside a ramp the latest row is the comparison');
+  assert(lastFullLoad(rows.slice(2), cut) === undefined, 'a machine first met during the ramp has nothing full-load to compare — the tile shows a dash, not −100%');
+  assert(lastFullLoad([], null) === undefined, 'no history, no figure');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

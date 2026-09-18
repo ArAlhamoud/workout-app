@@ -114,10 +114,6 @@ export function enqueueSaveIfAbsent(payload: OutboxPayload): Promise<boolean> {
   });
 }
 
-export async function outboxCount(): Promise<number> {
-  return (await readQueue(OUTBOX_KEY)).length;
-}
-
 export async function deadCount(): Promise<number> {
   return (await readQueue(DEAD_KEY)).length;
 }

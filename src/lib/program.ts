@@ -74,10 +74,6 @@ export function getExercisesForDuration(day: 'A' | 'B', duration: Duration): Pro
   return template.exercises.filter((e) => e.priority <= maxPriority);
 }
 
-export function getExerciseCountForDuration(day: 'A' | 'B', duration: Duration): number {
-  return getExercisesForDuration(day, duration).length;
-}
-
 // ── Warm-up sets ─────────────────────────────────────────────
 // The first two movements of a day get a ramp-in set at ~55% of the
 // working weight, floored to the machine's pin. Only the first two: by
@@ -676,16 +672,6 @@ export function rampContract(status: TrainingStatus, now: Date = new Date()): st
 }
 
 /**
- * Scales a pre-break weight down for the return ramp, floored to the
- * nearest 2.5 kg so it lands on a real pin rather than a decimal.
- */
-export function scaleReturnWeight(weight: number, loadPct: number): number {
-  if (weight <= 0) return 0;
-  if (loadPct >= 100) return weight; // full load returns the exact pre-break weight
-  return Math.max(2.5, Math.floor((weight * loadPct) / 100 / 2.5) * 2.5);
-}
-
-/**
  * Which memory a RAMP prefill scales. The percentage is "of pre-break
  * working weight" (RETURN_PROGRAM), so the machine's last PRE-BREAK
  * session is the base — never the previous ramp session, which is
@@ -766,6 +752,22 @@ export function rampBaseBefore(
     firstScaled = s.date;
   }
   return firstScaled ? firstScaled.toISOString() : null;
+}
+
+/**
+ * The row a progress figure compares to: the last session strictly before
+ * the ramp cut (rampBaseBefore), or the latest row when there is no cut.
+ * During a ramp the latest session is scaled by design, so "Improvement"
+ * against it read as a loss on every machine (review 3.6). undefined =
+ * every row is in-ramp; there is nothing full-load to compare.
+ */
+export function lastFullLoad<T extends { date: Date }>(history: T[], cut: string | null | undefined): T | undefined {
+  if (!cut) return history[history.length - 1];
+  const cutMs = new Date(cut).getTime();
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].date.getTime() < cutMs) return history[i];
+  }
+  return undefined;
 }
 
 // ── Gyms ─────────────────────────────────────────────────────

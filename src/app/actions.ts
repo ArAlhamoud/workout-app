@@ -15,6 +15,7 @@ import {
   pickRampMemory,
   rampBaseBefore,
   allowedRampKg,
+  lastFullLoad,
 } from '@/lib/program';
 
 /**
@@ -530,7 +531,17 @@ export async function getExerciseHistory(exerciseId: string, gym: string = DEFAU
   );
   const pr = history.reduce((m, h) => Math.max(m, h.maxWeight), 0);
 
-  return { exercise, history, pr, totalSessions: history.length };
+  // "Improvement" compares the last FULL-LOAD session to the first; a ramp
+  // session is scaled by design (rule 7). Never blocks the page.
+  let latestWeight: number | null = history[history.length - 1]?.maxWeight ?? null;
+  try {
+    const { cut } = await rampSnapshot(gym);
+    if (cut) latestWeight = lastFullLoad(history, cut)?.maxWeight ?? null;
+  } catch {
+    /* judged on the latest row */
+  }
+
+  return { exercise, history, pr, totalSessions: history.length, latestWeight };
 }
 
 // Body stats
@@ -604,30 +615,6 @@ export async function importHealthWorkout(input: {
   revalidatePath('/');
   revalidatePath('/stats');
   return { id: workout.id, created: true };
-}
-
-// Apple Health bridge
-export async function getHealthOverview(): Promise<{
-  lastWeightSync: Date | null;
-  samplesTotal: number;
-  enrichedWorkouts: number;
-}> {
-  const [lastWeight, samplesTotal, enrichedWorkouts] = await Promise.all([
-    prisma.healthSample.findFirst({
-      where: { type: 'weight' },
-      orderBy: { date: 'desc' },
-      select: { date: true },
-    }),
-    prisma.healthSample.count(),
-    prisma.workout.count({
-      where: { OR: [{ avgHr: { not: null } }, { activeKcal: { not: null } }] },
-    }),
-  ]);
-  return {
-    lastWeightSync: lastWeight?.date ?? null,
-    samplesTotal,
-    enrichedWorkouts,
-  };
 }
 
 // ── Wave 2 ───────────────────────────────────────────────────

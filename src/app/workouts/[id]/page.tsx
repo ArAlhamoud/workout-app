@@ -151,7 +151,7 @@ export default async function WorkoutDetailPage({
         </div>
         <DeleteButton
           workoutId={workout.id}
-          summary={`${workout.sets.length} sets · ${kgCompact(totalVolume)} kg`}
+          summary={totalVolume > 0 ? `${workout.sets.length} sets · ${kgCompact(totalVolume)} kg` : workout.duration ? formatDuration(workout.duration) : `${workout.sets.length} sets`}
         />
       </div>
 
@@ -163,7 +163,7 @@ export default async function WorkoutDetailPage({
       <div className="card-lg p-4">
         <div className="flex items-baseline gap-2.5">
           <span className="font-round text-3xl font-light tabular-nums glow-teal">
-            {kgCompact(totalVolume)} kg
+            {totalVolume > 0 ? `${kgCompact(totalVolume)} kg` : workout.duration ? formatDuration(workout.duration) : `${workout.sets.length} sets`}
           </span>
           {previous && previous.volume > 0 && (() => {
             const pct = Math.round(((totalVolume - previous.volume) / previous.volume) * 100);
