@@ -41,7 +41,7 @@ export default async function ExercisesPage() {
         <div className="card-lg p-10 text-center border-dashed">
           <p className="text-app-tx2 font-medium mb-1">No exercises yet</p>
           <p className="text-app-tx3 text-sm">
-            Add your first one above, or run <code className="text-acc-teal">npm run db:seed</code> to load defaults.
+            Add your first one above.
           </p>
         </div>
       ) : (

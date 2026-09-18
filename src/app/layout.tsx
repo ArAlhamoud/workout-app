@@ -30,7 +30,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: 'AR Health',
-  description: 'Track your 12-week fat loss program',
+  description: 'AR Health',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: '/icon-192.png',

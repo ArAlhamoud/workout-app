@@ -457,9 +457,9 @@ export function weeklyReport(
   const targetNum = parseInt(targetLabel, 10) || WEEKLY_SESSION_TARGET;
 
   // Sessions vs target
-  if (sessionsThisWeek >= targetNum) {
-    wins.push(`${sessionsThisWeek} session${sessionsThisWeek === 1 ? '' : 's'} this week — weekly target hit.`);
-  } else {
+  // The sessions count is a chip on the glance; the Full report does not
+  // repeat it (editor, 2026-09-18). Only the shortfall gets a line.
+  if (sessionsThisWeek < targetNum) {
     focus.push(`${sessionsThisWeek}/${targetLabel} sessions so far this week — schedule the next one.`);
   }
 
@@ -476,8 +476,7 @@ export function weeklyReport(
     // A +50% session on a deficit after a layoff is the overuse trigger, not
     // a win; above a quarter the honest read is "hold".
     if (pct >= 25) focus.push(`Volume per session up ${pct}% on last week — big jump; hold this level next week.`);
-    else if (pct >= 0) wins.push(`Volume per session up ${pct}% on last week.`);
-    else focus.push(`Volume per session down ${Math.abs(pct)}% on last week.`);
+    else if (pct < 0) focus.push(`Volume per session down ${Math.abs(pct)}% on last week.`);
   }
 
   // Plateaus
@@ -495,15 +494,16 @@ export function weeklyReport(
   let hardPct: number | null = null;
   if (effort.total >= 6) {
     hardPct = Math.round(effort.hardShare * 100);
+    // Hard+% is a chip; under a cap "sustainable" is the cap, not a win.
     if (effort.hardShare > 0.5) {
       focus.push(`${hardPct}% of rated sets in the last 4 weeks were Hard/Grind — dial one pin back where form slips.`);
-    } else {
-      wins.push(`Effort balance is sustainable — ${hardPct}% of rated sets were Hard/Grind.`);
     }
   }
 
   // Body-weight trend
   const trend = weightTrend(bodyStats, { returning: status.mode === 'return' });
+  // The kg/wk chip is only shown when there is room (numbers < 3), so the
+  // trend keeps its line either way.
   if (trend.classification === 'on_track') wins.push(trend.message);
   else if (trend.classification !== 'no_data') focus.push(trend.message);
 

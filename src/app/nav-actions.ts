@@ -44,12 +44,11 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
     const glances: Record<string, string> = {
       '/train': trainDays === 0 ? 'trained today' : `Day ${nextDay ?? 'A'} next`,
       '/workouts': `${sessionCount} sessions`,
-      '/exercises': `${exerciseCount} machines`,
+      '/exercises': `${exerciseCount} exercises`,
       '/health/plan': latestDose ? `${latestDose.doseMg} mg weekly` : 'set the plan',
       '/health/report': latestLab
         ? `labs ${latestLab.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
         : 'no labs yet',
-      ...(bpWeek < 3 ? { '/health/analytics': 'needs more days' } : {}),
       '/health/bp': latestBp ? `last ${latestBp.systolic}/${latestBp.diastolic}` : 'no reading yet',
       '/health/injection': latestInjection
         ? `last ${latestInjection.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`

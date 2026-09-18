@@ -13,9 +13,8 @@ export default async function HealthPlanPage() {
 
   return (
     <div className="space-y-4 pb-8">
-      <BackLink label="Health" />
+      <BackLink label="Home" />
       <div>
-        <p className="section-label text-acc-cyan/80">Everything here is yours to change</p>
         <h1 className="mt-0.5 font-round text-2xl font-bold tracking-tight text-app-tx1">
           Plan &amp; Profile
         </h1>

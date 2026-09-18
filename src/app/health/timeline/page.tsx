@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import BackLink from '@/components/BackLink';
 import prisma from '@/lib/prisma';
 import { getHealthData } from '../../health-actions';
-import { ownerTodayUtc, siteLabel } from '@/lib/health-insights';
+import { ownerTodayUtc, siteLabel, SYMPTOM_LABEL } from '@/lib/health-insights';
 
 export const metadata: Metadata = { title: 'Health Timeline' };
 export const dynamic = 'force-dynamic';
@@ -89,7 +89,7 @@ export default async function HealthTimelinePage() {
     ...data.symptoms.slice(0, 200).map((s) => ({
       at: new Date(s.at),
       kind: 'symptom' as const,
-      text: `${s.kind.replace('-', ' ')} ${SEVERITY_WORD[s.severity] ?? ''}`,
+      text: `${SYMPTOM_LABEL[s.kind] ?? s.kind.replace('-', ' ')} ${SEVERITY_WORD[s.severity] ?? ''}`,
       accent: ACCENTS.symptom,
     })),
     ...data.afEpisodes.map((e) => ({
@@ -151,7 +151,7 @@ export default async function HealthTimelinePage() {
 
   return (
     <div className="space-y-4 pb-8">
-      <BackLink label="Health" />
+      <BackLink label="Home" />
       <div>
         <p className="section-label text-acc-cyan/80">Everything on one axis</p>
         <h1 className="mt-0.5 font-round text-2xl font-bold tracking-tight text-app-tx1">

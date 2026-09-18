@@ -107,12 +107,8 @@ export default async function WorkoutDetailPage({
     <div className="space-y-4">
       {welcomeBack && (
         <div className="card-lg border-acc-teal/40 px-4 py-4 shadow-[0_0_44px_-14px_rgba(45,212,191,0.45)]">
-          <p className="glow-teal font-round text-lg font-bold">Welcome back. This is how it&apos;s done.</p>
-          <p className="text-app-tx2 text-sm mt-1">
-            {welcomeBack.gapDays} days away changed nothing that matters —
-            <b className="text-app-tx1"> {welcomeBack.sessions} sessions</b> and
-            <b className="text-app-tx1"> {welcomeBack.tonnageLabel}</b> are yours for good.
-            Showing up today is the whole game.
+          <p className="glow-teal font-round text-lg font-bold">
+            Welcome back · {welcomeBack.sessions} sessions · {welcomeBack.tonnageLabel}
           </p>
           {/* Never echo the reason back (editor): it was collected for the
               coach's context, and re-reading your own bad fortnight on a
@@ -276,11 +272,12 @@ export default async function WorkoutDetailPage({
           const maxRpe = workingSets.reduce((m, s) => (s.rpe && s.rpe > m ? s.rpe : m), 0);
           let next = maxWeight;
           let note = '';
-          if (maxRpe === 0)      { next = +(maxWeight + 2.5).toFixed(1); note = 'No RPE — try +2.5 kg'; }
-          else if (maxRpe === 1) { next = +(maxWeight + 5).toFixed(1);   note = 'Easy — add 5 kg'; }
-          else if (maxRpe === 2) { next = +(maxWeight + 2.5).toFixed(1); note = 'Medium — add 2.5 kg'; }
-          else if (maxRpe === 3) { next = maxWeight;                      note = 'Hard — hold weight'; }
-          else if (maxRpe === 4) { next = +(maxWeight - 2.5).toFixed(1); note = 'Grind — drop 2.5 kg'; }
+          // Pins, not kilograms (rule 4): the logger prefills the real step.
+          if (maxRpe === 0)      { next = maxWeight; note = 'Unrated — rate the last set next time'; }
+          else if (maxRpe === 1) { next = maxWeight; note = 'Easy — earn the pin: repeat, then one pin up'; }
+          else if (maxRpe === 2) { next = maxWeight; note = 'Medium — hold'; }
+          else if (maxRpe === 3) { next = maxWeight; note = 'Hard — hold'; }
+          else if (maxRpe === 4) { next = maxWeight; note = 'Grind — one pin down'; }
           targets.push({ name: sets[0].exercise.name, current: maxWeight, next, note });
         }
         if (!targets.length) return null;

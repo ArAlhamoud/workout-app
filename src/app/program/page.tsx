@@ -226,9 +226,6 @@ export default async function ProgramPage() {
             </div>
 
             {/* Coach voice — the directive keeps its single line; prose lives one tap away */}
-            <p className="mt-3 border-t border-ink/10 pt-3 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
-              <span className="glow-amber">We rebuild. We don&apos;t test.</span>
-            </p>
             <Details label="More" className="mt-1">
               <p className="text-[11px] leading-relaxed text-app-tx3">
                 Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
@@ -239,10 +236,6 @@ export default async function ProgramPage() {
 
             <div className="mt-3 flex border-t border-ink/10 pt-3">
               <div className="flex flex-1 flex-col gap-0.5">
-                <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.week}/4</b>
-                <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">ramp week</span>
-              </div>
-              <div className="flex flex-1 flex-col gap-0.5 border-l border-ink/10 pl-3.5">
                 <b className="font-round text-[15px] font-semibold tabular-nums text-app-tx1">{status.returnWeek.loadPct}%</b>
                 <span className="text-[9px] font-bold uppercase tracking-[0.11em] text-app-tx3">load cap</span>
               </div>
@@ -353,13 +346,12 @@ export default async function ProgramPage() {
             );
           })}
         </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-app-tx3">{plan.reason}</p>
+        {plan.mode !== 'train' && <p className="mt-2 text-[11px] leading-relaxed text-app-tx3">{plan.reason}</p>}
       </section>
 
       {/* Day A */}
       <CollapsibleSection title="Day A" badge={DAY_A.focus} defaultOpen>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-app-tx1 font-bold text-lg">{DAY_A.focus}</h2>
           <Link
             href="/workouts/new?day=A&dur=45"
             className={`px-4 py-2 rounded-card text-sm font-bold transition-all pressable ${dayAccent.A.start}`}
@@ -424,7 +416,6 @@ export default async function ProgramPage() {
       {/* Day B */}
       <CollapsibleSection title="Day B" badge={DAY_B.focus} defaultOpen>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-app-tx1 font-bold text-lg">{DAY_B.focus}</h2>
           <Link
             href="/workouts/new?day=B&dur=45"
             className={`px-4 py-2 rounded-card text-sm font-bold transition-all pressable ${dayAccent.B.start}`}
@@ -455,11 +446,6 @@ export default async function ProgramPage() {
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full border font-semibold uppercase tracking-wide ${pb.cls}`}>
                         {pb.label}
                       </span>
-                      {exId && (
-                        <Link href={`/progress/${exId}`} className={`text-xs text-app-tx3 transition-colors ${dayAccent.B.linkHover}`}>
-                          Progress &#8594;
-                        </Link>
-                      )}
                     </div>
                     <div className="text-app-tx3 text-xs mt-1">
                       {ex.machine} · {ex.rest} rest
@@ -596,121 +582,25 @@ export default async function ProgramPage() {
         </div>
       </CollapsibleSection>
 
-      {/* Your Profile */}
-      <CollapsibleSection title="Your Profile">
-
-        <div className="card overflow-hidden">
-          <div className="grid grid-cols-3 divide-x divide-app-border">
-            <div className="p-3 text-center">
-              <div className="glow-teal font-round font-light text-lg tabular-nums leading-tight">{latestWeight} kg</div>
-              <div className="metric-label">Weight</div>
-            </div>
-            <div className="p-3 text-center">
-              <div className="text-app-tx1 font-round font-light text-lg tabular-nums leading-tight">169 cm</div>
-              <div className="metric-label">Height</div>
-            </div>
-            <div className="p-3 text-center">
-              <div className="text-app-tx1 font-round font-light text-lg tabular-nums leading-tight">37 yrs</div>
-              <div className="metric-label">Age</div>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 divide-x divide-app-border border-t border-app-border">
-            <div className="p-3 text-center">
-              <div className="text-rpe-hard font-bold text-base">BMI 46</div>
-              <div className="metric-label">Class III</div>
-            </div>
-            <div className="p-3 text-center">
-              <div className="text-acc-teal font-bold text-base">Fat Loss</div>
-              <div className="metric-label">Goal</div>
-            </div>
-            <div className="p-3 text-center">
-              <div className="text-acc-cyan font-bold text-base">Desk</div>
-              <div className="metric-label">Lifestyle</div>
-            </div>
-          </div>
-          <div className="border-t border-app-border p-3">
-            <div className="text-app-tx2 text-xs text-center tabular-nums">
-              TDEE ~2,635 kcal · −600 kcal/day · −0.5–0.7 kg/wk
-            </div>
-            {weightChange !== null && weightChange < 0 && (
-              <div className="text-acc-teal text-xs text-center mt-1 font-semibold tabular-nums">
-                −{Math.abs(weightChange)} kg from start
-              </div>
-            )}
-            {weightChange !== null && weightChange >= 0 && firstWeight !== null && (
-              <div className="text-app-tx3 text-xs text-center mt-1">
-                Log weight in Stats to track progress
-              </div>
-            )}
-          </div>
-        </div>
-      </CollapsibleSection>
-
-      {/* Nutrition Guide */}
-      <CollapsibleSection title="Nutrition Guide">
-        <div className="card overflow-hidden">
-          <div className="p-4 border-b border-app-border">
-            <div className="flex items-baseline justify-between gap-2">
-              <div className="text-app-tx1 font-semibold text-sm">Calorie Target</div>
-              <div className="font-round font-light text-lg tabular-nums text-app-tx1">
-                ~2,050 <span className="text-xs text-app-tx3">kcal/day</span>
-              </div>
-            </div>
-            <Details label="More" className="mt-1">
-              <p className="text-app-tx2 text-xs">
-                Calculated from your TDEE (2,635) minus a 600 kcal deficit
-              </p>
-            </Details>
-          </div>
-          <div className="p-4 border-b border-app-border">
-            <div className="text-app-tx1 font-semibold text-sm mb-3">Daily Macros</div>
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-acc-violet-deep/10 rounded-lg p-3 border border-acc-violet/30">
-                <div className="glow-violet font-round font-light text-lg tabular-nums">185g</div>
-                <div className="metric-label">Protein</div>
-                <div className="text-app-tx3 text-xs">740 kcal</div>
-              </div>
-              <div className="bg-acc-cyan/[0.07] rounded-lg p-3 border border-acc-cyan/30">
-                <div className="glow-cyan font-round font-light text-lg tabular-nums">180g</div>
-                <div className="metric-label">Carbs</div>
-                <div className="text-app-tx3 text-xs">720 kcal</div>
-              </div>
-              <div className="bg-rpe-easy/[0.07] rounded-lg p-3 border border-rpe-easy/30">
-                <div className="text-rpe-easy font-round font-light text-lg tabular-nums [text-shadow:0_0_18px_rgba(52,211,153,0.5)]">65g</div>
-                <div className="metric-label">Fat</div>
-                <div className="text-app-tx3 text-xs">585 kcal</div>
-              </div>
-            </div>
-          </div>
-          <details className="group p-4 border-b border-app-border">
-            <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
-              <span className="text-app-tx1 font-semibold text-sm">Rules · 6</span>
-              <Chevron className="text-app-tx3" />
-            </summary>
-            <ul className="mt-2 space-y-1.5 text-app-tx2 text-xs">
-              <li>· Protein at every meal — chicken, eggs, Greek yogurt, legumes, cottage cheese</li>
-              <li>· Vegetables fill half the plate — non-negotiable</li>
-              <li>· Eat within 60 min after each workout (prioritise protein)</li>
-              <li>· Limit ultra-processed foods — not zero, just not daily</li>
-              <li>· Drink 3–4 L water/day (higher at your bodyweight)</li>
-              <li>· Don&apos;t eat back gym calories — deficit is already moderate</li>
-            </ul>
-          </details>
-          <details className="group p-4">
+      {/* Joint-First — the only part of the old "Nutrition Guide" that was
+          training. The hard-coded Profile (BMI 46, "Class III", a 2,635 TDEE)
+          and the second target set (2,050 kcal / 185 g protein) contradicted
+          the Diet store the panel set and printed a diagnostic class the app
+          does not own (editor + HEALTH.md law 3, 2026-09-18). */}
+      <CollapsibleSection title="Joint-First">
+          <details className="group card p-4">
             <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
               <span className="text-app-tx1 font-semibold text-sm">Joint-First · 6</span>
               <Chevron className="text-app-tx3" />
             </summary>
             <ul className="mt-2 space-y-1.5 text-app-tx2 text-xs">
               <li>· All exercises are machine-based — no free-weight barbell loading on joints</li>
-              <li>· Back Extension: neutral spine only — do NOT hyperextend at the top, squeeze glutes instead</li>
               <li>· Avoid treadmill running — walking only at 4–5 km/h, low incline</li>
               <li>· Swimming is your best cardio — zero joint impact, maximum calorie burn. No pool at Alrajhi Tower: row there instead, it is the closest thing on land</li>
               <li>· Progress weight slowly — joint adaptation lags behind muscle strength</li>
               <li>· Pre-lift spinal mobility: 10 cat-cows + 8 bird-dogs each side before every session</li>
             </ul>
           </details>
-        </div>
       </CollapsibleSection>
     </div>
   );

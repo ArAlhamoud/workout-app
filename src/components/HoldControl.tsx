@@ -63,7 +63,7 @@ export default function HoldControl({
     return (
       <div className="card px-4 py-3 flex items-center justify-between gap-3">
         <p className="text-app-tx2 text-xs min-w-0">
-          Two weeks of &ldquo;hold, don&apos;t lose&rdquo; — no reminders, streak safe. Sure?
+          Hold 2 weeks · reminders off · streak safe?
         </p>
         <div className="flex gap-2 flex-shrink-0">
           <button
@@ -89,7 +89,7 @@ export default function HoldControl({
       onClick={() => setConfirming(true)}
       className="w-full card px-4 py-2.5 text-left text-xs text-app-tx3 hover:text-app-tx2 hover:border-app-border-hi transition-colors"
     >
-      Life happening? <span className="text-app-tx2">Declare a 2-week hold — bounded beats silent.</span>
+      <span className="text-app-tx2">Declare a 2-week hold</span>
     </button>
   );
 }

@@ -138,11 +138,6 @@ export default async function BpPage() {
         }))}
       />
 
-      <p className="text-[10px] leading-relaxed text-app-tx3">
-        Readings from your monitor arrive on their own once the Health link is granted —
-        logged and imported readings never duplicate. What a number means is a conversation
-        for you and your doctor.
-      </p>
     </div>
   );
 }

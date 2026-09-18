@@ -14,7 +14,9 @@ import {
 import JourneyNavClient, { type NavAction } from './JourneyNavClient';
 
 export default async function JourneyNav() {
-  let action: NavAction = { href: '/health/injection', label: 'First dose', kind: 'dose' };
+  // Neutral when the nav is built with no database (static routes): the
+  // old fallback baked "First dose" into /offline for a man on dose 4.
+  let action: NavAction = { href: '/', label: 'Health', kind: 'dose' };
 
   try {
     const [injections, profile, workouts, firstInjection, injectionCount] = await Promise.all([

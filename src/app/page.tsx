@@ -6,7 +6,6 @@ import { getDynamicPlan, isTrainingSession, queuedDay } from '@/lib/program';
 import {
   journeyDay,
   journeyStations,
-  journeyStory,
   ownPattern,
   afStats,
   bpAverage,
@@ -73,9 +72,6 @@ export default async function HomePage() {
   const severe = severeSymptomFlag(
     data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
   );
-  const story = journeyStory({
-    snapshot, af, cpap, dosesTaken: data.injectionCount, daysIn: day.day,
-  });
   const pattern = ownPattern(
     data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
     data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site })),
@@ -247,10 +243,7 @@ export default async function HomePage() {
 
       {severe && (
         <div className="card border-rpe-hard/40 px-4 py-3">
-          <p className="text-sm text-app-tx1">
-            You&apos;ve logged repeated severe symptoms in the last two days. This app can&apos;t
-            judge how serious that is — a clinician can. Consider getting checked.
-          </p>
+          <p className="text-sm text-app-tx1">Repeated severe symptoms in 48 h — worth getting checked.</p>
         </div>
       )}
 
@@ -286,21 +279,7 @@ export default async function HomePage() {
         </div>
       )}
 
-      {story.length > 0 && (
-        <div className="card-lg p-4">
-          <p className="section-label mb-2">The story so far</p>
-          <div className="space-y-2">
-            {story.map((s, i) => (
-              <p key={i} className="text-sm leading-relaxed text-app-tx1">{s}</p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <p className="text-[10px] leading-relaxed text-app-tx3">
-        A tracker, not a diagnosis — patterns are observations from your own logs; decisions
-        belong to you and your doctor.
-      </p>
+      <p className="text-[10px] leading-relaxed text-app-tx3">Tracker, not diagnosis.</p>
     </div>
   );
 }

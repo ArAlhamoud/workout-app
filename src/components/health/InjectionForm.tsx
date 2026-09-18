@@ -103,15 +103,10 @@ export default function InjectionForm({
         <p className="glow-cyan font-round text-lg font-bold">
           {isFirst ? 'Week 1 starts now.' : 'Dose logged.'}
         </p>
-        <p className="mt-1 text-sm text-app-tx2">
-          {isFirst
-            ? 'The treatment clock is running — everything you log from here plots against this timeline.'
-            : 'Site rotation updated for next week.'}
-        </p>
         {!afterSaved ? (
           <div className="mt-3 space-y-2.5 border-t border-ink/10 pt-3">
             <p className="text-xs font-semibold text-app-tx2">
-              How do you feel right now? (optional — you can also log tomorrow)
+              How do you feel? (optional)
             </p>
             {AFTER_KINDS.map(([kind, label]) => (
               <div key={kind} className="flex items-center gap-2">
@@ -146,7 +141,7 @@ export default function InjectionForm({
           </div>
         ) : (
           <p className="mt-3 border-t border-ink/10 pt-3 text-sm text-acc-teal">
-            Symptoms saved. See you tomorrow for the day-1 check-in.
+            Saved.
           </p>
         )}
       </div>
@@ -183,8 +178,7 @@ export default function InjectionForm({
         </div>
         {plannedDoseMg != null && offPlan && (
           <p className="mt-1.5 text-[11px] text-acc-ember">
-            Off-plan dose (plan says {plannedDoseMg} mg) — logged as such; fine when it&apos;s
-            what you and your doctor chose.
+            Off-plan · plan says {plannedDoseMg} mg
           </p>
         )}
         {plannedDoseMg == null && (

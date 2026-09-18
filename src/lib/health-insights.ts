@@ -671,42 +671,6 @@ export function ownPattern(
   return null;
 }
 
-/** The story so far, in sentences. Only what the data can back; an empty
- *  array on day one is correct, not a failure. */
-export function journeyStory(input: {
-  snapshot: WeightSnapshot | null;
-  af: AfStats;
-  cpap: CpapStats;
-  dosesTaken: number;
-  daysIn: number | null;
-}): string[] {
-  const out: string[] = [];
-  const { snapshot, af, cpap, dosesTaken, daysIn } = input;
-  if (snapshot && snapshot.lostKg >= 0.5 && daysIn !== null) {
-    out.push(
-      `You started at ${snapshot.startKg} kg. ${daysIn} days in: ${snapshot.currentKg} kg — ${snapshot.lostKg} kg down, ${snapshot.pctLost}% of you.`,
-    );
-  } else if (snapshot && snapshot.lostKg <= -0.5) {
-    out.push(
-      `The scale is up ${Math.abs(snapshot.lostKg)} kg from your start — early weeks move for many reasons; the trend is what counts.`,
-    );
-  }
-  if (af.lastMonth >= 2 && af.thisMonth < af.lastMonth) {
-    out.push(
-      `Your heart has been quieter: ${af.thisMonth} episode${af.thisMonth === 1 ? '' : 's'} this month against ${af.lastMonth} last month.`,
-    );
-  } else if (af.daysSinceLast !== null && af.daysSinceLast >= 14) {
-    out.push(`${af.daysSinceLast} days since the last AF episode — your longest quiet stretch this treatment.`);
-  }
-  if (cpap.streak >= 5) {
-    out.push(`${cpap.streak} nights running on the mask${cpap.avgAhi30d != null ? ` at AHI ${cpap.avgAhi30d}` : ''}.`);
-  }
-  if (!out.length && dosesTaken >= 1) {
-    out.push(`Dose ${dosesTaken} is in. The story writes itself from here — log the small things and watch it build.`);
-  }
-  return out.slice(0, 3);
-}
-
 export type StationState = 'done' | 'next' | 'future' | 'gate';
 
 export interface JourneyStation {

@@ -68,7 +68,7 @@ export default async function ProgressPage({
         </div>
         <div className="card p-3.5 text-center">
           <div className={`text-xl font-light font-round tabular-nums ${improvement > 0 ? 'glow-teal' : 'text-app-tx3'}`}>
-            {improvement > 0 ? `+${improvement}%` : '—'}
+            {firstWeight > 0 ? `${improvement > 0 ? '+' : ''}${improvement}%` : '—'}
           </div>
           <div className="metric-label">Improvement</div>
         </div>

@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addNutrition, logNutrition, updateFuelTargets } from '@/app/health-actions';
 import { hapticSuccess } from '@/lib/native-feedback';
-import { FUEL_DEFAULTS, type FuelTargets } from '@/lib/health-insights';
+import type { FuelTargets } from '@/lib/health-insights';
 
 const inputCls =
   'w-full rounded-card border-2 border-ink bg-app-surface px-3 py-3 text-base text-app-tx1 tabular-nums placeholder-app-tx3 focus:outline-none';
@@ -78,11 +78,6 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
             Set day totals
           </button>
         </div>
-        <p className="text-xs font-semibold text-app-tx2">
-          {mode === 'add'
-            ? 'Stacks on top of today — dinner over the delivered meals.'
-            : 'Overwrites today; re-saving corrects.'}
-        </p>
         <div className="grid grid-cols-4 gap-1.5">
           <input className={inputCls} inputMode="numeric" placeholder="kcal" value={kcal} onChange={(e) => setKcal(e.target.value)} />
           <input className={inputCls} inputMode="numeric" placeholder="P g" value={protein} onChange={(e) => setProtein(e.target.value)} />
@@ -143,24 +138,6 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
           >
             Save targets
           </button>
-          <button
-            type="button"
-            className="min-h-[44px] w-full text-center text-xs font-bold text-app-tx3"
-            onClick={() => {
-              setTKcal(String(FUEL_DEFAULTS.kcal));
-              setTProtein(String(FUEL_DEFAULTS.proteinG));
-              setTCarbs(String(FUEL_DEFAULTS.carbsG));
-              setTFat(String(FUEL_DEFAULTS.fatG));
-            }}
-          >
-            use the suggested numbers ({FUEL_DEFAULTS.kcal} · {FUEL_DEFAULTS.proteinG}P / {FUEL_DEFAULTS.carbsG}C / {FUEL_DEFAULTS.fatG}F)
-          </button>
-          <p className="text-[11px] leading-relaxed text-app-tx3">
-            Suggested from your own numbers: protein ≈1.5 g/kg adjusted weight (the muscle
-            floor on a GLP-1 appetite); kcal is maintenance minus a steady deficit; fat is the
-            hormone floor; carbs fill the rest. Starting points — a dietitian outranks this
-            arithmetic.
-          </p>
         </div>
       </details>
     </div>
