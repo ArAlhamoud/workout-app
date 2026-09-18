@@ -242,14 +242,18 @@ async function main() {
   // 2026-09-18). ~100 rows, well inside the timeout.
   await prisma.$transaction(async (tx) => {
     for (const [table, whereOf] of healthTables) {
-      const rowsForTable = (snap.health && snap.health[table]) || [];
-      for (const r of rowsForTable) {
+      for (const r of (snap.health && snap.health[table]) || []) {
         const row = jsonSafe(table, r);
         await tx[table].upsert({ where: whereOf(r), update: row, create: row });
       }
-      if (rowsForTable.length) console.log(`  ${table.padEnd(12)}${rowsForTable.length}`);
     }
   }, { timeout: 120_000 });
+  // Printed only once the transaction has committed — a rollback must not
+  // leave a log that reads like nine tables landed.
+  for (const [table] of healthTables) {
+    const n = ((snap.health && snap.health[table]) || []).length;
+    if (n) console.log(`  ${table.padEnd(12)}${n}`);
+  }
 
   const after = await prisma.workout.count();
   console.log(`\ndone — target now holds ${after} workouts.`);

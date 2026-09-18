@@ -66,21 +66,32 @@ renamed column — makes it refuse and exit non-zero, which fails the deploy eve
 though the app code was fine. And a deploy should never silently decide to alter
 a schema.
 
-Schema changes go through the **Apply schema** Action, which prints a
-`migrate diff` preview first and only passes `--accept-data-loss` when you
-explicitly ask for it. `npm run db:push` does the same thing locally.
+Schema changes go through the **Apply schema** Action. It is two runs by
+design (since 2026-09-18 — before that the preview ended in `|| true` and
+the push ran regardless):
+
+1. Dispatch on the **branch** that carries the schema change, with
+   `confirm_diff_sha` EMPTY. The job prints the exact SQL and its sha256,
+   then stops. Nothing is written.
+2. Read the SQL. Dispatch again with `confirm_diff_sha` = that sha. The job
+   recomputes the diff; if the schema or the database moved in between,
+   the sha differs and the push is refused.
+
+Two more boxes, two separate decisions, both recorded in the run:
+
+- `allow_destructive` — the diff contains DROP TABLE/COLUMN/INDEX/
+  CONSTRAINT, SET DATA TYPE or RENAME. Refused otherwise. DROP DEFAULT and
+  DROP NOT NULL are not destructive and do not need it.
+- `accept_data_loss` — passes Prisma's `--accept-data-loss`. Needed for a
+  unique index on a brand-new column (all rows NULL, nothing can be lost —
+  the known false alarm, incident `7840432`). Anything else that trips
+  Prisma's guard stops and goes to the owner.
 
 The cloud session can trigger this Action itself (GitHub API) and read the
 preview from the run logs — the gate is that SOMEONE reads the diff before
-accepting, not that a human clicks the button. The rules the session follows:
+confirming, not that a human clicks the button. There is no local
+equivalent: `npm run db:push` was removed on 2026-09-18.
 
-- Dispatch on the **branch** that carries the schema change, before merge.
-- First run WITHOUT `accept_data_loss`; read the printed diff in the logs.
-- Accept only when the diff is purely additive (ADD COLUMN / CREATE TABLE /
-  CREATE INDEX — no DROP, no ALTER TYPE, no RENAME).
-- A "data loss" warning about a unique index on a brand-new column is the
-  known false alarm (all existing rows are NULL); anything else stops and
-  goes to the owner.
 ## Staging (not yet set up — needs the Vercel dashboard)
 
 Every deploy currently lands on the app you train with; there is no environment
