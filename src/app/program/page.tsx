@@ -225,11 +225,10 @@ export default async function ProgramPage() {
               </span>
             </div>
 
-            {/* Coach voice — the directive keeps its single line; prose lives one tap away */}
+            {/* The load and session tiles below carry the numbers; prose lives one tap away */}
             <Details label="More" className="mt-1">
               <p className="text-[11px] leading-relaxed text-app-tx3">
-                Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
-                <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
+                Of pre-break weights — nothing heavier, nothing longer.
               </p>
               <p className="mt-1 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
             </Details>
@@ -588,19 +587,15 @@ export default async function ProgramPage() {
           the Diet store the panel set and printed a diagnostic class the app
           does not own (editor + HEALTH.md law 3, 2026-09-18). */}
       <CollapsibleSection title="Joint-First">
-          <details className="group card p-4">
-            <summary className="flex cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
-              <span className="text-app-tx1 font-semibold text-sm">Joint-First · 6</span>
-              <Chevron className="text-app-tx3" />
-            </summary>
-            <ul className="mt-2 space-y-1.5 text-app-tx2 text-xs">
+          <div className="card p-4">
+            <ul className="space-y-1.5 text-app-tx2 text-xs">
               <li>· All exercises are machine-based — no free-weight barbell loading on joints</li>
               <li>· Avoid treadmill running — walking only at 4–5 km/h, low incline</li>
               <li>· Swimming is your best cardio — zero joint impact, maximum calorie burn. No pool at Alrajhi Tower: row there instead, it is the closest thing on land</li>
               <li>· Progress weight slowly — joint adaptation lags behind muscle strength</li>
               <li>· Pre-lift spinal mobility: 10 cat-cows + 8 bird-dogs each side before every session</li>
             </ul>
-          </details>
+          </div>
       </CollapsibleSection>
     </div>
   );

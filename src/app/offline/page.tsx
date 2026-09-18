@@ -34,8 +34,7 @@ export default function OfflinePage() {
               <circle cx="12" cy="20" r="1" fill="#5EEAD4" stroke="none" />
             </svg>
           </div>
-          <p className="section-label mt-5">Offline</p>
-          <h1 className="font-round text-app-tx1 font-bold text-xl mt-1 tracking-tight">
+          <h1 className="font-round text-app-tx1 font-bold text-xl mt-5 tracking-tight">
             Offline
           </h1>
           <p className="text-app-tx2 text-sm mt-2 leading-relaxed">

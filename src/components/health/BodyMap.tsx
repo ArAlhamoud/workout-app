@@ -346,9 +346,8 @@ export default function BodyMap({ data }: { data: BodyData }) {
       })()}
 
       <div className="mt-1 flex items-center justify-between border-t border-ink/10 pt-2.5">
-        <p className="text-[11px] font-bold text-app-tx3" aria-hidden="true" />
         {data.ldl && (
-          <Link href="/health/plan" className="shrink-0 text-[11px] font-bold text-app-tx2">
+          <Link href="/health/plan" className="ml-auto shrink-0 text-[11px] font-bold text-app-tx2">
             Blood · LDL {data.ldl.value} →
           </Link>
         )}

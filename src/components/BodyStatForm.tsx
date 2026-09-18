@@ -44,7 +44,7 @@ export default function BodyStatForm() {
           <div>
             <label className="text-app-tx3 text-xs mb-1 block">Weight (kg)</label>
             <input type="number" value={weight} onChange={(e) => setWeight(e.target.value)}
-              placeholder="kg" step="0.1" min="30" max="300" className={inputCls} />
+              step="0.1" min="30" max="300" className={inputCls} />
           </div>
           <div>
             <label className="text-app-tx3 text-xs mb-1 block">Waist (cm)</label>

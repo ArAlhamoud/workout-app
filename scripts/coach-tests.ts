@@ -903,7 +903,7 @@ console.log('computeGapLadder');
   );
   assert(full.every((r) => r.at.getTime() > dayAfter.getTime()), 'every rung is in the future');
   assert(full[0].title.includes('Day B'), `rung 1 names the queued day (got "${full[0].title}")`);
-  assert(full[3].body.includes('return ramp'), 'day-19 rung warns about the 21-day reset');
+  assert(/return ramp/i.test(full[3].title + ' ' + full[3].body), 'day-19 rung warns about the 21-day reset');
   assert(full.every((r) => r.at.getHours() === 17), 'rungs fire at 17:00 local — evening, when training is still possible');
 
   // Six days in (his position today): days 3 and 5 are past, 7 and 19 remain.

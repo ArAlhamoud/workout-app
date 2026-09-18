@@ -1496,7 +1496,7 @@ export default function WorkoutForm({
         {draftRestored && (
           <div className="card rounded-card border-acc-teal/30 px-4 py-3 flex items-center justify-between">
             <span className="text-acc-teal text-sm">
-              {draftIsStale ? '↩ Restored' : '↩ Workout restored'}
+              {draftIsStale ? '↩ Old draft restored' : '↩ Restored'}
             </span>
             <button
               type="button"
@@ -1700,7 +1700,7 @@ export default function WorkoutForm({
               </div>
               {showReturnInfo && (
                 <p className="mt-2.5 text-app-tx2 text-xs leading-relaxed">
-                  Past <span className="font-semibold text-acc-ember">{['', 'Easy', 'Med', 'Hard', 'Grind'][returnRpeCap ?? 2]}</span>, drop a pin. The ramp beats the number.
+                  Past the cap, drop a pin — the ramp beats the number.
                 </p>
               )}
             </div>

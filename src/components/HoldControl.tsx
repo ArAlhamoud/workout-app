@@ -63,7 +63,7 @@ export default function HoldControl({
     return (
       <div className="card px-4 py-3 flex items-center justify-between gap-3">
         <p className="text-app-tx2 text-xs min-w-0">
-          Hold 2 weeks · reminders off · streak safe?
+          Reminders off · streak safe.
         </p>
         <div className="flex gap-2 flex-shrink-0">
           <button

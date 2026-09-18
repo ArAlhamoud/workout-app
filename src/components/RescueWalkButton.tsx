@@ -35,7 +35,7 @@ export default function RescueWalkButton() {
       disabled={busy}
       className="mt-2 text-xs font-semibold px-3 py-2 rounded-card bg-app-surface2 border border-app-border text-app-tx2 hover:border-app-border-hi transition-colors disabled:text-app-tx3"
     >
-      {busy ? 'Logging…' : 'No gym today? Log a 15-min walk instead'}
+      {busy ? 'Logging…' : 'No gym today? Log a walk instead'}
     </button>
   );
 }

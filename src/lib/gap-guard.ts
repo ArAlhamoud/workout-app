@@ -108,15 +108,15 @@ export function computeGapLadder(
       day: 7,
       at: at(7),
       title: 'Your streak is mendable',
-      body: 'Two sessions before Sunday mend the streak.',
+      body: 'Two sessions before Sunday.',
       route: '/workouts/new?rescue=1',
     },
     {
       id: LADDER_IDS[3],
       day: 19,
       at: at(19),
-      title: 'Two days from a program reset',
-      body: 'Train in the next two days to stay off the return ramp.',
+      title: 'Return ramp in 2 days',
+      body: 'One session before then keeps you on the program.',
       route: startRoute,
     },
   ];

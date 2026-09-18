@@ -262,7 +262,7 @@ export default async function WorkoutDetailPage({
         // the return ramp, where "Easy — add 5 kg" on a deliberately
         // deloaded lift is exactly wrong. Warm-ups prescribe nothing.
         if (inReturnRamp) return null;
-        const targets: { name: string; current: number; next: number; note: string }[] = [];
+        const targets: { name: string; note: string }[] = [];
         for (const exId of exerciseOrder) {
           const sets = exerciseMap.get(exId)!;
           const workingSets = sets.filter((st) => !st.isWarmup);
@@ -270,15 +270,15 @@ export default async function WorkoutDetailPage({
           const maxWeight = Math.max(...workingSets.map((s) => s.weight));
           if (maxWeight <= 0) continue;
           const maxRpe = workingSets.reduce((m, s) => (s.rpe && s.rpe > m ? s.rpe : m), 0);
-          let next = maxWeight;
-          let note = '';
-          // Pins, not kilograms (rule 4): the logger prefills the real step.
-          if (maxRpe === 0)      { next = maxWeight; note = 'Unrated — rate the last set next time'; }
-          else if (maxRpe === 1) { next = maxWeight; note = 'Easy — earn the pin: repeat, then one pin up'; }
-          else if (maxRpe === 2) { next = maxWeight; note = 'Medium — hold'; }
-          else if (maxRpe === 3) { next = maxWeight; note = 'Hard — hold'; }
-          else if (maxRpe === 4) { next = maxWeight; note = 'Grind — one pin down'; }
-          targets.push({ name: sets[0].exercise.name, current: maxWeight, next, note });
+          // Pins, not kilograms (rule 4): the logger prefills the real step,
+          // so there is no number to print here — the top set is in the rows above.
+          const note =
+            maxRpe === 1 ? 'Easy — repeat, then one pin up'
+            : maxRpe === 2 ? 'Medium — hold'
+            : maxRpe === 3 ? 'Hard — hold'
+            : maxRpe === 4 ? 'Grind — one pin down'
+            : 'Unrated — rate the last set next time';
+          targets.push({ name: sets[0].exercise.name, note });
         }
         if (!targets.length) return null;
         return (
@@ -288,26 +288,9 @@ export default async function WorkoutDetailPage({
             </div>
             <div className="divide-y divide-app-border">
               {targets.map((t) => (
-                <div key={t.name} className="px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-app-tx1 text-sm font-medium truncate">{t.name}</p>
-                    <p className="text-app-tx3 text-xs mt-0.5">{t.note}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    {/* raise = teal glow · hold = neutral · drop = magenta */}
-                    <span className={`text-sm font-semibold font-round tabular-nums ${
-                      t.next > t.current
-                        ? 'glow-teal'
-                        : t.next < t.current
-                          ? 'text-rpe-grind [text-shadow:0_0_14px_rgba(244,63,94,0.4)]'
-                          : 'text-app-tx2'
-                    }`}>
-                      {t.next} kg
-                    </span>
-                    {t.next !== t.current && (
-                      <p className="text-app-tx3 text-xs tabular-nums">was {t.current} kg</p>
-                    )}
-                  </div>
+                <div key={t.name} className="px-4 py-3 min-w-0">
+                  <p className="text-app-tx1 text-sm font-medium truncate">{t.name}</p>
+                  <p className="text-app-tx3 text-xs mt-0.5">{t.note}</p>
                 </div>
               ))}
             </div>

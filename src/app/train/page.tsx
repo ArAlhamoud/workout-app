@@ -248,8 +248,6 @@ export default async function TrainPage() {
     };
   });
 
-  const hour = new Date().getHours();
-
   return (
     <div className="space-y-5">
       {/* ── Volt masthead — date, live state, the big word, the tape ── */}
@@ -316,7 +314,7 @@ export default async function TrainPage() {
                 </p>
               );
             })()}
-            
+
             <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
 
             <div className="mt-3" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
@@ -370,7 +368,7 @@ export default async function TrainPage() {
       {preview.length > 0 && (
         <div>
           <p className="section-label mb-3">
-            Session preview · B_Fit{returnLoadPct != null ? ` · at ${returnLoadPct}%` : ''}
+            Session preview · B_Fit
           </p>
           <div className="space-y-2">
             {preview.map((row, i) => (

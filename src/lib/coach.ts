@@ -529,10 +529,6 @@ export function weeklyReport(
       ? `Return ramp week ${status.week} of ${RETURN_PROGRAM.length} — ${status.returnWeek.phase} at ${status.returnWeek.loadPct}% loads.`
       : `Program week ${status.week} — ${sessionsThisWeek}/${targetLabel} sessions logged this week.`;
 
-  if (!wins.length && workouts.length) {
-    wins.push(`${workouts.length} sessions in the book — consistency is the engine.`);
-  }
-
   // ── Default surface: one instruction, at most three numbers ──
   // Everything above stays available for the "Full report" disclosure; this
   // is only about what the glance layer is allowed to show. No new maths —
