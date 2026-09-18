@@ -131,7 +131,7 @@ export default async function FuelPage() {
           </div>
         ) : (
           <p className="text-sm text-app-tx2">
-            Not enough data yet — needs 8+ logged days and 4+ weigh-ins across two weeks.
+            Not enough data yet · 8 days + 4 weigh-ins
           </p>
         )}
       </div>
@@ -181,10 +181,6 @@ export default async function FuelPage() {
           </div>
         </div>
       )}
-
-      <p className="text-[10px] leading-relaxed text-app-tx3">
-        Counts, not grades — a light day on Mounjaro is the medicine working.
-      </p>
     </div>
   );
 }

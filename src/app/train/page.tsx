@@ -248,8 +248,6 @@ export default async function TrainPage() {
     };
   });
 
-  const hour = new Date().getHours();
-
   return (
     <div className="space-y-5">
       {/* ── Volt masthead — date, live state, the big word, the tape ── */}
@@ -285,7 +283,7 @@ export default async function TrainPage() {
           <summary className="flex cursor-pointer select-none list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
             <span className="h-2 w-2 flex-none bg-acc-ember-deep" aria-hidden="true" />
             <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-acc-ember">
-              Return W{status.week} · {status.returnWeek.phase} · {status.returnWeek.loadPct}% · cap {RPE_LABELS[status.returnWeek.rpeCap]}
+              {status.returnWeek.phase} · {status.returnWeek.loadPct}% · cap {RPE_LABELS[status.returnWeek.rpeCap]}
             </span>
             <span className="ml-auto flex items-center gap-1" aria-hidden="true">
               {[1, 2, 3, 4].map((i) => (
@@ -316,10 +314,7 @@ export default async function TrainPage() {
                 </p>
               );
             })()}
-            <p className="mt-2.5 text-[11px] font-semibold uppercase leading-loose tracking-[0.13em] text-app-tx2">
-              {status.daysOff} days off. Run <b className="text-app-tx1">{status.returnWeek.sessions} sessions</b> at{' '}
-              <b className="text-app-tx1">{status.returnWeek.loadPct}%</b> of pre-break weights. Nothing heavier. Nothing longer.
-            </p>
+
             <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">{status.returnWeek.desc}</p>
 
             <div className="mt-3" role="img" aria-label={`Effort capped at ${RPE_LABELS[status.returnWeek.rpeCap]}. Scale: Easy, Med, Hard, Grind.`}>
@@ -362,9 +357,6 @@ export default async function TrainPage() {
 
       {/* ── The directive ───────────────────────────────── */}
       <div>
-        <p className="section-label mb-3">
-          {isDoneToday ? 'Logged today' : hour >= 17 ? 'Tonight’s directive' : 'Today’s directive'}
-        </p>
         <DayCard
           day={previewDay}
           variant={isDoneToday ? 'done' : 'primary'}
@@ -376,7 +368,7 @@ export default async function TrainPage() {
       {preview.length > 0 && (
         <div>
           <p className="section-label mb-3">
-            Session preview · B_Fit{returnLoadPct != null ? ` · at ${returnLoadPct}%` : ''}
+            Session preview · B_Fit
           </p>
           <div className="space-y-2">
             {preview.map((row, i) => (
@@ -397,9 +389,9 @@ export default async function TrainPage() {
                         {row.weight}
                         <span className="ml-1 text-[10px] font-bold text-app-tx3">KG</span>
                       </p>
-                      <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-app-tx3">
-                        {row.scaled ? 'Ramp target' : 'Last time'}
-                      </p>
+                      {!row.scaled && (
+                        <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-app-tx3">Last time</p>
+                      )}
                     </>
                   ) : (
                     <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3">New</p>

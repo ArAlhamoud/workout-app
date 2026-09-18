@@ -188,7 +188,7 @@ export default async function DoctorReportPage({
   return (
     <div className="space-y-4 pb-8 print:space-y-3 print:text-black">
       <div className="print:hidden">
-        <BackLink label="Health" />
+        <BackLink label="Home" />
         <div className="mt-1 flex items-center justify-between gap-2">
           <div>
             <p className="section-label text-acc-cyan/80">For the follow-up visit</p>

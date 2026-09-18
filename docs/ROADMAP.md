@@ -267,3 +267,19 @@ the Watch backdated to the phone's start; machine order per device,
 only logged sets sync. Rejected: WatchConnectivity (direct phone↔watch)
 — works offline but needs Swift on both sides plus a Capacitor plugin;
 the gym has signal and the Watch already depends on the server.
+
+## Wave 7 — the whole-app review (2026-09-18)
+
+Built, from docs/REVIEW-2026-09.md, in four tiers on the owner's brief
+"a genuine plan, nothing may break": Tier 0 safety net (Apply-schema
+two-run preview with sha confirm, history scripts refuse to run without
+`--apply`, restore rehearsed, `db:push` gone from npm), Tier 1 program
+(rowing not swimming alone, the effort ceiling stays while AF or blood
+pressure is on the chart, HRV read in AF, plank/leg-curl cues, warm-up
+and pins served by the server, ramp base = last full-load), Tier 2 data
+(the allowance recorded on every set at save time — `allowedKg` — so
+over-ramp is judged against what was prescribed, not reconstructed;
+tombstones in the live session; activity-day clock on sessions, cardio
+and meals), Tier 3 screens and copy (say each thing once; ~40 cuts;
+reps stepper unclipped; dead components and exports removed). Status
+and what was deliberately left: the review doc's closing section.

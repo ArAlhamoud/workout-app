@@ -34,7 +34,7 @@ const ROOM_GROUPS: Array<{ title: string; rooms: Room[] }> = [
   {
     title: 'Body',
     rooms: [
-      { href: '/health/injection', label: 'Injection day', icon: 'dose' },
+      { href: '/health/injection', label: 'Dose day', icon: 'dose' },
       { href: '/health/bp', label: 'Pressure', icon: 'cuff' },
       { href: '/health/diet', label: 'Diet', icon: 'bowl' },
       { href: '/health/plan', label: 'Plan & profile', icon: 'person' },

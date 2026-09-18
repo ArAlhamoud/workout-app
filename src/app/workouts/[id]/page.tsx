@@ -107,12 +107,8 @@ export default async function WorkoutDetailPage({
     <div className="space-y-4">
       {welcomeBack && (
         <div className="card-lg border-acc-teal/40 px-4 py-4 shadow-[0_0_44px_-14px_rgba(45,212,191,0.45)]">
-          <p className="glow-teal font-round text-lg font-bold">Welcome back. This is how it&apos;s done.</p>
-          <p className="text-app-tx2 text-sm mt-1">
-            {welcomeBack.gapDays} days away changed nothing that matters —
-            <b className="text-app-tx1"> {welcomeBack.sessions} sessions</b> and
-            <b className="text-app-tx1"> {welcomeBack.tonnageLabel}</b> are yours for good.
-            Showing up today is the whole game.
+          <p className="glow-teal font-round text-lg font-bold">
+            Welcome back · {welcomeBack.sessions} sessions · {welcomeBack.tonnageLabel}
           </p>
           {/* Never echo the reason back (editor): it was collected for the
               coach's context, and re-reading your own bad fortnight on a
@@ -155,7 +151,7 @@ export default async function WorkoutDetailPage({
         </div>
         <DeleteButton
           workoutId={workout.id}
-          summary={`${workout.sets.length} sets · ${kgCompact(totalVolume)} kg`}
+          summary={totalVolume > 0 ? `${workout.sets.length} sets · ${kgCompact(totalVolume)} kg` : workout.duration ? formatDuration(workout.duration) : `${workout.sets.filter((s) => !s.isWarmup).length} sets`}
         />
       </div>
 
@@ -167,9 +163,9 @@ export default async function WorkoutDetailPage({
       <div className="card-lg p-4">
         <div className="flex items-baseline gap-2.5">
           <span className="font-round text-3xl font-light tabular-nums glow-teal">
-            {kgCompact(totalVolume)} kg
+            {totalVolume > 0 ? `${kgCompact(totalVolume)} kg` : workout.duration ? formatDuration(workout.duration) : `${workout.sets.filter((s) => !s.isWarmup).length} sets`}
           </span>
-          {previous && previous.volume > 0 && (() => {
+          {totalVolume > 0 && previous && previous.volume > 0 && (() => {
             const pct = Math.round(((totalVolume - previous.volume) / previous.volume) * 100);
             const up = pct > 0;
             const flat = pct === 0;
@@ -266,7 +262,7 @@ export default async function WorkoutDetailPage({
         // the return ramp, where "Easy — add 5 kg" on a deliberately
         // deloaded lift is exactly wrong. Warm-ups prescribe nothing.
         if (inReturnRamp) return null;
-        const targets: { name: string; current: number; next: number; note: string }[] = [];
+        const targets: { name: string; note: string }[] = [];
         for (const exId of exerciseOrder) {
           const sets = exerciseMap.get(exId)!;
           const workingSets = sets.filter((st) => !st.isWarmup);
@@ -274,14 +270,15 @@ export default async function WorkoutDetailPage({
           const maxWeight = Math.max(...workingSets.map((s) => s.weight));
           if (maxWeight <= 0) continue;
           const maxRpe = workingSets.reduce((m, s) => (s.rpe && s.rpe > m ? s.rpe : m), 0);
-          let next = maxWeight;
-          let note = '';
-          if (maxRpe === 0)      { next = +(maxWeight + 2.5).toFixed(1); note = 'No RPE — try +2.5 kg'; }
-          else if (maxRpe === 1) { next = +(maxWeight + 5).toFixed(1);   note = 'Easy — add 5 kg'; }
-          else if (maxRpe === 2) { next = +(maxWeight + 2.5).toFixed(1); note = 'Medium — add 2.5 kg'; }
-          else if (maxRpe === 3) { next = maxWeight;                      note = 'Hard — hold weight'; }
-          else if (maxRpe === 4) { next = +(maxWeight - 2.5).toFixed(1); note = 'Grind — drop 2.5 kg'; }
-          targets.push({ name: sets[0].exercise.name, current: maxWeight, next, note });
+          // Pins, not kilograms (rule 4): the logger prefills the real step,
+          // so there is no number to print here — the top set is in the rows above.
+          const note =
+            maxRpe === 1 ? 'Easy — repeat, then one pin up'
+            : maxRpe === 2 ? 'Medium — hold'
+            : maxRpe === 3 ? 'Hard — hold'
+            : maxRpe === 4 ? 'Grind — one pin down'
+            : 'Unrated — rate the last set next time';
+          targets.push({ name: sets[0].exercise.name, note });
         }
         if (!targets.length) return null;
         return (
@@ -291,26 +288,9 @@ export default async function WorkoutDetailPage({
             </div>
             <div className="divide-y divide-app-border">
               {targets.map((t) => (
-                <div key={t.name} className="px-4 py-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-app-tx1 text-sm font-medium truncate">{t.name}</p>
-                    <p className="text-app-tx3 text-xs mt-0.5">{t.note}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    {/* raise = teal glow · hold = neutral · drop = magenta */}
-                    <span className={`text-sm font-semibold font-round tabular-nums ${
-                      t.next > t.current
-                        ? 'glow-teal'
-                        : t.next < t.current
-                          ? 'text-rpe-grind [text-shadow:0_0_14px_rgba(244,63,94,0.4)]'
-                          : 'text-app-tx2'
-                    }`}>
-                      {t.next} kg
-                    </span>
-                    {t.next !== t.current && (
-                      <p className="text-app-tx3 text-xs tabular-nums">was {t.current} kg</p>
-                    )}
-                  </div>
+                <div key={t.name} className="px-4 py-3 min-w-0">
+                  <p className="text-app-tx1 text-sm font-medium truncate">{t.name}</p>
+                  <p className="text-app-tx3 text-xs mt-0.5">{t.note}</p>
                 </div>
               ))}
             </div>

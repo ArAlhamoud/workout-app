@@ -1,3 +1,4 @@
+import prisma from '@/lib/prisma';
 import { readChart } from '@/lib/chart';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -335,19 +336,23 @@ function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; r
 }
 
 export default async function StatsPage() {
-  const [stats, workouts, holds, activeHold, chart] = await Promise.all([
+  const [stats, workouts, holds, activeHold, chart, profileStart] = await Promise.all([
     getBodyStats(),
     getWorkouts(),
     getAllHolds(),
     getActiveHold(),
     readChart(),
+    prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { startWeightKg: true } }).catch(() => null),
   ]);
   // The chart's effort ceiling: AF / antiarrhythmic / hypertension hold the
   // cap at Hard after the ramp exits (trainer, 2026-09-18).
   const effortCap = effortCeiling(chart.conditions, chart.medications);
 
   const latestWeight = [...stats].reverse().find((s) => s.weight !== null)?.weight ?? null;
-  const firstWeight = stats.find((s) => s.weight !== null)?.weight ?? null;
+  // ONE "since the start": the profile's first-clinic-visit weight, the same
+  // anchor Home uses — Stats said −8.3 kg (first weigh-in, Feb) beside a
+  // Home that said −6.3 (editor, 2026-09-18).
+  const firstWeight = profileStart?.startWeightKg ?? stats.find((s) => s.weight !== null)?.weight ?? null;
   const weightChange =
     latestWeight !== null && firstWeight !== null ? +(latestWeight - firstWeight).toFixed(1) : null;
 
@@ -488,11 +493,11 @@ export default async function StatsPage() {
             </div>
             <div className="border-l border-app-border px-3">
               <p className="font-round text-[15px] font-black leading-tight tabular-nums text-app-tx1">{life.sessions}</p>
-              <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Sessions · yours</p>
+              <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Sessions</p>
             </div>
             <div className="border-l border-app-border pl-3">
               <p className="font-round text-[15px] font-black leading-tight tabular-nums text-app-tx1">{life.label.replace(/ lifted$/, '')}</p>
-              <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Lifted · for good</p>
+              <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-app-tx3">Lifted</p>
             </div>
           </div>
           {momentum && momentum.direction === 'draining' && (
@@ -505,7 +510,7 @@ export default async function StatsPage() {
 
       {sleepDebt !== null && sleepDebt >= 3 && (
         <p className="px-1 text-xs text-app-tx2 tabular-nums">
-          Sleep debt: <b className="text-acc-ember">{sleepDebt} h</b> over the last fortnight — tonight is the cheapest recovery you own.
+          Sleep debt · <b className="text-acc-ember">{sleepDebt} h</b> / 14 d
         </p>
       )}
 
@@ -559,11 +564,11 @@ export default async function StatsPage() {
                   ))}
                 </div>
               )}
-              {report.nextSession.length > 0 && (
+              {report.nextSession.filter((l) => l !== report.instruction).length > 0 && (
                 <div className="mt-3">
                   <p className="section-label mb-1.5">Next Session</p>
                   <div className="space-y-1.5">
-                    {report.nextSession.map((item, i) => (
+                    {report.nextSession.filter((l) => l !== report.instruction).map((item, i) => (
                       <p key={i} className="text-app-tx2 text-xs leading-relaxed flex gap-2">
                         <span className="text-app-tx3 font-bold flex-shrink-0">·</span>
                         <span>{item}</span>
@@ -594,28 +599,6 @@ export default async function StatsPage() {
           Native-only; renders nothing on the web or without step data. */}
       <StepsCard />
 
-      {/* Body weight metrics */}
-      {latestWeight !== null && (
-        <div className="grid grid-cols-3 gap-2">
-          <div className="card p-3.5 text-center">
-            <div className="text-xl font-light font-round tabular-nums glow-teal">{latestWeight} kg</div>
-            <div className="metric-label">Current</div>
-          </div>
-          <div className="card p-3.5 text-center">
-            <div className={`text-xl font-light font-round tabular-nums ${
-              weightChange !== null && weightChange < 0 ? 'glow-teal' :
-              weightChange !== null && weightChange > 0 ? 'text-rose-400' : 'text-app-tx1'
-            }`}>
-              {weightChange !== null ? (weightChange > 0 ? `+${weightChange}` : `${weightChange}`) : '—'} kg
-            </div>
-            <div className="metric-label">Change</div>
-          </div>
-          <div className="card p-3.5 text-center">
-            <div className="text-xl font-light font-round tabular-nums text-app-tx1">{stats.length}</div>
-            <div className="metric-label">Weigh-ins</div>
-          </div>
-        </div>
-      )}
 
       {/* Strength held while losing — the win condition of the cut */}
       {holdRows.length > 0 && (

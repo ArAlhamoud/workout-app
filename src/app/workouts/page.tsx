@@ -107,7 +107,7 @@ export default async function WorkoutsPage() {
                   <div className="text-right ml-4 flex-shrink-0">
                     <div className="text-[11px] text-app-tx2">{formatDate(workout.date)}</div>
                     <div className="text-[11px] text-app-tx3 mt-0.5 tabular-nums">
-                      {workout.sets.length} sets
+                      {workout.sets.length > 0 ? `${workout.sets.length} sets` : ''}
                       {totalVolume > 0 && (
                         <span> · {kgCompact(totalVolume)} kg</span>
                       )}

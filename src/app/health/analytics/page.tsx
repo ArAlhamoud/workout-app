@@ -89,7 +89,7 @@ export default async function HealthAnalyticsPage() {
 
   return (
     <div className="space-y-4 pb-8">
-      <BackLink label="Health" />
+      <BackLink label="Home" />
       <div>
         <p className="section-label text-acc-cyan/80">Observed patterns · your logs only</p>
         <h1 className="mt-0.5 font-round text-2xl font-bold tracking-tight text-app-tx1">
@@ -102,8 +102,7 @@ export default async function HealthAnalyticsPage() {
         <p className="section-label mb-1">Days after injection</p>
         {relativeKinds.length === 0 ? (
           <p className="text-sm text-app-tx3">
-            Not enough data yet — this fills in after a few weeks of symptom logs around
-            injections. Each row will show how a symptom moves from day 0 to day 7.
+            Not enough data yet · a few weeks of symptom logs
           </p>
         ) : (
           <>
@@ -153,8 +152,7 @@ export default async function HealthAnalyticsPage() {
         <p className="section-label mb-1">By dose level</p>
         {Object.keys(byDose).length === 0 ? (
           <p className="text-sm text-app-tx3">
-            Appears once a symptom has 3+ logs at a dose level — the question it answers:
-            did anything change after a dose escalation?
+            Not enough data yet · 3+ logs per dose level
           </p>
         ) : (
           <div className="space-y-2">
@@ -199,9 +197,7 @@ export default async function HealthAnalyticsPage() {
         <div className="mt-3 border-t border-ink/10 pt-3">
           {correlates === null ? (
             <p className="text-sm text-app-tx3">
-              Circumstance patterns appear after 5+ episodes have their flags answered
-              (the bloating/gas/meal buttons when logging). Until then, any percentage
-              would be noise.
+              Not enough data yet · 5+ episodes with circumstances logged
             </p>
           ) : (
             <div className="space-y-1.5">
@@ -219,10 +215,6 @@ export default async function HealthAnalyticsPage() {
                   </span>
                 </div>
               ))}
-              <p className="pt-1 text-[10px] text-app-tx3">
-                Association in your logs, not causation — a thing to discuss with your doctor,
-                not a conclusion.
-              </p>
             </div>
           )}
         </div>
@@ -233,10 +225,7 @@ export default async function HealthAnalyticsPage() {
         <p className="section-label mb-1">Weight × sleep apnea</p>
         {cpapMonths.length < 2 ? (
           <p className="text-sm text-app-tx3">
-            Appears after two months of CPAP nights alongside weigh-ins — the long-game
-            question: does the apnea ease as the weight comes off? AHI is
-            already treated to normal, so watch the pressure the machine
-            needs — that is the number with room to fall.
+            Not enough data yet · 2 months of CPAP + weigh-ins
           </p>
         ) : (
           <div className="space-y-1.5">
@@ -282,10 +271,7 @@ export default async function HealthAnalyticsPage() {
                 Deep sleep · {cpap.deepAvgMin} min a night
               </summary>
               <p className="mt-1.5 text-[11px] leading-relaxed text-app-tx3">
-                The same minutes the prisma app shows, averaged over the {cpap.deepNights}{' '}
-                {cpap.deepNights === 1 ? 'night' : 'nights'} it measured. Estimated by the
-                machine from your breathing, not measured like a sleep study, so it will not
-                match the Watch. It mostly follows how long you wore the mask.
+                Machine estimate from airflow over {cpap.deepNights} {cpap.deepNights === 1 ? 'night' : 'nights'} — not a sleep study; won&apos;t match the Watch.
               </p>
             </details>
           )}

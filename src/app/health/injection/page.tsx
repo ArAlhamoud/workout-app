@@ -13,7 +13,7 @@ import {
 } from '@/lib/health-insights';
 import InjectionForm from '@/components/health/InjectionForm';
 
-export const metadata: Metadata = { title: 'Injection Day' };
+export const metadata: Metadata = { title: 'Dose day' };
 export const dynamic = 'force-dynamic';
 
 export default async function InjectionDayPage() {
@@ -47,22 +47,19 @@ export default async function InjectionDayPage() {
 
   return (
     <div className="space-y-4 pb-8">
-      <BackLink label="Health" />
+      <BackLink label="Home" />
       <div>
         <p className="section-label text-acc-cyan/80">
           {clock ? `Treatment week ${clock.week}` : 'First injection'}
         </p>
         <h1 className="mt-0.5 font-round text-2xl font-bold tracking-tight text-app-tx1">
-          Injection Day
+          Dose day
         </h1>
       </div>
 
       {severe && (
         <div className="card border-rpe-hard/40 px-4 py-3">
-          <p className="text-sm text-app-tx1">
-            You&apos;ve logged repeated severe symptoms in the last two days. This app can&apos;t
-            judge how serious that is — a clinician can. Consider getting checked.
-          </p>
+          <p className="text-sm text-app-tx1">Repeated severe symptoms in 48 h — worth getting checked.</p>
         </div>
       )}
 
@@ -91,17 +88,7 @@ export default async function InjectionDayPage() {
             <div className="metric-label mt-0.5">weight</div>
           </div>
         </div>
-        {plannedStep && plannedStep.mg == null && (
-          <p className="mt-3 border-t border-ink/10 pt-3 text-xs text-acc-ember">
-            {plannedStep.label ?? 'Doctor review'} — no dose is scheduled. Log what you and
-            your doctor decide.
-          </p>
-        )}
-        {clock && clock.planExhausted && plannedStep === null && (
-          <p className="mt-3 border-t border-ink/10 pt-3 text-xs text-acc-ember">
-            The dose plan has no slot for this injection — extend it in Plan &amp; profile.
-          </p>
-        )}
+
         {bp && (
           <p className="mt-3 border-t border-ink/10 pt-3 text-xs text-app-tx3">
             7-day BP average {bp.systolic}/{bp.diastolic}

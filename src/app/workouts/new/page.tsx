@@ -280,11 +280,7 @@ export default async function NewWorkoutPage({
 
       {isRescue && (
         <div className="card-lg px-4 py-3">
-          <p className="text-acc-ember text-sm font-semibold">Rescue session — 15 minutes counts</p>
-          <p className="text-app-tx2 text-xs mt-1">
-            Four machines, two light sets each. Two easy minutes on the bike first — then straight in.
-            This keeps the streak, the plan and the habit alive.
-          </p>
+          <p className="text-acc-ember text-sm font-semibold">Rescue · 15 min · 2 min bike first</p>
           <RescueWalkButton />
         </div>
       )}
@@ -325,6 +321,7 @@ export default async function NewWorkoutPage({
         })()}
         pinIncrements={pinIncrements}
         afOnChart={afFlag}
+        coachEnabled={Boolean(process.env.ANTHROPIC_API_KEY)}
         dayAccent={validDay}
       />
     </div>

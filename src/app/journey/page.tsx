@@ -82,10 +82,6 @@ export default async function JourneyPage() {
             </div>
           ))}
         </div>
-        <p className="mt-3 border-t border-ink/10 pt-3 text-[10px] text-app-tx3">
-          The path past the doctor gate is written in Plan &amp; profile — by you two, never by
-          the app.
-        </p>
       </div>
 
       {/* Weight landmarks along the road */}

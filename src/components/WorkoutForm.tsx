@@ -231,6 +231,7 @@ export default function WorkoutForm({
   returnLoadPct,
   returnRpeCap,
   afOnChart = false,
+  coachEnabled = false,
   pinIncrements = {},
   repRecords = {},
   deloadHints = {},
@@ -254,6 +255,8 @@ export default function WorkoutForm({
   returnRpeCap?: number;
   /** AF on his chart — silences the HRV readiness clause (server-derived). */
   afOnChart?: boolean;
+  /** The coach layer is dormant without its key: never link to an error. */
+  coachEnabled?: boolean;
   pinIncrements?: Record<string, number>;
   /** exerciseId → reps → best kg at this gym. Drives the rep-record toast. */
   repRecords?: Record<string, Record<number, number>>;
@@ -1175,7 +1178,9 @@ export default function WorkoutForm({
                 ...b.sets,
                 {
                   exerciseId: b.exerciseId,
-                  setNumber: b.sets.length + 1,
+                  // Highest working number + 1: the warm-up row (set 0) sits
+                  // in the array too, so length + 1 skipped a number.
+                  setNumber: b.sets.reduce((m, s) => Math.max(m, s.isWarmup ? 0 : s.setNumber), 0) + 1,
                   reps: b.sets.at(-1)?.reps ?? 10,
                   weight: b.sets.at(-1)?.weight ?? 0,
                   done: false,
@@ -1435,7 +1440,7 @@ export default function WorkoutForm({
   const stepAccent = violetDay
     ? 'volt-stepbtn text-acc-violet active:bg-acc-violet-deep/20'
     : 'volt-stepbtn text-acc-teal active:bg-acc-teal-deep/20';
-  const stepperShell = `volt-step flex items-center min-w-0 h-12 bg-app-surface2 border border-app-border rounded-xl overflow-hidden transition-colors ${
+  const stepperShell = `volt-step flex items-center min-w-0 h-12 bg-app-surface2 border border-app-border rounded-xl transition-colors ${
     violetDay ? 'focus-within:border-acc-violet/50' : 'focus-within:border-acc-teal/50'
   }`;
   const currentSetRing = violetDay
@@ -1479,11 +1484,11 @@ export default function WorkoutForm({
             onClick={compressSession}
             className="w-full card rounded-card px-4 py-2.5 text-left text-xs text-app-tx2 hover:border-app-border-hi transition-colors"
           >
-            ⏱ Short on time? <span className="text-app-tx3">One tap keeps every machine, first set only.</span>
+            Short on time? <span className="text-app-tx3">→ first set only</span>
           </button>
         )}
         {compressed && (
-          <p className="text-app-tx3 text-[11px] px-1">Compressed — one working set per machine · 60s rests.</p>
+          <p className="text-app-tx3 text-[11px] px-1">Compressed · 1 set each · 60s</p>
         )}
 
         {/* Draft restored notice */}
@@ -1493,7 +1498,7 @@ export default function WorkoutForm({
         {draftRestored && (
           <div className="card rounded-card border-acc-teal/30 px-4 py-3 flex items-center justify-between">
             <span className="text-acc-teal text-sm">
-              {draftIsStale ? '↩ Old session restored — still yours to keep' : '↩ Workout restored'}
+              {draftIsStale ? '↩ Old draft restored' : '↩ Restored'}
             </span>
             <button
               type="button"
@@ -1595,7 +1600,7 @@ export default function WorkoutForm({
               on unfamiliar machines. The coach can translate B_Fit strength
               into conservative starting guidance — chat text only, never a
               prefill, so nothing touches per-gym weight memory. */}
-          {gym !== DEFAULT_GYM_ID && Object.keys(gymRecords).length === 0 && (
+          {coachEnabled && gym !== DEFAULT_GYM_ID && Object.keys(gymRecords).length === 0 && (
             <a
               href={`/coach?q=${encodeURIComponent('Plan my first Alrajhi Tower session.')}`}
               className="-mt-1 block text-[11px] font-semibold text-acc-cyan"
@@ -1656,7 +1661,7 @@ export default function WorkoutForm({
                   type="button"
                   onClick={() => setShowReturnInfo((v) => !v)}
                   aria-expanded={showReturnInfo}
-                  className={`font-mono text-[10px] px-2.5 py-1 border uppercase tracking-[0.14em] transition-colors flex items-center gap-1 flex-shrink-0 ${
+                  className={`font-mono text-[10px] px-2.5 py-1 min-h-[30px] border uppercase tracking-[0.14em] transition-colors flex items-center gap-1 flex-shrink-0 ${
                     showReturnInfo
                       ? 'bg-acc-ember/15 text-acc-ember border-acc-ember/40'
                       : 'bg-app-surface2 text-app-tx3 border-app-border hover:text-app-tx2'
@@ -1696,23 +1701,9 @@ export default function WorkoutForm({
                 })}
               </div>
               {showReturnInfo && (
-                <div className="mt-2.5">
-                  <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-acc-ember/70">
-                    Coach directive
-                  </p>
-                  <p className="glow-amber font-round font-bold text-sm uppercase tracking-[0.05em] mt-1">
-                    We rebuild. We don&apos;t test.
-                  </p>
-                  <p className="text-app-tx2 text-xs mt-1 leading-relaxed">
-                    Weights pre-set to{' '}
-                    <span className="font-semibold text-acc-ember">{returnLoadPct}%</span> of pre-break.
-                    Stop every set at{' '}
-                    <span className="font-semibold text-acc-ember">
-                      {['', 'Easy', 'Med', 'Hard', 'Grind'][returnRpeCap ?? 2]}
-                    </span>
-                    {' '}&mdash; past that, drop a pin. The ramp beats the number.
-                  </p>
-                </div>
+                <p className="mt-2.5 text-app-tx2 text-xs leading-relaxed">
+                  Past the cap, drop a pin — the ramp beats the number.
+                </p>
               )}
             </div>
           </div>
@@ -2047,8 +2038,13 @@ export default function WorkoutForm({
                             </button>
                           </div>
                         )}
-                        <div className={`flex items-center gap-1.5 transition-transform duration-200 ${isSwipedOpen ? '-translate-x-16' : ''}`}>
-                          <span className={`w-6 flex-shrink-0 text-center text-xs font-bold tabular-nums ${
+                        {/* Wraps rather than clips: below ~360 px (or at large text)
+                            the done button drops to a second line; a number field
+                            never reaches 0 px (device-tester, 2026-09-18). Control
+                            widths are px, not rem, so large text grows the digits
+                            and not the buttons. */}
+                        <div className={`flex flex-wrap items-center gap-1.5 transition-transform duration-200 ${isSwipedOpen ? '-translate-x-16' : ''}`}>
+                          <span className={`w-[24px] flex-shrink-0 text-center text-xs font-bold tabular-nums ${
                             set.done ? 'text-acc-teal' : 'text-app-tx3'
                           }`}>
                             {set.isWarmup ? 'W' : set.setNumber}
@@ -2076,11 +2072,11 @@ export default function WorkoutForm({
                             </div>
                           ) : (
                             <>
-                              <div className={`flex-[3] ${stepperShell}`}>
+                              <div className={`flex-[3] min-w-[98px] ${stepperShell}`}>
                                 <button
                                   type="button"
                                   onClick={() => stepWeight(block, i, -1)}
-                                  className={`w-9 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
+                                  className={`w-[32px] min-w-[32px] h-full flex items-center justify-center font-bold text-lg flex-none select-none leading-none transition-colors ${stepAccent}`}
                                 >
                                   &#8722;
                                 </button>
@@ -2094,26 +2090,27 @@ export default function WorkoutForm({
                                   onChange={(e) =>
                                     updateSet(block.uid, i, 'weight', parseFloat(e.target.value) || 0)
                                   }
-                                  className="flex-1 bg-transparent text-app-tx1 text-base font-semibold text-center focus:outline-none tabular-nums min-w-0 h-full"
+                                  className="flex-1 bg-transparent text-app-tx1 text-base font-semibold text-center focus:outline-none tabular-nums min-w-[34px] w-full px-0 h-full"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => stepWeight(block, i, 1)}
-                                  className={`w-9 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
+                                  className={`w-[32px] min-w-[32px] h-full flex items-center justify-center font-bold text-lg flex-none select-none leading-none transition-colors ${stepAccent}`}
                                 >
                                   +
                                 </button>
                               </div>
 
-                              {/* Reps shell: w-9 buttons + min-w-[30px] input, not w-11 +
-                                  min-w-0 — at iPhone width the old math left ~12px for the
-                                  value and the digits clipped to an invisible sliver
-                                  (device-tester, Aug 5). */}
-                              <div className={`flex-[2] ${stepperShell}`}>
+                              {/* Reps shell: the buttons are flex-none and the shell no longer
+                                  clips, so a narrow row shrinks the number field, never the
+                                  "+" — the most-tapped control mid-set was a 26 px target at
+                                  393 px and gone at 320 px / large text (device-tester,
+                                  2026-09-18). */}
+                              <div className={`flex-[2] min-w-[92px] ${stepperShell}`}>
                                 <button
                                   type="button"
                                   onClick={() => updateSet(block.uid, i, 'reps', Math.max(0, set.reps - 1))}
-                                  className={`w-9 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
+                                  className={`w-[32px] min-w-[32px] h-full flex items-center justify-center font-bold text-lg flex-none select-none leading-none transition-colors ${stepAccent}`}
                                 >
                                   &#8722;
                                 </button>
@@ -2127,12 +2124,12 @@ export default function WorkoutForm({
                                   onChange={(e) =>
                                     updateSet(block.uid, i, 'reps', parseInt(e.target.value) || 0)
                                   }
-                                  className="flex-1 bg-transparent text-app-tx1 text-base font-semibold text-center focus:outline-none tabular-nums min-w-[30px] h-full"
+                                  className="flex-1 bg-transparent text-app-tx1 text-base font-semibold text-center focus:outline-none tabular-nums min-w-[24px] w-full px-0 h-full"
                                 />
                                 <button
                                   type="button"
                                   onClick={() => updateSet(block.uid, i, 'reps', set.reps + 1)}
-                                  className={`w-9 h-full flex items-center justify-center font-bold text-lg flex-shrink-0 select-none leading-none transition-colors ${stepAccent}`}
+                                  className={`w-[32px] min-w-[32px] h-full flex items-center justify-center font-bold text-lg flex-none select-none leading-none transition-colors ${stepAccent}`}
                                 >
                                   +
                                 </button>
@@ -2143,7 +2140,7 @@ export default function WorkoutForm({
                           <button
                             type="button"
                             onClick={() => toggleSetDone(block.uid, i)}
-                            className={`volt-done w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-90 ${
+                            className={`volt-done w-[56px] h-[56px] ml-auto rounded-2xl flex items-center justify-center text-sm font-bold transition-all flex-shrink-0 active:scale-90 ${
                               set.done
                                 ? 'bg-gradient-to-br from-acc-teal to-acc-teal-deep text-white shadow-glow-teal'
                                 : set.isWarmup
@@ -2164,7 +2161,7 @@ export default function WorkoutForm({
                           cap render struck-through/unlit like locked switches —
                           visual only, they stay tappable. */}
                       {set.done && (
-                        <div className="mt-1.5 pl-14 flex gap-1.5 pb-0.5">
+                        <div className="mt-1.5 pl-14 flex flex-wrap gap-1.5 pb-0.5">
                           {rpeOptions.map(({ v, l, c }) => {
                             const locked = returnRpeCap != null && v > returnRpeCap;
                             const isCap = returnRpeCap != null && v === returnRpeCap;
@@ -2271,6 +2268,10 @@ export default function WorkoutForm({
         >
           {submitting ? 'Saving…' : 'Save Workout'}
         </button>
+        {/* The rest capsule is fixed above the nav and ~160 px tall; without
+            this it covered Save and "+ Add Exercise" at the bottom of the
+            scroll (device-tester, 2026-09-18). */}
+        {restTimer && <div className="h-40" aria-hidden="true" />}
       </form>
 
       {restTimer && (
@@ -2347,7 +2348,7 @@ export default function WorkoutForm({
             </div>
             {showSummary.ramp && (
               <p className="mt-3 font-mono text-[11px] font-bold uppercase tracking-[0.16em] text-acc-ember">
-                Ramp session banked · we rebuild, we don&apos;t test
+                Ramp session banked
               </p>
             )}
             {showSummary.moved.length > 0 && (

@@ -288,7 +288,7 @@ export default function RestTimer({ totalSeconds, exerciseName, onDismiss, nextU
           <div className="flex items-center justify-between px-4 py-3 gap-4">
             {finished ? (
               <div>
-                <p className="glow-teal font-bold text-base">Rest complete! 💪</p>
+                <p className="glow-teal font-bold text-base">Rest complete</p>
                 {/* The old line said "Next set of {exerciseName}" even when
                     that was the block's last set — wrong exactly when a
                     glance mattered. Now it names the true next set, weight

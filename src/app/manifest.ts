@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'AR Health',
     short_name: 'AR Health',
-    description: 'Track your 12-week fat loss program',
+    description: 'AR Health',
     start_url: '/',
     display: 'standalone',
     background_color: '#0A0F1E',

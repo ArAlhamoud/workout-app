@@ -41,9 +41,6 @@ export function epley1RM(weight: number, reps: number): number {
 /** Index by RPE value 1–4 (index 0 unused). */
 export const RPE_LABELS = ['', 'Easy', 'Med', 'Hard', 'Grind'] as const;
 
-/** Effort-spectrum text classes by RPE value 1–4 (index 0 unused). */
-export const RPE_COLORS = ['', 'text-rpe-easy', 'text-rpe-med', 'text-rpe-hard', 'text-rpe-grind'] as const;
-
 /** Category badge classes (text + bg + border), tuned to the aurora hues.
  *  Amber is reserved for the Return Protocol and gold for PRs — never used here. */
 export const CATEGORY_BADGE: Record<string, string> = {
@@ -78,17 +75,3 @@ export function getMondayOfWeek(date: Date): Date {
   return d;
 }
 
-/**
- * ISO-8601 year-week key, e.g. "2026-W01". Weeks start Monday and the
- * ISO week-year is used, so keys stay correct across year boundaries
- * (Dec 29 2025 → "2026-W01", Jan 1 2027 → "2026-W53").
- */
-export function weekKey(date: Date): string {
-  const src = new Date(date);
-  const d = new Date(Date.UTC(src.getFullYear(), src.getMonth(), src.getDate()));
-  const dayNum = d.getUTCDay() || 7; // Mon=1 … Sun=7
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum); // shift to Thursday of this ISO week
-  const yearStart = Date.UTC(d.getUTCFullYear(), 0, 1);
-  const week = Math.ceil(((d.getTime() - yearStart) / 86400000 + 1) / 7);
-  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
-}

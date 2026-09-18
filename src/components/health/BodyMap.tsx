@@ -346,11 +346,8 @@ export default function BodyMap({ data }: { data: BodyData }) {
       })()}
 
       <div className="mt-1 flex items-center justify-between border-t border-ink/10 pt-2.5">
-        <p className="text-[11px] font-bold text-app-tx3">
-          Next injection · <span className="text-app-tx1">{data.nextSiteLabel}</span>
-        </p>
         {data.ldl && (
-          <Link href="/health/plan" className="shrink-0 text-[11px] font-bold text-app-tx2">
+          <Link href="/health/plan" className="ml-auto shrink-0 text-[11px] font-bold text-app-tx2">
             Blood · LDL {data.ldl.value} →
           </Link>
         )}
@@ -426,7 +423,7 @@ export default function BodyMap({ data }: { data: BodyData }) {
                   onClick={() => setAfYesterday(!afYesterday)}
                   className={`min-h-[40px] rounded-full border-2 px-3 text-xs font-bold ${afYesterday ? 'border-ink bg-ink text-white' : 'border-ink/20 bg-app-surface text-app-tx2'}`}
                 >
-                  {afYesterday ? 'Yesterday' : 'Today'} — tap to switch
+                  {afYesterday ? 'Yesterday' : 'Today'}
                 </button>
                 <button
                   type="button" className={saveBtn} disabled={busy || !afStart}

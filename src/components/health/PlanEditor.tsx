@@ -20,8 +20,13 @@ import { hapticSuccess } from '@/lib/native-feedback';
 const inputCls =
   'w-full rounded-card border border-app-border bg-app-surface2 px-3 py-2.5 text-base text-app-tx1 tabular-nums placeholder-app-tx3 focus:border-acc-cyan/60 focus:outline-none';
 
-const fmtDay = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+// The year rides along when it is not this year: "Oct 31" on a 2025 lab
+// read as next month on Sep 17 (device-tester, 2026-09-18).
+const fmtDay = (iso: string) => {
+  const d = new Date(iso);
+  const thisYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', ...(thisYear ? {} : { year: 'numeric' }) });
+};
 
 export default function PlanEditor({
   profile,
@@ -260,8 +265,7 @@ export default function PlanEditor({
             </div>
           ))}
           <p className="pt-1 text-[10px] text-app-tx3">
-            Deleting an injection rewinds the treatment clock and rotation — for wrong entries
-            only.
+            Deleting rewinds the clock — wrong entries only.
           </p>
         </div>
       )}

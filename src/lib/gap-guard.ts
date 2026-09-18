@@ -100,7 +100,7 @@ export function computeGapLadder(
       day: 5,
       at: at(5),
       title: 'Day 5 without a session',
-      body: 'Both long breaks started exactly like this. 15 minutes tonight counts — tap for the rescue session.',
+      body: '15 minutes tonight counts — tap for the rescue session.',
       route: '/workouts/new?rescue=1',
     },
     {
@@ -108,15 +108,15 @@ export function computeGapLadder(
       day: 7,
       at: at(7),
       title: 'Your streak is mendable',
-      body: 'A missed week isn’t a dead record: two sessions before Sunday night repair it (rest day between, as always). The 43-day break cost 3 kg — this one doesn’t have to.',
+      body: 'Two sessions before Sunday.',
       route: '/workouts/new?rescue=1',
     },
     {
       id: LADDER_IDS[3],
       day: 19,
       at: at(19),
-      title: 'Two days from a program reset',
-      body: 'At day 21 the 4-week return ramp takes over. A session in the next two days keeps you on your normal program — tap to start it.',
+      title: 'Return ramp in 2 days',
+      body: 'One session before then keeps you on the program.',
       route: startRoute,
     },
   ];
@@ -272,7 +272,7 @@ export function notifySickRest(): void {
     {
       id: SICK_NOTIFICATION_ID,
       title: 'Rest is the program today',
-      body: 'Resting HR is running high — this reads as illness, not laziness. Gap reminders are paused until you recover.',
+      body: 'Resting HR high — reminders paused until you recover.',
       schedule: { at: new Date(Date.now() + 5_000) },
       sound: 'default',
     },
