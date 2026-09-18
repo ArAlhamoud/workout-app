@@ -55,7 +55,7 @@ import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
 import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
-import { CARDIO_RULE, afOnChart, clampTimedReps, effortCeiling, getExercisesForDuration, getPlankTarget } from '../src/lib/program';
+import { CARDIO_RULE, afOnChart, clampTimedReps, effortCeiling, getExercisesForDuration, getPlankTarget, nextTryWeight, repeatToEarn, isOverRamp } from '../src/lib/program';
 import { routeForDeepLink } from '../src/lib/deep-links';
 import { binHeartRate } from '../src/lib/hr-capture';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
@@ -2296,6 +2296,45 @@ console.log('Tier 1b — program logic');
   assert(!/under the ramp/i.test(A.find((x) => x.name === 'Hip Adduction')!.cues), 'Hip Adduction cue carries no ramp instruction');
   const swap = gymSwap('Leg Curl', 'work');
   assert(!!swap?.cues && /seated/i.test(swap.cues), 'Alrajhi Precor seated leg curl carries a seated cue');
+}
+
+// ── Tier 1b (ii): the chip and the over-ramp rule ─────────────────────────
+console.log('Tier 1b — chip + over-ramp');
+{
+  // 1.5 The "Try +5 kg" chip: learned pin, and only after the same two
+  // all-Easy sessions the overload seed waits for. One Easy session at a
+  // new weight reads "repeat, earn it" — Face Pull 8.75 → "Try 13.75" was
+  // a +57% suggestion on a machine whose own cue says light and strict.
+  assert(nextTryWeight({ weight: 8.75, rpe: 1, overload: true }, 1.25) === 10, `one learned pin on top (got ${nextTryWeight({ weight: 8.75, rpe: 1, overload: true }, 1.25)})`);
+  assert(nextTryWeight({ weight: 8.75, rpe: 1, overload: false }, 1.25) === null, 'one Easy session earns nothing yet');
+  assert(nextTryWeight({ weight: 30, rpe: 2, overload: true }, 2.5) === 32.5, 'Med last time but two clean sessions behind it still steps one pin');
+  assert(nextTryWeight({ weight: 30, rpe: 3, overload: true }, 2.5) === null, 'a Hard last set never suggests more');
+  assert(nextTryWeight({ weight: 30, rpe: 1, overload: true }, 0) === 32.5, 'a missing pin falls back to 2.5');
+  assert(repeatToEarn({ weight: 30, rpe: 1, overload: false }) && !repeatToEarn({ weight: 30, rpe: 1, overload: true }) && !repeatToEarn({ weight: 30, rpe: 2, overload: false }), 'repeat-to-earn only after a single Easy session');
+
+  // 1.6 A ramp session lifted above prescription + one pin is "over-ramp":
+  // it still counts for calendar pacing, it does not EARN a phase. Thursday
+  // was prescribed 70% and lifted 96–117% of base, rated Easy — and that
+  // advanced the ramp.
+  assert(isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: 23 }, 70, 2.5), 'Chest Press 27 vs 70% of a 23 base (15 + 2.5 tolerance) is over-ramp');
+  assert(!isOverRamp([{ exerciseId: 'cp', weight: 17.5, isWarmup: false }], { cp: 23 }, 70, 2.5), '17.5 (one pin over the 15 prescription) is inside tolerance');
+  assert(!isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: true }], { cp: 23 }, 70, 2.5), 'warm-ups are never judged');
+  assert(!isOverRamp([{ exerciseId: 'new', weight: 40, isWarmup: false }], { cp: 23 }, 70, 2.5), 'a machine with no pre-break base cannot be over-ramp (held)');
+  assert(!isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: 23 }, 100, 2.5), 'at 100% nothing is over-ramp');
+
+  // End to end on his real history plus Thursday: the session that lifted
+  // full pre-break loads in a 70% week is not a clean (earning) session.
+  const byName = new Map(data.exercises.map((e) => [e.name, e.id]));
+  const set = (name: string, weight: number, rpe: number | null) => ({ exerciseId: byName.get(name)!, weight, reps: 10, rpe, isWarmup: false });
+  const thursday = {
+    date: '2026-09-17T00:00:00.000Z', name: 'Day A 45m — Sep 17', duration: 52 * 60,
+    sets: [set('Leg Press', 37.5, 1), set('Chest Press', 27, 2), set('Shoulder Press', 26, null), set('Leg Extension', 30, 1), set('Pec Fly', 30, 2), set('Ab Crunch', 27, 1)],
+  };
+  const history = [...data.workouts.filter((w) => w.name.startsWith('Day')), thursday];
+  const clean = cleanRampSessionDates(history).map((d) => d.toISOString().slice(0, 10));
+  assert(!clean.includes('2026-09-17'), `Thursday earned nothing — it was over-ramp (clean: ${clean.join(', ')})`);
+  const stillCounts = getTrainingStatus(history.map((w) => new Date(w.date)), new Date('2026-09-18T12:00:00Z'), cleanRampSessionDates(history));
+  assert(stillCounts.mode === 'return' && stillCounts.sessionsInBlock >= 4, 'it still counts as a session for calendar pacing — over-ramp is not punished');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────

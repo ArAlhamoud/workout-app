@@ -426,15 +426,83 @@ export type TrainingStatus =
  * and a Hard or Grind anywhere means the load is not as light as the ramp
  * assumes — the calendar keeps the wheel then.
  */
-export function cleanRampSessionDates(
-  sessions: Array<{ date: Date; sets?: Array<{ rpe: number | null; isWarmup: boolean }> }>,
-): Date[] {
-  return sessions
-    .filter((s) => {
-      const rated = (s.sets ?? []).filter((x) => !x.isWarmup && x.rpe !== null);
-      return rated.length >= 2 && rated.every((x) => (x.rpe as number) <= 2);
-    })
-    .map((s) => new Date(s.date));
+/**
+ * A ramp session lifted ABOVE its prescription is "over-ramp": the top
+ * working weight on any machine beat the ramp prefill for that week by
+ * more than one pin. It still counts as a session for calendar pacing; it
+ * does not EARN a phase. Thursday 17 Sep was prescribed 70% and lifted
+ * 96–117% of base, rated Easy — and that advanced the ramp (trainer B1,
+ * 2026-09-18): the app's own directive says "the ramp beats the number"
+ * and then rewarded ignoring it. A machine with no pre-break base is held,
+ * so it cannot be over-ramp. Tolerance is one DEFAULT pin so every screen
+ * computes the same answer without a learned-pin map.
+ */
+export function isOverRamp(
+  sets: Array<{ exerciseId?: string; weight?: number; isWarmup?: boolean | null }>,
+  baseByExercise: Record<string, number>,
+  loadPct: number,
+  pin = 2.5,
+): boolean {
+  if (loadPct >= 100) return false;
+  const top = new Map<string, number>();
+  for (const x of sets) {
+    if (x.isWarmup || !x.exerciseId || typeof x.weight !== 'number') continue;
+    top.set(x.exerciseId, Math.max(top.get(x.exerciseId) ?? 0, x.weight));
+  }
+  for (const [id, w] of top) {
+    const base = baseByExercise[id];
+    if (!base) continue;
+    if (w > rampPrefillWeight({ weight: base }, loadPct, pin) + pin) return true;
+  }
+  return false;
+}
+
+type RampSession = {
+  date: Date | string;
+  name?: string | null;
+  sets?: Array<{ rpe?: number | null; isWarmup?: boolean | null; exerciseId?: string; weight?: number }> | null;
+};
+
+/**
+ * Sessions that EARN ramp progress: at least two rated working sets, none
+ * above Med, and not over-ramp. Walks the history in order so each
+ * session is judged by the status that stood when it was logged.
+ */
+export function cleanRampSessionDates(sessions: RampSession[]): Date[] {
+  const asc = sessions
+    .map((s) => ({ ...s, at: new Date(s.date) }))
+    .sort((a, b) => a.at.getTime() - b.at.getTime());
+  const clean: Date[] = [];
+  for (let i = 0; i < asc.length; i++) {
+    const s = asc[i];
+    const rated = (s.sets ?? []).filter((x) => !x.isWarmup && x.rpe != null);
+    if (!(rated.length >= 2 && rated.every((x) => (x.rpe as number) <= 2))) continue;
+    // What did the ramp prescribe the day this was logged?
+    const before = asc.slice(0, i);
+    const at = getTrainingStatus(before.map((b) => b.at), s.at, clean);
+    if (at.mode === 'return' && at.returnWeek.loadPct < 100) {
+      const cut = rampBaseBefore(before, clean, s.at);
+      const base: Record<string, number> = {};
+      const cutTs = cut ? new Date(cut).getTime() : Number.POSITIVE_INFINITY;
+      // Per machine, the top working weight of the LATEST session before
+      // the cut-off — `before` is ascending, so a later session overwrites.
+      const seenAt: Record<string, number> = {};
+      for (const b of before) {
+        if (b.at.getTime() >= cutTs) continue;
+        const tops: Record<string, number> = {};
+        for (const x of b.sets ?? []) {
+          if (x.isWarmup || !x.exerciseId || typeof x.weight !== 'number' || x.weight <= 0) continue;
+          tops[x.exerciseId] = Math.max(tops[x.exerciseId] ?? 0, x.weight);
+        }
+        for (const [id, w] of Object.entries(tops)) {
+          if ((seenAt[id] ?? 0) <= b.at.getTime()) { base[id] = w; seenAt[id] = b.at.getTime(); }
+        }
+      }
+      if (isOverRamp(s.sets ?? [], base, at.returnWeek.loadPct)) continue;
+    }
+    clean.push(s.at);
+  }
+  return clean;
 }
 
 export function getTrainingStatus(
@@ -754,6 +822,28 @@ export function effortCeiling(
     live(conditions).some((c) => AF_RX.test(c) || ARRHYTHMIA_RX.test(c) || HYPERTENSION_RX.test(c)) ||
     live(medications).some((m) => CARDIAC_DRUG_RX.test(m));
   return flagged ? 3 : 4;
+}
+
+/**
+ * The "Try N kg" chip. One learned pin, and only after the same two
+ * all-Easy sessions the overload seed waits for — the chip used to add a
+ * hard-coded 5 kg after ONE Easy session (Face Pull 8.75 → "Try 13.75",
+ * +57%, on a machine whose own cue says light and strict; trainer A6,
+ * 2026-09-18). Null = nothing to suggest.
+ */
+export function nextTryWeight(
+  last: { weight: number; rpe: number | null; overload?: boolean } | null | undefined,
+  pin: number,
+): number | null {
+  if (!last || last.weight <= 0 || !last.overload) return null;
+  if (last.rpe != null && last.rpe >= 3) return null;
+  const p = pin > 0 ? pin : 2.5;
+  return +(last.weight + p).toFixed(2);
+}
+
+/** One Easy session at a weight: repeat it and earn the pin — not "try more". */
+export function repeatToEarn(last: { weight?: number; rpe: number | null; overload?: boolean } | null | undefined): boolean {
+  return !!last && last.rpe === 1 && !last.overload;
 }
 
 /** A timed hold never prefills past its ceiling — the 30 s plank cap is a

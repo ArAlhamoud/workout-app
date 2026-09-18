@@ -10,7 +10,7 @@ import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
 import { rampPrefillWeight, GYMS, DEFAULT_GYM_ID,
   hasWarmupSet,
-  warmupWeight, clampTimedReps } from '@/lib/program';
+  warmupWeight, clampTimedReps, nextTryWeight, repeatToEarn } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -1749,11 +1749,14 @@ export default function WorkoutForm({
           const shouldHold =
             (!returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3) ||
             readinessHold;
+          // One learned pin, only after two all-Easy sessions (program.ts
+          // nextTryWeight) — never a hard-coded 5 kg after one Easy session.
           const suggestWeight =
             !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload &&
             !block.overloadApplied
-              ? +(block.lastSession.weight + (lastRpe === 1 ? 5 : 2.5)).toFixed(1)
+              ? nextTryWeight(block.lastSession, pinIncrements[block.exerciseId] ?? DEFAULT_PIN_INCREMENT)
               : null;
+          const earnIt = !returnTarget && !isTimed && !shouldHold && !deload && !block.overloadApplied && repeatToEarn(block.lastSession);
 
           const est1RM = !isTimed
             ? block.sets.reduce((best, s) => Math.max(best, epley1RM(s.weight, s.reps)), 0)
@@ -1837,6 +1840,11 @@ export default function WorkoutForm({
                 {suggestWeight && !allDone && (
                   <span className="text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium tabular-nums">
                     &#8594; Try {suggestWeight} kg
+                  </span>
+                )}
+                {earnIt && !allDone && (
+                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border font-medium">
+                    Repeat · earn the pin
                   </span>
                 )}
                 {block.overloadApplied && !allDone && (
