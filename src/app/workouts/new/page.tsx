@@ -1,3 +1,4 @@
+import prisma from '@/lib/prisma';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
@@ -16,8 +17,7 @@ import {
   queuedDay,
   type Duration,
   cleanRampSessionDates,
-  rampBaseBefore,
-} from '@/lib/program';
+  rampBaseBefore, effortCeiling } from '@/lib/program';
 
 export const metadata: Metadata = { title: 'Log Workout' };
 
@@ -44,13 +44,17 @@ export default async function NewWorkoutPage({
   // constant default gym, so making them wait behind the template math was
   // pure serial latency — worst exactly on the Neon-cold-resume open at the
   // gym. Only lastSession genuinely needs exerciseIds (below).
-  const [exercises, allWorkouts, personalRecords, repRecords, liveRow] = await Promise.all([
+  const [exercises, allWorkouts, personalRecords, repRecords, liveRow, profile] = await Promise.all([
     getExercises(),
     getWorkouts(),
     getPersonalRecords(DEFAULT_GYM_ID),
     getRepRecords(DEFAULT_GYM_ID),
     getLiveSession(),
+    prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { conditions: true } }).catch(() => null),
   ]);
+  // The chart's effort ceiling (AF / flecainide / hypertension → Hard) holds
+  // after the ramp exits — the logger greys RPE above it either way.
+  const effortCap = effortCeiling(profile?.conditions as string[] | null | undefined);
   // A session in progress on the Watch opens HERE under its own day and
   // length — same rule as a draft from the other day (device-tester, Aug
   // 30): header and content must agree. Only a Watch-born session redirects;
@@ -311,7 +315,12 @@ export default async function NewWorkoutPage({
           // the day readiness said "shrink" (adversary).
           isRescue ? (isReturning ? status.returnWeek.loadPct : RESCUE_LOAD_PCT) : isReturning ? status.returnWeek.loadPct : undefined
         }
-        returnRpeCap={isRescue ? 2 : isReturning ? status.returnWeek.rpeCap : undefined}
+        returnRpeCap={(() => {
+          // The ramp strip is gated on returnLoadPct, so a cap on its own
+          // only greys the RPE buttons — which is the point after the ramp.
+          const cap = isRescue ? 2 : Math.min(isReturning ? status.returnWeek.rpeCap : 4, effortCap);
+          return cap < 4 ? cap : undefined;
+        })()}
         pinIncrements={pinIncrements}
         dayAccent={validDay}
       />

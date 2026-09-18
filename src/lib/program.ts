@@ -55,8 +55,8 @@ export const DAY_B: DayTemplate = {
     { name: 'Back Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '75s', machine: 'Life Fitness (seated Back Extension)', cues: 'This is the SEATED machine, not a roman chair — you sit upright, not face-down. Set the back pad so it sits across your upper back / shoulder blades, and the seat so your hips sit at the machine pivot. Cross arms on your chest or hold the handles. Press BACKWARD by driving your hips down into the seat and squeezing your glutes — the movement is a hip extension, the spine stays neutral and travels as one piece. Push back 2s, hold 1s, return 3s under control, stopping before the stack touches down. Range: only as far back as you can go without your ribs flaring or your chin lifting. MISTAKE TO AVOID: cranking backward with the lower back to chase range — a shorter, controlled rep with the glutes doing the work is the whole point, and at your bodyweight the seated version is far kinder to your spine than a roman chair.', youtubeUrl: 'https://www.youtube.com/watch?v=gLT-WLH84B4', priority: 1 },
     { name: 'Lat Pulldown', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hammer Strength', cues: 'Grip just outside shoulder width — wider is NOT better. Lock thighs under the pad. BEFORE pulling: depress your shoulder blades (pull shoulders away from ears). Then pull the bar to your upper chest by driving elbows straight DOWN and BACK toward your hips. Lean back 10–15° naturally. Hold 1s at bottom with lats squeezed. Return with arms fully extending for a full lat stretch at the top. MISTAKE TO AVOID: leaning back 45°+ turns this into a row — keep the lean minimal and feel your lats, not your biceps.', youtubeUrl: 'https://www.youtube.com/watch?v=NYQ-o3ffxOc', priority: 1 },
     { name: 'Mid Row', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hoist ROC-IT', cues: 'Adjust seat so handles are at mid-abdomen height. Sit upright with a slight forward lean at the hips — chest up, not hunched. Neutral grip (palms facing each other). BEFORE pulling: depress and slightly retract shoulder blades. Then row by driving elbows past your torso — aim for 90° elbow angle at full contraction. Squeeze shoulder blades together hard and hold 1s. Return 3s to a full arm extension and feel the lats stretch. MISTAKE TO AVOID: shrugging shoulders up toward ears during the row — keep them down throughout.', youtubeUrl: 'https://www.youtube.com/watch?v=GZbfZ033f74', priority: 1 },
-    { name: 'Plank', sets: 3, repsMin: 20, repsMax: 60, unit: 'seconds', repsDisplay: '20–60s', rest: '45s', machine: 'Floor / mat', cues: 'Forearms flat, elbows directly under shoulders, toes on the floor. Simultaneously: squeeze your quads, squeeze your glutes, draw your belly button toward your spine, and push the floor away with your forearms. Body forms a perfectly straight line — no hips up (pike) or hips sagging (banana). Breathe steadily throughout. Build from 20s → 60s over the program. MODIFICATION: if lower back hurts, drop to your knees while maintaining all the bracing cues above. Dead bugs are an excellent alternative for spinal health.', youtubeUrl: 'https://www.youtube.com/watch?v=A2b2EmIg0dA', priority: 1 },
-    { name: 'Leg Curl', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness', cues: 'Adjust seat so your knee joint aligns with the machine pivot. Lie face down, pad resting just above the heels (lower Achilles area). Grip the handles. Curl legs fully — the pad should nearly touch your glutes. Squeeze hamstrings hard and hold 1s at peak. Return 3s — CRITICAL: let the weight fully extend and stretch the hamstrings at the bottom before the next rep. MISTAKE TO AVOID: letting hips lift off the pad means the weight is too heavy — keep hips pressed down the whole set.', youtubeUrl: 'https://www.youtube.com/watch?v=S367qaHeYWU', priority: 2 },
+    { name: 'Plank', sets: 3, repsMin: 20, repsMax: 30, unit: 'seconds', repsDisplay: '20–30s', rest: '45s', machine: 'Floor / mat', cues: "KNEE PLANK is the default at your bodyweight — or dead bugs, which are as good for the spine. Knees and forearms on the mat, elbows directly under shoulders, a straight line from knees to head. BREATHE: exhale slowly the whole hold, never hold your breath — a held breath under load spikes blood pressure. Squeeze glutes, draw the belly button toward the spine, push the floor away with the forearms. Hold 20–30 s and stop while the line is still straight; to progress, add a SET, not seconds. MISTAKE TO AVOID: the full toes-down plank at this bodyweight drags the pelvis into a tilt and loads the lumbar spine — it is a back test, not core work. Stay on the knees until the weight is well down.", youtubeUrl: 'https://www.youtube.com/watch?v=A2b2EmIg0dA', priority: 2 },
+    { name: 'Leg Curl', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness', cues: 'Adjust seat so your knee joint aligns with the machine pivot. Lie face down, pad resting just above the heels (lower Achilles area). Grip the handles. Curl legs fully — the pad should nearly touch your glutes. Squeeze hamstrings hard and hold 1s at peak. Return 3s — CRITICAL: let the weight fully extend and stretch the hamstrings at the bottom before the next rep. MISTAKE TO AVOID: letting hips lift off the pad means the weight is too heavy — keep hips pressed down the whole set.', youtubeUrl: 'https://www.youtube.com/watch?v=S367qaHeYWU', priority: 1 },
     { name: 'Bicep Curl', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Hammer Strength Select (or Life Fitness)', cues: 'Set the pad so your upper arms rest FLAT along it and your elbows align with the machine pivot. Palms up (supinated grip). Start from fully extended arms — feel the bicep stretch at the bottom. Curl until forearms go just past vertical, squeeze the bicep hard and hold 1s. Return 3s to FULL extension — never cut the range of motion short. MISTAKE TO AVOID: the whole point of the pad is to eliminate swinging — if your upper arms are lifting off the pad, you are cheating and the exercise is not working.', youtubeUrl: 'https://www.youtube.com/watch?v=fcziDNsUWPM', priority: 2 },
     { name: 'Triceps Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit facing the machine, upper arms resting on the pad. Grip handles with palms down, elbows shoulder-width — do NOT let them flare out. Start with forearms vertical (90° elbow angle). Press DOWN and FORWARD to FULL lockout at the bottom — full extension is required to fully contract the tricep. Hold 1s. Return 3s — this slow eccentric is the growth stimulus. MISTAKE TO AVOID: elbows drifting wide, and not fully locking out. Upper arms stay pinned to the pad throughout — only forearms move.', youtubeUrl: 'https://www.youtube.com/watch?v=fcziDNsUWPM', priority: 2 },
     { name: 'Rear Delt Fly', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit facing the pad, chest against it. Handles at chest height. Palms facing down or inward. Keep a slight bend in the elbows and MAINTAIN that angle — do not straighten arms like a chest fly. Raise arms outward and back, leading with elbows, stopping when arms are parallel to the floor. Squeeze rear delts and shoulder blades together for 1s. Return 3s. MISTAKE TO AVOID: using heavy weight — this is a very small muscle that fatigues fast. If you feel it in your upper traps instead of the back of your shoulders, drop the weight significantly.', youtubeUrl: 'https://www.youtube.com/watch?v=6yMdhi2DVao', priority: 2 },
@@ -112,11 +112,11 @@ export function warmupWeight(workingKg: number, pin: number): number | null {
   return warm < workingKg ? warm : null;
 }
 
+// Capped at 30 s (trainer, 2026-09-18): at 126 kg a longer isometric is a
+// breath-held BP spike and a lumbar test. Progress by adding a set.
 export function getPlankTarget(week: number): { min: number; max: number } {
   if (week <= 2) return { min: 20, max: 30 };
-  if (week <= 4) return { min: 30, max: 45 };
-  if (week <= 6) return { min: 45, max: 60 };
-  return { min: 60, max: 60 };
+  return { min: 30, max: 30 };
 }
 
 
@@ -674,12 +674,36 @@ export interface CardioOption {
 // Everything above the treadmill is non-impact — that is the whole ordering
 // principle, not preference.
 export const CARDIO: CardioOption[] = [
-  { rank: 1, name: 'Swimming', badge: 'BEST', desc: 'Zero joint impact. Highest calorie burn. 20–30 min any stroke.', gyms: ['bfit'] },
-  { rank: 2, name: 'Rowing', badge: 'GREAT', desc: 'Zero impact and the biggest burn on land — you are seated, so none of your bodyweight loads the knees or hips. FORM: legs drive first, then lean back, then pull; reverse it on the way in. Never round your lower back at the catch. 15–20 min steady, or 10 × 1 min hard / 1 min easy.' },
+  { rank: 1, name: 'Swimming', badge: 'BEST', desc: 'Zero joint impact. Highest calorie burn. 20–30 min any stroke. Not alone, and no breath-hold lengths, until the cardiologist clears it.', gyms: ['bfit'] },
+  { rank: 2, name: 'Rowing', badge: 'GREAT', desc: 'Zero impact and the biggest burn on land — you are seated, so none of your bodyweight loads the knees or hips. FORM: legs drive first, then lean back, then pull; reverse it on the way in. Never round your lower back at the catch. 15–20 min steady.' },
   { rank: 3, name: 'Upright Bike', badge: 'GREAT', desc: 'No weight on joints. Best for warm-ups and cardio finishers.' },
   { rank: 4, name: 'Elliptical', badge: 'GOOD', desc: 'Low impact — distributes load across arms and legs.' },
   { rank: 5, name: 'Treadmill', badge: 'CAUTION', desc: 'ONLY walking at 4–5 km/h, low incline. Never run.' },
 ];
+
+/**
+ * The standing rule for ALL cardio while his chart says AF on flecainide
+ * (trainer, 2026-09-18): flecainide's block is use-dependent — strongest
+ * at high heart rates — and the beta-blocker hides how hard he is going,
+ * so nothing here may ask for peak exertion until the cardiologist does.
+ */
+export const CARDIO_RULE =
+  'Conversational pace only — you should be able to talk in full sentences — until the cardiologist clears harder work.';
+
+/**
+ * The effort ceiling the CHART sets, independent of the ramp. AF, an
+ * antiarrhythmic, or treated hypertension → Hard (3): a Grind set on a
+ * machine is a breath-held Valsalva, exactly the pressure spike a
+ * flecainide/AF/hypertension patient must not produce. The ramp's own
+ * cap already sits at or below this; the point is that it does not LIFT
+ * to 4 the week the ramp exits — which was the week of his cardiology
+ * review (trainer, 2026-09-18). Reads the profile's conditions list,
+ * which he maintains himself; nothing here diagnoses.
+ */
+export function effortCeiling(conditions: readonly string[] | null | undefined): 3 | 4 {
+  if (!conditions || !conditions.length) return 4;
+  return conditions.some((c) => /atrial|\baf\b|fibrillat|flecainide|arrhythm|hypertens/i.test(c)) ? 3 : 4;
+}
 
 /** Cardio actually available in one building. */
 export function cardioForGym(gymId: string | null | undefined): CardioOption[] {

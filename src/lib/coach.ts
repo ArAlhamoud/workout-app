@@ -395,6 +395,8 @@ export function weeklyReport(
   bodyStats: CoachBodyStat[],
   status: TrainingStatus,
   now: Date = new Date(),
+  /** The chart's effort ceiling (program.ts effortCeiling); 4 = none. */
+  effortCap: 3 | 4 = 4,
 ): WeeklyReport {
   const wins: string[] = [];
   const focus: string[] = [];
@@ -468,7 +470,13 @@ export function weeklyReport(
   } else {
     nextSession.push('Take the next pin on anything that was Easy last session.');
     if (plateaus.length) nextSession.push(`On ${plateaus[0].name}: ${plateaus[0].result.suggestion}.`);
-    nextSession.push('Leave 1–2 reps in reserve — Grind sets are a signal, not a goal.');
+    if (effortCap < 4) {
+      // The ramp is over but the chart is not: the cap does not lift at
+      // ramp exit while AF / flecainide / hypertension stand (trainer).
+      nextSession.push(`Cap effort at ${RPE_LABELS[effortCap]} — no harder until the cardiologist clears it.`);
+    } else {
+      nextSession.push('Leave 1–2 reps in reserve — Grind sets are a signal, not a goal.');
+    }
   }
 
   const headline =

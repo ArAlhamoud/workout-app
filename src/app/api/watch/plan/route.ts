@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import {
   cleanRampSessionDates,
+  effortCeiling,
   getDynamicPlan,
   getExercisesForDuration,
   getTrainingStatus,
@@ -37,13 +38,16 @@ export async function GET(request: Request) {
   // Weights and pins are per building (rule 2) — default gym unless asked.
   const gym = url.searchParams.get('gym') === 'work' ? 'work' : DEFAULT_GYM_ID;
 
-  const [exercises, workoutRows] = await Promise.all([
+  const [exercises, workoutRows, profile] = await Promise.all([
     prisma.exercise.findMany({ select: { id: true, name: true, pinIncrement: true } }),
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
       take: 60,
       include: { sets: { select: { exerciseId: true, weight: true, reps: true, rpe: true, isWarmup: true } } },
     }),
+    // The chart's effort ceiling rides with the plan (rule 9: told, not
+    // taught) — the wrist greys RPE above it exactly as the phone does.
+    prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { conditions: true } }).catch(() => null),
   ]);
 
   const training = workoutRows.filter((w) => isTrainingSession(w));
@@ -57,7 +61,8 @@ export async function GET(request: Request) {
   );
   const inRamp = status.mode === 'return';
   const loadPct = inRamp ? status.returnWeek.loadPct : 100;
-  const rpeCap = inRamp ? status.returnWeek.rpeCap : 4;
+  const ceiling = effortCeiling(profile?.conditions as string[] | null | undefined);
+  const rpeCap = Math.min(inRamp ? status.returnWeek.rpeCap : 4, ceiling);
   const dur = durParam === 30 || durParam === 45 || durParam === 60 ? durParam : inRamp ? 45 : 60;
 
   const template = getExercisesForDuration(day, dur as 30 | 45 | 60);

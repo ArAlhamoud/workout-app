@@ -307,6 +307,15 @@ export interface ReadinessInputs {
   hoursSinceLastSession: number | null;
   /** Today's HRV SDNN over its trailing median. Optional; null = no opinion. */
   hrvRatio?: number | null;
+  /**
+   * AF on his chart. SDNN is inflated by irregular RR intervals, so AF
+   * nights push the median up and every sinus-rhythm morning then reads
+   * "HRV 40% of baseline → hold" — a false alarm on the one line that
+   * should stop him on a genuinely bad day (trainer, 2026-09-18). While
+   * true, the HRV clause is ignored; resting HR, sleep and recovery still
+   * hold.
+   */
+  afOnChart?: boolean;
 }
 
 /** Resting HR this far above baseline is a stress signal, not noise. */
@@ -341,6 +350,7 @@ export function computeReadiness({
   sleepHours,
   hoursSinceLastSession,
   hrvRatio = null,
+  afOnChart = false,
 }: ReadinessInputs): ReadinessSignal | null {
   if (rhrDeltaBpm === null && sleepHours === null && hoursSinceLastSession === null && hrvRatio === null) {
     return null;
@@ -355,7 +365,7 @@ export function computeReadiness({
   if (hoursSinceLastSession !== null && hoursSinceLastSession < RECOVERY_FLOOR_H) {
     holds.push(recoveryNote(hoursSinceLastSession));
   }
-  if (hrvRatio !== null && hrvRatio < HRV_HOLD_RATIO) {
+  if (!afOnChart && hrvRatio !== null && hrvRatio < HRV_HOLD_RATIO) {
     holds.push(`HRV ${Math.round(hrvRatio * 100)}% of baseline`);
   }
   if (holds.length) return { verdict: 'hold', note: note(holds) };

@@ -1,3 +1,4 @@
+import prisma from '@/lib/prisma';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getActiveHold, getAllHolds, getBodyStats, getDailyHealthValues, getWorkouts } from '../actions';
@@ -11,7 +12,7 @@ import { bodyweightMilestones, effortDistribution, momentumBank, strengthHold, w
 import { holdWeekKeys, lifetimeStats, weekStreak } from '@/lib/streak';
 import { sleepDebtHours } from '@/lib/coach';
 import { lastMonthRecap, yearRecap } from '@/lib/recap';
-import { cleanRampSessionDates, getTrainingStatus, isTrainingSession } from '@/lib/program';
+import { cleanRampSessionDates, getTrainingStatus, isTrainingSession, effortCeiling } from '@/lib/program';
 import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -334,12 +335,16 @@ function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; r
 }
 
 export default async function StatsPage() {
-  const [stats, workouts, holds, activeHold] = await Promise.all([
+  const [stats, workouts, holds, activeHold, profile] = await Promise.all([
     getBodyStats(),
     getWorkouts(),
     getAllHolds(),
     getActiveHold(),
+    prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { conditions: true } }).catch(() => null),
   ]);
+  // The chart's effort ceiling: AF / flecainide / hypertension hold the cap
+  // at Hard after the ramp exits (trainer, 2026-09-18).
+  const effortCap = effortCeiling(profile?.conditions as string[] | null | undefined);
 
   const latestWeight = [...stats].reverse().find((s) => s.weight !== null)?.weight ?? null;
   const firstWeight = stats.find((s) => s.weight !== null)?.weight ?? null;
@@ -408,7 +413,7 @@ export default async function StatsPage() {
   // Coach intelligence
   const trainingOnly = workouts.filter(isTrainingSession);
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
-  const report = weeklyReport(workouts, stats, status);
+  const report = weeklyReport(workouts, stats, status, new Date(), effortCap);
   const streak = weekStreak({
     sessionDates: workouts.map((w) => w.date),
     excusedWeeks: holdWeekKeys(holds),
@@ -575,7 +580,10 @@ export default async function StatsPage() {
             </div>
             <EffortBalanceRow
               effort={effort}
-              rpeCap={status.mode === 'return' ? status.returnWeek.rpeCap : null}
+              rpeCap={(() => {
+                const cap = Math.min(status.mode === 'return' ? status.returnWeek.rpeCap : 4, effortCap);
+                return cap < 4 ? cap : null;
+              })()}
             />
           </div>
         </div>

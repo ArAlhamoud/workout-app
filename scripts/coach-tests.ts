@@ -55,6 +55,7 @@ import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
 import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
+import { CARDIO_RULE, effortCeiling, getExercisesForDuration, getPlankTarget } from '../src/lib/program';
 import { routeForDeepLink } from '../src/lib/deep-links';
 import { binHeartRate } from '../src/lib/hr-capture';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
@@ -2170,6 +2171,46 @@ console.log('health-insights');
   assert(activityDayStr(at(2027, 1, 1, 2, 0)) === '2026-12-31', 'new year at 02:00 belongs to the old one');
   assert(activityDayStr(at(2028, 3, 1, 1, 0)) === '2028-02-29', 'leap day is handled by the Date, not by us');
   assert(/^\d{4}-\d{2}-\d{2}$/.test(activityDayStr(at(2026, 1, 5, 1, 0))), 'single-digit months and days are padded');
+}
+
+// ── Tier 1a: what the app says must be safe for THIS heart ───────────────
+// Trainer review 2026-09-18: flecainide's block is use-dependent (stronger
+// at high heart rates), a beta-blocker hides how hard he is going, and the
+// cardiology review is 30 Sep. Nothing may prescribe peak exertion.
+console.log('Tier 1a — medical');
+{
+  const rowing = CARDIO.find((c) => c.name === 'Rowing')!;
+  assert(!/hard|interval|×/i.test(rowing.desc), `rowing prescribes no intervals (got "${rowing.desc.slice(-60)}")`);
+  assert(/steady/i.test(rowing.desc), 'rowing is steady-state only');
+  assert(/conversational|talk/i.test(CARDIO_RULE), 'the standing cardio rule is conversational pace');
+  const swim = CARDIO.find((c) => c.name === 'Swimming')!;
+  assert(/alone|breath/i.test(swim.desc), 'swimming carries the not-alone / no-breath-hold clause');
+
+  // The effort ceiling comes from the chart, not from the ramp.
+  assert(effortCeiling(['Obesity', 'Hypertension', 'Atrial fibrillation', 'Obstructive sleep apnea']) === 3, 'AF on the chart caps effort at Hard');
+  assert(effortCeiling(['Obesity']) === 4, 'no cardiac condition — no ceiling');
+  assert(effortCeiling(null) === 4 && effortCeiling(undefined) === 4 && effortCeiling([]) === 4, 'no profile — no ceiling');
+  assert(effortCeiling(['Hypertension']) === 3, 'treated hypertension alone still caps at Hard (Valsalva)');
+  assert(effortCeiling(['on flecainide']) === 3, 'the drug name counts too');
+
+  // Plank: knees by default, 30 s ceiling, priority 2; Leg Curl priority 1.
+  const b = getDayTemplate('B').exercises;
+  const plank = b.find((e) => e.name === 'Plank')!;
+  const curl = b.find((e) => e.name === 'Leg Curl')!;
+  assert(plank.priority === 2, 'plank is priority 2 on Day B');
+  assert(curl.priority === 1, 'leg curl is priority 1 on Day B — the 30-minute day keeps hamstrings');
+  assert(plank.repsMax === 30 && /30/.test(plank.repsDisplay), `plank holds cap at 30 s (got ${plank.repsMax})`);
+  assert(/knee|dead bug/i.test(plank.cues.slice(0, 160)), 'the knee plank / dead bug is the DEFAULT, not the afterthought');
+  assert(/breath|exhale|hold your breath/i.test(plank.cues), 'the plank cue says breathe');
+  const b30 = getExercisesForDuration('B', 30).map((e) => e.name);
+  assert(b30.includes('Leg Curl') && !b30.includes('Plank'), `30-minute Day B has hamstrings, not a plank (got ${b30.join(', ')})`);
+  assert(getPlankTarget(10).max <= 30 && getPlankTarget(1).max <= 30, 'plank target never climbs past 30 s');
+
+  // HRV is meaningless in AF: SDNN is inflated by irregular RR intervals.
+  const rested = { rhrDeltaBpm: -1, sleepHours: 7.5, hoursSinceLastSession: 48 };
+  assert(computeReadiness({ ...rested, hrvRatio: 0.6, afOnChart: true })?.verdict === 'push', 'with AF on the chart a low HRV ratio is ignored');
+  assert(computeReadiness({ ...rested, hrvRatio: 0.6 })?.verdict === 'hold', 'without AF the HRV clause still holds (unchanged)');
+  assert(computeReadiness({ rhrDeltaBpm: 7, sleepHours: 7.5, hoursSinceLastSession: 48, hrvRatio: 0.6, afOnChart: true })?.verdict === 'hold', 'AF only silences HRV — resting HR still holds');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────
