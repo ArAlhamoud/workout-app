@@ -40,18 +40,34 @@ jobs:
 
       - name: Refuse anything outside scripts/
         run: |
-          case "${{ inputs.script }}" in
-            *..*|*/*) echo "script must be a bare file name under scripts/"; exit 1;;
+          case "$SCRIPT" in
+            *..*|*/*|*[!A-Za-z0-9._-]*) echo "script must be a bare file name under scripts/"; exit 1;;
           esac
-          test -f "scripts/${{ inputs.script }}"
+          test -f "scripts/$SCRIPT"
+        env:
+          SCRIPT: ${{ inputs.script }}
+
+      - name: Refuse a script that has no dry run
+        # The contract ("scripts default to dry-run and accept --apply") was a
+        # comment, not a check: backfill-gym.js and add-missing-exercises.js
+        # WROTE on the "preview" step (data-steward, 2026-09-18).
+        run: |
+          if ! grep -q -- '--apply' "scripts/$SCRIPT"; then
+            echo "::error::scripts/$SCRIPT never reads --apply, so its 'preview' would write. Refusing."
+            exit 1
+          fi
+        env:
+          SCRIPT: ${{ inputs.script }}
 
       - name: Preview (dry run)
-        run: node "scripts/${{ inputs.script }}"
+        run: node "scripts/$SCRIPT"
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SCRIPT: ${{ inputs.script }}
 
       - name: Apply
         if: ${{ inputs.apply }}
-        run: node "scripts/${{ inputs.script }}" --apply
+        run: node "scripts/$SCRIPT" --apply
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SCRIPT: ${{ inputs.script }}

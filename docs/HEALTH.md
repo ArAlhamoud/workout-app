@@ -174,7 +174,33 @@ buys it for the gut, knows it carries ~5 g of protein a bottle, and has
 been told three times that Greek yoghurt would carry more. Log it and
 move on; do not re-pitch yoghurt against it.
 
-## Deliberately not built
+## Backup and restore — rehearsed
+
+**Restore rehearsal, 2026-09-18 (cloud session).** Snapshot
+`data/workout-history.json` sha256 `258abae9e759e5ee…` (synced
+2026-09-17T09:52Z), restored with `scripts/restore-from-snapshot.js
+--apply` (the script as committed in `cce9eed` — the rehearsal ran on the
+working copy that became that commit) into an EMPTY database. Every table count
+matched the snapshot: 21 exercises · 14 workouts · 214 sets · 32 body
+stats · 220 health samples · 0 holds · 1 profile · 4 injections · 1
+symptom · 1 AF episode · 19 BP · 26 CPAP nights · 21 labs · 3
+medications · 21 nutrition days. The profile's familyHistory and
+investigations came through intact. A second run with `--force` over the
+same database completed without touching the unique indexes.
+
+What the rehearsal fixed on the way (all in the restore script): the two
+profile Json columns that would have crashed the profile upsert once
+null; health samples now upsert on their real identity `(type, date,
+source)` rather than id; the nine health tables — the treatment record —
+write in ONE transaction, so a failure there leaves none of them
+half-restored. Exercises, workouts, sets, body stats and samples still
+write row by row before it.
+
+Not in the snapshot by design: `CoachNote`, `CoachLadderCopy` (dormant
+coach) and `LiveSession` (ephemeral). Everything else is. The daily
+`sync-data` action is the real backup; the iCloud copy is the same
+payload with no landing check.
+
 
 **Saturated fat in the Diet tracker (owner, 2026-09-16).** Offered and
 declined. Total fat 62 g is the remainder after protein 130 g and carbs

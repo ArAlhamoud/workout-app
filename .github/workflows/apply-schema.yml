@@ -1,12 +1,45 @@
 name: Apply schema
 
+# The ONLY sanctioned path for a schema change to reach the live database
+# (CLAUDE.md rule 1 — `prisma db push` in the build took production down
+# twice). Two runs, by design:
+#
+#   1. Run with no `confirm_diff_sha`. The job prints the exact SQL that
+#      would be applied and its sha256, then STOPS. Nothing is written.
+#   2. Read the SQL. Run again with `confirm_diff_sha` set to that sha.
+#      The job re-computes the diff; if the database or the schema moved
+#      in between, the sha differs and the push is refused.
+#
+# A diff containing DROP TABLE/COLUMN/INDEX/CONSTRAINT, SET DATA TYPE or
+# RENAME is refused unless `allow_destructive` is checked as well. That is
+# a separate decision from `accept_data_loss`, which only passes Prisma's
+# flag: a unique index on a brand-new column trips Prisma's data-loss
+# guard although nothing can be lost (the known false alarm, incident
+# 7840432), while DROP DEFAULT / DROP NOT NULL are not destructive at all.
+# Two boxes, two reasons, both recorded in the run. Until 2026-09-18 the
+# preview ended in `|| true` and the push ran unconditionally in the same
+# job — the preview was theatre (data-steward review).
+
 on:
   workflow_dispatch:
     inputs:
-      accept_data_loss:
-        description: 'Pass --accept-data-loss (only after reviewing a previous run''s warnings)'
+      confirm_diff_sha:
+        description: 'sha256 of the previewed diff (leave empty to preview only)'
+        type: string
+        required: false
+        default: ''
+      allow_destructive:
+        description: 'Allow a diff that contains DROP TABLE/COLUMN/INDEX/CONSTRAINT, SET DATA TYPE or RENAME'
         type: boolean
         default: false
+      accept_data_loss:
+        description: 'Pass --accept-data-loss to prisma db push (needed for a unique index on a new column — the known false alarm)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: apply-schema
+  cancel-in-progress: false
 
 jobs:
   push-schema:
@@ -29,12 +62,77 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Preview pending changes
-        # Shows exactly what would change on the live DB before anything runs
-        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script || true
+        id: preview
+        # Exact SQL that would be applied. A failure here is a failure — no
+        # `|| true`; an empty diff is a valid result and means "nothing to do".
+        # Keywords are matched anywhere on the line: Prisma writes one clause
+        # per line, so an anchored pattern missed a retype that followed an
+        # ADD COLUMN in the same statement (data-steward, reproduced).
+        run: |
+          npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --script > diff.sql
+          echo "=== diff.sql · branch $BRANCH · commit $COMMIT ==="
+          cat diff.sql
+          echo "=== end ==="
+          SHA=$(sha256sum diff.sql | cut -d' ' -f1)
+          echo "diff sha256: $SHA"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          if grep -qiE '\b(DROP (TABLE|COLUMN|INDEX|CONSTRAINT)|SET DATA TYPE|RENAME)\b' diff.sql; then
+            echo "destructive=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::diff contains DROP TABLE/COLUMN/INDEX/CONSTRAINT, SET DATA TYPE or RENAME"
+          else
+            echo "destructive=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ ! -s diff.sql ] || ! grep -qvE '^\s*(--.*)?$' diff.sql; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            echo "Nothing to apply — schema and database already agree."
+          else
+            echo "empty=false" >> "$GITHUB_OUTPUT"
+          fi
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          BRANCH: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: schema-diff-${{ github.run_id }}
+          path: diff.sql
+
+      - name: Stop here (preview only)
+        if: ${{ inputs.confirm_diff_sha == '' }}
+        run: |
+          if [ "$EMPTY" = "true" ]; then
+            echo "Preview only — and nothing to apply."
+          else
+            echo "Preview only. To apply, re-run with confirm_diff_sha = $SHA"
+          fi
+        env:
+          SHA: ${{ steps.preview.outputs.sha }}
+          EMPTY: ${{ steps.preview.outputs.empty }}
+
+      - name: Refuse — sha does not match the previewed diff
+        if: ${{ inputs.confirm_diff_sha != '' && inputs.confirm_diff_sha != steps.preview.outputs.sha }}
+        run: |
+          echo "::error::confirm_diff_sha ($CONFIRM) != current diff sha ($SHA). The schema or the database changed since the preview. Re-read the diff above and re-run with its sha."
+          exit 1
+        env:
+          CONFIRM: ${{ inputs.confirm_diff_sha }}
+          SHA: ${{ steps.preview.outputs.sha }}
+
+      - name: Refuse — destructive diff without allow_destructive
+        if: ${{ inputs.confirm_diff_sha != '' && steps.preview.outputs.destructive == 'true' && !inputs.allow_destructive }}
+        run: |
+          echo "::error::This diff drops, retypes or renames. Re-run with allow_destructive checked ONLY if you have read every line and mean it."
+          exit 1
 
       - name: Push schema to database
+        # Every gate repeated here on purpose: a future continue-on-error or
+        # if: always() on a refuse step must not silently reopen the push.
+        if: >-
+          ${{ inputs.confirm_diff_sha != ''
+              && inputs.confirm_diff_sha == steps.preview.outputs.sha
+              && steps.preview.outputs.empty == 'false'
+              && (steps.preview.outputs.destructive == 'false' || inputs.allow_destructive) }}
         run: npx prisma db push ${{ inputs.accept_data_loss && '--accept-data-loss' || '' }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

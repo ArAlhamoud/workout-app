@@ -11,15 +11,10 @@
 // snapshot holds it. The shape below is the one scripts/restore-from-snapshot.js
 // already reads (`snap.health[table]`), and its dry run verifies it.
 //
-// NOT yet verified: a real `--apply` carrying the treatment record. The write
-// path needed a Prisma.DbNull mapping for nullable Json columns before it
-// could run at all (restore-from-snapshot.js), which means no restore has
-// ever actually written these tables. Prove it on a Neon branch before
-// trusting this as a backup — a backup nobody has restored is a hypothesis.
-//
-// Nothing here is wrapped in a try/catch on purpose. A backup that quietly
-// returns without a table is the bug; a backup that fails loudly is a
-// nuisance. Prefer the nuisance.
+// VERIFIED 2026-09-18: a full `--apply` from that day's snapshot into an
+// empty database reproduced every table count, treatment record included
+// (docs/HEALTH.md "Backup and restore — rehearsed"). The nullable-Json
+// mapping (Prisma.DbNull) the write path needed is in the restore script.
 
 import prisma from '@/lib/prisma';
 

@@ -5,6 +5,13 @@ on:
     - cron: '0 5 * * *'   # daily at 5am UTC
   workflow_dispatch:        # manual trigger from GitHub Actions tab
 
+# One run at a time, and rebase before pushing: a commit landing on main
+# during the ~60 s run used to fail the push and silently drop the day's
+# snapshot (data-steward, 2026-09-18).
+concurrency:
+  group: sync-data
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -38,4 +45,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/workout-history.json
           git diff --staged --quiet && echo "No changes" || git commit -m "chore: sync workout data $(date -u +%Y-%m-%d)"
+          git pull --rebase --autostash origin main
           git push

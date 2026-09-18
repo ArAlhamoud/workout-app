@@ -127,10 +127,13 @@ thought to test; the adversary measures what you didn't.
 
 ## 5. Schema and data discipline
 
-- Schema changes ship ONLY through the Apply-schema GitHub Action: dispatch
-  on the branch with `accept_data_loss: false`, read the migrate-diff from
-  the job logs, verify it is purely additive, and only then accept. Never
-  `prisma db push` toward production from anywhere else.
+- Schema changes ship ONLY through the Apply-schema GitHub Action, in two
+  runs: dispatch on the branch with `confirm_diff_sha` empty, read the
+  printed SQL and its sha256 in the job logs, verify it is purely additive,
+  then dispatch again with that sha. `allow_destructive` and
+  `accept_data_loss` are separate boxes for separate reasons (see
+  docs/WORKFLOW.md). Never `prisma db push` toward production from
+  anywhere else — the npm script no longer exists.
 - Anything that rewrites logged history ships as a dry-run-default script
   behind a preview-first `workflow_dispatch` Action, and never guesses at
   values it cannot know (flag those for the owner instead).
