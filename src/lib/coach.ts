@@ -82,12 +82,22 @@ function sessionTops(workouts: CoachWorkout[]): Record<string, SessionTop[]> {
 export function learnPinIncrements(workouts: CoachWorkout[]): Record<string, number> {
   const learned: Record<string, number> = {};
   for (const [id, tops] of Object.entries(sessionTops(workouts))) {
-    let best: number | undefined;
+    const jumps: number[] = [];
     for (let i = 1; i < tops.length; i++) {
       const diff = round2(Math.abs(tops[i].top - tops[i - 1].top));
-      if (diff > 0 && (best === undefined || diff < best)) best = diff;
+      if (diff > 0) jumps.push(diff);
     }
-    if (best !== undefined) learned[id] = best;
+    if (!jumps.length) continue;
+    // The MOST FREQUENT jump, not the smallest ever seen: one 27.5 → 27
+    // correction taught a 0.5 kg pin that no stack has, and the overload
+    // seed then added a step he could not set (trainer, 2026-09-18).
+    // Jumps under 2 kg count only when they repeat — the genuine 1.25 kg
+    // half-plate does; a typo does not. Ties go to the smaller step.
+    const count = new Map<number, number>();
+    for (const j of jumps) count.set(j, (count.get(j) ?? 0) + 1);
+    const ranked = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+    const credible = ranked.filter(([j, n]) => j >= 2 || n >= 2);
+    learned[id] = (credible.length ? credible : ranked)[0][0];
   }
   return learned;
 }
@@ -252,9 +262,15 @@ export function weightTrend(bodyStats: CoachBodyStat[], options: WeightTrendOpti
   } else if (kgPerWeek >= -1.3) {
     classification = 'on_track';
     message = `Down ${Math.abs(kgPerWeek)} kg/week — on track for fat loss.`;
+  } else if (options.returning) {
+    // The early-ramp water swing distorts the losing side too; the
+    // "too fast" call waits until the ramp is over (trainer, 2026-09-18).
+    classification = 'on_track';
+    message = `Down ${Math.abs(kgPerWeek)} kg/week — includes the post-break water swing; judge the trend in 2 weeks.`;
   } else {
     classification = 'too_fast';
-    message = `Down ${Math.abs(kgPerWeek)} kg/week — too fast. Protect muscle: eat a bit more protein/calories.`;
+    // What he controls. The deficit is the physician's; never a calorie number.
+    message = `Down ${Math.abs(kgPerWeek)} kg/week — fast. Protect muscle: protein at every meal, keep every lifting session.`;
   }
   return { ema, kgPerWeek, classification, message };
 }
@@ -431,7 +447,10 @@ export function weeklyReport(
   if (lastVol > 0 && thisVol > 0) {
     const pct = Math.round(((thisVol - lastVol) / lastVol) * 100);
     volPct = pct;
-    if (pct >= 0) wins.push(`Volume up ${pct}% week over week.`);
+    // A +50% week on a deficit after a layoff is the overuse trigger, not a
+    // win; above a quarter the honest read is "hold" (trainer, 2026-09-18).
+    if (pct >= 25) focus.push(`Volume up ${pct}% week over week — big jump; hold this level next week.`);
+    else if (pct >= 0) wins.push(`Volume up ${pct}% week over week.`);
     else focus.push(`Volume down ${Math.abs(pct)}% week over week.`);
   }
 

@@ -2230,6 +2230,74 @@ console.log('Tier 1a — medical');
   assert(computeReadiness({ rhrDeltaBpm: 7, sleepHours: 7.5, hoursSinceLastSession: 48, hrvRatio: 0.6, afOnChart: true })?.verdict === 'hold', 'AF only silences HRV — resting HR still holds');
 }
 
+// ── Tier 1b (i): the arithmetic meets his real loads ─────────────────────
+console.log('Tier 1b — program logic');
+{
+  // 1.7 A base within three pins of the stack's bottom is a learn-phase
+  // weight; scaling it produces sets with nothing in them. Hold instead.
+  assert(rampPrefillWeight({ weight: 15 }, 60, 7.5) === 15, 'two-pin base holds rather than scales to one pin');
+  assert(rampPrefillWeight({ weight: 22.5 }, 60, 7.5) === 22.5, 'three-pin base still holds');
+  assert(rampPrefillWeight({ weight: 30 }, 60, 7.5) === 15, `four-pin base scales (60% of 30 = 18 → nearest 7.5 = 15) (got ${rampPrefillWeight({ weight: 30 }, 60, 7.5)})`);
+  assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 18, 'unchanged: 9 kg pin, 29 kg base → 18');
+
+  // 1.8 The pin learner takes the most frequent jump, not the smallest
+  // ever seen: a 27.5 → 27 correction taught it a 0.5 kg pin.
+  const ex = { id: 'pin-ex', name: 'Pin Test', category: 'LEGS' } as CoachExercise;
+  const sess = (date: string, w: number): CoachWorkout => ({ date, sets: [{ exerciseId: ex.id, reps: 10, weight: w, rpe: 1, exercise: ex }] });
+  const noisy = [sess('2026-05-01', 20), sess('2026-05-08', 25), sess('2026-05-15', 30), sess('2026-05-22', 27.5), sess('2026-05-29', 27)];
+  assert(learnPinIncrements(noisy)[ex.id] === 5, `the mode of the real jumps (5) wins over a 0.5 correction (got ${learnPinIncrements(noisy)[ex.id]})`);
+  const halfPlate = [sess('2026-06-01', 7.5), sess('2026-06-08', 8.75), sess('2026-06-15', 10), sess('2026-06-22', 11.25)];
+  assert(learnPinIncrements(halfPlate)[ex.id] === 1.25, `a genuine 1.25 half-plate that REPEATS survives (got ${learnPinIncrements(halfPlate)[ex.id]})`);
+  const oneSmall = [sess('2026-07-01', 20), sess('2026-07-08', 21)];
+  assert(learnPinIncrements(oneSmall)[ex.id] === 1, 'with a single jump there is nothing else to learn from');
+  const real = learnPinIncrements(data.workouts);
+  for (const [id, pin] of Object.entries(real)) {
+    const name = data.exercises.find((e) => e.id === id)?.name ?? id;
+    assert(pin >= 1.25 || pin === 1, `${name}: learned pin ${pin} is a step a stack can actually take`);
+  }
+
+  // 1.9 A 6-second mis-tap is not a training session.
+  const junk = { name: 'Day A 45m — Sep 2', duration: 6, sets: [{ rpe: null, isWarmup: false }, { rpe: null, isWarmup: false }, { rpe: null, isWarmup: false }, { rpe: null, isWarmup: false }] };
+  assert(!isTrainingSession(junk), 'a 6-second save with nothing rated does not count');
+  assert(isTrainingSession({ name: 'Rescue Day A', duration: 15 * 60, sets: [{ rpe: null, isWarmup: false }] }), 'a 15-minute rescue counts');
+  assert(isTrainingSession({ name: 'Day A 45m — Sep 17', duration: 52 * 60, sets: [] }), 'a real session counts on duration alone');
+  assert(isTrainingSession({ name: 'Day B — Watch · Sep 1', duration: 300, sets: [{ rpe: 1, isWarmup: false }, { rpe: 2, isWarmup: false }] }), 'a short session with two rated sets still counts');
+  assert(isTrainingSession({ name: 'Day A 45m' }), 'a bare name (no duration known) is not judged');
+  const realTraining = data.workouts.filter((w) => w.name.startsWith('Day'));
+  assert(realTraining.every((w) => isTrainingSession(w)), 'every real training row in the export still counts');
+
+  // 1.10 A +50% week on a deficit mid-ramp is a caution, not a win.
+  const big = weeklyReport(
+    [
+      { date: '2026-09-07', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-14', sets: [{ exerciseId: ex.id, reps: 10, weight: 30, rpe: 1, exercise: ex }] },
+    ],
+    [],
+    { mode: 'active', week: 3 } as never,
+    new Date('2026-09-15T12:00:00Z'),
+  );
+  assert(big.focus.some((l) => /Volume up 50%/.test(l) && /hold/i.test(l)) && !big.wins.some((l) => /Volume up/.test(l)), `a 50% volume jump reads as a caution (focus: ${big.focus.join(' | ')})`);
+  const fast = weightTrend([{ date: '2026-09-01', weight: 130 }, { date: '2026-09-15', weight: 126 }]);
+  assert(fast.classification === 'too_fast' && !/calorie/i.test(fast.message) && /protein/i.test(fast.message), `too-fast never names calories (got "${fast.message}")`);
+  const fastRamp = weightTrend([{ date: '2026-09-01', weight: 130 }, { date: '2026-09-15', weight: 126 }], { returning: true });
+  assert(fastRamp.classification === 'on_track' && /water|2 weeks/i.test(fastRamp.message), `during the ramp the too-fast call waits (got "${fastRamp.message}")`);
+
+  // 1.11 Cues.
+  const A = getDayTemplate('A').exercises, B = getDayTemplate('B').exercises;
+  const curl = B.find((e) => e.name === 'Leg Curl')!;
+  assert(/seated/i.test(curl.cues.slice(0, 80)) && !/^Adjust seat so your knee joint aligns with the machine pivot\. Lie face down/.test(curl.cues), 'leg curl leads with the SEATED machine');
+  assert(/prone|face.?down/i.test(curl.cues), 'and still tells him what to do on the prone one');
+  for (const name of ['Chest Press', 'Pec Fly', 'Shoulder Press']) {
+    const e = A.find((x) => x.name === name)!;
+    assert(/seat.*move|moves? as you|designed to move|let it rock/i.test(e.cues), `${name}: the Hoist moving-seat sentence is there`);
+  }
+  assert(/seat.*move|designed to move|let it rock/i.test(B.find((x) => x.name === 'Mid Row')!.cues), 'Mid Row: the Hoist moving-seat sentence is there');
+  assert(!/a injury/.test(A.find((x) => x.name === 'Leg Press')!.cues), 'Leg Press typo fixed');
+  assert(!/under the ramp/i.test(A.find((x) => x.name === 'Hip Adduction')!.cues), 'Hip Adduction cue carries no ramp instruction');
+  const swap = gymSwap('Leg Curl', 'work');
+  assert(!!swap?.cues && /seated/i.test(swap.cues), 'Alrajhi Precor seated leg curl carries a seated cue');
+}
+
 // ── summary ──────────────────────────────────────────────────────────────
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
