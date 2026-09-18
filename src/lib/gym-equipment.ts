@@ -101,7 +101,12 @@ const ALRAJHI_RENAMES: Record<string, GymSwap> = {
   'Shoulder Press': { machine: 'Precor Converging Shoulder Press' },
   'Leg Press': { machine: 'Precor Leg Press' },
   'Leg Extension': { machine: 'Precor Leg Extension' },
-  'Leg Curl': { machine: 'Precor Seated Leg Curl' },
+  'Leg Curl': {
+    machine: 'Precor Seated Leg Curl',
+    // Seated, not prone: the B_Fit cue said "lie face down" against a seated
+    // machine (trainer, 2026-09-18).
+    cues: 'SEATED leg curl — sit tall, back on the pad, knee joint in line with the pivot, thigh pad locked DOWN across the lower thighs, ankle pad just above the heels. Hips stay back in the seat. Curl under the seat until the pad nearly touches the frame, hold 1s, return 3s to a full stretch. MISTAKE TO AVOID: hips rising off the seat — the weight is too heavy, drop a pin.',
+  },
   'Ab Crunch': { machine: 'Precor Abdominal' },
   'Lat Pulldown': { machine: 'Precor Lat Pulldown' },
   'Mid Row': { machine: 'Precor Seated Row' },

@@ -1,3 +1,4 @@
+import { readChart } from '@/lib/chart';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import {
@@ -7,6 +8,8 @@ import {
   RETURN_PROGRAM,
   BREAK_THRESHOLD_DAYS,
   CARDIO,
+  CARDIO_RULE,
+  effortCeiling,
   gymLabel,
   isTrainingSession,
   WEEKLY_SESSION_TARGET,
@@ -14,8 +17,7 @@ import {
   cleanRampSessionDates,
   getTrainingStatus,
   projectPlan,
-  type Priority,
-} from '@/lib/program';
+  type Priority } from '@/lib/program';
 import { getExercises, getBodyStats, getWorkouts } from '@/app/actions';
 import CollapsibleSection from '@/components/CollapsibleSection';
 import { getMondayOfWeek, RPE_LABELS } from '@/lib/format';
@@ -129,11 +131,13 @@ const RPE_CAP_FLAG = [
 ] as const;
 
 export default async function ProgramPage() {
-  const [exercises, bodyStats, workouts] = await Promise.all([
+  const [exercises, bodyStats, workouts, chart] = await Promise.all([
     getExercises(),
     getBodyStats(),
     getWorkouts(),
+    readChart(),
   ]);
+  const chartCapsEffort = effortCeiling(chart.conditions, chart.medications) < 4;
   const exerciseIdByName = new Map(exercises.map((e) => [e.name, e.id]));
 
   // Where the lifter actually is this week
@@ -156,7 +160,8 @@ export default async function ProgramPage() {
 
   // The plan follows his log, so the projection is "if you follow it from
   // here" — today plus the next 4 days, alternating train / recover.
-  const sessions = workouts.map((w) => ({ date: w.date, name: w.name }));
+  // Judged rows only (a mis-tap must not project a rest day).
+  const sessions = trainingOnly.map((w) => ({ date: w.date, name: w.name }));
   const plan = getDynamicPlan(sessions);
   let projection = projectPlan(sessions, new Date(), 5);
   const sessionTarget = status.mode === 'return' ? status.returnWeek.sessions : `${WEEKLY_SESSION_TARGET}`;
@@ -554,6 +559,8 @@ export default async function ProgramPage() {
       {/* Cardio Rankings */}
       <CollapsibleSection title="Cardio Rankings">
         <div className="space-y-2">
+          {/* The standing rule while his chart says AF on flecainide — one line, above every option (trainer, 2026-09-18). */}
+          {chartCapsEffort && <p className="mb-3 text-xs leading-relaxed text-acc-ember">{CARDIO_RULE}</p>}
           {CARDIO.map((c) => (
             <div
               key={c.name}

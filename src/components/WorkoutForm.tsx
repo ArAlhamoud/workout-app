@@ -5,13 +5,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, pushLiveSets } from '@/app/actions';
 import { activityDayStr } from '@/lib/health-insights';
-import { liveKey, overlayLiveSets, type LiveSession, type LiveSet, type LiveSetUpdate } from '@/lib/live-session';
+import { liveKey, overlayLiveSets, visibleSets, type LiveSession, type LiveSet, type LiveSetUpdate } from '@/lib/live-session';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
 import { rampPrefillWeight, GYMS, DEFAULT_GYM_ID,
   hasWarmupSet,
-  warmupWeight,
-} from '@/lib/program';
+  warmupWeight, clampTimedReps, nextTryWeight, repeatToEarn } from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -39,6 +38,8 @@ interface InitialExercise {
   rest?: string;
   targetReps?: string;
   unit?: 'reps' | 'seconds';
+  /** Ceiling for a timed hold (plank 30 s); reps prefill never exceeds it. */
+  maxReps?: number;
 }
 
 interface SetEntry {
@@ -69,9 +70,13 @@ interface ExerciseBlock {
   unit?: 'reps' | 'seconds';
   showCues: boolean;
   expandedNoteIdx: number | null;
-  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; rampHold?: boolean };
+  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean };
   /** Overload by default took one learned pin at seed time; tap undoes it. */
   overloadApplied?: { from: number; to: number };
+  /** He undid the seed: do not re-offer the same number as a chip. */
+  overloadDeclined?: true;
+  /** Template minimum reps — the chip never offers a pin under it. */
+  defaultReps?: number;
 }
 
 const DRAFT_KEY = 'workout-draft';
@@ -111,7 +116,7 @@ function formatElapsed(seconds: number): string {
 
 function buildBlocks(
   initialExercises: InitialExercise[],
-  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; rampHold?: boolean }>,
+  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean }>,
   returnLoadPct?: number,
   pinIncrements: Record<string, number> = {},
   deloadHints: Record<string, { weight: number; note: string }> = {},
@@ -158,6 +163,7 @@ function buildBlocks(
       showCues: false,
       expandedNoteIdx: null,
       lastSession: prev,
+      defaultReps: ie.defaultReps,
       overloadApplied: seededWeight && prev?.weight ? { from: prev.weight, to: seededWeight } : undefined,
       // One auto warm-up set on the first two machines of the session, at
       // ~55% of the working weight rounded DOWN to a real pin. Cold joints
@@ -196,7 +202,8 @@ function buildBlocks(
         // Last session's reps, same as weight on the line below. The template's
         // repsMin is only a floor; starting every set there means stepping up to
         // what you actually did, once per set, ~27 times a session.
-        reps: prev?.reps ?? ie.defaultReps,
+        // A timed hold never opens past its ceiling (plank: 30 s).
+        reps: isTimed && ie.maxReps ? clampTimedReps(prev?.reps ?? ie.defaultReps, ie.defaultReps, ie.maxReps) : prev?.reps ?? ie.defaultReps,
         weight: isTimed
           ? 0
           : deload
@@ -223,6 +230,7 @@ export default function WorkoutForm({
   progressionHints = {},
   returnLoadPct,
   returnRpeCap,
+  afOnChart = false,
   pinIncrements = {},
   repRecords = {},
   deloadHints = {},
@@ -244,6 +252,8 @@ export default function WorkoutForm({
   progressionHints?: Record<string, boolean>;
   returnLoadPct?: number;
   returnRpeCap?: number;
+  /** AF on his chart — silences the HRV readiness clause (server-derived). */
+  afOnChart?: boolean;
   pinIncrements?: Record<string, number>;
   /** exerciseId → reps → best kg at this gym. Drives the rep-record toast. */
   repRecords?: Record<string, Record<number, number>>;
@@ -372,9 +382,9 @@ export default function WorkoutForm({
   // suggestions and offers the rescue session instead — shrink, don't skip.
   useEffect(() => {
     let cancelled = false;
-    readReadiness().then((r) => { if (!cancelled && r) setReadiness(r); }).catch(() => {});
+    readReadiness({ afOnChart }).then((r) => { if (!cancelled && r) setReadiness(r); }).catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [afOnChart]);
 
   // The readiness verdict lands AFTER the overload seeds were applied at
   // build time. On a red-recovery morning the app that quiets try-more
@@ -558,7 +568,7 @@ export default function WorkoutForm({
     // keep B_Fit prefills under a work tag).
     if (live.gym && live.gym !== gym) setGym(live.gym);
     setBlocks((prev) => overlayLive(prev, live.sets));
-    const n = live.sets.length;
+    const n = visibleSets(live.sets).length;
     // A phone-born row says nothing the restored-draft card does not.
     setLiveNotice(live.source === 'watch' ? `⌚ From Watch · ${n} set${n === 1 ? '' : 's'}` : null);
   }
@@ -674,7 +684,13 @@ export default function WorkoutForm({
     for (const key of liveSnapRef.current.keys()) {
       if (!current.has(key)) {
         const [exerciseId, n] = key.split('#');
-        updates.push({ exerciseId, setNumber: Number(n), remove: true });
+        // Stamped HERE, at the un-tick: a tombstone stamped on arrival
+        // (0.4 s debounce + gym LTE) beat his own re-tick a second later
+        // and dropped the set from history (adversary pass 4). Warm-ups
+        // travel as set 0 with the flag — `Number('w')` was NaN and the
+        // sanitizer dropped the removal, so a Watch warm-up came back.
+        const isWarmup = n === 'w';
+        updates.push({ exerciseId, setNumber: isWarmup ? 0 : Number(n), isWarmup, remove: true, completedAt: new Date().toISOString() });
       }
     }
     if (!updates.length) return;
@@ -963,6 +979,7 @@ export default function WorkoutForm({
         return {
           ...b,
           overloadApplied: undefined,
+          overloadDeclined: true,
           sets: b.sets.map((st) =>
             st.done ? st : { ...st, weight: st.isWarmup ? warm : from },
           ),
@@ -1744,11 +1761,14 @@ export default function WorkoutForm({
           const shouldHold =
             (!returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3) ||
             readinessHold;
+          // One learned pin, only after two all-Easy sessions (program.ts
+          // nextTryWeight) — never a hard-coded 5 kg after one Easy session.
           const suggestWeight =
             !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload &&
-            !block.overloadApplied
-              ? +(block.lastSession.weight + (lastRpe === 1 ? 5 : 2.5)).toFixed(1)
+            !block.overloadApplied && !block.overloadDeclined
+              ? nextTryWeight(block.lastSession, pinIncrements[block.exerciseId] ?? DEFAULT_PIN_INCREMENT, block.defaultReps ?? 0)
               : null;
+          const earnIt = !returnTarget && !isTimed && !shouldHold && !deload && !block.overloadApplied && !block.overloadDeclined && repeatToEarn(block.lastSession);
 
           const est1RM = !isTimed
             ? block.sets.reduce((best, s) => Math.max(best, epley1RM(s.weight, s.reps)), 0)
@@ -1832,6 +1852,11 @@ export default function WorkoutForm({
                 {suggestWeight && !allDone && (
                   <span className="text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium tabular-nums">
                     &#8594; Try {suggestWeight} kg
+                  </span>
+                )}
+                {earnIt && !allDone && (
+                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border font-medium">
+                    Repeat · earn the pin
                   </span>
                 )}
                 {block.overloadApplied && !allDone && (

@@ -186,8 +186,14 @@ async function main() {
     await prisma.workout.upsert({ where: { id: w.id }, update: row, create: row });
     for (const s of workoutSets) {
       const { exercise, ...setRow } = s;
+      // Natural key, not id: a --force restore over a DB holding the same
+      // set under a different id would hit the unique index mid-run.
       await prisma.workoutSet.upsert({
-        where: { id: s.id },
+        where: {
+          workoutId_exerciseId_setNumber_isWarmup: {
+            workoutId: w.id, exerciseId: setRow.exerciseId, setNumber: setRow.setNumber, isWarmup: setRow.isWarmup === true,
+          },
+        },
         update: setRow,
         create: { ...setRow, workoutId: w.id },
       });

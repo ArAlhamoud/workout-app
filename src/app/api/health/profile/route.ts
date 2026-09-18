@@ -20,9 +20,12 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  const b = body as { conditions?: unknown; familyHistory?: unknown; investigations?: unknown };
+  const b = body as { conditions?: unknown; familyHistory?: unknown; investigations?: unknown; clear?: unknown };
+  // An empty array REPLACES the list — the family-history line the
+  // cardiologist needs exists nowhere else. Only with clear:true.
   const list = (v: unknown): string[] | null => {
     if (!Array.isArray(v)) return null;
+    if (v.length === 0 && b.clear !== true) return null;
     const out = v
       .filter((x): x is string => typeof x === 'string')
       .map((x) => x.trim().slice(0, 200))

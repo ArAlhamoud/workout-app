@@ -139,6 +139,21 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   as planned baseline; re-posting corrects.
 - Daily check-in: body → heart → extras. ~5 seconds.
 
+## Pipe limits (2026-09-18)
+
+- `/api/health/bp` and `/api/health/af` `remove` windows are at most seven
+  days; a wider window is reported in `skipped`, never applied. One POST
+  could otherwise erase the whole table.
+- `/api/health/profile` refuses an empty array for `conditions`,
+  `familyHistory` or `investigations` unless the body also carries
+  `clear: true` — the family-history line the cardiologist needs exists
+  nowhere else.
+- A manual BP log within five minutes of an identical reading (same
+  systolic/diastolic — an import, or a second tap) fills that reading's
+  blanks (pulse, context) instead of adding a twin. A genuinely repeated
+  reading five minutes apart is the home-monitor protocol; one row is the
+  honest count.
+
 ## The one static safety line
 
 Two or more severity-3 logs of vomiting / abdominal pain / dizziness
@@ -158,6 +173,13 @@ profile.targets (kcal/fuelProteinG/carbsG/fatG; suggested defaults
 FUEL_DEFAULTS), a 3-day-guarded week summary, and counts-not-grades
 copy: a light day on a GLP-1 is the medicine working. Protein is framed
 as the number to defend.
+
+**A meal belongs to the activity day (owner, 2026-09-18).** Law 8 keeps
+DOSES on calendar days; meals and sessions roll over at 04:00 Riyadh like
+every activity. He had a 01:33 dinner moved back to the evening it was
+part of, and the diet "today" card read "—" at 01:30 while the evening's
+row existed. The tracker's today key, the diet page and the logger all use
+the same rule now (`activityDayStr` / `ownerActivityDayUtc`).
 
 **Silence means the plan was eaten (owner, 2026-09-15).** He is on a
 macro-printed subscription, so the planned rows ARE the log unless he

@@ -1,10 +1,12 @@
+import { readChart } from '@/lib/chart';
+import { ownerActivityDayUtc } from '@/lib/health-insights';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { getExercises, getLiveSession, getLoggerMemory, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
 import RescueWalkButton from '@/components/RescueWalkButton';
 import WorkoutForm from '@/components/WorkoutForm';
-import { combineIncrement, deloadTarget, detectPlateau, learnPinIncrements } from '@/lib/coach';
+import { combineIncrement, deloadTarget, detectPlateau, learnPinIncrements, pinMapFor } from '@/lib/coach';
 import {
   DEFAULT_GYM_ID,
   getDayTemplate,
@@ -16,8 +18,7 @@ import {
   queuedDay,
   type Duration,
   cleanRampSessionDates,
-  rampBaseBefore,
-} from '@/lib/program';
+  rampBaseBefore, effortCeiling, afOnChart } from '@/lib/program';
 
 export const metadata: Metadata = { title: 'Log Workout' };
 
@@ -44,13 +45,18 @@ export default async function NewWorkoutPage({
   // constant default gym, so making them wait behind the template math was
   // pure serial latency — worst exactly on the Neon-cold-resume open at the
   // gym. Only lastSession genuinely needs exerciseIds (below).
-  const [exercises, allWorkouts, personalRecords, repRecords, liveRow] = await Promise.all([
+  const [exercises, allWorkouts, personalRecords, repRecords, liveRow, chart] = await Promise.all([
     getExercises(),
     getWorkouts(),
     getPersonalRecords(DEFAULT_GYM_ID),
     getRepRecords(DEFAULT_GYM_ID),
     getLiveSession(),
+    readChart(),
   ]);
+  // The chart's effort ceiling (AF / antiarrhythmic / hypertension → Hard)
+  // holds after the ramp exits — the logger greys RPE above it either way.
+  const effortCap = effortCeiling(chart.conditions, chart.medications);
+  const afFlag = afOnChart(chart.conditions);
   // A session in progress on the Watch opens HERE under its own day and
   // length — same rule as a draft from the other day (device-tester, Aug
   // 30): header and content must agree. Only a Watch-born session redirects;
@@ -76,6 +82,9 @@ export default async function NewWorkoutPage({
   // logger MUST agree with the unlock — this page's returnLoadPct is what
   // pre-scales every prefit weight, so a stale calendar week here would
   // keep the loads at 60% after the sessions earned 70.
+  // ONE pin map for the prefill, the chip and the over-ramp judge (rule 4;
+  // judged home-gym rows only, rule 2).
+  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises);
   const cleanDates = cleanRampSessionDates(trainingOnly);
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
   const inRamp = status.mode === 'return';
@@ -89,7 +98,7 @@ export default async function NewWorkoutPage({
   const validDay =
     day === 'A' || day === 'B'
       ? day
-      : queuedDay(getDynamicPlan(allWorkouts.map((w) => ({ date: w.date, name: w.name }))));
+      : queuedDay(getDynamicPlan(trainingOnly.map((w) => ({ date: w.date, name: w.name }))));
 
   // The rescue session: 15 minutes, four priority-1 machines, 60% loads.
   // Reached from Gap Guard notifications and the readiness-hold banner. Its
@@ -112,9 +121,10 @@ export default async function NewWorkoutPage({
   const RESCUE_EXERCISES = ['Leg Press', 'Chest Press', 'Lat Pulldown', 'Mid Row'];
   const RESCUE_LOAD_PCT = 60;
 
-  const initialName = isRescue
-    ? `Rescue 15m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`
-    : `Day ${validDay} ${validDur}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`;
+  // Same clock as the date field (activityDayStr): a session finished at
+  // 00:30 was named "Sep 18" and dated Sep 17 (device-tester, 2026-09-18).
+  const dayLabel = ownerActivityDayUtc().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const initialName = isRescue ? `Rescue 15m — ${dayLabel}` : `Day ${validDay} ${validDur}m — ${dayLabel}`;
 
   const initialExercises = (() => {
     const templateExercises = isRescue
@@ -131,6 +141,7 @@ export default async function NewWorkoutPage({
           exerciseId: ex.id,
           sets: te.sets,
           defaultReps: te.repsMin,
+          maxReps: te.repsMax,
           name: te.name,
           machine: te.machine,
           cues: te.cues,
@@ -175,13 +186,8 @@ export default async function NewWorkoutPage({
   // Home gym only. Pin spacing is a property of one physical stack, so
   // learning it from a mix of buildings would infer a step size that exists
   // on neither machine.
-  const learnedIncrements = learnPinIncrements(
-    allWorkouts.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID),
-  );
   const pinIncrements: Record<string, number> = {};
-  for (const ex of exercises) {
-    pinIncrements[ex.id] = combineIncrement(learnedIncrements[ex.id], ex.pinIncrement);
-  }
+  for (const ex of exercises) pinIncrements[ex.id] = pinFor(ex.id);
 
   // "Ready to progress" is derived from pre-break sessions, so it is
   // actively wrong while ramping back — the return target replaces it.
@@ -311,8 +317,14 @@ export default async function NewWorkoutPage({
           // the day readiness said "shrink" (adversary).
           isRescue ? (isReturning ? status.returnWeek.loadPct : RESCUE_LOAD_PCT) : isReturning ? status.returnWeek.loadPct : undefined
         }
-        returnRpeCap={isRescue ? 2 : isReturning ? status.returnWeek.rpeCap : undefined}
+        returnRpeCap={(() => {
+          // The ramp strip is gated on returnLoadPct, so a cap on its own
+          // only greys the RPE buttons — which is the point after the ramp.
+          const cap = isRescue ? 2 : Math.min(isReturning ? status.returnWeek.rpeCap : 4, effortCap);
+          return cap < 4 ? cap : undefined;
+        })()}
         pinIncrements={pinIncrements}
+        afOnChart={afFlag}
         dayAccent={validDay}
       />
     </div>

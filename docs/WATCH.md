@@ -83,7 +83,7 @@ returns 60 (45 during a return ramp). Response:
   `isWarmup: true`, labelled *warm-up* rather than *set 0*. The rule
   itself (55% of working, floored to the pin) lives in
   `src/lib/program.ts`; do not reimplement it in Swift — CLAUDE.md rule 9.
-- `rpeCap` < 4 during a ramp: grey out RPE buttons above the cap.
+- `rpeCap` < 4 during a ramp, OR while the chart caps effort (AF / antiarrhythmic / hypertension — the plan sends the min of both, 2026-09-18): grey out RPE buttons above the cap. Do not label it "Ramp target" when `loadPct` is 100 — it is the chart's ceiling, not a ramp.
 - Fetch the plan when the session starts; **cache the last plan on the
   watch** so a dead-signal gym still opens with yesterday's numbers.
 

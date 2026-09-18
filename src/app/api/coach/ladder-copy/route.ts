@@ -21,7 +21,7 @@ import {
   type LadderRungCopy,
 } from '@/lib/coach-ladder';
 import { todayKey } from '@/lib/coach-context';
-import { getDynamicPlan, gymLabel, queuedDay } from '@/lib/program';
+import { getDynamicPlan, gymLabel, queuedDay, isTrainingSession } from '@/lib/program';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -94,7 +94,7 @@ export async function GET(request: Request) {
     const sessions = await prisma.workout.findMany({
       where: { NOT: { name: { startsWith: 'Rescue walk' } } },
       orderBy: { date: 'asc' },
-      select: { date: true, name: true },
+      select: { date: true, name: true, duration: true, sets: { select: { rpe: true, isWarmup: true } } },
     });
     let longestGapDays: number | null = null;
     for (let i = 1; i < sessions.length; i++) {
@@ -108,7 +108,7 @@ export async function GET(request: Request) {
       lastSessionDate: anchor,
       lastSessionName: last.name,
       topSet,
-      queuedDay: queuedDay(getDynamicPlan(sessions)),
+      queuedDay: queuedDay(getDynamicPlan(sessions.filter(isTrainingSession))),
       longestGapDays,
     });
 

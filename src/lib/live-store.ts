@@ -2,7 +2,9 @@ import type { Prisma } from '@prisma/client';
 import prisma from './prisma';
 import {
   isLiveFresh,
+  liveGymFor,
   mergeLiveSets,
+  visibleSets,
   type LiveSession,
   type LiveSet,
   type LiveSetUpdate,
@@ -44,7 +46,13 @@ function toSession(r: Row): LiveSession {
   };
 }
 
-/** The open, fresh session — or null. With an id: that row whatever its state. */
+/** A row as a client may see it: tombstones stripped. */
+export function forClient(s: LiveSession | null): LiveSession | null {
+  return s ? { ...s, sets: visibleSets(s.sets) } : null;
+}
+
+/** The open, fresh session — or null. With an id: that row whatever its state.
+ *  RAW: includes tombstones; hand a client forClient(...) instead. */
 export async function readLive(id?: string, now: Date = new Date()): Promise<LiveSession | null> {
   try {
     if (id) {
@@ -97,10 +105,10 @@ export async function upsertLive(meta: LiveMeta, updates: LiveSetUpdate[]): Prom
     const data = {
       day: meta.day ?? existing?.day ?? null,
       durationMin: meta.durationMin ?? existing?.durationMin ?? null,
-      // Gym is FIRST-writer-wins, like source: the device that opened the
-      // session tagged the building (rule 2 — the Watch has no gym toggle
-      // and must never relabel an Alrajhi session as B_Fit).
-      gym: existing?.gym ?? meta.gym ?? null,
+      // Fixed from the first real set (rule 2 — the Watch has no gym toggle
+      // and must never relabel an Alrajhi session); until then the phone's
+      // toggle may still move it — see liveGymFor.
+      gym: liveGymFor(existing?.gym, existing ? visibleSets(toSession(existing).sets).length > 0 : false, meta.gym),
       source: existing?.source ?? meta.source,
       startedAt: Number.isNaN(startedAt.getTime()) ? new Date() : startedAt,
       sets: sets as unknown as Prisma.InputJsonValue,

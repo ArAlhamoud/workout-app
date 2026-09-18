@@ -74,6 +74,18 @@ Each of these broke something real. Do not relearn them.
    both devices need a derived number, the server derives it once and
    ships the answer. Never re-implement a program rule in Swift.
 
+10. **Record a prescription at save time; never reconstruct it later.**
+    The over-ramp judge first tried to re-derive "what the logger showed
+    that day" from history. Three blind passes found it drifting on
+    three axes at once — the memory reader's RPE, the pin map as of that
+    day, the block cut-off — so following the app's own prefill counted
+    as over-ramp. `createWorkout` now writes `WorkoutSet.allowedKg` from
+    the same memory and pin map the prefill used (`allowedRampKg`), and
+    `rampSessionVerdicts` only compares. Sets saved before the column
+    existed carry null and are judged on effort alone; that is accepted,
+    not a gap to backfill. Same shape as rules 7 and 9: derive once, at
+    the moment the inputs are true, and store the answer.
+
 ## The coach layer is deliberately dormant
 
 Waves 3–4 built an AI coach (brief, chat, coach-written gap

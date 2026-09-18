@@ -1,7 +1,7 @@
 // Raw CSV of the health rows for a range — the "give the doctor the data"
 // escape hatch, and the second copy of the truth outside Neon. One file,
 // one section per entity, headers repeated per section (spreadsheet apps
-// split it cleanly on the blank lines).
+// split it cleanly on the blank lines). Every scalar column, every table.
 
 import prisma from '@/lib/prisma';
 
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   const days = Object.hasOwn(RANGES, range) ? RANGES[range] : RANGES.all;
   const since = new Date(Date.now() - days * DAY_MS);
 
-  const [injections, symptoms, af, bp, cpap, labs, nutrition, stats] = await Promise.all([
+  const [injections, symptoms, af, bp, cpap, labs, nutrition, stats, meds, profile] = await Promise.all([
     prisma.injection.findMany({ where: { at: { gte: since } }, orderBy: { at: 'asc' } }),
     prisma.symptomLog.findMany({ where: { at: { gte: since } }, orderBy: { at: 'asc' } }),
     prisma.afEpisode.findMany({ where: { startedAt: { gte: since } }, orderBy: { startedAt: 'asc' } }),
@@ -35,56 +35,162 @@ export async function GET(request: Request) {
     prisma.labResult.findMany({ where: { date: { gte: since } }, orderBy: { date: 'asc' } }),
     prisma.nutritionLog.findMany({ where: { day: { gte: since } }, orderBy: { day: 'asc' } }),
     prisma.bodyStat.findMany({ where: { date: { gte: since } }, orderBy: { date: 'asc' } }),
+    prisma.medication.findMany({ orderBy: { createdAt: 'asc' } }),
+    prisma.healthProfile.findMany(),
   ]);
 
+  // Every scalar column of every table, generated from the schema — a copy
+  // that omits the four fields the Fuel tracker actually uses (kcal, carbs,
+  // fat, notes) is not a copy (data-steward, 2026-09-18). Json columns are
+  // serialised as JSON text.
+  const COLUMNS: Record<string, string[]> = {
+  'Injection': [
+    'id',
+    'at',
+    'doseMg',
+    'penMg',
+    'clicks',
+    'site',
+    'onSchedule',
+    'needleInfo',
+    'penId',
+    'notes',
+    'createdAt'
+  ],
+  'SymptomLog': [
+    'id',
+    'at',
+    'kind',
+    'severity',
+    'context',
+    'notes',
+    'createdAt'
+  ],
+  'AfEpisode': [
+    'id',
+    'startedAt',
+    'endedAt',
+    'durationMin',
+    'hrBpm',
+    'symptoms',
+    'ecgRecorded',
+    'bloating',
+    'gas',
+    'afterMeal',
+    'sleepRelated',
+    'exerciseRelated',
+    'caffeine',
+    'dehydration',
+    'stress',
+    'notes',
+    'createdAt'
+  ],
+  'BpReading': [
+    'id',
+    'at',
+    'systolic',
+    'diastolic',
+    'pulse',
+    'context',
+    'seated',
+    'notes',
+    'createdAt'
+  ],
+  'CpapNight': [
+    'id',
+    'night',
+    'usageHours',
+    'ahi',
+    'leak',
+    'avgPressure',
+    'p95Pressure',
+    'maskComfort',
+    'sleepQuality',
+    'deepSleepMin',
+    'notes',
+    'createdAt'
+  ],
+  'LabResult': [
+    'id',
+    'date',
+    'test',
+    'value',
+    'unit',
+    'refLow',
+    'refHigh',
+    'lab',
+    'notes',
+    'createdAt'
+  ],
+  'NutritionLog': [
+    'id',
+    'day',
+    'proteinG',
+    'waterMl',
+    'fiberG',
+    'meals',
+    'kcal',
+    'carbsG',
+    'fatG',
+    'flags',
+    'notes',
+    'createdAt'
+  ],
+  'BodyStat': [
+    'id',
+    'date',
+    'weight',
+    'waist',
+    'arms',
+    'neckCm',
+    'bodyFatPct',
+    'muscleKg',
+    'visceralFat',
+    'source',
+    'createdAt'
+  ],
+  'Medication': [
+    'id',
+    'name',
+    'doseLabel',
+    'frequency',
+    'startedOn',
+    'stoppedOn',
+    'prescriber',
+    'notes',
+    'createdAt'
+  ],
+  'HealthProfile': [
+    'id',
+    'heightCm',
+    'startWeightKg',
+    'goalWeightKg',
+    'milestonesKg',
+    'conditions',
+    'familyHistory',
+    'investigations',
+    'dosePlan',
+    'targets',
+    'reminders',
+    'createdAt',
+    'updatedAt'
+  ]
+};
+  const cell = (v: unknown): unknown => (v !== null && typeof v === 'object' && !(v instanceof Date) ? JSON.stringify(v) : v);
+  const table = (name: string, list: object[]) =>
+    rows(COLUMNS[name], list.map((r) => COLUMNS[name].map((c) => cell((r as Record<string, unknown>)[c]))));
+
   const sections = [
-    '# injections',
-    rows(
-      ['at', 'doseMg', 'site', 'onSchedule', 'clicks', 'notes'],
-      injections.map((i) => [i.at, i.doseMg, i.site, i.onSchedule, i.clicks, i.notes]),
-    ),
-    '',
-    '# symptoms',
-    rows(
-      ['at', 'kind', 'severity', 'notes'],
-      symptoms.map((s) => [s.at, s.kind, s.severity, s.notes]),
-    ),
-    '',
-    '# af_episodes',
-    rows(
-      ['startedAt', 'durationMin', 'hrBpm', 'bloating', 'gas', 'afterMeal', 'sleepRelated', 'caffeine', 'stress', 'ecgRecorded', 'notes'],
-      af.map((e) => [e.startedAt, e.durationMin, e.hrBpm, e.bloating, e.gas, e.afterMeal, e.sleepRelated, e.caffeine, e.stress, e.ecgRecorded, e.notes]),
-    ),
-    '',
-    '# blood_pressure',
-    rows(
-      ['at', 'systolic', 'diastolic', 'pulse', 'context'],
-      bp.map((r) => [r.at, r.systolic, r.diastolic, r.pulse, r.context]),
-    ),
-    '',
-    '# cpap_nights',
-    rows(
-      ['night', 'usageHours', 'ahi', 'leak', 'avgPressure', 'p95Pressure'],
-      cpap.map((n) => [n.night, n.usageHours, n.ahi, n.leak, n.avgPressure, n.p95Pressure]),
-    ),
-    '',
-    '# labs',
-    rows(
-      ['date', 'test', 'value', 'unit', 'refLow', 'refHigh', 'lab'],
-      labs.map((l) => [l.date, l.test, l.value, l.unit, l.refLow, l.refHigh, l.lab]),
-    ),
-    '',
-    '# nutrition',
-    rows(
-      ['day', 'proteinG', 'waterMl', 'fiberG', 'meals'],
-      nutrition.map((n) => [n.day, n.proteinG, n.waterMl, n.fiberG, n.meals]),
-    ),
-    '',
-    '# body_stats',
-    rows(
-      ['date', 'weight', 'waist', 'neckCm', 'bodyFatPct', 'muscleKg', 'visceralFat'],
-      stats.map((b) => [b.date, b.weight, b.waist, b.neckCm, b.bodyFatPct, b.muscleKg, b.visceralFat]),
-    ),
+    '# injections', table('Injection', injections), '',
+    '# symptoms', table('SymptomLog', symptoms), '',
+    '# af_episodes', table('AfEpisode', af), '',
+    '# blood_pressure', table('BpReading', bp), '',
+    '# cpap_nights', table('CpapNight', cpap), '',
+    '# labs', table('LabResult', labs), '',
+    '# nutrition', table('NutritionLog', nutrition), '',
+    '# body_stats', table('BodyStat', stats), '',
+    '# medications', table('Medication', meds), '',
+    '# profile', table('HealthProfile', profile),
   ].join('\n');
 
   return new Response(sections, {

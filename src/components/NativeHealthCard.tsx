@@ -3,6 +3,7 @@
 // Apple Health sync card — renders ONLY inside the native Capacitor shell.
 // On the plain web / PWA this component returns null and costs nothing.
 
+import { activityDayStr } from '@/lib/health-insights';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { importHealthWorkout } from '@/app/actions';
@@ -65,11 +66,12 @@ interface Detected {
   name: string;
 }
 
-/** Device-local calendar day (YYYY-MM-DD) — the server can't derive this. */
+/** Device-local ACTIVITY day (04:00 rollover, same as the logger's date
+ *  field) — the day the detect list compares against logged sessions. */
 function localDayOf(iso: string): string | null {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return activityDayStr(d);
 }
 
 /** "Sun 18:12" — the glance format for an unlogged session. */

@@ -5,7 +5,7 @@
 // Home, under the figure's feet.)
 
 import prisma from '@/lib/prisma';
-import { getDynamicPlan, queuedDay } from '@/lib/program';
+import { getDynamicPlan, queuedDay, isTrainingSession } from '@/lib/program';
 import {
   treatmentClock,
   DEFAULT_DOSE_PLAN,
@@ -24,7 +24,7 @@ export default async function JourneyNav() {
         select: { at: true, doseMg: true, site: true },
       }),
       prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { dosePlan: true } }),
-      prisma.workout.findMany({ orderBy: { date: 'desc' }, take: 30, select: { date: true, name: true } }),
+      prisma.workout.findMany({ orderBy: { date: 'desc' }, take: 30, select: { date: true, name: true, duration: true, sets: { select: { rpe: true, isWarmup: true } } } }),
       prisma.injection.findFirst({ orderBy: { at: 'asc' }, select: { at: true } }),
       prisma.injection.count(),
     ]);
@@ -34,7 +34,8 @@ export default async function JourneyNav() {
       injections, plan, new Date(),
       firstInjection?.at ?? undefined, injectionCount,
     );
-    const trainPlan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })));
+    // Judged rows only: a mis-tap must not flip the nav's day (adversary).
+    const trainPlan = getDynamicPlan(workouts.filter(isTrainingSession).map((w) => ({ date: w.date, name: w.name })));
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const trainedToday = workouts.some(

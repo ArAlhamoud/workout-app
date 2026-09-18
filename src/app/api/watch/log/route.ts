@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ownerActivityDayUtc } from '@/lib/health-insights';
 import prisma from '@/lib/prisma';
 import { createWorkout } from '@/app/actions';
 import { readLive } from '@/lib/live-store';
@@ -82,8 +83,14 @@ export async function POST(request: Request) {
     (typeof b.name === 'string' && b.name.trim().slice(0, 80)) ||
     `Day ${day ?? '?'} — Watch · ${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
 
-  const workoutDate =
-    typeof b.localDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.localDay)
+  // The day a session belongs to is the owner's ACTIVITY day of its start
+  // (04:00 Riyadh rollover), the same rule the phone and the cardio pipe
+  // use — the Watch's own calendar day put a 00:30 start on the next date
+  // (adversary, 2026-09-18). localDay is only a fallback for a client
+  // that sent no start.
+  const workoutDate = b.startISO
+    ? ownerActivityDayUtc(start).toISOString()
+    : typeof b.localDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.localDay)
       ? `${b.localDay}T00:00:00.000Z`
       : start.toISOString();
   // A handed-off session keeps the building the OPENING device tagged

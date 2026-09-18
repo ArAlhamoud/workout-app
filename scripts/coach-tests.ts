@@ -50,11 +50,12 @@ import {
   type DynamicPlan,
   type LoggedSession,
 } from '../src/lib/program';
-import { isLiveFresh, liveKey, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, setsMissingFrom, unionForFinish, type OverlaySet } from '../src/lib/live-session';
+import { isLiveFresh, liveKey, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, setsMissingFrom, unionForFinish, visibleSets, dropRemovedSets, mergeCandidates, type OverlaySet } from '../src/lib/live-session';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
 import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
+import { CARDIO_RULE, afOnChart, clampTimedReps, effortCeiling, getExercisesForDuration, getPlankTarget, nextTryWeight, repeatToEarn, isOverRamp, rampSessionVerdicts, allowedRampKg } from '../src/lib/program';
 import { routeForDeepLink } from '../src/lib/deep-links';
 import { binHeartRate } from '../src/lib/hr-capture';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
@@ -237,7 +238,7 @@ console.log('live session (phone ↔ watch handoff)');
   assert(m3[0].weight === 21 && m3[0].source === 'watch', 'a newer tick replaces the stored set');
   // Un-tick on the phone removes the key.
   const m4 = mergeLiveSets([ls('lat', 1, 28, 1), ls('lat', 2, 28, 2)], [{ exerciseId: 'lat', setNumber: 1, remove: true }]);
-  assert(m4.length === 1 && m4[0].setNumber === 2, 'remove deletes exactly that key');
+  assert(m4.length === 2 && m4.some((x) => x.setNumber === 1 && x.removed) && visibleSets(m4).length === 1 && visibleSets(m4)[0].setNumber === 2, 'remove tombstones exactly that key; clients see one set');
   // Output ordered by completion, not by arrival.
   const m5 = mergeLiveSets([ls('row', 1, 20, 9)], [ls('lat', 1, 28, 2)]);
   assert(m5[0].exerciseId === 'lat' && m5[1].exerciseId === 'row', 'merged sets are ordered by completion');
@@ -383,7 +384,9 @@ assert(
   // Pin-floored, same on wrist and phone: Lat Pulldown's learned 7 kg pin.
   const lat = { weight: 40, reps: 10, rpe: null as number | null };
   assert(rampPrefillWeight(lat, 60, 7) === 21 && rampPrefillWeight(lat, 70, 7) === 28 && rampPrefillWeight(lat, 85, 7) === 35, `pin 7: 60→21, 70→28, 85→35 — four distinct steps (got ${rampPrefillWeight(lat, 60, 7)}, ${rampPrefillWeight(lat, 70, 7)}, ${rampPrefillWeight(lat, 85, 7)})`);
-  assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 18, `9 kg pin: 60% of 29 → 18, not floored to 9 (got ${rampPrefillWeight({ weight: 29 }, 60, 9)})`);
+  // Since 2026-09-18 an unrated 29 kg base on 9 kg pins holds at three pins (27) — see Tier 1b.
+  assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 27, `9 kg pin: 60% of 29 = 18 but the three-pin floor holds 27 (got ${rampPrefillWeight({ weight: 29 }, 60, 9)})`);
+  assert(rampPrefillWeight({ weight: 29, rpe: 3 }, 60, 9) === 18, '…unless the base was Hard: then it scales to 18');
   assert(rampPrefillWeight({ weight: 2.5 }, 60, 2.5) === 2.5, 'never below one pin');
   assert(rampPrefillWeight({ weight: 27.5 }, 60) === 17.5, `27.5 × 60% = 16.5 → nearest 2.5 = 17.5 (got ${rampPrefillWeight({ weight: 27.5 }, 60)})`);
 
@@ -2170,6 +2173,311 @@ console.log('health-insights');
   assert(activityDayStr(at(2027, 1, 1, 2, 0)) === '2026-12-31', 'new year at 02:00 belongs to the old one');
   assert(activityDayStr(at(2028, 3, 1, 1, 0)) === '2028-02-29', 'leap day is handled by the Date, not by us');
   assert(/^\d{4}-\d{2}-\d{2}$/.test(activityDayStr(at(2026, 1, 5, 1, 0))), 'single-digit months and days are padded');
+}
+
+// ── Tier 1a: what the app says must be safe for THIS heart ───────────────
+// Trainer review 2026-09-18: flecainide's block is use-dependent (stronger
+// at high heart rates), a beta-blocker hides how hard he is going, and the
+// cardiology review is 30 Sep. Nothing may prescribe peak exertion.
+console.log('Tier 1a — medical');
+{
+  const rowing = CARDIO.find((c) => c.name === 'Rowing')!;
+  assert(!/hard|interval|×/i.test(rowing.desc), `rowing prescribes no intervals (got "${rowing.desc.slice(-60)}")`);
+  assert(/steady/i.test(rowing.desc), 'rowing is steady-state only');
+  assert(/conversational|talk/i.test(CARDIO_RULE), 'the standing cardio rule is conversational pace');
+  const swim = CARDIO.find((c) => c.name === 'Swimming')!;
+  assert(/alone|breath/i.test(swim.desc) && /cold/i.test(swim.desc), 'swimming carries the not-alone / no-breath-hold / no-cold-water clause');
+
+  // The effort ceiling comes from the chart, not from the ramp.
+  assert(effortCeiling(['Obesity', 'Hypertension', 'Atrial fibrillation', 'Obstructive sleep apnea']) === 3, 'AF on the chart caps effort at Hard');
+  assert(effortCeiling(['Obesity']) === 4, 'no cardiac condition — no ceiling');
+  assert(effortCeiling(null) === 4 && effortCeiling(undefined) === 4 && effortCeiling([]) === 4, 'no profile — no ceiling');
+  assert(effortCeiling(['Hypertension']) === 3, 'treated hypertension alone still caps at Hard (Valsalva)');
+  assert(effortCeiling([], ['Flecainide acetate', 'Mounjaro (tirzepatide)']) === 3, 'an active antiarrhythmic caps effort');
+  assert(effortCeiling([], ['Nebilet (nebivolol)']) === 3, 'an active beta-blocker caps effort');
+  assert(effortCeiling([], ['Mounjaro (tirzepatide)']) === 4, 'a GLP-1 alone does not');
+  assert(effortCeiling([], ['Flecainide — stopped 30 Sep']) === 4, 'a stopped drug does not');
+  // Spellings the first regex missed, and negations it wrongly matched (adversary + trainer).
+  for (const c of ['AFib', 'A-fib', 'Afib', 'Atrial flutter', 'High blood pressure', 'high BP', 'HBP']) {
+    assert(effortCeiling([c]) === 3, `"${c}" caps effort`);
+  }
+  for (const c of ['no hypertension', 'AF — resolved 2027', 'Hypertension (resolved)', 'Flecainide stopped', 'ex-hypertension', 'family history of arrhythmia', 'prehypertension', 'half marathon']) {
+    assert(effortCeiling([c]) === 4, `"${c}" does NOT cap effort`);
+  }
+  assert(effortCeiling('Atrial fibrillation') === 3, 'a bare string is treated as a list of one');
+  assert(effortCeiling({ nope: 1 }) === 4 && effortCeiling(42) === 4, 'junk JSON is no chart, not a crash');
+  assert(effortCeiling('unknown') === 3 && effortCeiling([], 'unknown') === 3, 'an unreadable chart fails CLOSED');
+  assert(afOnChart(['Obesity', 'Atrial fibrillation']) && afOnChart(['AFib']) && !afOnChart(['Hypertension']) && !afOnChart(['no AF']) && !afOnChart(null), 'afOnChart reads AF and only AF');
+  assert(clampTimedReps(45, 20, 30) === 30 && clampTimedReps(10, 20, 30) === 20 && clampTimedReps(25, 20, 30) === 25, 'a timed hold prefills inside its ceiling');
+  for (let w = 1; w <= 12; w++) assert(getPlankTarget(w).min === 20 && getPlankTarget(w).max === 30, `plank target week ${w} is 20–30 s`);
+
+  // Plank: knees by default, 30 s ceiling, priority 2; Leg Curl priority 1.
+  const b = getDayTemplate('B').exercises;
+  const plank = b.find((e) => e.name === 'Plank')!;
+  const curl = b.find((e) => e.name === 'Leg Curl')!;
+  assert(plank.priority === 2, 'plank is priority 2 on Day B');
+  assert(curl.priority === 1, 'leg curl is priority 1 on Day B — the 30-minute day keeps hamstrings');
+  assert(plank.repsMax === 30 && /30/.test(plank.repsDisplay), `plank holds cap at 30 s (got ${plank.repsMax})`);
+  assert(/knee|dead bug/i.test(plank.cues.slice(0, 160)), 'the knee plank / dead bug is the DEFAULT, not the afterthought');
+  assert(/keep breathing/i.test(plank.cues) && !/exhale slowly the whole hold/i.test(plank.cues), 'the plank cue says keep breathing — not exhale for 30 s');
+  assert(/sag|piked/i.test(plank.cues), 'the plank cue keeps its own mistake: hip sag / pike');
+  const b30 = getExercisesForDuration('B', 30).map((e) => e.name);
+  assert(b30.includes('Leg Curl') && !b30.includes('Plank'), `30-minute Day B has hamstrings, not a plank (got ${b30.join(', ')})`);
+  assert(getPlankTarget(10).max <= 30 && getPlankTarget(1).max <= 30, 'plank target never climbs past 30 s');
+
+  // HRV is meaningless in AF: SDNN is inflated by irregular RR intervals.
+  const rested = { rhrDeltaBpm: -1, sleepHours: 7.5, hoursSinceLastSession: 48 };
+  assert(computeReadiness({ ...rested, hrvRatio: 0.6, afOnChart: true })?.verdict === 'push', 'with AF on the chart a low HRV ratio is ignored');
+  assert(computeReadiness({ ...rested, hrvRatio: 0.6 })?.verdict === 'hold', 'without AF the HRV clause still holds (unchanged)');
+  assert(computeReadiness({ rhrDeltaBpm: 7, sleepHours: 7.5, hoursSinceLastSession: 48, hrvRatio: 0.6, afOnChart: true })?.verdict === 'hold', 'AF only silences HRV — resting HR still holds');
+}
+
+// ── Tier 1b (i): the arithmetic meets his real loads ─────────────────────
+console.log('Tier 1b — program logic');
+{
+  // 1.7 A base within three pins of the stack's bottom is a learn-phase
+  // weight; scaling it produces sets with nothing in them. Hold instead.
+  // Hold on HOW the base was rated, not where it sits on the stack (trainer):
+  // his whole pre-break history is learn-phase weights rated Easy.
+  assert(rampPrefillWeight({ weight: 36, rpe: 1 }, 60, 7.5) === 36, 'an Easy-rated base holds at 60% — Leg Press 36, the case the rule was written for');
+  assert(rampPrefillWeight({ weight: 23, rpe: 1 }, 70, 4.5) === 23, 'Chest Press 23 @Easy holds');
+  assert(rampPrefillWeight({ weight: 36, rpe: 2 }, 60, 7.5) === 22.5, 'a Med-rated base scales, floored at three pins');
+  assert(rampPrefillWeight({ weight: 20, rpe: 4 }, 60, 7.5) === 15, 'a Grind-rated base is NEVER held — it scales past the floor');
+  assert(rampPrefillWeight({ weight: 20, rpe: 3 }, 60, 7.5) === 15, 'a Hard-rated base is never held either');
+  // The floor is monotonic: a heavier base can never open lighter than a lighter one (adversary).
+  assert(rampPrefillWeight({ weight: 15 }, 60, 7.5) === 15 && rampPrefillWeight({ weight: 22.5 }, 60, 7.5) === 22.5 && rampPrefillWeight({ weight: 30 }, 60, 7.5) === 22.5 && rampPrefillWeight({ weight: 45 }, 60, 7.5) === 30, `floor is monotonic (got ${[15, 22.5, 30, 45].map((w) => rampPrefillWeight({ weight: w }, 60, 7.5)).join(',')})`);
+  assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 27, `9 kg pin, 29 kg base, no rating → 60% = 18 but the three-pin floor (27) holds it (got ${rampPrefillWeight({ weight: 29 }, 60, 9)})`);
+  assert(rampPrefillWeight({ weight: 29, rpe: 2 }, 60, 9) === 27 && rampPrefillWeight({ weight: 45, rpe: 2 }, 60, 9) === 27, 'floor applies to Med bases too');
+
+  // 1.8 The pin learner takes the most frequent jump, not the smallest
+  // ever seen: a 27.5 → 27 correction taught it a 0.5 kg pin.
+  const ex = { id: 'pin-ex', name: 'Pin Test', category: 'LEGS' } as CoachExercise;
+  const sess = (date: string, w: number): CoachWorkout => ({ date, sets: [{ exerciseId: ex.id, reps: 10, weight: w, rpe: 1, exercise: ex }] });
+  const noisy = [sess('2026-05-01', 20), sess('2026-05-08', 25), sess('2026-05-15', 30), sess('2026-05-22', 27.5), sess('2026-05-29', 27)];
+  assert(learnPinIncrements(noisy)[ex.id] === 5, `the mode of the real jumps (5) wins over a 0.5 correction (got ${learnPinIncrements(noisy)[ex.id]})`);
+  const halfPlate = [sess('2026-06-01', 7.5), sess('2026-06-08', 8.75), sess('2026-06-15', 10), sess('2026-06-22', 11.25)];
+  assert(learnPinIncrements(halfPlate)[ex.id] === 1.25, `a genuine 1.25 half-plate that REPEATS survives (got ${learnPinIncrements(halfPlate)[ex.id]})`);
+  const oneSmall = [sess('2026-07-01', 20), sess('2026-07-08', 21)];
+  assert(learnPinIncrements(oneSmall)[ex.id] === undefined, 'a lone sub-2 kg jump teaches nothing (combineIncrement falls back to 2.5)');
+  const lone = [sess('2026-07-01', 27.5), sess('2026-07-08', 27)];
+  assert(learnPinIncrements(lone)[ex.id] === undefined, 'a lone 0.5 correction teaches nothing');
+  // An untouched ramp prefill (no set rated) is not a jump he made (trainer).
+  const unrated = (date: string, w: number): CoachWorkout => ({ date, sets: [{ exerciseId: ex.id, reps: 10, weight: w, rpe: null, exercise: ex }] });
+  const prefills = [sess('2026-05-01', 27), unrated('2026-07-29', 15), unrated('2026-09-01', 20), sess('2026-09-12', 36)];
+  assert(learnPinIncrements(prefills)[ex.id] === 9, `unrated sessions are skipped: 27 → 36 is the only real jump (got ${learnPinIncrements(prefills)[ex.id]})`);
+  const real = learnPinIncrements(data.workouts);
+  for (const [id, pin] of Object.entries(real)) {
+    const name = data.exercises.find((e) => e.id === id)?.name ?? id;
+    assert(pin >= 1.25, `${name}: learned pin ${pin} is a step a stack can actually take`);
+  }
+  const legExt = data.exercises.find((e) => e.name === 'Leg Extension')!.id;
+  assert(real[legExt] === 9, `Leg Extension learns its 9 kg pin once untouched prefills are ignored (got ${real[legExt]})`);
+
+  // 1.9 A 6-second mis-tap is not a training session.
+  const un = (n: number) => Array.from({ length: n }, () => ({ rpe: null, isWarmup: false }));
+  const junk = { name: 'Day A 45m — Sep 2', duration: 6, sets: un(4) };
+  assert(!isTrainingSession(junk), 'a 6-second save with nothing rated does not count');
+  assert(!isTrainingSession({ name: 'Day B — Watch · Sep 1', duration: 700, sets: [{ rpe: 1, isWarmup: false }, ...un(2)] }), 'a 700-second Watch replay stub (3 sets, 1 rated) does not count either (adversary)');
+  assert(isTrainingSession({ name: 'Rescue Day A', duration: 15 * 60, sets: un(8) }), 'a 15-minute rescue (4 machines × 2 sets) counts');
+  assert(isTrainingSession({ name: 'Day A 45m — Sep 17', duration: 52 * 60, sets: un(25) }), 'a real session counts');
+  assert(isTrainingSession({ name: 'Day A 45m', duration: 5 * 60, sets: un(20) }), 'a session typed in from memory in five minutes still counts — it has the sets');
+  assert(isTrainingSession({ name: 'Day B — Watch · Sep 1', duration: 300, sets: [{ rpe: 1, isWarmup: false }, { rpe: 2, isWarmup: false }] }), 'two rated sets count whatever the clock says');
+  assert(isTrainingSession({ name: 'Day A 45m' }), 'a bare name (no duration, no sets) is not judged');
+  assert(isTrainingSession({ name: 'Day A 45m', duration: 40 * 60 }), 'duration alone, no sets known: judged on time');
+  const realTraining = data.workouts.filter((w) => w.name.startsWith('Day'));
+  assert(realTraining.every((w) => isTrainingSession(w)), 'every real training row in the export still counts');
+
+  // 1.10 A +50% week on a deficit mid-ramp is a caution, not a win.
+  const big = weeklyReport(
+    [
+      { date: '2026-09-07', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-14', sets: [{ exerciseId: ex.id, reps: 10, weight: 30, rpe: 1, exercise: ex }] },
+    ],
+    [],
+    { mode: 'active', week: 3 } as never,
+    new Date('2026-09-15T12:00:00Z'),
+  );
+  assert(big.focus.some((l) => /Volume per session up 50%/.test(l) && /hold/i.test(l)) && !big.wins.some((l) => /Volume/.test(l)), `a 50% volume jump reads as a caution (focus: ${big.focus.join(' | ')})`);
+  const fast = weightTrend([{ date: '2026-09-01', weight: 130 }, { date: '2026-09-15', weight: 126 }]);
+  assert(fast.classification === 'too_fast' && !/calorie/i.test(fast.message) && /protein/i.test(fast.message), `too-fast never names calories (got "${fast.message}")`);
+  // Refilled glycogen MASKS a loss; it cannot exaggerate one — the too-fast
+  // line stands during the ramp (trainer, reversing the review's own item).
+  const fastRamp = weightTrend([{ date: '2026-09-01', weight: 130 }, { date: '2026-09-15', weight: 126 }], { returning: true });
+  assert(fastRamp.classification === 'too_fast' && /protein/i.test(fastRamp.message), `during the ramp the too-fast call still stands (got "${fastRamp.message}")`);
+  // Volume: three sessions at the same weight after one is not a 200% jump.
+  const three = weeklyReport(
+    [
+      { date: '2026-09-07', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-14', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-16', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-18', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+    ],
+    [],
+    { mode: 'active', week: 3 } as never,
+    new Date('2026-09-18T12:00:00Z'),
+  );
+  assert(!three.focus.some((l) => /Volume up/.test(l)), `more sessions at the same load is not a volume jump (focus: ${three.focus.join(' | ')})`);
+  const rampWeek = weeklyReport(
+    [
+      { date: '2026-09-07', sets: [{ exerciseId: ex.id, reps: 10, weight: 20, rpe: 1, exercise: ex }] },
+      { date: '2026-09-14', sets: [{ exerciseId: ex.id, reps: 10, weight: 30, rpe: 1, exercise: ex }] },
+    ],
+    [],
+    { mode: 'return', week: 2, returnWeek: { week: 2, phase: 'REBUILD', loadPct: 70, sessions: '3', rpeCap: 2, desc: '' } } as never,
+    new Date('2026-09-15T12:00:00Z'),
+  );
+  assert(!rampWeek.focus.some((l) => /Volume up/.test(l)) && !rampWeek.wins.some((l) => /Volume up/.test(l)), 'during the ramp the prescription moves the volume — no line either way');
+
+  // 1.11 Cues.
+  const A = getDayTemplate('A').exercises, B = getDayTemplate('B').exercises;
+  const curl = B.find((e) => e.name === 'Leg Curl')!;
+  assert(/seated/i.test(curl.cues.slice(0, 80)) && !/^Adjust seat so your knee joint aligns with the machine pivot\. Lie face down/.test(curl.cues), 'leg curl leads with the SEATED machine');
+  assert(/no face-down|not face-down|never face-down/i.test(curl.cues) && !/hips pressed into the pad/i.test(curl.cues), 'the prone machine is refused, not coached (trainer)');
+  assert(/handles/i.test(curl.cues), 'hold the handles — they keep the hips down on the seated machine');
+  for (const name of ['Chest Press', 'Pec Fly', 'Shoulder Press']) {
+    const e = A.find((x) => x.name === name)!;
+    assert(/seat.*move|moves? as you|designed to move|let it rock/i.test(e.cues), `${name}: the Hoist moving-seat sentence is there`);
+  }
+  assert(/chest against the pad/i.test(B.find((x) => x.name === 'Mid Row')!.cues) && !/back on the pad/i.test(B.find((x) => x.name === 'Mid Row')!.cues), 'Mid Row: the moving-seat sentence is written for a CHEST pad (you face it)');
+  for (const name of ['Chest Press', 'Pec Fly', 'Shoulder Press']) assert(!/IMPORTANT —[A-Za-z]/.test(A.find((x) => x.name === name)!.cues), `${name}: no glued "IMPORTANT —This"`);
+  assert(!/a injury/.test(A.find((x) => x.name === 'Leg Press')!.cues), 'Leg Press typo fixed');
+  assert(!/under the ramp/i.test(A.find((x) => x.name === 'Hip Adduction')!.cues), 'Hip Adduction cue carries no ramp instruction');
+  const swap = gymSwap('Leg Curl', 'work');
+  assert(!!swap?.cues && /seated/i.test(swap.cues), 'Alrajhi Precor seated leg curl carries a seated cue');
+}
+
+// ── Tier 1b (ii): the chip and the over-ramp rule ─────────────────────────
+console.log('Tier 1b — chip + over-ramp');
+{
+  // 1.5 The "Try +5 kg" chip: learned pin, and only after the same two
+  // all-Easy sessions the overload seed waits for. One Easy session at a
+  // new weight reads "repeat, earn it" — Face Pull 8.75 → "Try 13.75" was
+  // a +57% suggestion on a machine whose own cue says light and strict.
+  assert(nextTryWeight({ weight: 8.75, reps: 15, rpe: 1, overload: true }, 1.25, 15) === 10, `one learned pin on top (got ${nextTryWeight({ weight: 8.75, reps: 15, rpe: 1, overload: true }, 1.25, 15)})`);
+  assert(nextTryWeight({ weight: 8.75, reps: 15, rpe: 1, overload: false }, 1.25, 15) === null, 'one Easy session earns nothing yet');
+  assert(nextTryWeight({ weight: 30, reps: 6, rpe: 1, overload: true }, 2.5, 10) === null, 'reps first, then the pin: under the minimum reps there is no number (the seed declines the same case)');
+  assert(nextTryWeight({ weight: 30, reps: 10, rpe: 3, overload: true }, 2.5, 10) === null, 'a Hard last set never suggests more');
+  assert(nextTryWeight({ weight: 30, reps: 10, rpe: 1, overload: true }, 0, 10) === 32.5, 'a missing pin falls back to 2.5');
+  assert(repeatToEarn({ weight: 30, rpe: 1, allEasy: true, overload: false }) && !repeatToEarn({ weight: 30, rpe: 1, allEasy: true, overload: true }) && !repeatToEarn({ weight: 30, rpe: 1, allEasy: false, overload: false }), 'repeat-to-earn needs the whole last session Easy, not one stray tap');
+
+  // 1.6 The ramp's allowance is RECORDED on the set at save time and judged
+  // from there — reconstructing it later drifted on memory RPE, pin map and
+  // block cut all at once (adversary passes 1–3).
+  // The one formula: prescription + one pin, never past the pre-break base.
+  assert(allowedRampKg({ weight: 23, rpe: 2 }, 70, 4.5) === 22.5, 'Med 23 base at 70% on 4.5 pins: prescribed 18, allowed 22.5');
+  assert(allowedRampKg({ weight: 27, rpe: 1 }, 70, 9) === 27, 'an Easy-held base is allowed exactly its prefill — following the box is never over-ramp');
+  assert(allowedRampKg({ weight: 36, rpe: 1 }, 85, 7.5) === 36, 'one pin past pre-break before RESTORE is never allowed');
+  assert(allowedRampKg({ weight: 40, rpe: 2 }, 60, 7) === 28, 'Lat Pulldown Med 40 at 60% on 7 kg pins: prescribed 21, allowed 28');
+  assert(allowedRampKg({ weight: 40, rpe: 2 }, 100, 7) === null && allowedRampKg({ weight: 0 }, 60, 7) === null, 'no allowance at 100% or with no base');
+  assert(allowedRampKg({ weight: 27, rampHold: true }, 60, 9) === 36, 'a held machine is allowed the Overload prefill the logger itself gives it during a ramp — one pin up (adversary pass 4)');
+  // The judge reads the set.
+  const w = (exerciseId: string, weight: number, allowedKg: number | null, rpe: number | null = 1, isWarmup = false) => ({ exerciseId, weight, allowedKg, rpe, isWarmup });
+  assert(isOverRamp([w('cp', 27, 22.5)])?.lifted === 27, 'lifted above the recorded allowance is over-ramp');
+  assert(isOverRamp([w('cp', 22.5, 22.5)]) === null, 'at the allowance is not');
+  assert(isOverRamp([w('cp', 27, null)]) === null, 'a set with no allowance (historical, held, outside a ramp) cannot be over-ramp');
+  assert(isOverRamp([w('cp', 27, 22.5, 1, true)]) === null, 'warm-ups are never judged');
+  const worst = isOverRamp([w('cp', 24, 22.5), w('lp', 45, 30)])!;
+  assert(worst.exerciseId === 'lp' && worst.allowed === 30, 'the verdict names the machine furthest over');
+  // Verdicts: pure, no status, no base rebuild.
+  const v = rampSessionVerdicts([
+    { date: '2026-09-01T00:00:00.000Z', sets: [w('a', 20, 25), w('a', 20, 25)] },
+    { date: '2026-09-06T00:00:00.000Z', sets: [w('a', 30, 25), w('a', 30, 25)] },
+    { date: '2026-09-12T00:00:00.000Z', sets: [w('a', 30, null), w('a', 30, null, 3)] },
+    { date: '2026-09-15T00:00:00.000Z', sets: [w('a', 30, null), w('a', 30, null)] },
+  ]);
+  assert(v.map((x) => x.clean).join() === 'true,false,false,true', `earned, over-ramp, Hard, historical-clean (got ${v.map((x) => x.clean).join()})`);
+  assert(v[1].overRamp?.allowed === 25, 'the over-ramp verdict carries the recorded allowance');
+  // A split save is ONE session: the heavy half decides — including a bare-midnight
+  // Watch half beside a timestamped phone half of the same day (adversary pass 3).
+  const split = rampSessionVerdicts([
+    { date: '2026-07-20T00:00:00.000Z', sets: [w('a', 12.5, 15), w('a', 12.5, 15)] },
+    { date: '2026-07-20T15:30:00.000Z', sets: [w('b', 40, 30), w('b', 40, 30)] },
+  ]);
+  assert(split.length === 1 && !split[0].clean, `a split save is judged once, by its heavy half (got ${JSON.stringify(split.map((x) => [x.clean, !!x.overRamp]))})`);
+  const twoGyms = rampSessionVerdicts([
+    { date: '2026-07-21T00:00:00.000Z', gym: 'bfit', sets: [w('a', 12.5, 15), w('a', 12.5, 15)] },
+    { date: '2026-07-21T00:00:00.000Z', gym: 'work', sets: [w('a', 12.5, 15), w('a', 12.5, 15)] },
+  ]);
+  assert(twoGyms.length === 2, 'two buildings on one day are two sessions');
+  // Keyed grouping: a bare-midnight row of day D sorts BEFORE a timestamped
+  // 00:59Z row of day D-1, so adjacency alone left day D's later rows
+  // ungrouped (adversary pass 4).
+  const keyed = rampSessionVerdicts([
+    { date: '2026-09-18T00:00:00.000Z', sets: [w('a', 20, 25), w('a', 20, 25)] },
+    { date: '2026-09-18T00:59:59.000Z', sets: [w('b', 40, 45), w('b', 40, 45)] },
+    { date: '2026-09-18T01:00:00.000Z', sets: [w('c', 60, 30), w('c', 60, 30)] },
+  ]);
+  assert(keyed.length === 2 && keyed.some((x) => x.overRamp?.exerciseId === 'c'), `rows of one day group by key, not adjacency (got ${keyed.length} groups)`);
+  // Thursday, as it would be saved today: the server records what each set was allowed.
+  const byName = new Map(data.exercises.map((e) => [e.name, e.id]));
+  const set = (name: string, weight: number, allowed: number | null, rpe: number | null) => ({ exerciseId: byName.get(name)!, weight, reps: 10, rpe, isWarmup: false, allowedKg: allowed });
+  const thursday = {
+    date: '2026-09-17T00:00:00.000Z', name: 'Day A 45m — Sep 17', duration: 52 * 60,
+    sets: [set('Leg Press', 37.5, 36, 1), set('Chest Press', 27, allowedRampKg({ weight: 23, rpe: 2 }, 70, 4.5), 2), set('Leg Extension', 30, allowedRampKg({ weight: 29, rpe: 2 }, 70, 9), 1)],
+  };
+  const history = [...data.workouts.filter((w) => w.name.startsWith('Day')), thursday];
+  const clean = cleanRampSessionDates(history).map((d) => d.toISOString().slice(0, 10));
+  assert(!clean.includes('2026-09-17'), `Thursday earned nothing — it was over-ramp (clean: ${clean.join(', ')})`);
+  const thu = rampSessionVerdicts(history).find((x) => x.date.toISOString().startsWith('2026-09-17'))!;
+  assert(!!thu && !thu.clean && !!thu.overRamp && thu.overRamp.lifted > thu.overRamp.allowed, `the verdict names the machine (got ${JSON.stringify(thu?.overRamp)})`);
+  const stillCounts = getTrainingStatus(history.map((w) => new Date(w.date)), new Date('2026-09-18T12:00:00Z'), cleanRampSessionDates(history));
+  assert(stillCounts.mode === 'return' && stillCounts.sessionsInBlock >= 4, 'it still counts as a session for calendar pacing — over-ramp is not punished');
+}
+
+// ── Tier 2.6: a removal is a fact the other device must honour ───────────
+// Adversary 2026-09-18: a Watch-logged set un-ticked on the phone came back
+// at finish — the Watch re-posts everything it logged, and the server had
+// forgotten the removal the moment it deleted the key. Removals are now
+// TOMBSTONES in the live row: kept, ordered by time, invisible to clients.
+console.log('Tier 2 — live tombstones');
+{
+  const at = (m: number) => new Date(Date.UTC(2026, 8, 18, 10, m)).toISOString();
+  const logged = (n: number, m: number, source: 'phone' | 'watch' = 'watch') =>
+    ({ exerciseId: 'lat', setNumber: n, reps: 10, weight: 40, completedAt: at(m), source }) as const;
+  // Watch logs set 1 at :00; phone removes it at :05.
+  const s1 = mergeLiveSets([], [logged(1, 0)]);
+  const s2 = mergeLiveSets(s1, [{ exerciseId: 'lat', setNumber: 1, remove: true, completedAt: at(5), source: 'phone' } as never]);
+  assert(s2.length === 1 && s2[0].removed === true && s2[0].completedAt === at(5), 'a remove leaves a tombstone carrying its own time');
+  assert(visibleSets(s2).length === 0, 'clients never see a tombstone');
+  // The Watch re-posts the same set (its original :00 stamp): the tombstone is newer and wins.
+  const s3 = mergeLiveSets(s2, [logged(1, 0)]);
+  assert(s3.length === 1 && s3[0].removed === true, 'an older re-post cannot resurrect a removed set');
+  // A GENUINE re-log later (:09) beats the tombstone.
+  const s4 = mergeLiveSets(s2, [logged(1, 9)]);
+  assert(s4.length === 1 && !s4[0].removed && s4[0].completedAt === at(9), 'a later real tick replaces the tombstone');
+  // Finish: the posted sets themselves are filtered against tombstones.
+  const posted = [{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 40, completedAt: at(0) }, { exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, completedAt: at(2) }];
+  const kept = dropRemovedSets(posted, s2);
+  assert(kept.length === 1 && kept[0].setNumber === 2, 'the finish drops a posted set the other device removed after it was logged');
+  const keptLater = dropRemovedSets([{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 40, completedAt: at(9) }], s2);
+  assert(keptLater.length === 1, 'a set re-ticked AFTER the removal is kept');
+  const noStamp = dropRemovedSets([{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 40 }], s2);
+  assert(noStamp.length === 0, 'a posted set with no stamp yields to a tombstone (the removal is the later fact we know)');
+  // Union never re-adds a tombstoned key.
+  const u = unionForFinish([{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40 }], s2, 'phone');
+  assert(u.length === 1 && u[0].setNumber === 2, 'the union skips tombstones');
+  // Overlay: a newer tombstone un-ticks the local copy; an older one does not.
+  const mk = (n: number, extra: Partial<OverlaySet> = {}): OverlaySet => ({ exerciseId: 'lat', setNumber: n, reps: 10, weight: 40, done: false, notes: '', rpe: 0, completedAt: null, ...extra });
+  const ovA = overlayLiveSets([{ exerciseId: 'lat', sets: [mk(1, { done: true, completedAt: at(0) }), mk(2)] }], s2, (id) => ({ exerciseId: id, sets: [] }));
+  assert(ovA.blocks[0].sets[0].done === false, 'a newer tombstone un-ticks the local set');
+  const ovB = overlayLiveSets([{ exerciseId: 'lat', sets: [mk(1, { done: true, completedAt: at(9) }), mk(2)] }], s2, (id) => ({ exerciseId: id, sets: [] }));
+  assert(ovB.blocks[0].sets[0].done === true, 'a local tick newer than the tombstone stays');
+  // The MERGE path (second finisher after the row is closed): the Watch
+  // re-posts set 1, which the phone un-ticked at :05 — it must not come back.
+  const savedByPhone = [{ exerciseId: 'lat', setNumber: 2 }];
+  const watchFinish = [{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 40, completedAt: at(0) }, { exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, completedAt: at(2) }, { exerciseId: 'lat', setNumber: 3, reps: 10, weight: 40, completedAt: at(3) }];
+  const cand = mergeCandidates(savedByPhone, watchFinish, s2);
+  assert(cand.length === 1 && cand[0].setNumber === 3, `the merge adds only set 3 — set 2 is saved, set 1 was removed (got ${cand.map((c) => c.setNumber).join(',')})`);
+  assert(mergeCandidates(savedByPhone, watchFinish, null).length === 2, 'with no live row the merge falls back to plain missing-by-key');
+  // The client stamps a removal at the un-tick, so a same-device re-tick a second later wins.
+  const stampedRemove = sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 2, remove: true, completedAt: at(10) }, 'phone')!;
+  const afterRemove = mergeLiveSets([logged(2, 0, 'phone')], [stampedRemove]);
+  const reTicked = mergeLiveSets(afterRemove, [{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, completedAt: at(11), source: 'phone' } as never]);
+  assert(afterRemove[0].completedAt === at(10) && visibleSets(reTicked).length === 1, 'a client-stamped removal is dated at the un-tick and yields to the later re-tick');
+  const warmRemove = sanitizeLiveUpdate({ exerciseId: 'a', setNumber: 0, isWarmup: true, remove: true }, 'phone');
+  assert(warmRemove !== null && 'remove' in warmRemove && warmRemove.isWarmup === true, 'a warm-up removal passes as set 0 with the flag');
+  // Tombstones count toward the cap but never past it; sanitizer still refuses a bare set 0 remove.
+  assert(sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 2, remove: true }, 'phone') !== null, 'remove still passes the sanitizer');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────

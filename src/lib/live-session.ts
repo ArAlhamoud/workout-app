@@ -18,10 +18,19 @@ export interface LiveSet {
   /** ISO instant the set was logged on its device. */
   completedAt: string;
   source: LiveSource;
+  /**
+   * A TOMBSTONE: this key was un-ticked at `completedAt` by `source`. Kept
+   * in the row so a device that never saw the removal (the Watch re-posts
+   * everything it logged at finish) cannot resurrect the set; never shown
+   * to a client — see visibleSets (adversary, 2026-09-18).
+   */
+  removed?: true;
 }
 
-/** An incoming row: a logged set, or an explicit un-log. */
-export type LiveSetUpdate = LiveSet | { exerciseId: string; setNumber: number; remove: true };
+/** An incoming row: a logged set, or an explicit un-log (stamped by the server if the client did not). */
+export type LiveSetUpdate =
+  | LiveSet
+  | { exerciseId: string; setNumber: number; isWarmup?: boolean; remove: true; completedAt?: string; source?: LiveSource };
 
 export interface LiveSession {
   clientSaveId: string;
@@ -59,23 +68,75 @@ export const LIVE_MAX_SETS = 200;
  * key; stored keys the update never mentions are untouched, so each
  * device can send only what changed. Output is ordered by completion.
  */
-export function mergeLiveSets(stored: LiveSet[], incoming: LiveSetUpdate[]): LiveSet[] {
+export function mergeLiveSets(stored: LiveSet[], incoming: LiveSetUpdate[], now: Date = new Date()): LiveSet[] {
   const map = new Map<string, LiveSet>();
   for (const s of stored) map.set(liveKey(s), s);
   for (const u of incoming) {
     const key = liveKey(u);
+    const prev = map.get(key);
     if ('remove' in u && u.remove) {
-      map.delete(key);
+      // A removal is a fact with a time: it replaces an older tick and
+      // survives as a tombstone; a tick newer than it wins later.
+      const at = u.completedAt && !Number.isNaN(Date.parse(u.completedAt)) ? u.completedAt : now.toISOString();
+      if (prev && Date.parse(prev.completedAt) > Date.parse(at)) continue;
+      map.set(key, {
+        exerciseId: u.exerciseId, setNumber: u.isWarmup ? 0 : u.setNumber, reps: 0, weight: 0,
+        isWarmup: u.isWarmup === true, completedAt: at, source: u.source ?? prev?.source ?? 'phone', removed: true,
+      });
       continue;
     }
     const set = u as LiveSet;
-    const prev = map.get(key);
     if (prev && Date.parse(prev.completedAt) > Date.parse(set.completedAt)) continue;
     map.set(key, set);
   }
   return [...map.values()]
     .sort((a, b) => Date.parse(a.completedAt) - Date.parse(b.completedAt))
     .slice(-LIVE_MAX_SETS);
+}
+
+/**
+ * Which building a live row belongs to. First-writer-wins protected the
+ * Watch (no gym toggle) from relabelling an Alrajhi session — but the
+ * phone opens the row the instant the logger mounts, before the toggle is
+ * touched, so an Alrajhi session finished from the Watch saved as B_Fit
+ * (adversary, 2026-09-18). Until the row holds a real set the latest
+ * writer's gym wins; from the first set the tag is fixed.
+ */
+export function liveGymFor(existingGym: string | null | undefined, hasSets: boolean, metaGym: string | null | undefined): string | null {
+  if (hasSets) return existingGym ?? metaGym ?? null;
+  return metaGym ?? existingGym ?? null;
+}
+
+/** What a client may see: the row without its tombstones. */
+export function visibleSets(sets: LiveSet[]): LiveSet[] {
+  return sets.filter((s) => !s.removed);
+}
+
+/** Keys removed on the row, with the instant of the removal. */
+function tombstones(live: LiveSet[]): Map<string, number> {
+  const t = new Map<string, number>();
+  for (const s of live) if (s.removed) t.set(liveKey(s), Date.parse(s.completedAt));
+  return t;
+}
+
+/**
+ * The finishing device's own sets, minus any the OTHER device removed
+ * after they were logged. A posted set with no stamp yields: the removal
+ * is the later fact we can date. Without this the Watch's finish — which
+ * re-posts everything it ever logged — put an un-ticked set back into
+ * stored history (adversary, 2026-09-18).
+ */
+export function dropRemovedSets<T extends { exerciseId: string; setNumber: number; isWarmup?: boolean; completedAt?: string | null }>(
+  posted: T[],
+  live: LiveSet[],
+): T[] {
+  const t = tombstones(live);
+  return posted.filter((s) => {
+    const removedAt = t.get(liveKey(s));
+    if (removedAt === undefined) return true;
+    const loggedAt = s.completedAt ? Date.parse(s.completedAt) : NaN;
+    return Number.isFinite(loggedAt) && loggedAt > removedAt;
+  });
 }
 
 /**
@@ -108,7 +169,7 @@ export function unionForFinish<T extends { exerciseId: string; setNumber: number
 ): Array<T | { exerciseId: string; setNumber: number; reps: number; weight: number; rpe?: number; isWarmup?: boolean; completedAt?: string }> {
   const have = new Set(posted.map(liveKey));
   const extra = live
-    .filter((s) => !have.has(liveKey(s)) && (!posterSource || s.source !== posterSource))
+    .filter((s) => !s.removed && !have.has(liveKey(s)) && (!posterSource || s.source !== posterSource))
     .map((s) => ({
       exerciseId: s.exerciseId,
       setNumber: s.setNumber,
@@ -119,6 +180,22 @@ export function unionForFinish<T extends { exerciseId: string; setNumber: number
       completedAt: s.completedAt,
     }));
   return [...posted, ...extra];
+}
+
+/**
+ * The second finisher's contribution, minus anything the OTHER device
+ * removed after it was logged: posted sets the saved workout lacks, by
+ * key, filtered through the live row's tombstones. The first finisher
+ * closes the row, so this must read the row regardless of closedAt — the
+ * un-ticked set came back through exactly this path (steward, 2026-09-18).
+ */
+export function mergeCandidates<T extends { exerciseId: string; setNumber: number; isWarmup?: boolean; completedAt?: string | null }>(
+  saved: Array<{ exerciseId: string; setNumber: number; isWarmup?: boolean }>,
+  posted: T[],
+  live: LiveSet[] | null | undefined,
+): T[] {
+  const missing = setsMissingFrom(saved, posted);
+  return live && live.length ? dropRemovedSets(missing, live) : missing;
 }
 
 /** The second finisher's contribution: posted sets the saved workout lacks, by key. */
@@ -144,7 +221,13 @@ export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date =
   const floor = isWarmup ? 0 : 1;
   if (!Number.isFinite(r.setNumber) || (r.setNumber as number) < floor || (r.setNumber as number) > 20) return null;
   const setNumber = isWarmup ? 0 : Math.round(r.setNumber as number);
-  if (r.remove === true) return { exerciseId: r.exerciseId, setNumber, remove: true };
+  if (r.remove === true) {
+    const rat = typeof r.completedAt === 'string' ? new Date(r.completedAt) : now;
+    return {
+      exerciseId: r.exerciseId, setNumber, isWarmup, remove: true, source,
+      completedAt: (Number.isNaN(rat.getTime()) ? now : rat).toISOString(),
+    };
+  }
   if (!Number.isFinite(r.reps) || (r.reps as number) < 1 || (r.reps as number) > 200) return null;
   if (!Number.isFinite(r.weight) || (r.weight as number) < 0 || (r.weight as number) > 500) return null;
   const at = typeof r.completedAt === 'string' ? new Date(r.completedAt) : now;
@@ -197,6 +280,19 @@ export function overlayLiveSets<B extends OverlayBlock>(
   const applied: LiveSet[] = [];
   for (const ls of sets) {
     let bi = next.findIndex((b) => b.exerciseId === ls.exerciseId);
+    if (ls.removed) {
+      // The other device un-ticked this key after we ticked it: un-tick
+      // here too. A local tick newer than the removal stands.
+      if (bi < 0) continue;
+      const b0 = next[bi];
+      const ri = ls.isWarmup ? b0.sets.findIndex((x) => x.isWarmup) : b0.sets.findIndex((x) => !x.isWarmup && x.setNumber === ls.setNumber);
+      if (ri < 0) continue;
+      const cur = b0.sets[ri];
+      if (cur.done && (!cur.completedAt || Date.parse(cur.completedAt) < Date.parse(ls.completedAt))) {
+        b0.sets[ri] = { ...cur, done: false, completedAt: null };
+      }
+      continue;
+    }
     if (bi < 0) {
       next.push({ ...newBlock(ls.exerciseId), sets: [] });
       bi = next.length - 1;
