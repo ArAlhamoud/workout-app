@@ -60,7 +60,7 @@ export async function GET(request: Request) {
   // mixed-building learn infers a step that exists on neither machine
   // (adversary C1); the same map judges over-ramp (rule 4).
   const pinFor = pinMapFor(training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym) as never, exercises);
-  const cleanDates = cleanRampSessionDates(training, pinFor);
+  const cleanDates = cleanRampSessionDates(training);
   const status = getTrainingStatus(training.map((w) => w.date), new Date(), cleanDates);
   const inRamp = status.mode === 'return';
   const loadPct = inRamp ? status.returnWeek.loadPct : 100;

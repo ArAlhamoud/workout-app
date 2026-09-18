@@ -159,6 +159,13 @@ FUEL_DEFAULTS), a 3-day-guarded week summary, and counts-not-grades
 copy: a light day on a GLP-1 is the medicine working. Protein is framed
 as the number to defend.
 
+**A meal belongs to the activity day (owner, 2026-09-18).** Law 8 keeps
+DOSES on calendar days; meals and sessions roll over at 04:00 Riyadh like
+every activity. He had a 01:33 dinner moved back to the evening it was
+part of, and the diet "today" card read "—" at 01:30 while the evening's
+row existed. The tracker's today key, the diet page and the logger all use
+the same rule now (`activityDayStr` / `ownerActivityDayUtc`).
+
 **Silence means the plan was eaten (owner, 2026-09-15).** He is on a
 macro-printed subscription, so the planned rows ARE the log unless he
 says otherwise. If he does not mention a meal, it was the plan — do not

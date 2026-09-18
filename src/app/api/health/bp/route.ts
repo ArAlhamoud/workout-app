@@ -45,6 +45,13 @@ export async function POST(request: Request) {
         skipped.push('remove: bad window');
         continue;
       }
+      // One POST could erase the whole table (steward, 2026-09-18): a
+      // remove window is at most seven days. Wider needs several calls,
+      // each of which reports what it hit.
+      if (to.getTime() - from.getTime() > 7 * 86_400_000) {
+        skipped.push('remove: window wider than 7 days');
+        continue;
+      }
       removed += (
         await prisma.bpReading.deleteMany({ where: { at: { gte: from, lte: to } } })
       ).count;

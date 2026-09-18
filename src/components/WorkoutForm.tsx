@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, pushLiveSets } from '@/app/actions';
 import { activityDayStr } from '@/lib/health-insights';
-import { liveKey, overlayLiveSets, type LiveSession, type LiveSet, type LiveSetUpdate } from '@/lib/live-session';
+import { liveKey, overlayLiveSets, visibleSets, type LiveSession, type LiveSet, type LiveSetUpdate } from '@/lib/live-session';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
 import { rampPrefillWeight, GYMS, DEFAULT_GYM_ID,
@@ -568,7 +568,7 @@ export default function WorkoutForm({
     // keep B_Fit prefills under a work tag).
     if (live.gym && live.gym !== gym) setGym(live.gym);
     setBlocks((prev) => overlayLive(prev, live.sets));
-    const n = live.sets.length;
+    const n = visibleSets(live.sets).length;
     // A phone-born row says nothing the restored-draft card does not.
     setLiveNotice(live.source === 'watch' ? `⌚ From Watch · ${n} set${n === 1 ? '' : 's'}` : null);
   }

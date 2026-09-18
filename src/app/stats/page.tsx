@@ -8,11 +8,11 @@ import NativeHealthCard from '@/components/NativeHealthCard';
 import StepsCard from '@/components/StepsCard';
 import HealthInsights from '@/components/HealthInsights';
 import DeleteBodyStatButton from '@/components/DeleteBodyStatButton';
-import { bodyweightMilestones, effortDistribution, momentumBank, strengthHold, weeklyReport, type EffortDistribution, type Rpe, pinMapFor } from '@/lib/coach';
+import { bodyweightMilestones, effortDistribution, momentumBank, strengthHold, weeklyReport, type EffortDistribution, type Rpe } from '@/lib/coach';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '@/lib/streak';
 import { sleepDebtHours } from '@/lib/coach';
 import { lastMonthRecap, yearRecap } from '@/lib/recap';
-import { cleanRampSessionDates, getTrainingStatus, isTrainingSession, effortCeiling, DEFAULT_GYM_ID } from '@/lib/program';
+import { cleanRampSessionDates, getTrainingStatus, isTrainingSession, effortCeiling } from '@/lib/program';
 import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -412,8 +412,7 @@ export default async function StatsPage() {
 
   // Coach intelligence
   const trainingOnly = workouts.filter(isTrainingSession);
-  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID));
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly, pinFor));
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
   const report = weeklyReport(workouts, stats, status, new Date(), effortCap);
   const streak = weekStreak({
     sessionDates: workouts.map((w) => w.date),

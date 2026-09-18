@@ -50,12 +50,12 @@ import {
   type DynamicPlan,
   type LoggedSession,
 } from '../src/lib/program';
-import { isLiveFresh, liveKey, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, setsMissingFrom, unionForFinish, type OverlaySet } from '../src/lib/live-session';
+import { isLiveFresh, liveKey, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, setsMissingFrom, unionForFinish, visibleSets, dropRemovedSets, type OverlaySet } from '../src/lib/live-session';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
 import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
-import { CARDIO_RULE, afOnChart, clampTimedReps, effortCeiling, getExercisesForDuration, getPlankTarget, nextTryWeight, repeatToEarn, isOverRamp, rampSessionVerdicts } from '../src/lib/program';
+import { CARDIO_RULE, afOnChart, clampTimedReps, effortCeiling, getExercisesForDuration, getPlankTarget, nextTryWeight, repeatToEarn, isOverRamp, rampSessionVerdicts, allowedRampKg } from '../src/lib/program';
 import { routeForDeepLink } from '../src/lib/deep-links';
 import { binHeartRate } from '../src/lib/hr-capture';
 import { holdWeekKeys, lifetimeStats, weekStreak } from '../src/lib/streak';
@@ -238,7 +238,7 @@ console.log('live session (phone ↔ watch handoff)');
   assert(m3[0].weight === 21 && m3[0].source === 'watch', 'a newer tick replaces the stored set');
   // Un-tick on the phone removes the key.
   const m4 = mergeLiveSets([ls('lat', 1, 28, 1), ls('lat', 2, 28, 2)], [{ exerciseId: 'lat', setNumber: 1, remove: true }]);
-  assert(m4.length === 1 && m4[0].setNumber === 2, 'remove deletes exactly that key');
+  assert(m4.length === 2 && m4.some((x) => x.setNumber === 1 && x.removed) && visibleSets(m4).length === 1 && visibleSets(m4)[0].setNumber === 2, 'remove tombstones exactly that key; clients see one set');
   // Output ordered by completion, not by arrival.
   const m5 = mergeLiveSets([ls('row', 1, 20, 9)], [ls('lat', 1, 28, 2)]);
   assert(m5[0].exerciseId === 'lat' && m5[1].exerciseId === 'row', 'merged sets are ordered by completion');
@@ -2360,62 +2360,101 @@ console.log('Tier 1b — chip + over-ramp');
   assert(nextTryWeight({ weight: 30, reps: 10, rpe: 1, overload: true }, 0, 10) === 32.5, 'a missing pin falls back to 2.5');
   assert(repeatToEarn({ weight: 30, rpe: 1, allEasy: true, overload: false }) && !repeatToEarn({ weight: 30, rpe: 1, allEasy: true, overload: true }) && !repeatToEarn({ weight: 30, rpe: 1, allEasy: false, overload: false }), 'repeat-to-earn needs the whole last session Easy, not one stray tap');
 
-  // 1.6 A ramp session lifted above prescription + one pin is "over-ramp":
-  // it still counts for calendar pacing, it does not EARN a phase. Thursday
-  // was prescribed 70% and lifted 96–117% of base, rated Easy — and that
-  // advanced the ramp.
-  // The judge uses the SAME pin and the SAME prescription as the prefill
-  // (trainer + adversary: with a hard-coded 2.5 the app's own prefill was
-  // over-ramp on every session and the earned ramp could never fire).
-  const pin = (id: string) => ({ cp: 4.5, mr: 9, lp: 7.5 })[id] ?? 2.5;
-  assert(isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: { weight: 23, rpe: 2 } }, 70, pin) !== null, 'Chest Press 27 vs a Med 23 base at 70% (18 + one 4.5 pin = 22.5) is over-ramp');
-  assert(isOverRamp([{ exerciseId: 'cp', weight: 22.5, isWarmup: false }], { cp: { weight: 23, rpe: 2 } }, 70, pin) === null, 'one learned pin over the prescription is inside tolerance');
-  assert(isOverRamp([{ exerciseId: 'mr', weight: 27, isWarmup: false }], { mr: { weight: 27, rpe: 1 } }, 70, pin) === null, 'a HELD machine (Easy base) lifted at exactly its prefill is legal — following the box is never over-ramp');
-  assert(isOverRamp([{ exerciseId: 'mr', weight: 36, isWarmup: false }], { mr: { weight: 27, rpe: 1 } }, 70, pin) !== null, 'but one pin ABOVE the pre-break base before RESTORE always is — the tolerance never passes the base');
-  assert(isOverRamp([{ exerciseId: 'lp', weight: 37.5, isWarmup: false }], { lp: { weight: 36, rpe: 1 } }, 85, pin) !== null, 'Leg Press 37.5 past a 36 base at 85% is over-ramp');
-  assert(isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: true }], { cp: { weight: 23 } }, 70, pin) === null, 'warm-ups are never judged');
-  assert(isOverRamp([{ exerciseId: 'new', weight: 40, isWarmup: false }], { cp: { weight: 23 } }, 70, pin) === null, 'a machine with no pre-break base cannot be over-ramp (held)');
-  assert(isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: { weight: 23 } }, 100, pin) === null, 'at 100% nothing is over-ramp');
-  const why = isOverRamp([{ exerciseId: 'cp', weight: 27, isWarmup: false }], { cp: { weight: 23, rpe: 2 } }, 70, pin)!;
-  assert(why.exerciseId === 'cp' && why.lifted === 27 && why.allowed === 22.5, `the verdict says which machine and by how much (got ${JSON.stringify(why)})`);
-
-  // End to end on his real history plus Thursday: the session that lifted
-  // full pre-break loads in a 70% week is not a clean (earning) session.
+  // 1.6 The ramp's allowance is RECORDED on the set at save time and judged
+  // from there — reconstructing it later drifted on memory RPE, pin map and
+  // block cut all at once (adversary passes 1–3).
+  // The one formula: prescription + one pin, never past the pre-break base.
+  assert(allowedRampKg({ weight: 23, rpe: 2 }, 70, 4.5) === 22.5, 'Med 23 base at 70% on 4.5 pins: prescribed 18, allowed 22.5');
+  assert(allowedRampKg({ weight: 27, rpe: 1 }, 70, 9) === 27, 'an Easy-held base is allowed exactly its prefill — following the box is never over-ramp');
+  assert(allowedRampKg({ weight: 36, rpe: 1 }, 85, 7.5) === 36, 'one pin past pre-break before RESTORE is never allowed');
+  assert(allowedRampKg({ weight: 40, rpe: 2 }, 60, 7) === 28, 'Lat Pulldown Med 40 at 60% on 7 kg pins: prescribed 21, allowed 28');
+  assert(allowedRampKg({ weight: 40, rpe: 2 }, 100, 7) === null && allowedRampKg({ weight: 0 }, 60, 7) === null, 'no allowance at 100% or with no base');
+  assert(allowedRampKg({ weight: 27, rampHold: true }, 60, 9) === 27, 'a held machine (no pre-break record) is allowed its own weight');
+  // The judge reads the set.
+  const w = (exerciseId: string, weight: number, allowedKg: number | null, rpe: number | null = 1, isWarmup = false) => ({ exerciseId, weight, allowedKg, rpe, isWarmup });
+  assert(isOverRamp([w('cp', 27, 22.5)])?.lifted === 27, 'lifted above the recorded allowance is over-ramp');
+  assert(isOverRamp([w('cp', 22.5, 22.5)]) === null, 'at the allowance is not');
+  assert(isOverRamp([w('cp', 27, null)]) === null, 'a set with no allowance (historical, held, outside a ramp) cannot be over-ramp');
+  assert(isOverRamp([w('cp', 27, 22.5, 1, true)]) === null, 'warm-ups are never judged');
+  const worst = isOverRamp([w('cp', 24, 22.5), w('lp', 45, 30)])!;
+  assert(worst.exerciseId === 'lp' && worst.allowed === 30, 'the verdict names the machine furthest over');
+  // Verdicts: pure, no status, no base rebuild.
+  const v = rampSessionVerdicts([
+    { date: '2026-09-01T00:00:00.000Z', sets: [w('a', 20, 25), w('a', 20, 25)] },
+    { date: '2026-09-06T00:00:00.000Z', sets: [w('a', 30, 25), w('a', 30, 25)] },
+    { date: '2026-09-12T00:00:00.000Z', sets: [w('a', 30, null), w('a', 30, null, 3)] },
+    { date: '2026-09-15T00:00:00.000Z', sets: [w('a', 30, null), w('a', 30, null)] },
+  ]);
+  assert(v.map((x) => x.clean).join() === 'true,false,false,true', `earned, over-ramp, Hard, historical-clean (got ${v.map((x) => x.clean).join()})`);
+  assert(v[1].overRamp?.allowed === 25, 'the over-ramp verdict carries the recorded allowance');
+  // A split save is ONE session: the heavy half decides — including a bare-midnight
+  // Watch half beside a timestamped phone half of the same day (adversary pass 3).
+  const split = rampSessionVerdicts([
+    { date: '2026-07-20T00:00:00.000Z', sets: [w('a', 12.5, 15), w('a', 12.5, 15)] },
+    { date: '2026-07-20T15:30:00.000Z', sets: [w('b', 40, 30), w('b', 40, 30)] },
+  ]);
+  assert(split.length === 1 && !split[0].clean, `a split save is judged once, by its heavy half (got ${JSON.stringify(split.map((x) => [x.clean, !!x.overRamp]))})`);
+  const twoGyms = rampSessionVerdicts([
+    { date: '2026-07-21T00:00:00.000Z', gym: 'bfit', sets: [w('a', 12.5, 15), w('a', 12.5, 15)] },
+    { date: '2026-07-21T00:00:00.000Z', gym: 'work', sets: [w('a', 12.5, 15), w('a', 12.5, 15)] },
+  ]);
+  assert(twoGyms.length === 2, 'two buildings on one day are two sessions');
+  // Thursday, as it would be saved today: the server records what each set was allowed.
   const byName = new Map(data.exercises.map((e) => [e.name, e.id]));
-  const set = (name: string, weight: number, rpe: number | null) => ({ exerciseId: byName.get(name)!, weight, reps: 10, rpe, isWarmup: false });
+  const set = (name: string, weight: number, allowed: number | null, rpe: number | null) => ({ exerciseId: byName.get(name)!, weight, reps: 10, rpe, isWarmup: false, allowedKg: allowed });
   const thursday = {
     date: '2026-09-17T00:00:00.000Z', name: 'Day A 45m — Sep 17', duration: 52 * 60,
-    sets: [set('Leg Press', 37.5, 1), set('Chest Press', 27, 2), set('Shoulder Press', 26, null), set('Leg Extension', 30, 1), set('Pec Fly', 30, 2), set('Ab Crunch', 27, 1)],
+    sets: [set('Leg Press', 37.5, 36, 1), set('Chest Press', 27, allowedRampKg({ weight: 23, rpe: 2 }, 70, 4.5), 2), set('Leg Extension', 30, allowedRampKg({ weight: 29, rpe: 2 }, 70, 9), 1)],
   };
   const history = [...data.workouts.filter((w) => w.name.startsWith('Day')), thursday];
-  const realPins = learnPinIncrements(data.workouts);
-  const pinFor = (id: string) => realPins[id] ?? 2.5;
-  const clean = cleanRampSessionDates(history, pinFor).map((d) => d.toISOString().slice(0, 10));
+  const clean = cleanRampSessionDates(history).map((d) => d.toISOString().slice(0, 10));
   assert(!clean.includes('2026-09-17'), `Thursday earned nothing — it was over-ramp (clean: ${clean.join(', ')})`);
-  const verdicts = rampSessionVerdicts(history, pinFor);
-  const thu = verdicts.find((v) => v.date.toISOString().startsWith('2026-09-17'))!;
+  const thu = rampSessionVerdicts(history).find((x) => x.date.toISOString().startsWith('2026-09-17'))!;
   assert(!!thu && !thu.clean && !!thu.overRamp && thu.overRamp.lifted > thu.overRamp.allowed, `the verdict names the machine (got ${JSON.stringify(thu?.overRamp)})`);
-  // Following the app's own prefill is never over-ramp: the next Day B lifted at
-  // exactly the prescribed (learned-pin) weights must earn.
-  const prescribed = (name: string, base: number, rpe: number | null) => rampPrefillWeight({ weight: base, rpe }, 85, pinFor(byName.get(name)!));
-  const dayB = {
-    date: '2026-09-20T00:00:00.000Z', name: 'Day B 45m — Sep 20', duration: 40 * 60,
-    sets: [set('Mid Row', prescribed('Mid Row', 27, 1), 1), set('Lat Pulldown', prescribed('Lat Pulldown', 40, 2), 1), set('Leg Curl', prescribed('Leg Curl', 20, 1), 2)],
-  };
-  const v2 = rampSessionVerdicts([...history, dayB], pinFor).find((v) => v.date.toISOString().startsWith('2026-09-20'))!;
-  assert(v2 && v2.clean, `a session at exactly the prefill earns (got ${JSON.stringify(v2?.overRamp)})`);
-  // Two rows on one day are one session's evidence (adversary: a split save earned through its clean half).
-  const halfA = { date: '2026-09-21T10:00:00.000Z', name: 'Day A 45m — Sep 21', duration: 600, sets: [set('Pec Fly', 12.5, 1), set('Pec Fly', 12.5, 1)] };
-  const halfB = { date: '2026-09-21T10:00:01.000Z', name: 'Day A 45m — Sep 21', duration: 600, sets: [set('Chest Press', 30, 1), set('Leg Press', 45, 1)] };
-  const split = rampSessionVerdicts([...history, halfA, halfB], pinFor).filter((v) => v.date.toISOString().startsWith('2026-09-21'));
-  assert(split.length === 1 && !split[0].clean, 'a split save is judged as one session — the heavy half decides');
-  // The base is per gym (rule 2): an Alrajhi ramp session is judged against Alrajhi bases only.
-  const workPre = { date: '2026-06-20T00:00:00.000Z', name: 'Day A 45m — Jun 20', gym: 'work', duration: 2400, sets: [set('Chest Press', 12.5, 2), set('Leg Press', 20, 2)] };
-  const workRamp = { date: '2026-09-22T00:00:00.000Z', name: 'Day A 45m — Sep 22', gym: 'work', duration: 2400, sets: [set('Chest Press', 27.5, 1), set('Leg Press', 35, 1)] };
-  const vw = rampSessionVerdicts([...history, workPre, workRamp], pinFor).find((v) => v.date.toISOString().startsWith('2026-09-22'))!;
-  assert(vw && !vw.clean, 'an Alrajhi session far over its OWN (lighter) base is over-ramp even though it is under the B_Fit base');
-  const stillCounts = getTrainingStatus(history.map((w) => new Date(w.date)), new Date('2026-09-18T12:00:00Z'), cleanRampSessionDates(history, pinFor));
+  const stillCounts = getTrainingStatus(history.map((w) => new Date(w.date)), new Date('2026-09-18T12:00:00Z'), cleanRampSessionDates(history));
   assert(stillCounts.mode === 'return' && stillCounts.sessionsInBlock >= 4, 'it still counts as a session for calendar pacing — over-ramp is not punished');
+}
+
+// ── Tier 2.6: a removal is a fact the other device must honour ───────────
+// Adversary 2026-09-18: a Watch-logged set un-ticked on the phone came back
+// at finish — the Watch re-posts everything it logged, and the server had
+// forgotten the removal the moment it deleted the key. Removals are now
+// TOMBSTONES in the live row: kept, ordered by time, invisible to clients.
+console.log('Tier 2 — live tombstones');
+{
+  const at = (m: number) => new Date(Date.UTC(2026, 8, 18, 10, m)).toISOString();
+  const logged = (n: number, m: number, source: 'phone' | 'watch' = 'watch') =>
+    ({ exerciseId: 'lat', setNumber: n, reps: 10, weight: 40, completedAt: at(m), source }) as const;
+  // Watch logs set 1 at :00; phone removes it at :05.
+  const s1 = mergeLiveSets([], [logged(1, 0)]);
+  const s2 = mergeLiveSets(s1, [{ exerciseId: 'lat', setNumber: 1, remove: true, completedAt: at(5), source: 'phone' } as never]);
+  assert(s2.length === 1 && s2[0].removed === true && s2[0].completedAt === at(5), 'a remove leaves a tombstone carrying its own time');
+  assert(visibleSets(s2).length === 0, 'clients never see a tombstone');
+  // The Watch re-posts the same set (its original :00 stamp): the tombstone is newer and wins.
+  const s3 = mergeLiveSets(s2, [logged(1, 0)]);
+  assert(s3.length === 1 && s3[0].removed === true, 'an older re-post cannot resurrect a removed set');
+  // A GENUINE re-log later (:09) beats the tombstone.
+  const s4 = mergeLiveSets(s2, [logged(1, 9)]);
+  assert(s4.length === 1 && !s4[0].removed && s4[0].completedAt === at(9), 'a later real tick replaces the tombstone');
+  // Finish: the posted sets themselves are filtered against tombstones.
+  const posted = [{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 40, completedAt: at(0) }, { exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, completedAt: at(2) }];
+  const kept = dropRemovedSets(posted, s2);
+  assert(kept.length === 1 && kept[0].setNumber === 2, 'the finish drops a posted set the other device removed after it was logged');
+  const keptLater = dropRemovedSets([{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 40, completedAt: at(9) }], s2);
+  assert(keptLater.length === 1, 'a set re-ticked AFTER the removal is kept');
+  const noStamp = dropRemovedSets([{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 40 }], s2);
+  assert(noStamp.length === 0, 'a posted set with no stamp yields to a tombstone (the removal is the later fact we know)');
+  // Union never re-adds a tombstoned key.
+  const u = unionForFinish([{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40 }], s2, 'phone');
+  assert(u.length === 1 && u[0].setNumber === 2, 'the union skips tombstones');
+  // Overlay: a newer tombstone un-ticks the local copy; an older one does not.
+  const mk = (n: number, extra: Partial<OverlaySet> = {}): OverlaySet => ({ exerciseId: 'lat', setNumber: n, reps: 10, weight: 40, done: false, notes: '', rpe: 0, completedAt: null, ...extra });
+  const ovA = overlayLiveSets([{ exerciseId: 'lat', sets: [mk(1, { done: true, completedAt: at(0) }), mk(2)] }], s2, (id) => ({ exerciseId: id, sets: [] }));
+  assert(ovA.blocks[0].sets[0].done === false, 'a newer tombstone un-ticks the local set');
+  const ovB = overlayLiveSets([{ exerciseId: 'lat', sets: [mk(1, { done: true, completedAt: at(9) }), mk(2)] }], s2, (id) => ({ exerciseId: id, sets: [] }));
+  assert(ovB.blocks[0].sets[0].done === true, 'a local tick newer than the tombstone stays');
+  // Tombstones count toward the cap but never past it; sanitizer still refuses a bare set 0 remove.
+  assert(sanitizeLiveUpdate({ exerciseId: 'lat', setNumber: 2, remove: true }, 'phone') !== null, 'remove still passes the sanitizer');
 }
 
 // ── summary ──────────────────────────────────────────────────────────────

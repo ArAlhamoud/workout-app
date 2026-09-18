@@ -1,4 +1,3 @@
-import { pinMapFor } from '@/lib/coach';
 import { readChart } from '@/lib/chart';
 import Link from 'next/link';
 import type { Metadata } from 'next';
@@ -18,7 +17,7 @@ import {
   cleanRampSessionDates,
   getTrainingStatus,
   projectPlan,
-  type Priority, DEFAULT_GYM_ID } from '@/lib/program';
+  type Priority } from '@/lib/program';
 import { getExercises, getBodyStats, getWorkouts } from '@/app/actions';
 import CollapsibleSection from '@/components/CollapsibleSection';
 import { getMondayOfWeek, RPE_LABELS } from '@/lib/format';
@@ -143,8 +142,7 @@ export default async function ProgramPage() {
 
   // Where the lifter actually is this week
   const trainingOnly = workouts.filter(isTrainingSession);
-  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly, pinFor));
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
   const weekStart = getMondayOfWeek(new Date());
   // TRAINING sessions only (trainer veto in program.ts: a rescue walk must
   // never count as a ramp session). Unfiltered, two walks "spent" the ramp
@@ -162,7 +160,8 @@ export default async function ProgramPage() {
 
   // The plan follows his log, so the projection is "if you follow it from
   // here" — today plus the next 4 days, alternating train / recover.
-  const sessions = workouts.map((w) => ({ date: w.date, name: w.name }));
+  // Judged rows only (a mis-tap must not project a rest day).
+  const sessions = trainingOnly.map((w) => ({ date: w.date, name: w.name }));
   const plan = getDynamicPlan(sessions);
   let projection = projectPlan(sessions, new Date(), 5);
   const sessionTarget = status.mode === 'return' ? status.returnWeek.sessions : `${WEEKLY_SESSION_TARGET}`;

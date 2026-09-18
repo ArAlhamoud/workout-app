@@ -236,6 +236,27 @@ export async function logBp(data: {
   if (data.systolic < 60 || data.systolic > 260 || data.diastolic < 30 || data.diastolic > 160) {
     throw new Error('Reading out of range');
   }
+  // The same reading already imported from Health (or logged twice) within
+  // five minutes: fill its blanks, never add a twin (device-tester found
+  // "126/80 · 6:08 AM" twice under a footer promising no duplicates).
+  const at = data.at ? new Date(data.at) : new Date();
+  const twin = await prisma.bpReading.findFirst({
+    where: {
+      systolic: Math.round(data.systolic),
+      diastolic: Math.round(data.diastolic),
+      at: { gte: new Date(at.getTime() - 5 * 60_000), lte: new Date(at.getTime() + 5 * 60_000) },
+    },
+    select: { id: true, pulse: true, context: true },
+  });
+  if (twin) {
+    const pulse = data.pulse && data.pulse > 20 && data.pulse < 250 ? Math.round(data.pulse) : null;
+    await prisma.bpReading.update({
+      where: { id: twin.id },
+      data: { pulse: twin.pulse ?? pulse, context: twin.context ?? (data.context?.slice(0, 30) || null) },
+    });
+    revalidateHealth();
+    return;
+  }
   await prisma.bpReading.create({
     data: {
       systolic: Math.round(data.systolic),

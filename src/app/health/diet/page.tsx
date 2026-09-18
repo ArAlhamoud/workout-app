@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import BackLink from '@/components/BackLink';
 import { getHealthData } from '../../health-actions';
-import { deliveryDayPattern, fuelTargets, fuelWeek, learnedMaintenance, ownerDayKey } from '@/lib/health-insights';
+import { deliveryDayPattern, fuelTargets, fuelWeek, learnedMaintenance, ownerActivityDayUtc } from '@/lib/health-insights';
 import FuelTracker from '@/components/health/FuelTracker';
 
 export const metadata: Metadata = { title: 'Diet' };
@@ -17,7 +17,9 @@ export default async function FuelPage() {
   );
 
   // NutritionLog days are stored at UTC midnight of the owner's local day.
-  const todayIso = ownerDayKey();
+  // Activity day, not calendar day: at 01:30 the four cells read "—"
+  // although the evening's row existed (adversary, 2026-09-18).
+  const todayIso = ownerActivityDayUtc().toISOString().slice(0, 10);
   const today =
     data.nutrition.find((n) => n.day.toISOString().slice(0, 10) === todayIso) ?? null;
 
@@ -34,7 +36,11 @@ export default async function FuelPage() {
   );
   const delivery = deliveryDayPattern(data.nutrition.map((n) => ({ day: n.day, kcal: n.kcal })));
 
+  // The subscription's week is logged ahead of time; Day by day is a
+  // record, not a schedule — cut at today (same rule as the timeline).
+  const cutoff = ownerActivityDayUtc();
   const recent = data.nutrition
+    .filter((n) => new Date(n.day) <= cutoff)
     .filter((n) => n.kcal != null || n.proteinG != null || n.carbsG != null || n.fatG != null)
     .slice(0, 14);
 

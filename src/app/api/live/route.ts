@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { readLive, upsertLive } from '@/lib/live-store';
+import { forClient, readLive, upsertLive } from '@/lib/live-store';
 import { sanitizeLiveUpdate, type LiveSetUpdate } from '@/lib/live-session';
 
 export const runtime = 'nodejs';
@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get('id') ?? undefined;
   const live = await readLive(id && id.length <= 64 ? id : undefined);
-  return NextResponse.json({ live });
+  return NextResponse.json({ live: forClient(live) });
 }
 
 export async function POST(request: Request) {
@@ -57,5 +57,5 @@ export async function POST(request: Request) {
     updates,
   );
   if (!live) return NextResponse.json({ error: 'live session unavailable' }, { status: 503 });
-  return NextResponse.json({ live });
+  return NextResponse.json({ live: forClient(live) });
 }

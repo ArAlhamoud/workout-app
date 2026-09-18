@@ -1,4 +1,5 @@
 import { readChart } from '@/lib/chart';
+import { ownerActivityDayUtc } from '@/lib/health-insights';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
@@ -84,7 +85,7 @@ export default async function NewWorkoutPage({
   // ONE pin map for the prefill, the chip and the over-ramp judge (rule 4;
   // judged home-gym rows only, rule 2).
   const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises);
-  const cleanDates = cleanRampSessionDates(trainingOnly, pinFor);
+  const cleanDates = cleanRampSessionDates(trainingOnly);
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
   const inRamp = status.mode === 'return';
   const validDur: Duration =
@@ -97,7 +98,7 @@ export default async function NewWorkoutPage({
   const validDay =
     day === 'A' || day === 'B'
       ? day
-      : queuedDay(getDynamicPlan(allWorkouts.map((w) => ({ date: w.date, name: w.name }))));
+      : queuedDay(getDynamicPlan(trainingOnly.map((w) => ({ date: w.date, name: w.name }))));
 
   // The rescue session: 15 minutes, four priority-1 machines, 60% loads.
   // Reached from Gap Guard notifications and the readiness-hold banner. Its
@@ -120,9 +121,10 @@ export default async function NewWorkoutPage({
   const RESCUE_EXERCISES = ['Leg Press', 'Chest Press', 'Lat Pulldown', 'Mid Row'];
   const RESCUE_LOAD_PCT = 60;
 
-  const initialName = isRescue
-    ? `Rescue 15m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`
-    : `Day ${validDay} ${validDur}m — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`;
+  // Same clock as the date field (activityDayStr): a session finished at
+  // 00:30 was named "Sep 18" and dated Sep 17 (device-tester, 2026-09-18).
+  const dayLabel = ownerActivityDayUtc().toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const initialName = isRescue ? `Rescue 15m — ${dayLabel}` : `Day ${validDay} ${validDur}m — ${dayLabel}`;
 
   const initialExercises = (() => {
     const templateExercises = isRescue

@@ -6,6 +6,7 @@
 // Targets live behind a fold; the suggestion stays visible so "why these
 // numbers" is never a mystery.
 
+import { activityDayStr } from '@/lib/health-insights';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addNutrition, logNutrition, updateFuelTargets } from '@/app/health-actions';
@@ -17,10 +18,10 @@ const inputCls =
 const saveBtn =
   'w-full min-h-[48px] rounded-card border-2 border-ink bg-acc-teal-deep text-sm font-extrabold text-white shadow-[3px_3px_0_#0b0b0f] transition-all active:translate-x-[2px] active:translate-y-[2px] active:shadow-[1px_1px_0_#0b0b0f] disabled:opacity-40';
 
-function todayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+// A meal logged at 01:30 belongs to the evening just past — the owner
+// logs from the sofa, and had the cloud session move exactly such a
+// dinner back a day (2026-09-18). Same 04:00 rollover as the logger.
+const todayKey = (): string => activityDayStr();
 
 export default function FuelTracker({ targets }: { targets: FuelTargets }) {
   const router = useRouter();

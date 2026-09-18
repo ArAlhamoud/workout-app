@@ -431,51 +431,49 @@ export type TrainingStatus =
  * after a layoff, or mid-program. Counting weeks from the very first
  * workout would put someone who took two months off in week 12.
  */
-/**
- * A ramp session that EARNS acceleration: at least two rated working sets,
- * none harder than Med. One stray tap can't earn a week (the 2-set floor),
- * and a Hard or Grind anywhere means the load is not as light as the ramp
- * assumes — the calendar keeps the wheel then.
- */
 export interface OverRamp {
   exerciseId: string;
   lifted: number;
-  /** The most the ramp allowed on that machine that day. */
+  /** The most the ramp allowed on that machine that day (recorded at save time). */
   allowed: number;
 }
 
 /**
- * A ramp session lifted ABOVE its prescription is "over-ramp": the top
- * working weight on a machine beat the SAME prescription the logger showed
- * (same memory, same learned pin) by more than one pin — and the
- * tolerance never passes the pre-break base before RESTORE. It still
- * counts as a session for calendar pacing; it does not EARN a phase.
- * Thursday 17 Sep was prescribed 70% and lifted 96–117% of base, rated
- * Easy — and that advanced the ramp (trainer B1, 2026-09-18). A machine
- * with no pre-break base is held, so it cannot be over-ramp. The pin map
- * MUST be the one the prefill used: a hard-coded 2.5 made following the
- * app's own prefill "over-ramp" on every session (trainer + adversary).
+ * The most a ramp set may weigh: the SAME prescription the logger showed
+ * (same memory, same learned pin) plus one pin — and never past the
+ * pre-break base before RESTORE. Computed by createWorkout the moment a
+ * session is saved and stored on the set as allowedKg; nothing ever
+ * reconstructs it later (adversary passes 1–3, 2026-09-18: memory RPE,
+ * pin map and block cut all drift after the fact).
+ */
+export function allowedRampKg(
+  memory: { weight: number; rampHold?: boolean; rpe?: number | null },
+  loadPct: number,
+  pin: number,
+): number | null {
+  if (loadPct >= 100 || memory.weight <= 0) return null;
+  const p = pin > 0 ? pin : 2.5;
+  const prescribed = rampPrefillWeight(memory, loadPct, p);
+  return +Math.min(prescribed + p, Math.max(prescribed, memory.weight)).toFixed(2);
+}
+
+/**
+ * A ramp session lifted ABOVE what it was allowed is "over-ramp": it
+ * still counts as a session for calendar pacing; it does not EARN a
+ * phase. Thursday 17 Sep was prescribed 70% and lifted 96–117% of base,
+ * rated Easy — and that advanced the ramp (trainer B1). Judged only from
+ * the allowedKg recorded on the sets; a set with none (historical, held
+ * machine, outside a ramp) cannot be over-ramp.
  */
 export function isOverRamp(
-  sets: Array<{ exerciseId?: string; weight?: number; isWarmup?: boolean | null }>,
-  baseByExercise: Record<string, { weight: number; rpe?: number | null }>,
-  loadPct: number,
-  pinFor: (exerciseId: string) => number = () => 2.5,
+  sets: Array<{ exerciseId?: string; weight?: number; isWarmup?: boolean | null; allowedKg?: number | null }>,
 ): OverRamp | null {
-  if (loadPct >= 100) return null;
-  const top = new Map<string, number>();
-  for (const x of sets) {
-    if (x.isWarmup || !x.exerciseId || typeof x.weight !== 'number') continue;
-    top.set(x.exerciseId, Math.max(top.get(x.exerciseId) ?? 0, x.weight));
-  }
   let worst: OverRamp | null = null;
-  for (const [id, w] of top) {
-    const base = baseByExercise[id];
-    if (!base || base.weight <= 0) continue;
-    const pin = pinFor(id) > 0 ? pinFor(id) : 2.5;
-    const prescribed = rampPrefillWeight(base, loadPct, pin);
-    const allowed = Math.min(prescribed + pin, Math.max(prescribed, base.weight));
-    if (w > allowed && (!worst || w - allowed > worst.lifted - worst.allowed)) worst = { exerciseId: id, lifted: w, allowed };
+  for (const x of sets) {
+    if (x.isWarmup || !x.exerciseId || typeof x.weight !== 'number' || x.allowedKg == null) continue;
+    if (x.weight > x.allowedKg && (!worst || x.weight - x.allowedKg > worst.lifted - worst.allowed)) {
+      worst = { exerciseId: x.exerciseId, lifted: x.weight, allowed: x.allowedKg };
+    }
   }
   return worst;
 }
@@ -484,7 +482,7 @@ type RampSession = {
   date: Date | string;
   name?: string | null;
   gym?: string | null;
-  sets?: Array<{ rpe?: number | null; isWarmup?: boolean | null; exerciseId?: string; weight?: number }> | null;
+  sets?: Array<{ rpe?: number | null; isWarmup?: boolean | null; exerciseId?: string; weight?: number; allowedKg?: number | null }> | null;
 };
 
 export interface RampVerdict {
@@ -494,79 +492,53 @@ export interface RampVerdict {
   overRamp: OverRamp | null;
 }
 
-/** The owner's activity day (04:00 Riyadh rollover) as a UTC-midnight epoch. */
-function activityDayMs(d: Date): number {
+/**
+ * The day a row belongs to, as a key. A row stored as bare UTC midnight
+ * IS its day (every writer stamps the owner's activity day that way); a
+ * row carrying a real instant rolls over at 04:00 Riyadh like any
+ * activity. Without the first rule a bare-midnight Watch half and a
+ * timestamped phone half of one session landed on different days
+ * (adversary pass 3).
+ */
+function sessionDayKey(d: Date): string {
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0) return d.toISOString().slice(0, 10);
   const hour = Number(d.toLocaleString('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', hour12: false }));
   const key = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
   const day = new Date(`${key}T00:00:00.000Z`);
   if (hour < 4) day.setUTCDate(day.getUTCDate() - 1);
-  return day.getTime();
+  return day.toISOString().slice(0, 10);
 }
 
 /**
- * Every session judged by the status that stood the day it was logged.
- * Rows on one activity day in one building are ONE session (a save in two
- * halves must not earn through its clean half); the pre-break base is
- * rebuilt per machine from the last full-load session before that block,
- * in the SAME building (rule 2); the cut-off is computed once per block.
+ * Every session's verdict. Rows on one day in one building are ONE
+ * session (a save in two halves must not earn through its clean half —
+ * the heavy half decides). Pure and O(n): no status is recomputed, no
+ * base is rebuilt — the allowed weight is on the set.
  */
-export function rampSessionVerdicts(
-  sessions: RampSession[],
-  pinFor: (exerciseId: string) => number = () => 2.5,
-): RampVerdict[] {
+export function rampSessionVerdicts(sessions: RampSession[]): RampVerdict[] {
   const rows = sessions
-    .map((s) => ({ at: new Date(s.date), gym: s.gym ?? DEFAULT_GYM_ID, name: s.name ?? '', sets: s.sets ?? [] }))
+    .map((s) => ({ at: new Date(s.date), gym: s.gym ?? DEFAULT_GYM_ID, sets: s.sets ?? [] }))
     .sort((a, b) => a.at.getTime() - b.at.getTime());
-  const grouped: Array<{ at: Date; gym: string; name: string; sets: NonNullable<RampSession['sets']> }> = [];
+  const grouped: Array<{ at: Date; gym: string; sets: NonNullable<RampSession['sets']> }> = [];
   for (const r of rows) {
     const last = grouped[grouped.length - 1];
-    if (last && activityDayMs(last.at) === activityDayMs(r.at) && last.gym === r.gym) {
+    if (last && sessionDayKey(last.at) === sessionDayKey(r.at) && last.gym === r.gym) {
       last.sets = [...last.sets, ...r.sets];
       continue;
     }
-    grouped.push({ at: r.at, gym: r.gym, name: r.name, sets: [...r.sets] });
+    grouped.push({ at: r.at, gym: r.gym, sets: [...r.sets] });
   }
-  const out: RampVerdict[] = [];
-  const clean: Date[] = [];
-  const cutByBlock = new Map<string, string | null>();
-  for (let i = 0; i < grouped.length; i++) {
-    const s = grouped[i];
+  return grouped.map((s) => {
     const rated = s.sets.filter((x) => !x.isWarmup && x.rpe != null);
     const effortClean = rated.length >= 2 && rated.every((x) => (x.rpe as number) <= 2);
-    let overRamp: OverRamp | null = null;
-    if (effortClean) {
-      const before = grouped.slice(0, i);
-      const at = getTrainingStatus(before.map((b) => b.at), s.at, clean);
-      if (at.mode === 'return' && at.returnWeek.loadPct < 100) {
-        const blockKey = at.blockStartISO ?? 'first';
-        if (!cutByBlock.has(blockKey)) cutByBlock.set(blockKey, rampBaseBefore(before.map((b) => ({ date: b.at, name: b.name })), clean, s.at));
-        const cut = cutByBlock.get(blockKey) ?? null;
-        const cutTs = cut ? new Date(cut).getTime() : Number.POSITIVE_INFINITY;
-        const base: Record<string, { weight: number; rpe?: number | null }> = {};
-        for (const b of before) {
-          if (b.at.getTime() >= cutTs || b.gym !== s.gym) continue;
-          const tops: Record<string, { weight: number; rpe?: number | null }> = {};
-          for (const x of b.sets) {
-            if (x.isWarmup || !x.exerciseId || typeof x.weight !== 'number' || x.weight <= 0) continue;
-            const cur = tops[x.exerciseId];
-            if (!cur || x.weight > cur.weight) tops[x.exerciseId] = { weight: x.weight, rpe: x.rpe ?? null };
-            else if (x.weight === cur.weight && x.rpe != null && (cur.rpe == null || x.rpe > cur.rpe)) cur.rpe = x.rpe;
-          }
-          for (const [id, t] of Object.entries(tops)) base[id] = t; // ascending: the latest session wins
-        }
-        overRamp = isOverRamp(s.sets, base, at.returnWeek.loadPct, pinFor);
-      }
-    }
-    const isClean = effortClean && !overRamp;
-    if (isClean) clean.push(s.at);
-    out.push({ date: s.at, clean: isClean, overRamp });
-  }
-  return out;
+    const overRamp = effortClean ? isOverRamp(s.sets) : null;
+    return { date: s.at, clean: effortClean && !overRamp, overRamp };
+  });
 }
 
-/** The dates that EARN ramp progress. `pinFor` must be the same learned-pin map the prefill used. */
-export function cleanRampSessionDates(sessions: RampSession[], pinFor?: (exerciseId: string) => number): Date[] {
-  return rampSessionVerdicts(sessions, pinFor).filter((v) => v.clean).map((v) => v.date);
+/** The dates that EARN ramp progress. */
+export function cleanRampSessionDates(sessions: RampSession[]): Date[] {
+  return rampSessionVerdicts(sessions).filter((v) => v.clean).map((v) => v.date);
 }
 
 export function getTrainingStatus(

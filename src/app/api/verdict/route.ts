@@ -8,8 +8,8 @@
 
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { homeVerdict, pinMapFor } from '@/lib/coach';
-import { calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay, rampContract, DEFAULT_GYM_ID } from '@/lib/program';
+import { homeVerdict } from '@/lib/coach';
+import { calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay, rampContract } from '@/lib/program';
 import { holdWeekKeys, weekStreak } from '@/lib/streak';
 
 export const runtime = 'nodejs';
@@ -34,8 +34,7 @@ export async function GET(request: Request) {
   ]);
 
   const trainingOnly = workouts.filter(isTrainingSession);
-  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID) as never);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly, pinFor));
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly));
 
   // The Comeback Contract's payoff line — computed by the SAME gates that
   // pay it (spacing + day floor), PROJECTED to the rung's fire time (day 2
@@ -47,7 +46,7 @@ export async function GET(request: Request) {
     ? new Date(trainingOnly[0].date.getTime() + 2 * 86400000)
     : now;
   const contract = rampContract(status, fireAt);
-  const plan = getDynamicPlan(workouts.map((w) => ({ date: w.date, name: w.name })), now);
+  const plan = getDynamicPlan(trainingOnly.map((w) => ({ date: w.date, name: w.name })), now);
   const verdict = homeVerdict(status, plan, now);
   const streak = weekStreak({
     sessionDates: workouts.map((w) => w.date),
