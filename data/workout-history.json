@@ -1,20 +1,20 @@
 {
-  "exportedAt": "2026-09-18T09:26:27.588Z",
+  "exportedAt": "2026-09-19T09:13:40.903Z",
   "totalWorkouts": 15,
-  "totalBodyStats": 33,
+  "totalBodyStats": 34,
   "totalExercises": 21,
-  "totalHealthSamples": 231,
+  "totalHealthSamples": 235,
   "totalHolds": 0,
   "totalInjections": 4,
   "latestWeightSample": {
-    "id": "cmu61ru5x001meevcx603s9wy",
+    "id": "cmu85m5qd001qw9e3kquthn8r",
     "type": "weight",
-    "date": "2026-09-17T19:32:20.000Z",
-    "value": 126.3,
+    "date": "2026-09-19T08:55:30.000Z",
+    "value": 125.7,
     "unit": "kg",
     "source": "apple-health",
     "meta": null,
-    "createdAt": "2026-09-17T21:34:15.669Z"
+    "createdAt": "2026-09-19T08:57:21.542Z"
   },
   "exercises": [
     {
@@ -167,14 +167,14 @@
   ],
   "healthSamples": [
     {
-      "id": "cmsfkujt70001xomdh7e6e20a",
-      "type": "hrv_sdnn",
+      "id": "cmsfkujsk0000xomdi7kl04ot",
+      "type": "resting_hr",
       "date": "2026-07-30T00:00:00.000Z",
-      "value": 111.2569654555603,
-      "unit": "ms",
+      "value": 73,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-05T04:18:45.836Z"
+      "createdAt": "2026-08-05T04:18:45.810Z"
     },
     {
       "id": "cmsfkujto0004xomdq72r5tyf",
@@ -187,24 +187,14 @@
       "createdAt": "2026-08-05T04:18:45.852Z"
     },
     {
-      "id": "cmsfkujsk0000xomdi7kl04ot",
-      "type": "resting_hr",
+      "id": "cmsfkujt70001xomdh7e6e20a",
+      "type": "hrv_sdnn",
       "date": "2026-07-30T00:00:00.000Z",
-      "value": 73,
-      "unit": "count/min",
+      "value": 111.2569654555603,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-05T04:18:45.810Z"
-    },
-    {
-      "id": "cmsfkujtr0005xomd5gjil8ud",
-      "type": "steps",
-      "date": "2026-07-31T00:00:00.000Z",
-      "value": 2937,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-05T04:18:45.856Z"
+      "createdAt": "2026-08-05T04:18:45.836Z"
     },
     {
       "id": "cmsfkujtb0002xomd3owogrrd",
@@ -217,14 +207,14 @@
       "createdAt": "2026-08-05T04:18:45.839Z"
     },
     {
-      "id": "cmsfkujtv0006xomd6f1bpevf",
+      "id": "cmsfkujtr0005xomd5gjil8ud",
       "type": "steps",
-      "date": "2026-08-01T00:00:00.000Z",
-      "value": 6060,
+      "date": "2026-07-31T00:00:00.000Z",
+      "value": 2937,
       "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-05T04:18:45.859Z"
+      "createdAt": "2026-08-05T04:18:45.856Z"
     },
     {
       "id": "cmsfkujtk0003xomdy4zekvz5",
@@ -235,6 +225,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-05T04:18:45.848Z"
+    },
+    {
+      "id": "cmsfkujtv0006xomd6f1bpevf",
+      "type": "steps",
+      "date": "2026-08-01T00:00:00.000Z",
+      "value": 6060,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.859Z"
     },
     {
       "id": "cmsfkujty0007xomdsa04rav6",
@@ -257,16 +257,6 @@
       "createdAt": "2026-08-05T04:18:45.868Z"
     },
     {
-      "id": "cmsfkuju70009xomda8prc6um",
-      "type": "steps",
-      "date": "2026-08-04T00:00:00.000Z",
-      "value": 2030.586214265159,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-05T04:18:45.871Z"
-    },
-    {
       "id": "cmsg8kv4r000111wkkuv5axg9",
       "type": "resting_hr",
       "date": "2026-08-04T00:00:00.000Z",
@@ -287,14 +277,14 @@
       "createdAt": "2026-08-05T15:23:04.753Z"
     },
     {
-      "id": "cmsg8kv5f000711wkdheuo3ny",
-      "type": "hrv_sdnn",
-      "date": "2026-08-05T00:00:00.000Z",
-      "value": 89.40609802569628,
-      "unit": "ms",
+      "id": "cmsfkuju70009xomda8prc6um",
+      "type": "steps",
+      "date": "2026-08-04T00:00:00.000Z",
+      "value": 2030.586214265159,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-05T15:23:04.756Z"
+      "createdAt": "2026-08-05T04:18:45.871Z"
     },
     {
       "id": "cmsfn3ynr000a48uq6r0vx5fy",
@@ -307,6 +297,16 @@
       "createdAt": "2026-08-05T05:22:04.216Z"
     },
     {
+      "id": "cmsg8kv5f000711wkdheuo3ny",
+      "type": "hrv_sdnn",
+      "date": "2026-08-05T00:00:00.000Z",
+      "value": 89.40609802569628,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T15:23:04.756Z"
+    },
+    {
       "id": "cmsg8kv50000211wko29cmxbn",
       "type": "resting_hr",
       "date": "2026-08-05T00:00:00.000Z",
@@ -317,16 +317,6 @@
       "createdAt": "2026-08-05T15:23:04.740Z"
     },
     {
-      "id": "cmsh896g50002mkeeh2ktumuk",
-      "type": "resting_hr",
-      "date": "2026-08-06T00:00:00.000Z",
-      "value": 67,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-06T08:01:45.701Z"
-    },
-    {
       "id": "cmsh896hw000emkeenzqe0ivw",
       "type": "steps",
       "date": "2026-08-06T00:00:00.000Z",
@@ -335,6 +325,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-06T08:01:45.764Z"
+    },
+    {
+      "id": "cmsh896g50002mkeeh2ktumuk",
+      "type": "resting_hr",
+      "date": "2026-08-06T00:00:00.000Z",
+      "value": 67,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-06T08:01:45.701Z"
     },
     {
       "id": "cmsh896h00007mkeeitaksegj",
@@ -367,6 +367,16 @@
       "createdAt": "2026-08-11T17:42:30.431Z"
     },
     {
+      "id": "cmsoy7a5d000e40cqjz30g2q7",
+      "type": "steps",
+      "date": "2026-08-08T00:00:00.000Z",
+      "value": 2766,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-11T17:42:30.434Z"
+    },
+    {
       "id": "cmsoy7a4p000540cqgkorkop9",
       "type": "resting_hr",
       "date": "2026-08-08T00:00:00.000Z",
@@ -385,16 +395,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-11T17:42:30.420Z"
-    },
-    {
-      "id": "cmsoy7a5d000e40cqjz30g2q7",
-      "type": "steps",
-      "date": "2026-08-08T00:00:00.000Z",
-      "value": 2766,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-11T17:42:30.434Z"
     },
     {
       "id": "cmsoy7a4r000640cqpaf0925a",
@@ -487,16 +487,6 @@
       "createdAt": "2026-08-11T17:42:30.442Z"
     },
     {
-      "id": "cmsunp8fp000g6nl4rjj6jnnv",
-      "type": "hrv_sdnn",
-      "date": "2026-08-12T00:00:00.000Z",
-      "value": 23.13473097685623,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-15T17:35:09.301Z"
-    },
-    {
       "id": "cmsq51x0y000dbjxho78juqz1",
       "type": "steps",
       "date": "2026-08-12T00:00:00.000Z",
@@ -505,6 +495,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-12T13:42:03.634Z"
+    },
+    {
+      "id": "cmsunp8fp000g6nl4rjj6jnnv",
+      "type": "hrv_sdnn",
+      "date": "2026-08-12T00:00:00.000Z",
+      "value": 23.13473097685623,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-15T17:35:09.301Z"
     },
     {
       "id": "cmsunp7wt00036nl4om4frjwt",
@@ -537,14 +537,14 @@
       "createdAt": "2026-08-15T17:35:08.631Z"
     },
     {
-      "id": "cmsunp8gm000n6nl4wo8i7p2t",
-      "type": "steps",
+      "id": "cmsunp8f7000c6nl4lhncxsas",
+      "type": "resting_hr",
       "date": "2026-08-14T00:00:00.000Z",
-      "value": 2518.426662128655,
-      "unit": "count",
+      "value": 67,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-15T17:35:09.334Z"
+      "createdAt": "2026-08-15T17:35:09.283Z"
     },
     {
       "id": "cmsunp8fv000h6nl41dfaackb",
@@ -557,14 +557,24 @@
       "createdAt": "2026-08-15T17:35:09.307Z"
     },
     {
-      "id": "cmsunp8f7000c6nl4lhncxsas",
-      "type": "resting_hr",
+      "id": "cmsunp8gm000n6nl4wo8i7p2t",
+      "type": "steps",
       "date": "2026-08-14T00:00:00.000Z",
-      "value": 67,
+      "value": 2518.426662128655,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-15T17:35:09.334Z"
+    },
+    {
+      "id": "cmsyzghla0009a52f10dbp5jr",
+      "type": "resting_hr",
+      "date": "2026-08-15T00:00:00.000Z",
+      "value": 78,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-15T17:35:09.283Z"
+      "createdAt": "2026-08-18T18:15:21.358Z"
     },
     {
       "id": "cmsunp8gq000o6nl4148w8olr",
@@ -587,16 +597,6 @@
       "createdAt": "2026-08-18T18:15:21.391Z"
     },
     {
-      "id": "cmsyzghla0009a52f10dbp5jr",
-      "type": "resting_hr",
-      "date": "2026-08-15T00:00:00.000Z",
-      "value": 78,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-18T18:15:21.358Z"
-    },
-    {
       "id": "cmsunp7xb00076nl4uieda92o",
       "type": "weight",
       "date": "2026-08-15T17:08:05.000Z",
@@ -617,14 +617,14 @@
       "createdAt": "2026-08-18T18:15:21.438Z"
     },
     {
-      "id": "cmsyzghnl000ma52fi7dppbxc",
-      "type": "steps",
+      "id": "cmsyzghll000aa52fkx3kyf2y",
+      "type": "resting_hr",
       "date": "2026-08-17T00:00:00.000Z",
-      "value": 4755.328860274041,
-      "unit": "count",
+      "value": 70,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-18T18:15:21.442Z"
+      "createdAt": "2026-08-18T18:15:21.370Z"
     },
     {
       "id": "cmsyzghmi000fa52flb9zuzfe",
@@ -637,24 +637,14 @@
       "createdAt": "2026-08-18T18:15:21.402Z"
     },
     {
-      "id": "cmsyzghll000aa52fkx3kyf2y",
-      "type": "resting_hr",
+      "id": "cmsyzghnl000ma52fi7dppbxc",
+      "type": "steps",
       "date": "2026-08-17T00:00:00.000Z",
-      "value": 70,
-      "unit": "count/min",
+      "value": 4755.328860274041,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-18T18:15:21.370Z"
-    },
-    {
-      "id": "cmsyzghmn000ga52fa43py0vz",
-      "type": "hrv_sdnn",
-      "date": "2026-08-18T00:00:00.000Z",
-      "value": 24.75629828161609,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-18T18:15:21.407Z"
+      "createdAt": "2026-08-18T18:15:21.442Z"
     },
     {
       "id": "cmsyzghnq000na52fo87fa7sy",
@@ -665,6 +655,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-18T18:15:21.446Z"
+    },
+    {
+      "id": "cmsyzghmn000ga52fa43py0vz",
+      "type": "hrv_sdnn",
+      "date": "2026-08-18T00:00:00.000Z",
+      "value": 24.75629828161609,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-18T18:15:21.407Z"
     },
     {
       "id": "cmsyzghlq000ba52fdf72ww2q",
@@ -697,16 +697,6 @@
       "createdAt": "2026-08-25T16:28:02.037Z"
     },
     {
-      "id": "cmt1proul0004y4h5zocdot32",
-      "type": "resting_hr",
-      "date": "2026-08-19T00:00:00.000Z",
-      "value": 67,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-20T16:07:26.349Z"
-    },
-    {
       "id": "cmt1prov2000ay4h5jl9hqxt5",
       "type": "hrv_sdnn",
       "date": "2026-08-19T00:00:00.000Z",
@@ -727,14 +717,24 @@
       "createdAt": "2026-08-20T16:07:26.382Z"
     },
     {
-      "id": "cmt1provk000iy4h5868e8fil",
-      "type": "steps",
-      "date": "2026-08-20T00:00:00.000Z",
-      "value": 2911,
-      "unit": "count",
+      "id": "cmt1proul0004y4h5zocdot32",
+      "type": "resting_hr",
+      "date": "2026-08-19T00:00:00.000Z",
+      "value": 67,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-20T16:07:26.384Z"
+      "createdAt": "2026-08-20T16:07:26.349Z"
+    },
+    {
+      "id": "cmt8vpg2t000yaq17nd55s2o1",
+      "type": "respiratory_rate",
+      "date": "2026-08-20T00:00:00.000Z",
+      "value": 26.5,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.597Z"
     },
     {
       "id": "cmt1prouq0005y4h53hvcb1bl",
@@ -757,14 +757,14 @@
       "createdAt": "2026-08-20T16:07:26.369Z"
     },
     {
-      "id": "cmt8vpg2t000yaq17nd55s2o1",
-      "type": "respiratory_rate",
+      "id": "cmt1provk000iy4h5868e8fil",
+      "type": "steps",
       "date": "2026-08-20T00:00:00.000Z",
-      "value": 26.5,
-      "unit": "count/min",
+      "value": 2911,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-25T16:28:02.597Z"
+      "createdAt": "2026-08-20T16:07:26.384Z"
     },
     {
       "id": "cmt8vpg330011aq170yp1s09q",
@@ -787,16 +787,6 @@
       "createdAt": "2026-08-25T16:28:02.045Z"
     },
     {
-      "id": "cmt8vpg380012aq17boga0l1g",
-      "type": "steps",
-      "date": "2026-08-22T00:00:00.000Z",
-      "value": 4353.424458893036,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-25T16:28:02.612Z"
-    },
-    {
       "id": "cmt8vpg1y000paq1726j8jfte",
       "type": "resting_hr",
       "date": "2026-08-22T00:00:00.000Z",
@@ -807,6 +797,16 @@
       "createdAt": "2026-08-25T16:28:02.566Z"
     },
     {
+      "id": "cmt8vpg380012aq17boga0l1g",
+      "type": "steps",
+      "date": "2026-08-22T00:00:00.000Z",
+      "value": 4353.424458893036,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.612Z"
+    },
+    {
       "id": "cmt8vpg2f000uaq17xmts3np1",
       "type": "hrv_sdnn",
       "date": "2026-08-22T00:00:00.000Z",
@@ -815,16 +815,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-25T16:28:02.584Z"
-    },
-    {
-      "id": "cmt8vpg3c0013aq17uaxojpic",
-      "type": "steps",
-      "date": "2026-08-23T00:00:00.000Z",
-      "value": 3782.811395114969,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-25T16:28:02.616Z"
     },
     {
       "id": "cmt8vpg22000qaq17oos3ifdf",
@@ -845,6 +835,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-25T16:28:02.587Z"
+    },
+    {
+      "id": "cmt8vpg3c0013aq17uaxojpic",
+      "type": "steps",
+      "date": "2026-08-23T00:00:00.000Z",
+      "value": 3782.811395114969,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.616Z"
     },
     {
       "id": "cmt8vpfnn000daq17pj1iws9l",
@@ -887,16 +887,6 @@
       "createdAt": "2026-08-25T16:28:02.068Z"
     },
     {
-      "id": "cmt8vpg3g0014aq17joclkkhb",
-      "type": "steps",
-      "date": "2026-08-24T00:00:00.000Z",
-      "value": 5362,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-25T16:28:02.620Z"
-    },
-    {
       "id": "cmt8vpg2m000waq17qhjqotoo",
       "type": "hrv_sdnn",
       "date": "2026-08-24T00:00:00.000Z",
@@ -917,14 +907,14 @@
       "createdAt": "2026-08-25T16:28:02.573Z"
     },
     {
-      "id": "cmt8vpg2q000xaq17i6ujaqd8",
-      "type": "hrv_sdnn",
-      "date": "2026-08-25T00:00:00.000Z",
-      "value": 19.41804368265432,
-      "unit": "ms",
+      "id": "cmt8vpg3g0014aq17joclkkhb",
+      "type": "steps",
+      "date": "2026-08-24T00:00:00.000Z",
+      "value": 5362,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-25T16:28:02.594Z"
+      "createdAt": "2026-08-25T16:28:02.620Z"
     },
     {
       "id": "cmt8vpg3j0015aq171jkrwlm7",
@@ -935,6 +925,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-25T16:28:02.624Z"
+    },
+    {
+      "id": "cmt8vpg2q000xaq17i6ujaqd8",
+      "type": "hrv_sdnn",
+      "date": "2026-08-25T00:00:00.000Z",
+      "value": 19.41804368265432,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.594Z"
     },
     {
       "id": "cmtfho91u000ksfrmhqgfvk23",
@@ -1027,16 +1027,6 @@
       "createdAt": "2026-08-28T20:10:00.427Z"
     },
     {
-      "id": "cmtdhefvy000yzvg5laznusu5",
-      "type": "steps",
-      "date": "2026-08-29T00:00:00.000Z",
-      "value": 5012,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-28T21:46:25.391Z"
-    },
-    {
       "id": "cmtehnpdi000o6y9tczty7p10",
       "type": "resting_hr",
       "date": "2026-08-29T00:00:00.000Z",
@@ -1057,14 +1047,14 @@
       "createdAt": "2026-08-29T14:41:23.792Z"
     },
     {
-      "id": "cmtfho9jp0015sfrmtof85jcj",
+      "id": "cmtdhefvy000yzvg5laznusu5",
       "type": "steps",
-      "date": "2026-08-30T00:00:00.000Z",
-      "value": 6705.975782695053,
+      "date": "2026-08-29T00:00:00.000Z",
+      "value": 5012,
       "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-30T07:29:36.086Z"
+      "createdAt": "2026-08-28T21:46:25.391Z"
     },
     {
       "id": "cmtflxki1000312pkm3oktnhd",
@@ -1075,6 +1065,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-30T09:28:48.650Z"
+    },
+    {
+      "id": "cmtfho9jp0015sfrmtof85jcj",
+      "type": "steps",
+      "date": "2026-08-30T00:00:00.000Z",
+      "value": 6705.975782695053,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-30T07:29:36.086Z"
     },
     {
       "id": "cmtfoiecz000812r6rmf82wf1",
@@ -1137,6 +1137,16 @@
       "createdAt": "2026-08-31T10:38:08.058Z"
     },
     {
+      "id": "cmth3ukkt000t131xdfwt4l0i",
+      "type": "bp_diastolic",
+      "date": "2026-08-30T20:41:20.000Z",
+      "value": 83,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-31T10:38:08.046Z"
+    },
+    {
       "id": "cmth3uklb000x131x7j8j4v4r",
       "type": "heart_rate",
       "date": "2026-08-30T20:41:20.000Z",
@@ -1157,14 +1167,14 @@
       "createdAt": "2026-08-31T10:38:08.034Z"
     },
     {
-      "id": "cmth3ukkt000t131xdfwt4l0i",
-      "type": "bp_diastolic",
-      "date": "2026-08-30T20:41:20.000Z",
-      "value": 83,
-      "unit": "mmHg",
+      "id": "cmth3crmm00093uusiqp8ofhb",
+      "type": "respiratory_rate",
+      "date": "2026-08-31T00:00:00.000Z",
+      "value": 29.78571428571429,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-31T10:38:08.046Z"
+      "createdAt": "2026-08-31T10:24:17.375Z"
     },
     {
       "id": "cmtgc3e410012uuocq8pbvh9s",
@@ -1177,26 +1187,6 @@
       "createdAt": "2026-08-30T21:41:10.322Z"
     },
     {
-      "id": "cmtgytmbd0008zye20ijqj59t",
-      "type": "hrv_sdnn",
-      "date": "2026-08-31T00:00:00.000Z",
-      "value": 20.55604059112996,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-31T08:17:25.561Z"
-    },
-    {
-      "id": "cmth3crmm00093uusiqp8ofhb",
-      "type": "respiratory_rate",
-      "date": "2026-08-31T00:00:00.000Z",
-      "value": 29.78571428571429,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-31T10:24:17.375Z"
-    },
-    {
       "id": "cmtgytmat0003zye2eev5w6re",
       "type": "resting_hr",
       "date": "2026-08-31T00:00:00.000Z",
@@ -1205,6 +1195,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-31T08:17:25.541Z"
+    },
+    {
+      "id": "cmtgytmbd0008zye20ijqj59t",
+      "type": "hrv_sdnn",
+      "date": "2026-08-31T00:00:00.000Z",
+      "value": 20.55604059112996,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-31T08:17:25.561Z"
     },
     {
       "id": "cmth3uklf000y131xygq9hfgt",
@@ -1217,16 +1217,6 @@
       "createdAt": "2026-08-31T10:38:08.067Z"
     },
     {
-      "id": "cmth3ukky000u131x9csn5v6w",
-      "type": "bp_diastolic",
-      "date": "2026-08-31T08:07:47.000Z",
-      "value": 77,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-31T10:38:08.050Z"
-    },
-    {
       "id": "cmth3ukkm000r131xzmsyzi6g",
       "type": "bp_systolic",
       "date": "2026-08-31T08:07:47.000Z",
@@ -1235,6 +1225,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-31T10:38:08.038Z"
+    },
+    {
+      "id": "cmth3ukky000u131x9csn5v6w",
+      "type": "bp_diastolic",
+      "date": "2026-08-31T08:07:47.000Z",
+      "value": 77,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-31T10:38:08.050Z"
     },
     {
       "id": "cmth3uklj000z131xx0v99gsn",
@@ -1257,16 +1257,6 @@
       "createdAt": "2026-09-01T18:56:47.593Z"
     },
     {
-      "id": "cmtj13q63001nz27c73pzkczz",
-      "type": "steps",
-      "date": "2026-09-01T00:00:00.000Z",
-      "value": 5164,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-01T18:56:48.699Z"
-    },
-    {
       "id": "cmtj13q50001az27cbmwlt83g",
       "type": "resting_hr",
       "date": "2026-09-01T00:00:00.000Z",
@@ -1275,6 +1265,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-01T18:56:48.660Z"
+    },
+    {
+      "id": "cmtj13q63001nz27c73pzkczz",
+      "type": "steps",
+      "date": "2026-09-01T00:00:00.000Z",
+      "value": 5164,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-01T18:56:48.699Z"
     },
     {
       "id": "cmtj13q5g001fz27c3324jw21",
@@ -1307,16 +1307,6 @@
       "createdAt": "2026-09-04T16:45:43.598Z"
     },
     {
-      "id": "cmtn6qpd70010tann0oujvgzy",
-      "type": "bp_systolic",
-      "date": "2026-09-01T18:11:31.000Z",
-      "value": 131,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-04T16:45:43.532Z"
-    },
-    {
       "id": "cmtn6qpf6001htannmk4vrjri",
       "type": "heart_rate",
       "date": "2026-09-01T18:11:31.000Z",
@@ -1337,6 +1327,16 @@
       "createdAt": "2026-09-04T16:45:43.562Z"
     },
     {
+      "id": "cmtn6qpd70010tann0oujvgzy",
+      "type": "bp_systolic",
+      "date": "2026-09-01T18:11:31.000Z",
+      "value": 131,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.532Z"
+    },
+    {
       "id": "cmtn6qpf9001itannu7l8j2ee",
       "type": "heart_rate",
       "date": "2026-09-01T18:11:44.000Z",
@@ -1345,16 +1345,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-04T16:45:43.606Z"
-    },
-    {
-      "id": "cmtk1tszw0019l8vfaisxz896",
-      "type": "resting_hr",
-      "date": "2026-09-02T00:00:00.000Z",
-      "value": 61,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-02T12:04:51.596Z"
     },
     {
       "id": "cmtjnapg1001mlua8lz8i1m2a",
@@ -1377,6 +1367,26 @@
       "createdAt": "2026-09-02T05:18:05.873Z"
     },
     {
+      "id": "cmtk1tszw0019l8vfaisxz896",
+      "type": "resting_hr",
+      "date": "2026-09-02T00:00:00.000Z",
+      "value": 61,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-02T12:04:51.596Z"
+    },
+    {
+      "id": "cmtn6qpfd001jtann6gvldhvg",
+      "type": "heart_rate",
+      "date": "2026-09-02T04:21:14.000Z",
+      "value": 68,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.610Z"
+    },
+    {
       "id": "cmtn6qpdc0011tannkzchbqym",
       "type": "bp_systolic",
       "date": "2026-09-02T04:21:14.000Z",
@@ -1397,16 +1407,6 @@
       "createdAt": "2026-09-04T16:45:43.567Z"
     },
     {
-      "id": "cmtn6qpfd001jtann6gvldhvg",
-      "type": "heart_rate",
-      "date": "2026-09-02T04:21:14.000Z",
-      "value": 68,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-04T16:45:43.610Z"
-    },
-    {
       "id": "cmtn6qoxl000ttannx6p3j98n",
       "type": "weight",
       "date": "2026-09-02T05:06:18.000Z",
@@ -1415,6 +1415,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-04T16:45:42.969Z"
+    },
+    {
+      "id": "cmtn6qpz3002atannnttrq79z",
+      "type": "steps",
+      "date": "2026-09-03T00:00:00.000Z",
+      "value": 4188,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:44.319Z"
     },
     {
       "id": "cmtn6qpyf0022tanndglfos10",
@@ -1437,26 +1447,6 @@
       "createdAt": "2026-09-04T16:45:44.276Z"
     },
     {
-      "id": "cmtn6qpz3002atannnttrq79z",
-      "type": "steps",
-      "date": "2026-09-03T00:00:00.000Z",
-      "value": 4188,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-04T16:45:44.319Z"
-    },
-    {
-      "id": "cmtn6qpdg0012tanna6ll3ybx",
-      "type": "bp_systolic",
-      "date": "2026-09-03T04:19:22.000Z",
-      "value": 132,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-04T16:45:43.540Z"
-    },
-    {
       "id": "cmtn6qpfh001ktannh3udmxvw",
       "type": "heart_rate",
       "date": "2026-09-03T04:19:22.000Z",
@@ -1475,6 +1465,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-04T16:45:43.571Z"
+    },
+    {
+      "id": "cmtn6qpdg0012tanna6ll3ybx",
+      "type": "bp_systolic",
+      "date": "2026-09-03T04:19:22.000Z",
+      "value": 132,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.540Z"
     },
     {
       "id": "cmtn6qoxt000utannhwk3ax8a",
@@ -1497,14 +1497,14 @@
       "createdAt": "2026-09-06T18:55:04.322Z"
     },
     {
-      "id": "cmtn6qpxy001wtannjzirct8q",
-      "type": "resting_hr",
+      "id": "cmtn6qpyi0023tannflii7xbi",
+      "type": "hrv_sdnn",
       "date": "2026-09-04T00:00:00.000Z",
-      "value": 67,
-      "unit": "count/min",
+      "value": 29.21135357542555,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-04T16:45:44.278Z"
+      "createdAt": "2026-09-04T16:45:44.298Z"
     },
     {
       "id": "cmtn6qpz5002btannhf7xeyur",
@@ -1517,14 +1517,14 @@
       "createdAt": "2026-09-04T16:45:44.322Z"
     },
     {
-      "id": "cmtn6qpyi0023tannflii7xbi",
-      "type": "hrv_sdnn",
+      "id": "cmtn6qpxy001wtannjzirct8q",
+      "type": "resting_hr",
       "date": "2026-09-04T00:00:00.000Z",
-      "value": 29.21135357542555,
-      "unit": "ms",
+      "value": 67,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-04T16:45:44.298Z"
+      "createdAt": "2026-09-04T16:45:44.278Z"
     },
     {
       "id": "cmtq68qyz000xh0wfuwumsi19",
@@ -1547,16 +1547,6 @@
       "createdAt": "2026-09-04T16:45:43.545Z"
     },
     {
-      "id": "cmtn6qpfl001ltanndd7gs6rb",
-      "type": "heart_rate",
-      "date": "2026-09-04T11:20:53.000Z",
-      "value": 77,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-04T16:45:43.617Z"
-    },
-    {
       "id": "cmtn6qpee001atann7mmil1g4",
       "type": "bp_diastolic",
       "date": "2026-09-04T11:20:53.000Z",
@@ -1567,14 +1557,14 @@
       "createdAt": "2026-09-04T16:45:43.575Z"
     },
     {
-      "id": "cmtq68rzt001zh0wfcmicyx0i",
-      "type": "resting_hr",
-      "date": "2026-09-05T00:00:00.000Z",
-      "value": 63,
+      "id": "cmtn6qpfl001ltanndd7gs6rb",
+      "type": "heart_rate",
+      "date": "2026-09-04T11:20:53.000Z",
+      "value": 77,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-06T18:55:05.657Z"
+      "createdAt": "2026-09-04T16:45:43.617Z"
     },
     {
       "id": "cmtq68s0j0026h0wftweu5a43",
@@ -1585,6 +1575,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-06T18:55:05.679Z"
+    },
+    {
+      "id": "cmtq68rzt001zh0wfcmicyx0i",
+      "type": "resting_hr",
+      "date": "2026-09-05T00:00:00.000Z",
+      "value": 63,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-06T18:55:05.657Z"
     },
     {
       "id": "cmtq68s18002eh0wf3w3nucjt",
@@ -1617,16 +1617,6 @@
       "createdAt": "2026-09-11T11:12:01.620Z"
     },
     {
-      "id": "cmtwuwizq0020jzafsjycki30",
-      "type": "bp_diastolic",
-      "date": "2026-09-05T14:38:48.000Z",
-      "value": 73,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-11T11:12:01.575Z"
-    },
-    {
       "id": "cmtwuwj13002fjzaf8g8in9h6",
       "type": "heart_rate",
       "date": "2026-09-05T14:38:48.000Z",
@@ -1645,6 +1635,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-11T11:12:01.542Z"
+    },
+    {
+      "id": "cmtwuwizq0020jzafsjycki30",
+      "type": "bp_diastolic",
+      "date": "2026-09-05T14:38:48.000Z",
+      "value": 73,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-11T11:12:01.575Z"
     },
     {
       "id": "cmtq68s1a002fh0wflznuuqbz",
@@ -1697,16 +1697,6 @@
       "createdAt": "2026-09-06T23:02:31.026Z"
     },
     {
-      "id": "cmtqf2yq9001h149au1tlmxna",
-      "type": "bp_diastolic",
-      "date": "2026-09-06T22:24:06.000Z",
-      "value": 72,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-06T23:02:30.994Z"
-    },
-    {
       "id": "cmtqf2ypg0019149a884ke904",
       "type": "bp_systolic",
       "date": "2026-09-06T22:24:06.000Z",
@@ -1717,14 +1707,14 @@
       "createdAt": "2026-09-06T23:02:30.965Z"
     },
     {
-      "id": "cmtr0984w0027malc5uk756z2",
-      "type": "hrv_sdnn",
-      "date": "2026-09-07T00:00:00.000Z",
-      "value": 27.66555900322445,
-      "unit": "ms",
+      "id": "cmtqf2yq9001h149au1tlmxna",
+      "type": "bp_diastolic",
+      "date": "2026-09-06T22:24:06.000Z",
+      "value": 72,
+      "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-07T08:55:15.057Z"
+      "createdAt": "2026-09-06T23:02:30.994Z"
     },
     {
       "id": "cmtqc18gh0029htbgucmmf3py",
@@ -1735,6 +1725,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-06T21:37:11.441Z"
+    },
+    {
+      "id": "cmtr0984w0027malc5uk756z2",
+      "type": "hrv_sdnn",
+      "date": "2026-09-07T00:00:00.000Z",
+      "value": 27.66555900322445,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-07T08:55:15.057Z"
     },
     {
       "id": "cmtr098450020malcm4b4mmvw",
@@ -1757,14 +1757,14 @@
       "createdAt": "2026-09-11T11:12:00.778Z"
     },
     {
-      "id": "cmtsqyzoi002cseo14hb50kg8",
-      "type": "steps",
+      "id": "cmtt2cj0y00278g4lz7lic3j7",
+      "type": "hrv_sdnn",
       "date": "2026-09-08T00:00:00.000Z",
-      "value": 4386.668926373947,
-      "unit": "count",
+      "value": 31.19645156742569,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-08T14:10:53.346Z"
+      "createdAt": "2026-09-08T19:29:20.722Z"
     },
     {
       "id": "cmtt2cj0800208g4lu2q25jr9",
@@ -1777,14 +1777,24 @@
       "createdAt": "2026-09-08T19:29:20.696Z"
     },
     {
-      "id": "cmtt2cj0y00278g4lz7lic3j7",
-      "type": "hrv_sdnn",
+      "id": "cmtsqyzoi002cseo14hb50kg8",
+      "type": "steps",
       "date": "2026-09-08T00:00:00.000Z",
-      "value": 31.19645156742569,
-      "unit": "ms",
+      "value": 4386.668926373947,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-08T19:29:20.722Z"
+      "createdAt": "2026-09-08T14:10:53.346Z"
+    },
+    {
+      "id": "cmtwva6jc002iqjjzadje0p13",
+      "type": "heart_rate",
+      "date": "2026-09-08T05:03:42.000Z",
+      "value": 67,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-11T11:22:38.616Z"
     },
     {
       "id": "cmtwva6hc0020qjjzuf7f4p8r",
@@ -1807,16 +1817,6 @@
       "createdAt": "2026-09-11T11:22:38.497Z"
     },
     {
-      "id": "cmtwva6jc002iqjjzadje0p13",
-      "type": "heart_rate",
-      "date": "2026-09-08T05:03:42.000Z",
-      "value": 67,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-11T11:22:38.616Z"
-    },
-    {
       "id": "cmtwuwidu000zjzaf8wedor6w",
       "type": "weight",
       "date": "2026-09-08T05:11:05.000Z",
@@ -1827,16 +1827,6 @@
       "createdAt": "2026-09-11T11:12:00.787Z"
     },
     {
-      "id": "cmtwuwjf4002wjzafrm37ywok",
-      "type": "steps",
-      "date": "2026-09-09T00:00:00.000Z",
-      "value": 3406.719060569955,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-11T11:12:02.128Z"
-    },
-    {
       "id": "cmtxhne7e002s10i9n20301vr",
       "type": "hrv_sdnn",
       "date": "2026-09-09T00:00:00.000Z",
@@ -1845,6 +1835,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-11T21:48:46.634Z"
+    },
+    {
+      "id": "cmtwuwjf4002wjzafrm37ywok",
+      "type": "steps",
+      "date": "2026-09-09T00:00:00.000Z",
+      "value": 3406.719060569955,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-11T11:12:02.128Z"
     },
     {
       "id": "cmtwuwie10011jzafkqtypwud",
@@ -1867,16 +1867,6 @@
       "createdAt": "2026-09-11T11:12:00.800Z"
     },
     {
-      "id": "cmtwuwizw0022jzafifywho58",
-      "type": "bp_diastolic",
-      "date": "2026-09-09T08:22:16.000Z",
-      "value": 76,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-11T11:12:01.581Z"
-    },
-    {
       "id": "cmtwuwiz0001sjzaf5zpug2i9",
       "type": "bp_systolic",
       "date": "2026-09-09T08:22:16.000Z",
@@ -1897,14 +1887,14 @@
       "createdAt": "2026-09-11T11:12:01.629Z"
     },
     {
-      "id": "cmtwuwjf7002xjzafyqqc31is",
-      "type": "steps",
-      "date": "2026-09-10T00:00:00.000Z",
-      "value": 2698.109060679316,
-      "unit": "count",
+      "id": "cmtwuwizw0022jzafifywho58",
+      "type": "bp_diastolic",
+      "date": "2026-09-09T08:22:16.000Z",
+      "value": 76,
+      "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-11T11:12:02.132Z"
+      "createdAt": "2026-09-11T11:12:01.581Z"
     },
     {
       "id": "cmtxhne7l002t10i95uq2nlqy",
@@ -1915,6 +1905,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-11T21:48:46.641Z"
+    },
+    {
+      "id": "cmtwuwjf7002xjzafyqqc31is",
+      "type": "steps",
+      "date": "2026-09-10T00:00:00.000Z",
+      "value": 2698.109060679316,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-11T11:12:02.132Z"
     },
     {
       "id": "cmtwva6g9001pqjjzyfluu42q",
@@ -1977,16 +1977,6 @@
       "createdAt": "2026-09-11T11:12:00.818Z"
     },
     {
-      "id": "cmtwuwjfb002yjzafrm2bwz29",
-      "type": "steps",
-      "date": "2026-09-11T00:00:00.000Z",
-      "value": 2649,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-11T11:12:02.135Z"
-    },
-    {
       "id": "cmtxhne7p002u10i9s2kt78v1",
       "type": "hrv_sdnn",
       "date": "2026-09-11T00:00:00.000Z",
@@ -1995,6 +1985,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-11T21:48:46.645Z"
+    },
+    {
+      "id": "cmtwuwjfb002yjzafrm2bwz29",
+      "type": "steps",
+      "date": "2026-09-11T00:00:00.000Z",
+      "value": 2649,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-11T11:12:02.135Z"
     },
     {
       "id": "cmtwva6gc001qqjjz20p2svq3",
@@ -2057,24 +2057,14 @@
       "createdAt": "2026-09-11T11:12:00.830Z"
     },
     {
-      "id": "cmtyg271h002u8jje69ifd8rh",
-      "type": "hrv_sdnn",
+      "id": "cmtyvd5cu002z11jovo08gx5w",
+      "type": "heart_rate",
       "date": "2026-09-12T00:00:00.000Z",
-      "value": 22.73053572223939,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-12T13:52:04.134Z"
-    },
-    {
-      "id": "cmtxltf05002p14oat12x4yqv",
-      "type": "resting_hr",
-      "date": "2026-09-12T00:00:00.000Z",
-      "value": 66,
+      "value": 74,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-11T23:45:26.070Z"
+      "createdAt": "2026-09-12T21:00:29.407Z"
     },
     {
       "id": "cmtxhne8g003110i95vexhhoh",
@@ -2087,14 +2077,14 @@
       "createdAt": "2026-09-11T21:48:46.672Z"
     },
     {
-      "id": "cmtyvd5cu002z11jovo08gx5w",
-      "type": "heart_rate",
+      "id": "cmtxltf05002p14oat12x4yqv",
+      "type": "resting_hr",
       "date": "2026-09-12T00:00:00.000Z",
-      "value": 74,
+      "value": 66,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-12T21:00:29.407Z"
+      "createdAt": "2026-09-11T23:45:26.070Z"
     },
     {
       "id": "cmtyvd5cy003011joi3bojshl",
@@ -2105,6 +2095,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-12T21:00:29.410Z"
+    },
+    {
+      "id": "cmtyg271h002u8jje69ifd8rh",
+      "type": "hrv_sdnn",
+      "date": "2026-09-12T00:00:00.000Z",
+      "value": 22.73053572223939,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-12T13:52:04.134Z"
     },
     {
       "id": "cmu31n9yx001c8yzzyk29amxm",
@@ -2127,16 +2127,6 @@
       "createdAt": "2026-09-12T22:45:50.483Z"
     },
     {
-      "id": "cmu31nan800368yzzvaqqfq69",
-      "type": "heart_rate",
-      "date": "2026-09-13T05:21:31.000Z",
-      "value": 76,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.221Z"
-    },
-    {
       "id": "cmu31nal4002k8yzzi2171za9",
       "type": "bp_diastolic",
       "date": "2026-09-13T05:21:31.000Z",
@@ -2145,6 +2135,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-15T19:07:25.144Z"
+    },
+    {
+      "id": "cmu31nan800368yzzvaqqfq69",
+      "type": "heart_rate",
+      "date": "2026-09-13T05:21:31.000Z",
+      "value": 76,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.221Z"
     },
     {
       "id": "cmu31najj00238yzz5q5xf54d",
@@ -2177,16 +2177,6 @@
       "createdAt": "2026-09-15T19:07:24.356Z"
     },
     {
-      "id": "cmu31najm00248yzz8hwtadez",
-      "type": "bp_systolic",
-      "date": "2026-09-13T20:22:55.000Z",
-      "value": 124,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.090Z"
-    },
-    {
       "id": "cmu31nanf00378yzzcoo0mzhf",
       "type": "heart_rate",
       "date": "2026-09-13T20:22:55.000Z",
@@ -2207,24 +2197,14 @@
       "createdAt": "2026-09-15T19:07:25.148Z"
     },
     {
-      "id": "cmu31nb4n003f8yzzyrd7szqz",
-      "type": "resting_hr",
-      "date": "2026-09-14T00:00:00.000Z",
-      "value": 67,
-      "unit": "count/min",
+      "id": "cmu31najm00248yzz8hwtadez",
+      "type": "bp_systolic",
+      "date": "2026-09-13T20:22:55.000Z",
+      "value": 124,
+      "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-15T19:07:25.847Z"
-    },
-    {
-      "id": "cmu31nb58003l8yzzve9h7fuu",
-      "type": "hrv_sdnn",
-      "date": "2026-09-14T00:00:00.000Z",
-      "value": 16.8940503981819,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.869Z"
+      "createdAt": "2026-09-15T19:07:25.090Z"
     },
     {
       "id": "cmu31nb5w003s8yzzjv17zbba",
@@ -2237,6 +2217,26 @@
       "createdAt": "2026-09-15T19:07:25.893Z"
     },
     {
+      "id": "cmu31nb58003l8yzzve9h7fuu",
+      "type": "hrv_sdnn",
+      "date": "2026-09-14T00:00:00.000Z",
+      "value": 16.8940503981819,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.869Z"
+    },
+    {
+      "id": "cmu31nb4n003f8yzzyrd7szqz",
+      "type": "resting_hr",
+      "date": "2026-09-14T00:00:00.000Z",
+      "value": 67,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.847Z"
+    },
+    {
       "id": "cmu31n9zf001h8yzzphmortgc",
       "type": "weight",
       "date": "2026-09-14T04:37:48.000Z",
@@ -2245,26 +2245,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-15T19:07:24.364Z"
-    },
-    {
-      "id": "cmu31nalb002m8yzz3eswn7f3",
-      "type": "bp_diastolic",
-      "date": "2026-09-14T06:21:03.000Z",
-      "value": 72,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.151Z"
-    },
-    {
-      "id": "cmu31najq00258yzzmqypwifl",
-      "type": "bp_systolic",
-      "date": "2026-09-14T06:21:03.000Z",
-      "value": 114,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.094Z"
     },
     {
       "id": "cmu31nanj00388yzzgxaiqne7",
@@ -2277,14 +2257,24 @@
       "createdAt": "2026-09-15T19:07:25.231Z"
     },
     {
-      "id": "cmu31nb5b003m8yzzul5jdzh8",
-      "type": "hrv_sdnn",
-      "date": "2026-09-15T00:00:00.000Z",
-      "value": 24.0229813833011,
-      "unit": "ms",
+      "id": "cmu31najq00258yzzmqypwifl",
+      "type": "bp_systolic",
+      "date": "2026-09-14T06:21:03.000Z",
+      "value": 114,
+      "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-15T19:07:25.871Z"
+      "createdAt": "2026-09-15T19:07:25.094Z"
+    },
+    {
+      "id": "cmu31nalb002m8yzz3eswn7f3",
+      "type": "bp_diastolic",
+      "date": "2026-09-14T06:21:03.000Z",
+      "value": 72,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.151Z"
     },
     {
       "id": "cmu31nb5z003t8yzzd8imv6e7",
@@ -2307,6 +2297,16 @@
       "createdAt": "2026-09-15T19:07:25.851Z"
     },
     {
+      "id": "cmu31nb5b003m8yzzul5jdzh8",
+      "type": "hrv_sdnn",
+      "date": "2026-09-15T00:00:00.000Z",
+      "value": 24.0229813833011,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.871Z"
+    },
+    {
       "id": "cmu31n9zn001j8yzz9m8bfu34",
       "type": "weight",
       "date": "2026-09-15T05:38:07.000Z",
@@ -2327,16 +2327,6 @@
       "createdAt": "2026-09-15T19:07:24.380Z"
     },
     {
-      "id": "cmu31naju00268yzzvb8a2tk7",
-      "type": "bp_systolic",
-      "date": "2026-09-15T06:11:32.000Z",
-      "value": 118,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.098Z"
-    },
-    {
       "id": "cmu31nalf002n8yzzy0dq6am0",
       "type": "bp_diastolic",
       "date": "2026-09-15T06:11:32.000Z",
@@ -2355,6 +2345,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-15T19:07:25.234Z"
+    },
+    {
+      "id": "cmu31naju00268yzzvb8a2tk7",
+      "type": "bp_systolic",
+      "date": "2026-09-15T06:11:32.000Z",
+      "value": 118,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.098Z"
     },
     {
       "id": "cmu4es7ej003kvtxcv7nsbxa1",
@@ -2447,34 +2447,74 @@
       "createdAt": "2026-09-17T21:34:15.669Z"
     },
     {
-      "id": "cmu65h9fc003jfs3xn4dd54m3",
-      "type": "hrv_sdnn",
-      "date": "2026-09-18T00:00:00.000Z",
-      "value": 14.02304490812578,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-17T23:18:00.696Z"
-    },
-    {
       "id": "cmu65h9eg003dfs3xh5f8hpvo",
       "type": "resting_hr",
       "date": "2026-09-18T00:00:00.000Z",
-      "value": 71,
+      "value": 67,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-17T23:18:00.665Z"
     },
     {
+      "id": "cmu65h9fc003jfs3xn4dd54m3",
+      "type": "hrv_sdnn",
+      "date": "2026-09-18T00:00:00.000Z",
+      "value": 26.92956976151472,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-17T23:18:00.696Z"
+    },
+    {
       "id": "cmu61rwgp003peevc0vz417ib",
       "type": "steps",
       "date": "2026-09-18T00:00:00.000Z",
-      "value": 1769.569485184187,
+      "value": 4406.569485184187,
       "unit": "count",
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-17T21:34:18.649Z"
+    },
+    {
+      "id": "cmu85m7hf00205fz5jbuh4m1h",
+      "type": "steps",
+      "date": "2026-09-19T00:00:00.000Z",
+      "value": 237,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-19T08:57:23.811Z"
+    },
+    {
+      "id": "cmu85m5q2001ow9e3a6ozyh5t",
+      "type": "weight",
+      "date": "2026-09-19T08:54:34.000Z",
+      "value": 125.7,
+      "unit": "kg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-19T08:57:21.531Z"
+    },
+    {
+      "id": "cmu85m5qa001pw9e37ddenezo",
+      "type": "weight",
+      "date": "2026-09-19T08:55:12.000Z",
+      "value": 125.7,
+      "unit": "kg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-19T08:57:21.538Z"
+    },
+    {
+      "id": "cmu85m5qd001qw9e3kquthn8r",
+      "type": "weight",
+      "date": "2026-09-19T08:55:30.000Z",
+      "value": 125.7,
+      "unit": "kg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-19T08:57:21.542Z"
     }
   ],
   "holds": [],
@@ -9070,6 +9110,19 @@
       "visceralFat": null,
       "source": "apple-health",
       "createdAt": "2026-09-17T21:34:15.897Z"
+    },
+    {
+      "id": "cmu85m5vw001rw9e36kppkkc5",
+      "date": "2026-09-19T08:55:30.000Z",
+      "weight": 125.7,
+      "waist": null,
+      "arms": null,
+      "neckCm": null,
+      "bodyFatPct": null,
+      "muscleKg": null,
+      "visceralFat": null,
+      "source": "apple-health",
+      "createdAt": "2026-09-19T08:57:21.740Z"
     }
   ],
   "health": {
@@ -9839,6 +9892,30 @@
         "createdAt": "2026-09-11T20:34:10.892Z"
       },
       {
+        "id": "cmtxft2sg00095f2jew9547q5",
+        "date": "2022-10-31T00:00:00.000Z",
+        "test": "wbc",
+        "value": 10.78,
+        "unit": "10^9/L",
+        "refLow": 4,
+        "refHigh": 11,
+        "lab": "Dr Sulaiman Al Habib",
+        "notes": null,
+        "createdAt": "2026-09-11T20:57:12.545Z"
+      },
+      {
+        "id": "cmtxft2so000a5f2jfwokuqy8",
+        "date": "2022-10-31T00:00:00.000Z",
+        "test": "platelets",
+        "value": 239,
+        "unit": "10^9/L",
+        "refLow": 150,
+        "refHigh": 450,
+        "lab": "Dr Sulaiman Al Habib",
+        "notes": null,
+        "createdAt": "2026-09-11T20:57:12.553Z"
+      },
+      {
         "id": "cmtxft21100005f2j2yhu8yja",
         "date": "2022-10-31T00:00:00.000Z",
         "test": "crp",
@@ -9923,18 +10000,6 @@
         "createdAt": "2026-09-11T20:57:12.209Z"
       },
       {
-        "id": "cmtxft2m400075f2j41y3k3mi",
-        "date": "2022-10-31T00:00:00.000Z",
-        "test": "corrected calcium",
-        "value": 2.33,
-        "unit": "mmol/L",
-        "refLow": 2.2,
-        "refHigh": 2.6,
-        "lab": "Dr Sulaiman Al Habib",
-        "notes": null,
-        "createdAt": "2026-09-11T20:57:12.317Z"
-      },
-      {
         "id": "cmtxft2ng00085f2jjzl81unm",
         "date": "2022-10-31T00:00:00.000Z",
         "test": "haemoglobin",
@@ -9947,28 +10012,28 @@
         "createdAt": "2026-09-11T20:57:12.364Z"
       },
       {
-        "id": "cmtxft2sg00095f2jew9547q5",
+        "id": "cmtxft2m400075f2j41y3k3mi",
         "date": "2022-10-31T00:00:00.000Z",
-        "test": "wbc",
-        "value": 10.78,
-        "unit": "10^9/L",
-        "refLow": 4,
-        "refHigh": 11,
+        "test": "corrected calcium",
+        "value": 2.33,
+        "unit": "mmol/L",
+        "refLow": 2.2,
+        "refHigh": 2.6,
         "lab": "Dr Sulaiman Al Habib",
         "notes": null,
-        "createdAt": "2026-09-11T20:57:12.545Z"
+        "createdAt": "2026-09-11T20:57:12.317Z"
       },
       {
-        "id": "cmtxft2so000a5f2jfwokuqy8",
-        "date": "2022-10-31T00:00:00.000Z",
-        "test": "platelets",
-        "value": 239,
-        "unit": "10^9/L",
-        "refLow": 150,
-        "refHigh": 450,
-        "lab": "Dr Sulaiman Al Habib",
+        "id": "cmtxft2tu000g5f2jwzkg4972",
+        "date": "2023-05-23T00:00:00.000Z",
+        "test": "potassium",
+        "value": 4.1,
+        "unit": "mmol/L",
+        "refLow": 3.5,
+        "refHigh": 5.1,
+        "lab": "Dr Sulaiman Al Habib — Endocrine",
         "notes": null,
-        "createdAt": "2026-09-11T20:57:12.553Z"
+        "createdAt": "2026-09-11T20:57:12.594Z"
       },
       {
         "id": "cmtxft2u0000h5f2jtpp84hmy",
@@ -9981,6 +10046,30 @@
         "lab": "Dr Sulaiman Al Habib — Endocrine",
         "notes": null,
         "createdAt": "2026-09-11T20:57:12.600Z"
+      },
+      {
+        "id": "cmtxft2tg000e5f2j73zv5omc",
+        "date": "2023-05-23T00:00:00.000Z",
+        "test": "aldosterone",
+        "value": 12.1,
+        "unit": "ng/dL",
+        "refLow": 3.7,
+        "refHigh": 43.2,
+        "lab": "Dr Sulaiman Al Habib — Endocrine",
+        "notes": "Normal. With renin, this was a workup for primary aldosteronism as a cause of his hypertension.",
+        "createdAt": "2026-09-11T20:57:12.581Z"
+      },
+      {
+        "id": "cmtxft2tn000f5f2jgla00ipd",
+        "date": "2023-05-23T00:00:00.000Z",
+        "test": "renin",
+        "value": 21.8,
+        "unit": "uIU/mL",
+        "refLow": 5.3,
+        "refHigh": 99.1,
+        "lab": "Dr Sulaiman Al Habib — Endocrine",
+        "notes": "Normal upright. Aldosterone/renin both normal — secondary hypertension from Conn syndrome was looked for and not found.",
+        "createdAt": "2026-09-11T20:57:12.587Z"
       },
       {
         "id": "cmtxft2sw000b5f2jvqmip7qb",
@@ -10019,40 +10108,16 @@
         "createdAt": "2026-09-11T20:57:12.574Z"
       },
       {
-        "id": "cmtxft2tg000e5f2j73zv5omc",
-        "date": "2023-05-23T00:00:00.000Z",
-        "test": "aldosterone",
-        "value": 12.1,
-        "unit": "ng/dL",
-        "refLow": 3.7,
-        "refHigh": 43.2,
-        "lab": "Dr Sulaiman Al Habib — Endocrine",
-        "notes": "Normal. With renin, this was a workup for primary aldosteronism as a cause of his hypertension.",
-        "createdAt": "2026-09-11T20:57:12.581Z"
-      },
-      {
-        "id": "cmtxft2tn000f5f2jgla00ipd",
-        "date": "2023-05-23T00:00:00.000Z",
-        "test": "renin",
-        "value": 21.8,
-        "unit": "uIU/mL",
-        "refLow": 5.3,
-        "refHigh": 99.1,
-        "lab": "Dr Sulaiman Al Habib — Endocrine",
-        "notes": "Normal upright. Aldosterone/renin both normal — secondary hypertension from Conn syndrome was looked for and not found.",
-        "createdAt": "2026-09-11T20:57:12.587Z"
-      },
-      {
-        "id": "cmtxft2tu000g5f2jwzkg4972",
-        "date": "2023-05-23T00:00:00.000Z",
-        "test": "potassium",
-        "value": 4.1,
-        "unit": "mmol/L",
-        "refLow": 3.5,
-        "refHigh": 5.1,
-        "lab": "Dr Sulaiman Al Habib — Endocrine",
-        "notes": null,
-        "createdAt": "2026-09-11T20:57:12.594Z"
+        "id": "cmtxf0dfx0000f0lftt31ohhy",
+        "date": "2026-08-20T00:00:00.000Z",
+        "test": "lp(a)",
+        "value": 18.9,
+        "unit": "nmol/L",
+        "refLow": null,
+        "refHigh": 75,
+        "lab": null,
+        "notes": "NORMAL, well under the <75 ceiling. Genetic and lifetime-stable, so this never needs repeating. Date taken from the same lab order as the 20 Aug LDL.",
+        "createdAt": "2026-09-11T20:34:53.325Z"
       },
       {
         "id": "cmtxezgpl00018l624oyxkh1m",
@@ -10067,16 +10132,460 @@
         "createdAt": "2026-09-11T20:34:10.905Z"
       },
       {
-        "id": "cmtxf0dfx0000f0lftt31ohhy",
-        "date": "2026-08-20T00:00:00.000Z",
-        "test": "lp(a)",
-        "value": 18.9,
+        "id": "cmu7n0qbv000ku31xbnqes62q",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "magnesium",
+        "value": 0.78,
+        "unit": "mmol/L",
+        "refLow": 0.65,
+        "refHigh": 1.07,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.716Z"
+      },
+      {
+        "id": "cmu7n0qc2000lu31xpwtz79ho",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "iron",
+        "value": 6.9,
+        "unit": "umol/L",
+        "refLow": 10.5,
+        "refHigh": 28.2,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.722Z"
+      },
+      {
+        "id": "cmu7n0qc8000mu31xc2yiuh4p",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "ferritin",
+        "value": 202,
+        "unit": "ng/mL",
+        "refLow": 22,
+        "refHigh": 322,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.728Z"
+      },
+      {
+        "id": "cmu7n0qcd000nu31x4ay4ybad",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "folate",
+        "value": 19.7,
         "unit": "nmol/L",
+        "refLow": 6.7,
+        "refHigh": 38.5,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.734Z"
+      },
+      {
+        "id": "cmu7n0qcj000ou31xa9acyegz",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "ft3",
+        "value": 6.48,
+        "unit": "pmol/L",
+        "refLow": 3.07,
+        "refHigh": 6.75,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.740Z"
+      },
+      {
+        "id": "cmu7n0qcp000pu31xno0f2dhs",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "ft4",
+        "value": 18.53,
+        "unit": "pmol/L",
+        "refLow": 11.96,
+        "refHigh": 22,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.746Z"
+      },
+      {
+        "id": "cmu7n0qcw000qu31xoxx4lepw",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "tsh",
+        "value": 3.7,
+        "unit": "mIU/L",
+        "refLow": 0.55,
+        "refHigh": 4.78,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.752Z"
+      },
+      {
+        "id": "cmu7n0qd2000ru31xxlb2ajm7",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "vitamin-d",
+        "value": 25,
+        "unit": "nmol/L",
+        "refLow": 75,
+        "refHigh": 250,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.758Z"
+      },
+      {
+        "id": "cmu7n0qd8000su31xd6lc442p",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "crp",
+        "value": 2.7,
+        "unit": "mg/L",
         "refLow": null,
-        "refHigh": 75,
-        "lab": null,
-        "notes": "NORMAL, well under the <75 ceiling. Genetic and lifetime-stable, so this never needs repeating. Date taken from the same lab order as the 20 Aug LDL.",
-        "createdAt": "2026-09-11T20:34:53.325Z"
+        "refHigh": 5,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.765Z"
+      },
+      {
+        "id": "cmu7n0qde000tu31xeudoarhw",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "wbc",
+        "value": 13.03,
+        "unit": "10^9/L",
+        "refLow": 4,
+        "refHigh": 11,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.771Z"
+      },
+      {
+        "id": "cmu7n0qdk000uu31xac7h8y9l",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "lymphocytes",
+        "value": 5.772,
+        "unit": "10^9/L",
+        "refLow": 1.2,
+        "refHigh": 4,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.777Z"
+      },
+      {
+        "id": "cmu7n0qdr000vu31xjtn1k5et",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "neutrophils",
+        "value": 5.72,
+        "unit": "10^9/L",
+        "refLow": 1.8,
+        "refHigh": 7.5,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.783Z"
+      },
+      {
+        "id": "cmu7n0qdy000wu31xoc4i2hcq",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "monocytes",
+        "value": 1.016,
+        "unit": "10^9/L",
+        "refLow": 0.2,
+        "refHigh": 1,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.791Z"
+      },
+      {
+        "id": "cmu7n0qe4000xu31xo60ajavx",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "haemoglobin",
+        "value": 161,
+        "unit": "g/L",
+        "refLow": 138,
+        "refHigh": 170,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.797Z"
+      },
+      {
+        "id": "cmu7n0qea000yu31xdct5bjep",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "haematocrit",
+        "value": 48.5,
+        "unit": "%",
+        "refLow": 42,
+        "refHigh": 49,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.803Z"
+      },
+      {
+        "id": "cmu7n0qeh000zu31xngbtca5z",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "mcv",
+        "value": 80.3,
+        "unit": "fL",
+        "refLow": 80,
+        "refHigh": 99,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.809Z"
+      },
+      {
+        "id": "cmu7n0qem0010u31xj0akfzc7",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "mch",
+        "value": 26.7,
+        "unit": "pg",
+        "refLow": 27,
+        "refHigh": 32,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.815Z"
+      },
+      {
+        "id": "cmu7n0qes0011u31xzxhabeaa",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "platelets",
+        "value": 250,
+        "unit": "10^9/L",
+        "refLow": 150,
+        "refHigh": 450,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.821Z"
+      },
+      {
+        "id": "cmu7n0q890000u31xe8c7p9ep",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "total-chol",
+        "value": 4.94,
+        "unit": "mmol/L",
+        "refLow": null,
+        "refHigh": 5.18,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.586Z"
+      },
+      {
+        "id": "cmu7n0q8n0001u31xkbpu9ehl",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "hdl",
+        "value": 1.08,
+        "unit": "mmol/L",
+        "refLow": 1.42,
+        "refHigh": null,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.600Z"
+      },
+      {
+        "id": "cmu7n0q8u0002u31xneel5km9",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "non-hdl-chol",
+        "value": 3.86,
+        "unit": "mmol/L",
+        "refLow": null,
+        "refHigh": 3.36,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.606Z"
+      },
+      {
+        "id": "cmu7n0q900003u31x0v25jqri",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "chol-hdl-ratio",
+        "value": 4.6,
+        "unit": "ratio",
+        "refLow": null,
+        "refHigh": 4,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.612Z"
+      },
+      {
+        "id": "cmu7n0q970004u31xla6m3kih",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "hba1c",
+        "value": 5.4,
+        "unit": "%",
+        "refLow": 4.8,
+        "refHigh": 5.7,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.620Z"
+      },
+      {
+        "id": "cmu7n0q9e0005u31xzmwgohkd",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "glucose",
+        "value": 4.81,
+        "unit": "mmol/L",
+        "refLow": 3.92,
+        "refHigh": 7.84,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.626Z"
+      },
+      {
+        "id": "cmu7n0q9k0006u31xl7xmf43t",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "urea",
+        "value": 5.5,
+        "unit": "mmol/L",
+        "refLow": 2.7,
+        "refHigh": 8,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.632Z"
+      },
+      {
+        "id": "cmu7n0q9p0007u31xix32wc8b",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "creatinine",
+        "value": 108,
+        "unit": "umol/L",
+        "refLow": 62,
+        "refHigh": 115,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.638Z"
+      },
+      {
+        "id": "cmu7n0q9v0008u31xbx405w8p",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "egfr",
+        "value": 78,
+        "unit": "mL/min/1.73m2",
+        "refLow": 60,
+        "refHigh": null,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.643Z"
+      },
+      {
+        "id": "cmu7n0qa10009u31x6ttubfdc",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "uric-acid",
+        "value": 488,
+        "unit": "umol/L",
+        "refLow": 220.2,
+        "refHigh": 547.6,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.650Z"
+      },
+      {
+        "id": "cmu7n0qa7000au31xqusfq601",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "sodium",
+        "value": 139,
+        "unit": "mmol/L",
+        "refLow": 135,
+        "refHigh": 145,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.655Z"
+      },
+      {
+        "id": "cmu7n0qac000bu31x0wmrfeac",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "potassium",
+        "value": 4.1,
+        "unit": "mmol/L",
+        "refLow": 3.5,
+        "refHigh": 5.3,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.661Z"
+      },
+      {
+        "id": "cmu7n0qai000cu31xs0qhcwop",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "chloride",
+        "value": 105,
+        "unit": "mmol/L",
+        "refLow": 98,
+        "refHigh": 110,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.667Z"
+      },
+      {
+        "id": "cmu7n0qao000du31xv485jtg5",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "alt",
+        "value": 50,
+        "unit": "U/L",
+        "refLow": null,
+        "refHigh": 41,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.673Z"
+      },
+      {
+        "id": "cmu7n0qav000eu31x7cxlhpo1",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "ast",
+        "value": 21,
+        "unit": "U/L",
+        "refLow": null,
+        "refHigh": 40,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.679Z"
+      },
+      {
+        "id": "cmu7n0qb1000fu31x4y1f36kh",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "ggt",
+        "value": 35,
+        "unit": "U/L",
+        "refLow": 8,
+        "refHigh": 61,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.685Z"
+      },
+      {
+        "id": "cmu7n0qb7000gu31xacnl4ulr",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "albumin",
+        "value": 45,
+        "unit": "g/L",
+        "refLow": 35,
+        "refHigh": 52,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.692Z"
+      },
+      {
+        "id": "cmu7n0qbd000hu31xnftac1j5",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "protein-total",
+        "value": 73,
+        "unit": "g/L",
+        "refLow": 64,
+        "refHigh": 83,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.697Z"
+      },
+      {
+        "id": "cmu7n0qbj000iu31xmhak2gtc",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "bilirubin-total",
+        "value": 6.891,
+        "unit": "umol/L",
+        "refLow": null,
+        "refHigh": 20.52,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.704Z"
+      },
+      {
+        "id": "cmu7n0qbp000ju31xzhtf9nzj",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "calcium",
+        "value": 2.52,
+        "unit": "mmol/L",
+        "refLow": 2.15,
+        "refHigh": 2.6,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.710Z"
       }
     ],
     "medication": [
@@ -10338,6 +10847,20 @@
         "flags": null,
         "notes": "Dinner (eaten after midnight, belongs to Thu): Aussie Grill 2 grilled chicken breasts with the cheddar scraped off, side salad no dressing, ~1/3 of the fries, ketchup. Estimated.",
         "createdAt": "2026-09-07T09:23:29.372Z"
+      },
+      {
+        "id": "cmu79x8k40000v8e7merxt5dq",
+        "day": "2026-09-18T00:00:00.000Z",
+        "proteinG": 137,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1648,
+        "carbsG": 142,
+        "fatG": 54,
+        "flags": null,
+        "notes": "Fri, no delivery. Breakfast: 1/4 croissant (est 60 kcal, 1P/7C/3F). Lunch: grilled fish + white rice, full restaurant plate, revised up, he was very full (est ~300g fish, ~2 cups rice: 870 kcal, 73P/88C/21F). Dinner: rosemary grilled chicken plate at the menu label 718 kcal, 63P/47C/30F, sauce inclu",
+        "createdAt": "2026-09-18T18:10:10.705Z"
       },
       {
         "id": "cmtwwlbmn00009votsn1aa4zt",
