@@ -60,13 +60,37 @@ enum SessionCore {
         let started = Set(s.logged.map(\.exerciseId))
         let startedWeighted = started.subtracting(seconds).count
         let head = Array(s.slots[..<s.currentIndex])
+        var retired = s.retiredWarmups ?? []
         let tail = s.slots[s.currentIndex...].filter { slot in
             guard slot.isWarmup else { return true }
             if started.contains(slot.exerciseId) { return false }
             if slot.alwaysWarm == true { return true }
-            return startedWeighted < n
+            if startedWeighted < n { return true }
+            retired.append(slot)
+            return false
         }
         s.slots = head + tail
+        s.retiredWarmups = retired.isEmpty ? nil : retired
+    }
+
+    /// After an undo: a warm-up retired because "two machines were started"
+    /// comes back when that is no longer true — the machine he actually
+    /// starts second must still get one (review F4). One he skipped himself
+    /// was never retired, so it never returns.
+    static func reviveWarmups(_ s: inout ActiveSession) {
+        guard var retired = s.retiredWarmups, !retired.isEmpty else { return }
+        let n = s.warmupFirstN ?? 2
+        let seconds = Set(s.slots.filter(\.isSeconds).map(\.exerciseId))
+        let started = Set(s.logged.map(\.exerciseId))
+        let startedWeighted = started.subtracting(seconds).count
+        retired.removeAll { w in
+            guard !started.contains(w.exerciseId), w.alwaysWarm == true || startedWeighted < n,
+                  !s.slots[s.currentIndex...].contains(where: { $0.exerciseId == w.exerciseId && $0.isWarmup }),
+                  let i = s.slots[s.currentIndex...].firstIndex(where: { $0.exerciseId == w.exerciseId }) else { return false }
+            s.slots.insert(w, at: i)
+            return true
+        }
+        s.retiredWarmups = retired.isEmpty ? nil : retired
     }
 
     // MARK: - Logging
@@ -121,6 +145,7 @@ enum SessionCore {
         s.currentIndex -= 1
         s.slots.insert(slot, at: s.currentIndex)
         s.extraSetOffer = nil
+        reviveWarmups(&s)
         return set
     }
 
@@ -283,6 +308,19 @@ enum SessionCore {
         return parts.joined(separator: " ")
     }
 
+    // MARK: - Offline start
+
+    /// May a CACHED plan start a session now? Within 7 days of the fetch,
+    /// and never past the server's startableUntil — the day a layoff would
+    /// trigger the return ramp, after which its weights are full-load.
+    static func planStartable(_ p: Plan, fetchedAt: Date, now: Date) -> Bool {
+        guard now.timeIntervalSince(fetchedAt) < 7 * 86400 else { return false }
+        if let raw = p.startableUntil, let until = ISO8601DateFormatter.fractional.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) {
+            return now < until
+        }
+        return true
+    }
+
     // MARK: - Machine position
 
     /// "2/6": the current machine's place in TODAY'S PLAN (never the queue).
@@ -291,4 +329,37 @@ enum SessionCore {
               let i = order.firstIndex(of: s.slots[s.currentIndex].exerciseId) else { return nil }
         return (i + 1, order.count)
     }
+}
+
+/// Live-row updates, sent ONE post at a time and acknowledged in order.
+/// Concurrent posts could land out of order on the server (which merges
+/// without a lock and lets a tie win), and acking by count could drop an
+/// update still in flight — a rating or an undo lost from the row with
+/// nothing left to resend (review F1). Only the in-flight prefix is ever
+/// removed, and only after its post came back.
+struct LiveQueue: Equatable {
+    private(set) var pending: [LiveUpdate] = []
+    private var inFlight = 0
+
+    init(_ pending: [LiveUpdate] = []) { self.pending = pending }
+
+    mutating func append(_ updates: [LiveUpdate]) { pending += updates }
+
+    /// The next post's body — everything queued — or nil while one is out.
+    mutating func nextBatch() -> [LiveUpdate]? {
+        guard inFlight == 0, !pending.isEmpty else { return nil }
+        inFlight = pending.count
+        return pending
+    }
+
+    /// That post came back: its prefix leaves the queue.
+    mutating func ack(_ count: Int) {
+        pending.removeFirst(min(count, pending.count))
+        inFlight = 0
+    }
+
+    /// It failed: everything stays for the next try.
+    mutating func fail() { inFlight = 0 }
+
+    var isSending: Bool { inFlight > 0 }
 }

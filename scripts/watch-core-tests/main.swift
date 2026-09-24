@@ -15,7 +15,7 @@ func ex(_ id: String, _ name: String, order: Int, sets: Int = 3, repsMin: Int = 
                  warmupKg: warm, alwaysWarm: alwaysWarm, reason: reason, fromKg: nil, note: nil, extraSetAllowed: extra)
 }
 func plan(_ exs: [PlanExercise], n: Int? = 2) -> Plan {
-    Plan(day: "A", mode: "train", focus: "Day A", durationMin: 45, loadPct: 85, rpeCap: 3, exercises: exs, warmupFirstN: n)
+    Plan(day: "A", mode: "train", focus: "Day A", durationMin: 45, loadPct: 85, rpeCap: 3, exercises: exs, warmupFirstN: n, startableUntil: nil)
 }
 func session(_ p: Plan) -> ActiveSession {
     let slots = SessionCore.buildSlots(p)
@@ -175,6 +175,54 @@ do {
     let set = LogSet(exerciseId: "lp", setNumber: 1, reps: 12, weight: 36, rpe: nil, isWarmup: false)
     check(SessionCore.loggedLine(set, restSeconds: 120, next: slots[2]) == "Logged 36 kilos by 12. Rest 120 seconds. Next: Leg Press, set 2 of 3. 36 kilos, 12 reps.", "the reply to 'done' says what, the rest, and what is next")
     check(SessionCore.loggedLine(set, restSeconds: nil, next: nil).hasSuffix("Finish on the watch."), "after the last set it points at the watch to finish")
+}
+
+print("Watch core — review fixes (phase 4)")
+do {
+    // F4: undo brings back the warm-ups the undone set retired.
+    var s = session(plan([ex("lp", "Leg Press", order: 0, prefill: 36, warm: 17.5),
+                          ex("cp", "Chest Press", order: 1, prefill: 18, warm: 9),
+                          ex("sp", "Shoulder Press", order: 2, prefill: 27, warm: 12.5)]))
+    for _ in 0..<4 { SessionCore.log(&s, now: t0) }            // lp warm + 3
+    SessionCore.log(&s, now: t0)                                // cp warm — the mis-tap
+    check(!s.slots.contains { $0.isWarmup && $0.exerciseId == "sp" }, "logging a second machine retires the others' warm-ups")
+    SessionCore.undoLast(&s)
+    check(s.slots[s.currentIndex...].contains { $0.isWarmup && $0.exerciseId == "sp" }, "undoing it brings Shoulder Press's warm-up back")
+    SessionCore.rotate(&s, forward: true)
+    check(cur(s)?.exerciseId == "sp" && cur(s)?.isWarmup == true, "so the machine he actually starts second opens on its warm-up")
+    var k = session(plan([ex("lp", "Leg Press", order: 0, prefill: 36, warm: 17.5)]))
+    SessionCore.skipWarmup(&k)
+    SessionCore.log(&k, now: t0)
+    SessionCore.undoLast(&k)
+    check(!k.slots.contains { $0.isWarmup }, "a warm-up he skipped himself never comes back")
+}
+do {
+    // F1: live updates go out one post at a time and are acknowledged in
+    // order — never a count that can drop an update still in flight.
+    var q = LiveQueue()
+    q.append([LiveUpdate(exerciseId: "a", setNumber: 1), LiveUpdate(exerciseId: "a", setNumber: 2)])
+    let first = q.nextBatch()
+    check(first?.count == 2, "the first post carries everything queued")
+    q.append([LiveUpdate(exerciseId: "a", setNumber: 3)])
+    check(q.nextBatch() == nil, "nothing else goes out while a post is in flight")
+    q.ack(first!.count)
+    let second = q.nextBatch()
+    check(second?.count == 1 && second?.first?.setNumber == 3, "the next post carries only what came after")
+    q.fail()
+    check(q.pending.count == 1 && q.nextBatch()?.count == 1, "a failed post keeps its updates for the next try")
+}
+do {
+    // T3: a cached plan cannot start a session past the moment a layoff
+    // would have begun (the server says when: startableUntil).
+    let json = """
+    {"day":"A","mode":"train","focus":"Day A","durationMin":45,"loadPct":100,"rpeCap":4,"exercises":[],"startableUntil":"2026-10-15T00:00:00.000Z"}
+    """
+    let p = try! JSONDecoder().decode(Plan.self, from: Data(json.utf8))
+    let f = ISO8601DateFormatter.fractional
+    check(SessionCore.planStartable(p, fetchedAt: f.date(from: "2026-10-01T00:00:00.000Z")!, now: f.date(from: "2026-10-05T00:00:00.000Z")!), "inside both windows: startable offline")
+    check(!SessionCore.planStartable(p, fetchedAt: f.date(from: "2026-10-01T00:00:00.000Z")!, now: f.date(from: "2026-10-16T00:00:00.000Z")!), "past startableUntil: a layoff may have begun — refuse, whatever the cache age")
+    let old = try! JSONDecoder().decode(Plan.self, from: Data(json.replacingOccurrences(of: ",\"startableUntil\":\"2026-10-15T00:00:00.000Z\"", with: "").utf8))
+    check(!SessionCore.planStartable(old, fetchedAt: f.date(from: "2026-10-01T00:00:00.000Z")!, now: f.date(from: "2026-10-09T00:00:00.000Z")!), "a plan without the field keeps the 7-day window")
 }
 
 print("Watch core — upgrade path (build 13 files)")

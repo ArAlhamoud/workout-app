@@ -18,7 +18,7 @@ struct ARHealthWatchApp: App {
             // Wrist-raise / return from the clock: learn what the phone did
             // meanwhile (a session to continue, or ours finished there).
             .onChange(of: scenePhase) { _, p in
-                if p == .active { Task { await store.refreshLive() } }
+                if p == .active { Task { await store.onForeground() } }
             }
         }
     }

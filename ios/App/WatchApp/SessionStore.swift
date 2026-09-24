@@ -151,7 +151,17 @@ final class SessionStore: ObservableObject {
             return
         }
         let row = await API.fetchLive()
-        phoneLive = (row?.source == "phone" && row?.isClosed == false) ? row : nil
+        // A row whose finish is banked here is OUR finished session, not the
+        // phone's work in progress (review F5).
+        let banked = Outbox.bankedIds()
+        phoneLive = (row?.source == "phone" && row?.isClosed == false && !banked.contains(row?.clientSaveId ?? "")) ? row : nil
+    }
+
+    /// Back on the wrist: send what is banked first (signal may be back),
+    /// then learn what the phone did meanwhile.
+    func onForeground() async {
+        await flushOutbox()
+        await refreshLive()
     }
 
     /// The phone finished this session. Anything logged HERE that the phone
@@ -197,9 +207,12 @@ final class SessionStore: ObservableObject {
         }
         plan = p
         let slots = SessionCore.buildSlots(p)
+        // An empty row's start is only when the phone's page opened — never
+        // backdate the workout (or Apple Health) to it (review F3).
+        let begun = row.sets.isEmpty ? Date() : row.startedDate
         var s = ActiveSession(
             clientSaveId: row.clientSaveId, day: row.day ?? p.day, rpeCap: p.rpeCap,
-            startedAt: row.startedDate, slots: slots, currentIndex: 0, logged: [],
+            startedAt: begun, slots: slots, currentIndex: 0, logged: [],
             gym: row.gym, planOrder: SessionCore.planOrder(slots),
             loadPct: p.loadPct, durationMin: row.durationMin ?? p.durationMin, warmupFirstN: p.warmupFirstN
         )
@@ -208,18 +221,39 @@ final class SessionStore: ObservableObject {
         phoneLive = nil
         phase = s.currentIndex >= s.slots.count ? .summary : .active
         await workout.requestAuthorization()
-        workout.begin(startDate: row.startedDate)
+        workout.begin(startDate: begun)
     }
 
     /// Every update goes to the live row as it happens, so the phone can take
-    /// over mid-session. Unacknowledged updates are kept on the session and
-    /// resent with the next post: an undo whose removal never reached the
-    /// server would otherwise come back when the phone finishes first.
+    /// over mid-session. ONE post at a time, acknowledged in order
+    /// (SessionCore.LiveQueue): parallel posts landed out of order on the
+    /// server and a count-based ack dropped updates still in flight, so a
+    /// rating or an undo could vanish from the row (review F1). The queue is
+    /// kept on the session, so an update that never arrived is resent.
+    private var liveQueue = LiveQueue()
+    /// The session the queue belongs to: a late reply for an earlier session
+    /// must never acknowledge entries of the current one.
+    private var liveQueueFor: String?
+
     private func postLive(_ updates: [LiveUpdate]) {
         guard var s = session else { return }
-        let queue = (s.unsentLive ?? []) + updates
-        s.unsentLive = queue
+        if liveQueueFor != s.clientSaveId {
+            liveQueue = LiveQueue(s.unsentLive ?? [])
+            liveQueueFor = s.clientSaveId
+        }
+        liveQueue.append(updates)
+        s.unsentLive = liveQueue.pending
         commit(s)
+        pumpLive(opening: updates.isEmpty)
+    }
+
+    /// Send the queue, one post at a time. `opening`: an empty post that only
+    /// opens the row (session start) goes out even with nothing queued.
+    private func pumpLive(opening: Bool = false) {
+        guard let s = session, !liveQueue.isSending else { return }
+        if liveQueueFor != s.clientSaveId { liveQueue = LiveQueue(s.unsentLive ?? []); liveQueueFor = s.clientSaveId }
+        let batch = liveQueue.nextBatch() ?? (opening ? [] : nil)
+        guard let batch else { return }
         let id = s.clientSaveId
         // gym is nil on purpose: the OPENING device tagged the building and
         // the server keeps the first writer (rule 2).
@@ -227,15 +261,16 @@ final class SessionStore: ObservableObject {
             clientSaveId: id, source: "watch", day: s.day,
             durationMin: s.durationMin ?? plan?.durationMin, gym: nil,
             startedAt: ISO8601DateFormatter.fractional.string(from: s.startedAt),
-            sets: queue
+            sets: batch
         )
-        let sent = queue.count
         Task { [weak self] in
-            guard await API.postLive(post) != nil else { return }
-            guard let self, var cur = self.session, cur.clientSaveId == id else { return }
-            let q = cur.unsentLive ?? []
-            cur.unsentLive = Array(q.dropFirst(min(sent, q.count)))
+            let ok = await API.postLive(post) != nil
+            guard let self, self.liveQueueFor == id else { return }
+            if ok { self.liveQueue.ack(batch.count) } else { self.liveQueue.fail() }
+            guard var cur = self.session, cur.clientSaveId == id else { return }
+            cur.unsentLive = self.liveQueue.pending
             self.commit(cur)
+            if ok, !self.liveQueue.pending.isEmpty { self.pumpLive() }
         }
     }
 
@@ -263,7 +298,12 @@ final class SessionStore: ObservableObject {
         async let fresh = try? API.fetchPlan(day: nil, dur: nil)
         let row = await live
         let p = await fresh
-        if let row, row.source == "phone", !row.isClosed {
+        // Only a phone session with sets in it: the logger opens an EMPTY row
+        // the moment its page mounts, and continuing that took its day and a
+        // start time up to two hours old (review F3). Never our own banked
+        // finish either (F5).
+        if let row, row.source == "phone", !row.isClosed, !row.sets.isEmpty,
+           !Outbox.bankedIds().contains(row.clientSaveId) {
             await continueLive(row)
         } else {
             await start(day: nil, dur: nil, prefetched: p)

@@ -167,6 +167,12 @@ actor Outbox {
     nonisolated static func peekCounts() -> (pending: Int, rejected: Int) {
         (Store.loadOutbox().count, Store.loadRejected().count)
     }
+
+    /// Save ids finished on this wrist but not yet on the server (banked or
+    /// refused): their live rows are ours, never a phone session to continue.
+    nonisolated static func bankedIds() -> Set<String> {
+        Set((Store.loadOutbox() + Store.loadRejected()).map(\.clientSaveId))
+    }
 }
 
 /// Tiny disk layer: plan cache, outbox, in-flight session. All JSON files in
@@ -207,7 +213,7 @@ enum Store {
     /// when it is the wrong day or the wrong building: a cached Day A B_Fit
     /// plan must never open an asked-for Day B, or an Alrajhi session.
     static func startablePlan(day: String? = nil, gym: String? = nil) -> Plan? {
-        guard let c = loadCachedPlan(), Date().timeIntervalSince(c.fetchedAt) < planStartWindow else { return nil }
+        guard let c = loadCachedPlan(), SessionCore.planStartable(c.plan, fetchedAt: c.fetchedAt, now: Date()) else { return nil }
         if let day, c.plan.day != day { return nil }
         guard (c.gym ?? "bfit") == (gym ?? "bfit") else { return nil }
         return c.plan

@@ -18,6 +18,10 @@ struct Plan: Codable, Equatable {
     /// How many weighted machines he STARTS get a warm-up set (trainer
     /// ruling 5). nil on plans from before it existed: 2.
     let warmupFirstN: Int?
+    /// The latest moment this plan may START a session offline: the day a
+    /// layoff would trigger the return ramp. Past it, a cached plan's
+    /// full-load weights could be a comeback at 100% (trainer review).
+    let startableUntil: String?
 }
 
 struct PlanExercise: Codable, Equatable, Identifiable {
@@ -171,6 +175,9 @@ struct ActiveSession: Codable, Equatable {
     /// The machine whose '+1 set' is on offer right now (after a below-cap
     /// rating), cleared by the next log.
     var extraSetOffer: String? = nil
+    /// Warm-ups retired because enough machines were started — kept so an
+    /// undo can bring back the ones that are due again.
+    var retiredWarmups: [SetSlot]? = nil
 }
 
 // MARK: - Live session (phone ↔ watch handoff, docs/WATCH.md "Live session")

@@ -87,13 +87,24 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
     // MARK: HKWorkoutSessionDelegate — the truth about the session, not the hope.
 
     func workoutSession(_ workoutSession: HKWorkoutSession, didChangeTo toState: HKWorkoutSessionState, from fromState: HKWorkoutSessionState, date: Date) {
-        guard workoutSession === session else { return }
-        setActive(toState == .running || toState == .paused || toState == .prepared)
+        let alive = toState == .running || toState == .paused || toState == .prepared
+        DispatchQueue.main.async {
+            guard workoutSession === self.session else { return }
+            // Ended from outside (another workout took over): let go of it,
+            // or recoverOrBegin's `session == nil` guard makes the heart's
+            // restart a no-op for the rest of the session (review F2).
+            if !alive && (toState == .ended || toState == .stopped) { self.session = nil; self.builder = nil }
+            self.isActive = alive
+        }
     }
 
     func workoutSession(_ workoutSession: HKWorkoutSession, didFailWithError error: Error) {
-        guard workoutSession === session else { return }
-        setActive(false)
+        DispatchQueue.main.async {
+            guard workoutSession === self.session else { return }
+            self.session = nil
+            self.builder = nil
+            self.isActive = false
+        }
     }
 
     /// Ends the session and returns the recorded HKWorkout's uuid, or nil if

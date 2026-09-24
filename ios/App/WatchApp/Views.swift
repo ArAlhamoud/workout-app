@@ -224,6 +224,8 @@ struct SetCardView: View {
                             Task { await workout.recoverOrBegin() }
                         } label: {
                             Image(systemName: "heart.slash.fill").foregroundStyle(.orange)
+                                .frame(minWidth: 32, minHeight: 28)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Workout not recording — tap to restart")
@@ -575,6 +577,19 @@ struct SummaryView: View {
                         .foregroundStyle(.orange)
                         .multilineTextAlignment(.center)
                 }
+                // "End" can be taken back: pending sets are still there. It
+                // comes FIRST, well clear of Finish — 6 pt below the one button
+                // that cannot be undone was a chalky-thumb trap (review DT-3).
+                if let next = store.currentSlot {
+                    Button { store.backToSet() } label: {
+                        Text("Back to \(next.exerciseName)")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.bottom, 10)
+                }
                 Button {
                     Task { await store.finish() }
                 } label: {
@@ -584,16 +599,6 @@ struct SummaryView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
-                // "End" can be taken back: pending sets are still there.
-                if let next = store.currentSlot {
-                    Button { store.backToSet() } label: {
-                        Text("Back to \(next.exerciseName)")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, minHeight: 32)
-                    }
-                    .buttonStyle(.bordered)
-                }
                 if let name = store.extraSetOfferName {
                     Button { store.addExtraSet() } label: {
                         Text("+1 set · \(name)")
