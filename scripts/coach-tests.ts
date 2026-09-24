@@ -53,7 +53,20 @@ import {
   type DynamicPlan,
   type LoggedSession,
 } from '../src/lib/program';
-import { isLiveFresh, liveKey, mergeLiveSets, overlayLiveSets, sanitizeLiveUpdate, setsMissingFrom, unionForFinish, visibleSets, dropRemovedSets, mergeCandidates, type OverlaySet } from '../src/lib/live-session';
+import {
+  isLiveFresh,
+  liveKey,
+  mergeLiveSets,
+  overlayLiveSets,
+  sanitizeLiveUpdate,
+  setsMissingFrom,
+  unionForFinish,
+  visibleSets,
+  dropRemovedSets,
+  mergeCandidates,
+  type OverlaySet,
+  sanitizeWatchLogSets,
+} from '../src/lib/live-session';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
@@ -1514,6 +1527,51 @@ console.log('Watch wave — program defaults');
   // R2: Pec Fly is 3 sets. He did 3 in 5 of 7 sessions; a prescription he
   // routinely overrides teaches him the numbers are optional.
   assert(getDayTemplate('A').exercises.find((e) => e.name === 'Pec Fly')?.sets === 3, 'Pec Fly is prescribed 3 sets');
+}
+
+// ── Watch wave, phase 1: the watch-log sanitizer, one session per day ───
+console.log('Watch wave — watch log sets and session counting');
+{
+  // The route validated sets inline and dropped each set's time, so every
+  // Watch set reached the merge as "no stamp" and lost to any removal the
+  // phone had recorded. It also let two sets with one key through, which the
+  // unique index turns into a 500 on EVERY retry — a permanent wedge that
+  // holds up every later session in the Watch outbox (watch-map, 2026-09-24).
+  const iso = '2026-09-25T18:04:05.000Z';
+  const t = sanitizeWatchLogSets([
+    { exerciseId: 'a', setNumber: 1, reps: 10, weight: 30, completedAt: iso },
+    { exerciseId: 'a', setNumber: 2, reps: 10, weight: 30, completedAt: 'not a date' },
+  ]);
+  assert(t.length === 2 && t[0].completedAt === iso, 'a valid set time rides through to the saved set');
+  assert(t.length === 2 && t[1].completedAt === undefined, 'a garbage set time is dropped, the set is kept');
+  const w = sanitizeWatchLogSets([
+    { exerciseId: 'a', setNumber: 0, reps: 10, weight: 15, isWarmup: true },
+    { exerciseId: 'a', setNumber: 0, reps: 10, weight: 15 },
+    { exerciseId: 'b', setNumber: 3, reps: 10, weight: 15, isWarmup: true },
+  ]);
+  assert(w.length === 2 && w.every((x) => x.isWarmup && x.setNumber === 0), `set 0 is a warm-up or nothing: an unflagged set 0 is dropped, a flagged warm-up is pinned to 0 (got ${JSON.stringify(w)})`);
+  const d = sanitizeWatchLogSets([
+    { exerciseId: 'a', setNumber: 1, reps: 10, weight: 30 },
+    { exerciseId: 'a', setNumber: 1, reps: 12, weight: 30 },
+  ]);
+  assert(d.length === 1 && d[0].reps === 12, 'duplicate keys collapse, last wins — never a permanent 500 on the unique index');
+  const n = sanitizeWatchLogSets([{ exerciseId: 'a', reps: 10, weight: 30 }, { exerciseId: 'a', reps: 10, weight: 30 }]);
+  assert(n.length === 2 && n[0].setNumber === 1 && n[1].setNumber === 2, 'a set with no number still gets its position, as before');
+  assert(sanitizeWatchLogSets('junk').length === 0 && sanitizeWatchLogSets([{ exerciseId: 'a', reps: 0, weight: 30 }]).length === 0, 'junk input and impossible reps are dropped, never fatal');
+  const route = fs.readFileSync(path.join(__dirname, '..', 'src/app/api/watch/log/route.ts'), 'utf8');
+  assert(route.includes('sanitizeWatchLogSets('), 'the Watch log route uses the shared sanitizer');
+
+  // F3 (trainer): the ramp counts ONE session per activity day. It counted
+  // rows, so one real session plus a same-day duplicate row (a Watch finish
+  // and a phone replay under another id) advanced him from 85% to 100% a
+  // whole session early.
+  const trainingDates = data.workouts.filter((wk) => wk.name.startsWith('Day') && isTrainingSession(wk)).map((wk) => new Date(wk.date));
+  const nextDayB = new Date('2026-09-25T00:00:00.000Z');
+  const later = new Date('2026-09-26T12:00:00.000Z');
+  const once = getTrainingStatus([...trainingDates, nextDayB], later);
+  const twice = getTrainingStatus([...trainingDates, nextDayB, nextDayB], later);
+  assert(twice.week === once.week, `a same-day duplicate row does not advance the ramp (one row: week ${once.week}, with a duplicate: week ${twice.week})`);
+  assert(once.mode === 'return' && once.week === 3, `real history plus one Day B is still week 3 at 85% (got ${once.mode} week ${once.week})`);
 }
 
 // ── summary ──────────────────────────────────────────────────

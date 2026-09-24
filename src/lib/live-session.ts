@@ -244,6 +244,69 @@ export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date =
   };
 }
 
+/** One set of the Watch's finished-session payload, after validation. */
+export interface WatchLogSet {
+  exerciseId: string;
+  setNumber: number;
+  reps: number;
+  weight: number;
+  rpe?: number;
+  isWarmup: boolean;
+  /** ISO instant the set was logged on the wrist, when the client sent one. */
+  completedAt?: string;
+}
+
+type RawWatchSet = {
+  exerciseId?: unknown; setNumber?: unknown; reps?: unknown; weight?: unknown;
+  rpe?: unknown; isWarmup?: unknown; completedAt?: unknown;
+};
+
+/**
+ * The sets of a finished Watch session, validated once for /api/watch/log.
+ * Bounds mirror sanitizeLiveUpdate; junk sets are dropped, never fatal.
+ * Three things the old inline mapping in the route got wrong (watch-map,
+ * 2026-09-24):
+ *  - it dropped each set's time, so every Watch set reached the merge as
+ *    "no stamp" and lost to any removal the phone had recorded;
+ *  - it accepted set 0 without the warm-up flag; now set 0 IS a warm-up (a
+ *    flagged warm-up is pinned to 0) or it is dropped, and a working set
+ *    must be 1–20, as on the live row;
+ *  - it let two sets with one key through, and the WorkoutSet unique index
+ *    turned the save into a 500 on EVERY retry — a permanent wedge at the
+ *    head of the Watch outbox that held up every later session. Duplicates
+ *    now collapse, last one wins.
+ */
+export function sanitizeWatchLogSets(raw: unknown): WatchLogSet[] {
+  if (!Array.isArray(raw)) return [];
+  const byKey = new Map<string, WatchLogSet>();
+  let position = 0;
+  for (const item of raw as RawWatchSet[]) {
+    if (!item || typeof item.exerciseId !== 'string' || item.exerciseId.length > 64) continue;
+    const { reps, weight } = item;
+    if (typeof reps !== 'number' || !Number.isFinite(reps) || reps < 1 || reps > 200) continue;
+    if (typeof weight !== 'number' || !Number.isFinite(weight) || weight < 0 || weight > 500) continue;
+    // Position among VALID sets — what a set with no number has always got.
+    position++;
+    const isWarmup = item.isWarmup === true;
+    const n = typeof item.setNumber === 'number' && Number.isFinite(item.setNumber) ? Math.round(item.setNumber) : position;
+    if (!isWarmup && (n < 1 || n > 20)) continue;
+    const at = typeof item.completedAt === 'string' ? new Date(item.completedAt) : null;
+    const set: WatchLogSet = {
+      exerciseId: item.exerciseId,
+      setNumber: isWarmup ? 0 : n,
+      reps: Math.round(reps),
+      weight,
+      rpe: typeof item.rpe === 'number' && Number.isFinite(item.rpe) && item.rpe >= 1 && item.rpe <= 4 ? Math.round(item.rpe) : undefined,
+      isWarmup,
+      completedAt: at && !Number.isNaN(at.getTime()) ? at.toISOString() : undefined,
+    };
+    const key = liveKey(set);
+    byKey.delete(key);
+    byKey.set(key, set);
+  }
+  return [...byKey.values()];
+}
+
 // ── Overlay onto the phone logger's blocks ──────────────────────────
 // Pure so the warm-up case is testable: the first two blocks carry a
 // warm-up entry at index 0 (setNumber 0), so a set must be found by its

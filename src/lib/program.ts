@@ -559,7 +559,19 @@ export function getTrainingStatus(
 ): TrainingStatus {
   if (!dates.length) return { mode: 'fresh', week: 1 };
 
-  const desc = dates.map((d) => new Date(d)).sort((a, b) => b.getTime() - a.getTime());
+  // ONE session per activity day (trainer F3, 2026-09-24). Training rows sit
+  // at UTC midnight of their activity day, so two rows on one day — a split
+  // save, or a Watch finish plus a phone replay under another id — are one
+  // session. Counting rows let a same-day duplicate advance the ramp a whole
+  // session early (85% -> 100%). Training twice in a day is the pattern the
+  // program forbids anyway, so nothing real is lost.
+  const byDay = new Map<string, Date>();
+  for (const d of dates) {
+    const at = new Date(d);
+    const key = at.toISOString().slice(0, 10);
+    if (!byDay.has(key)) byDay.set(key, at);
+  }
+  const desc = [...byDay.values()].sort((a, b) => b.getTime() - a.getTime());
   const daysBetween = (a: Date, b: Date) => Math.floor((a.getTime() - b.getTime()) / 86400000);
 
   // Still inside the layoff — today is day 1 of the return block.

@@ -3,6 +3,7 @@ import { ownerActivityDayUtc } from '@/lib/health-insights';
 import prisma from '@/lib/prisma';
 import { createWorkout } from '@/app/actions';
 import { readLive } from '@/lib/live-store';
+import { sanitizeWatchLogSets } from '@/lib/live-session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,7 +34,8 @@ export async function POST(request: Request) {
     gym?: string;
     healthWorkoutUuid?: string;
     clientSaveId?: string;
-    sets?: Array<{ exerciseId?: string; setNumber?: number; reps?: number; weight?: number; rpe?: number; isWarmup?: boolean }>;
+    /** Validated by sanitizeWatchLogSets — the shape here is only a hint. */
+    sets?: unknown;
   };
 
   const start = b.startISO ? new Date(b.startISO) : new Date();
@@ -49,21 +51,7 @@ export async function POST(request: Request) {
     // Checked in full but stored sliced would 500 on replay — refuse instead.
     return NextResponse.json({ error: 'healthWorkoutUuid too long' }, { status: 400 });
   }
-  const sets = (Array.isArray(b.sets) ? b.sets : [])
-    .filter(
-      (s) =>
-        typeof s.exerciseId === 'string' &&
-        Number.isFinite(s.reps) && (s.reps as number) >= 1 && (s.reps as number) <= 200 &&
-        Number.isFinite(s.weight) && (s.weight as number) >= 0 && (s.weight as number) <= 500,
-    )
-    .map((s, i) => ({
-      exerciseId: s.exerciseId as string,
-      setNumber: Number.isFinite(s.setNumber) ? (s.setNumber as number) : i + 1,
-      reps: Math.round(s.reps as number),
-      weight: s.weight as number,
-      rpe: Number.isFinite(s.rpe) && (s.rpe as number) >= 1 && (s.rpe as number) <= 4 ? Math.round(s.rpe as number) : undefined,
-      isWarmup: s.isWarmup === true,
-    }));
+  const sets = sanitizeWatchLogSets(b.sets);
   if (!sets.length) {
     return NextResponse.json({ error: 'No valid sets' }, { status: 400 });
   }
