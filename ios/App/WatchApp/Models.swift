@@ -39,7 +39,7 @@ struct PlanExercise: Codable, Equatable, Identifiable {
     /// wrist decides whether it is due (warmupFirstN / alwaysWarm).
     let warmupKg: Double?
     let alwaysWarm: Bool?
-    /// Why prefillKg is what it is: none|timed|last|ramp|held|overload|deload|short.
+    /// Why prefillKg is what it is: none|timed|last|ramp|held|overload|deload|short|reps.
     let reason: String?
     let fromKg: Double?
     let note: String?

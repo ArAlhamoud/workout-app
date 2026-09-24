@@ -197,6 +197,8 @@ struct SetCardView: View {
         case "overload": return ("+1 pin", .green)
         case "deload": return ("deload", .orange)
         case "short": return ("−1 pin", .orange)
+        // A coarse step: the prescription asks for one more rep before the pin.
+        case "reps": return ("+1 rep", .green)
         default: return nil
         }
     }
