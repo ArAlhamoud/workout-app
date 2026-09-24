@@ -207,6 +207,7 @@ struct LiveSession: Codable, Equatable {
 
     var isClosed: Bool { closedAt != nil }
     var startedDate: Date { ISO8601DateFormatter.fractional.date(from: startedAt) ?? Date() }
+    var updatedDate: Date { ISO8601DateFormatter.fractional.date(from: updatedAt) ?? .distantPast }
 }
 
 struct LiveEnvelope: Codable { let live: LiveSession? }

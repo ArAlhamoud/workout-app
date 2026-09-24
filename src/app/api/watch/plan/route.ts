@@ -8,12 +8,11 @@ import {
   getExercisesForDuration,
   queuedDay,
   WARMUP_BLOCKS,
-  BREAK_THRESHOLD_DAYS,
   type DayId,
   DEFAULT_SESSION_MIN,
   DEFAULT_GYM_ID,
 } from '@/lib/program';
-import { extraSetAllowed, planExercises, prescriptionInputs, PRESCRIPTION_WINDOW } from '@/lib/prescription';
+import { extraSetAllowed, planExercises, prescriptionInputs, PRESCRIPTION_WINDOW, startableUntilFor } from '@/lib/prescription';
 import { getLoggerMemory, readinessHoldToday } from '@/app/actions';
 
 export const runtime = 'nodejs';
@@ -85,9 +84,7 @@ export async function GET(request: Request) {
     // The latest moment a CACHED copy of this plan may start a session
     // offline: the day a layoff would trigger the return ramp. Past it the
     // weights here could be a comeback at 100% (trainer, phase 4 review).
-    startableUntil: new Date(
-      (inputs.training[0] ? new Date(inputs.training[0].date).getTime() : Date.now()) + BREAK_THRESHOLD_DAYS * 86_400_000,
-    ).toISOString(),
+    startableUntil: startableUntilFor(inputs.training[0] ? new Date(inputs.training[0].date) : null, new Date()),
     // planExercises filters unseeded names out FIRST, then numbers — the
     // same `order` the phone's blocks carry.
     exercises: planExercises(template, byName, memory, inputs, { readinessHold }).map((e) => ({

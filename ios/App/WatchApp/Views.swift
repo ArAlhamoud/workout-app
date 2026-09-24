@@ -221,7 +221,8 @@ struct SetCardView: View {
                     }
                     if !workout.isActive {
                         Button {
-                            Task { await workout.recoverOrBegin() }
+                            let begun = store.session?.startedAt ?? Date()
+                            Task { await workout.recoverOrBegin(startDate: begun) }
                         } label: {
                             Image(systemName: "heart.slash.fill").foregroundStyle(.orange)
                                 .frame(minWidth: 32, minHeight: 28)

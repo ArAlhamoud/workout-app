@@ -64,7 +64,11 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
     /// keeps the app frontmost and the always-on face on this screen
     /// instead of the clock (owner, 2026-09-01: "app should prevent apple
     /// watch go sleep").
-    func recoverOrBegin() async {
+    /// `startDate`: the session's own start. A workout restarted after a
+    /// crash, or after another app ended ours, is backdated to it — begun at
+    /// the tap, the saved HKWorkout covered half the session and its uuid
+    /// then stopped the phone writing the real one (rule 11, final review).
+    func recoverOrBegin(startDate: Date = Date()) async {
         guard HKHealthStore.isHealthDataAvailable(), session == nil else { return }
         let recovered: HKWorkoutSession? = await withCheckedContinuation { cont in
             store.recoverActiveWorkoutSession { s, _ in cont.resume(returning: s) }
@@ -80,7 +84,7 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
             builder = b
             setActive(true)
         } else {
-            begin()
+            begin(startDate: startDate)
         }
     }
 

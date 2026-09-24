@@ -48,6 +48,9 @@ final class SessionStore: ObservableObject {
     @Published var phoneLive: LiveSession?
 
     let workout = WorkoutManager()
+    /// How recently an EMPTY phone row must have been touched for the Action
+    /// Button to treat it as the logger open in his hand.
+    static let liveFreshWindow: TimeInterval = 30 * 60
     private var restTimer: Timer?
     private var launched = false
     private var isStarting = false
@@ -86,7 +89,8 @@ final class SessionStore: ObservableObject {
         if session != nil {
             // The HKWorkoutSession died with the process; get one running
             // again so the wrist behaves like a workout, not a launcher.
-            Task { await workout.recoverOrBegin() }
+            let begun = session?.startedAt ?? Date()
+            Task { await workout.recoverOrBegin(startDate: begun) }
             if case .resting(let until) = phase { scheduleRestEnd(until: until) }
         }
         Task {
@@ -252,8 +256,7 @@ final class SessionStore: ObservableObject {
     private func pumpLive(opening: Bool = false) {
         guard let s = session, !liveQueue.isSending else { return }
         if liveQueueFor != s.clientSaveId { liveQueue = LiveQueue(s.unsentLive ?? []); liveQueueFor = s.clientSaveId }
-        let batch = liveQueue.nextBatch() ?? (opening ? [] : nil)
-        guard let batch else { return }
+        guard let batch = liveQueue.nextBatch(allowEmpty: opening) else { return }
         let id = s.clientSaveId
         // gym is nil on purpose: the OPENING device tagged the building and
         // the server keeps the first writer (rule 2).
@@ -298,11 +301,12 @@ final class SessionStore: ObservableObject {
         async let fresh = try? API.fetchPlan(day: nil, dur: nil)
         let row = await live
         let p = await fresh
-        // Only a phone session with sets in it: the logger opens an EMPTY row
-        // the moment its page mounts, and continuing that took its day and a
-        // start time up to two hours old (review F3). Never our own banked
-        // finish either (F5).
-        if let row, row.source == "phone", !row.isClosed, !row.sets.isEmpty,
+        // A phone session with sets in it, or an open logger touched in the
+        // last half hour (warm-ups and page opens push nothing) — never a row
+        // left open hours ago when the page was merely visited (review F3),
+        // and never our own banked finish (F5).
+        if let row, row.source == "phone", !row.isClosed,
+           !row.sets.isEmpty || Date().timeIntervalSince(row.updatedDate) < Self.liveFreshWindow,
            !Outbox.bankedIds().contains(row.clientSaveId) {
             await continueLive(row)
         } else {

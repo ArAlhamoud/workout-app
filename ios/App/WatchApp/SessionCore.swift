@@ -339,15 +339,19 @@ enum SessionCore {
 /// removed, and only after its post came back.
 struct LiveQueue: Equatable {
     private(set) var pending: [LiveUpdate] = []
-    private var inFlight = 0
+    /// nil = idle; n = a post carrying the first n entries is out (0 for the
+    /// session-opening post, which carries none but is in flight all the same).
+    private var inFlight: Int? = nil
 
     init(_ pending: [LiveUpdate] = []) { self.pending = pending }
 
     mutating func append(_ updates: [LiveUpdate]) { pending += updates }
 
     /// The next post's body — everything queued — or nil while one is out.
-    mutating func nextBatch() -> [LiveUpdate]? {
-        guard inFlight == 0, !pending.isEmpty else { return nil }
+    /// `allowEmpty`: the opening post goes out with no sets, tracked like any
+    /// other (untracked, its ack cleared a real post's flag — final review).
+    mutating func nextBatch(allowEmpty: Bool = false) -> [LiveUpdate]? {
+        guard inFlight == nil, !pending.isEmpty || allowEmpty else { return nil }
         inFlight = pending.count
         return pending
     }
@@ -355,11 +359,11 @@ struct LiveQueue: Equatable {
     /// That post came back: its prefix leaves the queue.
     mutating func ack(_ count: Int) {
         pending.removeFirst(min(count, pending.count))
-        inFlight = 0
+        inFlight = nil
     }
 
     /// It failed: everything stays for the next try.
-    mutating func fail() { inFlight = 0 }
+    mutating func fail() { inFlight = nil }
 
-    var isSending: Bool { inFlight > 0 }
+    var isSending: Bool { inFlight != nil }
 }

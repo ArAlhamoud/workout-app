@@ -210,6 +210,15 @@ do {
     check(second?.count == 1 && second?.first?.setNumber == 3, "the next post carries only what came after")
     q.fail()
     check(q.pending.count == 1 && q.nextBatch()?.count == 1, "a failed post keeps its updates for the next try")
+    // The session-opening post (no sets) is in flight too: nothing else goes
+    // out beside it, and its ack drops nothing (final review F1).
+    var o = LiveQueue()
+    let opening = o.nextBatch(allowEmpty: true)
+    check(opening?.isEmpty == true && o.isSending, "the opening post is tracked in flight")
+    o.append([LiveUpdate(exerciseId: "w", setNumber: 0)])
+    check(o.nextBatch() == nil, "a set logged while it is out waits for it")
+    o.ack(0)
+    check(o.nextBatch()?.count == 1, "then goes out, whole")
 }
 do {
     // T3: a cached plan cannot start a session past the moment a layoff

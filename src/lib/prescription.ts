@@ -9,6 +9,7 @@
 
 import { deloadTarget, detectPlateau, pinMapFor, stepIsHisFor, type CoachWorkout } from './coach';
 import {
+  BREAK_THRESHOLD_DAYS,
   DEFAULT_GYM_ID,
   cleanRampSessionDates,
   earnsOverload,
@@ -414,4 +415,30 @@ export function untickedWarmupsKept(blocks: Array<{ uid: string; weighted: boole
     if (b.alwaysWarm) return true;
     return n++ < 2;
   }).map((b) => b.uid);
+}
+
+/**
+ * Until when a CACHED copy of a plan may start a session offline: the day a
+ * layoff would trigger the return ramp (last session + the threshold). A
+ * plan fetched after that moment is already the REBOOT plan — more days off
+ * keep it there — so it carries no limit (null) beyond the Watch's own
+ * 7-day cache window; a pre-expired comeback plan blocked the one session
+ * the ramp exists for (final review).
+ */
+export function startableUntilFor(lastSession: Date | null, now: Date): string | null {
+  if (!lastSession) return null;
+  const until = lastSession.getTime() + BREAK_THRESHOLD_DAYS * 86_400_000;
+  return until > now.getTime() ? new Date(until).toISOString() : null;
+}
+
+/**
+ * Is a row settled — done, or a warm-up he went past? An untouched warm-up
+ * above a done working set of the same machine was skipped: it no longer
+ * holds the card back from Done, the focus frame or the set flag. It is not
+ * deleted (a warm-up he did but forgot to tick can still be ticked), and it
+ * is never saved (only done rows are).
+ */
+export function settledSet(sets: Array<{ isWarmup?: boolean; done: boolean }>, s: { isWarmup?: boolean; done: boolean }): boolean {
+  if (s.done) return true;
+  return s.isWarmup === true && sets.some((x) => !x.isWarmup && x.done);
 }

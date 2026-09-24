@@ -18,7 +18,7 @@ import {
   prefillReps,
   programSpec,
 } from '@/lib/program';
-import { prescribeWarmup, prescribeWorking, rampTargetKg, untickedWarmupsKept, warmupRowsToDrop, warmupStillDue } from '@/lib/prescription';
+import { prescribeWarmup, prescribeWorking, rampTargetKg, settledSet, untickedWarmupsKept, warmupRowsToDrop, warmupStillDue } from '@/lib/prescription';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -82,7 +82,7 @@ interface ExerciseBlock {
   expandedNoteIdx: number | null;
   lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean; repsFloor?: number; shortHard?: boolean; holdAtKg?: number };
   /** Overload by default took one learned pin at seed time; tap undoes it. */
-  overloadApplied?: { from: number; to: number };
+  overloadApplied?: { from: number; to: number; fromReps?: number };
   /** He undid the seed: do not re-offer the same number as a chip. */
   overloadDeclined?: true;
   /** Template minimum reps — the chip never offers a pin under it. */
@@ -259,7 +259,11 @@ function buildBlocks(
       plannedSets: ie.sets,
       warmupEligible: eligible,
       alwaysWarm: ie.alwaysWarm === true,
-      overloadApplied: p.reason === 'overload' && p.fromKg != null && p.workingKg != null ? { from: p.fromKg, to: p.workingKg } : undefined,
+      // fromReps: a coarse pin restarts reps at repsMin; undo and a HOLD put
+      // back the reps he proved at the lighter weight (final review).
+      overloadApplied: p.reason === 'overload' && p.fromKg != null && p.workingKg != null
+        ? { from: p.fromKg, to: p.workingKg, ...(p.reps != null ? { fromReps: prefillReps(prev?.reps, ie.defaultReps, ie.maxReps ?? Number.POSITIVE_INFINITY) } : {}) }
+        : undefined,
       prescriptionNote: (p.reason === 'deload' || p.reason === 'short') && p.note ? p.note : undefined,
       repsAsk: p.reason === 'reps' && p.reps != null
         ? { from: prefillReps(prev?.reps, ie.defaultReps, ie.maxReps ?? Number.POSITIVE_INFINITY), to: p.reps }
@@ -499,10 +503,12 @@ export default function WorkoutForm({
           ? { ...b, repsAsk: undefined, sets: b.sets.map((st) => (st.done || st.isWarmup ? st : { ...st, reps: b.repsAsk!.from })) }
           : b;
         if (!unasked.overloadApplied) return unasked;
+        const fromReps = unasked.overloadApplied.fromReps;
         return {
           ...unasked,
           overloadApplied: undefined,
-          sets: repriceSets(unasked, unasked.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId), false),
+          sets: repriceSets(unasked, unasked.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId), false)
+            .map((st) => (st.done || st.isWarmup || fromReps == null ? st : { ...st, reps: fromReps })),
         };
       }),
     );
@@ -1024,16 +1030,21 @@ export default function WorkoutForm({
             // never B_Fit's ask carried across (round 3); none on a hold day.
             const baseReps = prefillReps(prevSession?.reps, b.defaultReps ?? 1, b.maxReps ?? Number.POSITIVE_INFINITY);
             const ask = p.reason === 'reps' && p.reps != null && !hold ? { from: baseReps, to: p.reps } : undefined;
-            const repsFor = ask ? ask.to : baseReps;
+            // A seeded coarse pin keeps its reset reps (repsMin) — the Watch
+            // plan says the same (final review P5-1).
+            const repsFor = ask ? ask.to : seeded && p.reps != null ? p.reps : baseReps;
             // A compressed session stays compressed, and a warm-up comes
             // back only where it is still due (round 3).
             const compressedNow = compressedRef.current;
             const repriced = repriceSets(b, working, inc, anchored, !compressedNow && warmupStillDue(lite, b.uid))
-              .map((st) => (st.isWarmup || st.done ? st : { ...st, reps: unit === 'seconds' ? st.reps : repsFor }));
+              // Off-plan blocks (no known range) keep the reps he typed.
+              .map((st) => (st.isWarmup || st.done || unit === 'seconds' || b.defaultReps == null ? st : { ...st, reps: repsFor }));
             return {
               ...b,
               lastSession: prevSession,
-              overloadApplied: seeded && p.fromKg != null && p.workingKg != null ? { from: p.fromKg, to: p.workingKg } : undefined,
+              overloadApplied: seeded && p.fromKg != null && p.workingKg != null
+                ? { from: p.fromKg, to: p.workingKg, ...(p.reps != null ? { fromReps: baseReps } : {}) }
+                : undefined,
               prescriptionNote: (p.reason === 'deload' || p.reason === 'short') && p.note ? p.note : undefined,
               repsAsk: unit === 'seconds' ? undefined : ask,
               // THIS gym's set count too — a B_Fit deload must not halve an
@@ -1152,11 +1163,13 @@ export default function WorkoutForm({
     setBlocks((prev) =>
       prev.map((b) => {
         if (b.uid !== uid || !b.overloadApplied) return b;
+        const fromReps = b.overloadApplied.fromReps;
         return {
           ...b,
           overloadApplied: undefined,
           overloadDeclined: true,
-          sets: repriceSets(b, b.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId), false),
+          sets: repriceSets(b, b.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId), false)
+            .map((st) => (st.done || st.isWarmup || fromReps == null ? st : { ...st, reps: fromReps })),
         };
       }),
     );
@@ -1251,7 +1264,8 @@ export default function WorkoutForm({
                   swapAnchored,
                   !compressedRef.current && warmupStillDue(warmupLite(cur), b.uid),
                 ).map((st) => (st.done || st.isWarmup || reps == null ? st : { ...st, reps }));
-                return !started && swapSpec && !compressedRef.current ? resizeWorking(repriced, swapSpec.sets) : repriced;
+                // A Rescue day keeps its 2 sets per machine (final review P5-5).
+                return !rescueMode && !started && swapSpec && !compressedRef.current ? resizeWorking(repriced, swapSpec.sets) : repriced;
               })(),
             }
           : b,
@@ -1276,7 +1290,7 @@ export default function WorkoutForm({
   }
 
   function toggleSetDone(uid: string, setIdx: number) {
-    let idx = setIdx;
+    const idx = setIdx;
     const now = new Date().toISOString();
     const el = typeof document !== 'undefined' ? document.getElementById(`block-${uid}`) : null;
     anchorRef.current = el ? { uid, top: el.getBoundingClientRect().top } : null;
@@ -1295,21 +1309,11 @@ export default function WorkoutForm({
       );
       // Ruling 5: once two weighted machines are started, the untouched
       // warm-up rows on machines not yet started go (Back Extension's stay).
-      // A working set ticked past this block's own untouched warm-up skips
-      // it: the row goes too, or the card never reaches Done and a stale W
-      // stays under his thumb (round 3). Its index shift is carried below.
-      const tickedIdx = ticked.findIndex((b) => b.uid === uid);
-      const tickedSet = ticked[tickedIdx].sets[idx];
-      let ownDropped = 0;
-      if (tickedSet.done && !tickedSet.isWarmup) {
-        const own = ticked[tickedIdx].sets;
-        const keep = own.filter((st) => !(st.isWarmup && !st.done));
-        ownDropped = own.slice(0, idx).length - own.slice(0, idx).filter((st) => !(st.isWarmup && !st.done)).length;
-        if (keep.length !== own.length) ticked[tickedIdx] = { ...ticked[tickedIdx], sets: keep };
-      }
-      const updated = tickedSet.done ? stripDueWarmups(ticked) : ticked;
-      if (updated === ticked && !ownDropped) anchorRef.current = null;
-      idx -= ownDropped;
+      // A warm-up he went past on THIS machine stays put and reads as
+      // settled (settledSet) — deleting it moved the rows under his thumb
+      // and a warm-up he did could no longer be ticked (final review).
+      const updated = ticked[ticked.findIndex((b) => b.uid === uid)].sets[setIdx].done ? stripDueWarmups(ticked) : ticked;
+      if (updated === ticked) anchorRef.current = null;
       const block = updated.find((b) => b.uid === uid)!;
       const set = block.sets[idx];
       if (set.done) {
@@ -1340,7 +1344,7 @@ export default function WorkoutForm({
           for (const [bi, si] of scanOrder) {
             const cand = updated[bi];
             const st = cand.sets[si];
-            if (st.done) continue;
+            if (settledSet(cand.sets, st)) continue;
             next = {
               blockUid: cand.uid,
               name: exerciseById.get(cand.exerciseId)?.name ?? 'exercise',
@@ -1636,7 +1640,7 @@ export default function WorkoutForm({
     }
   }
 
-  const doneCount = blocks.reduce((n, b) => n + b.sets.filter((s) => s.done).length, 0);
+  const doneCount = blocks.reduce((n, b) => n + b.sets.filter((s) => settledSet(b.sets, s)).length, 0);
 
   // Fold the admin card away the first time a set is ticked — from then on the
   // screen is about lifting, not metadata. Once only: reopening it is a
@@ -1927,9 +1931,11 @@ export default function WorkoutForm({
         {/* The set in progress lives in ONE card — it wears the volt
             focus frame (mock frame 02) and a live SET N/M flag. */}
         {blocks.map((block, blockIdx) => {
-          const focusUid = blocks.find((b) => b.sets.some((s2) => !s2.done))?.uid;
+          // A warm-up he went past is settled: it holds neither the focus
+          // frame nor the set flag (settledSet).
+          const focusUid = blocks.find((b) => b.sets.some((s2) => !settledSet(b.sets, s2)))?.uid;
           const isFocus = block.uid === focusUid;
-          const doneCount = block.sets.filter((s2) => s2.done).length;
+          const doneCount = block.sets.filter((s2) => settledSet(block.sets, s2)).length;
           const ex = exerciseById.get(block.exerciseId);
           const isTimed = block.unit === 'seconds';
           const pr = ex ? (gymRecords[block.exerciseId] ?? 0) : 0;
@@ -1943,7 +1949,7 @@ export default function WorkoutForm({
             block.sets.some(
               (s) => s.weight > 0 && s.weight > (gymRecords[s.exerciseId ?? block.exerciseId] ?? 0),
             );
-          const allDone = block.sets.length > 0 && block.sets.every((s) => s.done);
+          const allDone = block.sets.length > 0 && block.sets.every((s) => settledSet(block.sets, s));
 
           const lastRpe = block.lastSession?.rpe ?? null;
           // While ramping back, the scaled target replaces the normal
@@ -2230,7 +2236,7 @@ export default function WorkoutForm({
               {/* Sets */}
               <div className="px-4 space-y-1.5 pb-1 pt-1">
                 {block.sets.map((set, i) => {
-                  const isCurrentSet = !set.done && block.sets.slice(0, i).every((s) => s.done);
+                  const isCurrentSet = !settledSet(block.sets, set) && block.sets.slice(0, i).every((s) => settledSet(block.sets, s));
 
                   const isSwipedOpen = !set.done && block.sets.length > 1 && swipedSet?.uid === block.uid && swipedSet?.idx === i;
                   return (
@@ -2246,7 +2252,7 @@ export default function WorkoutForm({
                         else if (dx < -20) setSwipedSet(null);
                       }}
                     >
-                      <div className={`relative overflow-hidden rounded-xl ${set.done ? 'opacity-40' : ''}`}>
+                      <div className={`relative overflow-hidden rounded-xl ${settledSet(block.sets, set) ? 'opacity-40' : ''}`}>
                         {isSwipedOpen && (
                           <div className="absolute right-0 top-0 bottom-0 flex items-center z-10">
                             <button

@@ -8,7 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
-import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
+import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, startableUntilFor, settledSet, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
   combineIncrement,
   detectPlateau,
@@ -2206,7 +2206,42 @@ console.log('Watch wave — phase 3 review fixes, round 3');
   assert(/stripDueWarmups\(/.test(form.slice(form.indexOf('function overlayLive'))), 'a Watch handoff strips the warm-ups no longer due');
   assert(/untickedWarmupsKept\(/.test(form), 'the nothing-ticked save uses the warm-up rule');
   // Phase 4 review T3, server half: the plan says until when a cached copy may start offline.
-  assert(/startableUntil/.test(src('src/app/api/watch/plan/route.ts')) && /BREAK_THRESHOLD_DAYS/.test(src('src/app/api/watch/plan/route.ts')), 'the Watch plan carries startableUntil = last session + the layoff threshold');
+  assert(/startableUntilFor\(/.test(src('src/app/api/watch/plan/route.ts')), 'the Watch plan carries startableUntil (last session + the layoff threshold, or none in a layoff)');
+}
+
+// ── Watch wave, final review fixes (round 4) ──────────────────────────────
+console.log('Watch wave — final review fixes');
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  // P5-3: a plan fetched DURING a layoff is already a REBOOT plan — more
+  // days off keep it there — so it carries no startableUntil (the Watch's
+  // 7-day cache window still applies). Before the threshold it is last + 21 d.
+  const last = new Date('2026-09-17T00:00:00Z');
+  assert(startableUntilFor(last, new Date('2026-09-24T09:00:00Z')) === '2026-10-08T00:00:00.000Z', 'a normal plan may start offline until the layoff threshold');
+  assert(startableUntilFor(last, new Date('2026-10-20T09:00:00Z')) === null, 'a comeback plan fetched in the layoff is never pre-expired');
+  assert(startableUntilFor(null, new Date('2026-09-24T09:00:00Z')) === null, 'no history, no threshold');
+  // DT-R3-3 / P5-4: an untouched warm-up above a done working set is SKIPPED
+  // — settled for Done, focus and the flag — never deleted (the rows moved
+  // under his thumb and a warm-up he did could no longer be ticked).
+  const w = { isWarmup: true, done: false }, s1 = { isWarmup: false, done: true }, s2 = { isWarmup: false, done: false };
+  assert(settledSet([w, s1, s2], w) === true && settledSet([w, s2], w) === false, 'a warm-up counts as settled once a working set of its machine is done');
+  assert(settledSet([w, s1, s2], s2) === false && settledSet([w, s1, s2], s1) === true, 'working sets settle only when done');
+  const form = src('src/components/WorkoutForm.tsx');
+  assert(!/ownDropped/.test(form), 'ticking a working set no longer deletes its machine\'s warm-up row');
+  assert((form.match(/settledSet\(/g) ?? []).length >= 4, 'Done, the focus frame, the flag and the progress count read settledSet');
+  // P5-1 / P5-2: coarse-pin reps survive a gym switch; undo and a HOLD put back the proven reps.
+  assert(/seeded && p\.reps != null \? p\.reps : baseReps/.test(form), 'a gym switch keeps the coarse pin\'s reset reps');
+  assert(/fromReps/.test(form) && /overloadApplied\.fromReps/.test(form), 'undo and the HOLD revert restore the reps he proved at the lighter weight');
+  // P5-5 / P5-6.
+  assert(/!rescueMode && !started && swapSpec/.test(form), 'a swap on a Rescue session keeps its 2 sets');
+  assert(/b\.defaultReps == null \? st/.test(form), 'a gym switch leaves an off-plan block\'s reps alone');
+  // F2 (Watch): a restarted HealthKit workout spans the session, not the tap.
+  const wm = fs.readFileSync(path.join(__dirname, '..', 'ios', 'App', 'WatchApp', 'WorkoutManager.swift'), 'utf8');
+  assert(/func recoverOrBegin\(startDate: Date/.test(wm) && /begin\(startDate: startDate\)/.test(wm), 'a HealthKit restart is backdated to the session start');
+  const store = fs.readFileSync(path.join(__dirname, '..', 'ios', 'App', 'WatchApp', 'SessionStore.swift'), 'utf8');
+  assert(/recoverOrBegin\(startDate: /.test(store), 'every restart passes the session start');
+  // F3 (Watch): an open phone logger is continued if its row is fresh, even with nothing pushed.
+  assert(/liveFreshWindow/.test(store) && /row\.updatedDate/.test(store), 'the Action Button continues a fresh phone row, not only one with sets');
 }
 
 // ── summary ──────────────────────────────────────────────────
