@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG } from '../src/lib/pins';
 import {
   combineIncrement,
   detectPlateau,
@@ -26,6 +27,8 @@ import {
   type CoachWorkout,
   type ReadinessSignal,
   strengthHold,
+  pinMapFor,
+  MANUAL_PIN_GYM,
 } from '../src/lib/coach';
 import {
   alternateDay,
@@ -52,6 +55,7 @@ import {
   WARMUP_BLOCKS,
   type DynamicPlan,
   type LoggedSession,
+  DEFAULT_GYM_ID,
 } from '../src/lib/program';
 import {
   isLiveFresh,
@@ -1743,6 +1747,42 @@ console.log('Watch wave — weigh-in import');
   const enrich = hi.slice(hi.indexOf('async function enrichWorkouts'));
   assert(bodyImport.length > 0 && /where:\s*\{\s*date:\s*\{\s*gte:\s*start,\s*lt:\s*end\s*\}\s*\}/.test(bodyImport) && !bodyImport.includes('86_400_000'), 'the weigh-in import matches exactly one day — never yesterday\'s row');
   assert(enrich.includes('86_400_000'), 'the heart-rate match looks one day back (a 03:00–04:00 Riyadh session belongs to the previous activity day)');
+}
+
+// ── Watch wave, phase 2: the owner sets each machine's real step ──────────
+console.log('Watch wave — machine steps (the setter)');
+{
+  // What he types on the phone. His words: "each machine different" — the
+  // learner cannot recover coarse stacks from his log, so he says.
+  const ok = (raw: string | number | null) => { const r = parsePinKg(raw); return r.ok ? r.kg : 'ERR'; };
+  assert(ok('9') === 9 && ok('4.5') === 4.5 && ok('1.25') === 1.25 && ok(' 5 ') === 5, 'real steps are accepted as typed');
+  assert(ok('2,5') === 2.5, 'a comma decimal is a decimal');
+  assert(ok('') === null && ok(null) === null, 'blank clears his step (back to learned / 2.5)');
+  assert(ok('0.25') === 'ERR' && ok('30') === 'ERR' && ok('2.3') === 'ERR' && ok('abc') === 'ERR' && ok('-5') === 'ERR', 'impossible steps are refused: under 0.5, over 25, not a quarter-kilo, not a number');
+  // A warning, never a block: his own log can contradict the step he types.
+  assert(JSON.stringify(offGridWeights([20, 27, 29], 9)) === '[27]', `27 and 29 cannot both be on a 9 kg stack — 27 is flagged (got ${JSON.stringify(offGridWeights([20, 27, 29], 9))})`);
+  assert(offGridWeights([20, 25, 30, 35], 5).length === 0, 'a log that fits the step raises nothing');
+  assert(offGridWeights([], 5).length === 0, 'no history, no warning');
+
+  // Rule 2: his step describes the B_Fit stack. At Alrajhi it must not apply.
+  assert(MANUAL_PIN_GYM === DEFAULT_GYM_ID, 'the manual step belongs to the home gym');
+  const setEx = { id: 'set-ex', name: 'Set Test', category: 'LEGS' } as CoachExercise;
+  assert(pinMapFor([], [{ id: setEx.id, pinIncrement: 9 }], MANUAL_PIN_GYM)(setEx.id) === 9, 'at B_Fit his step wins');
+  assert(pinMapFor([], [{ id: setEx.id, pinIncrement: 9 }], 'work')(setEx.id) === 2.5, 'at Alrajhi his B_Fit step does not leak (rule 2)');
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  for (const f of ['src/app/actions.ts', 'src/app/workouts/new/page.tsx', 'src/app/train/page.tsx', 'src/app/api/watch/plan/route.ts']) {
+    assert(/pinMapFor\([\s\S]*?exercises,\s*(gym|DEFAULT_GYM_ID)\)/.test(src(f)), `${f}: the pin map is told which gym it is for`);
+  }
+
+  // The Watch crown steps by HIS step once he has set it; until then 0.5 kg,
+  // so it can land on any weight he really lifted (trainer ruling 4) — 29 and
+  // 30 are unreachable from 27 on any 2.5 grid.
+  assert(crownStepFor(9) === 9 && crownStepFor(null) === UNCONFIRMED_CROWN_STEP_KG && crownStepFor(0) === UNCONFIRMED_CROWN_STEP_KG, 'crown step: his step, else fine');
+  assert(UNCONFIRMED_CROWN_STEP_KG === 0.5, 'an unconfirmed machine steps 0.5 kg on the crown');
+  const route = src('src/app/api/watch/plan/route.ts');
+  assert(route.includes('crownStepKg') && route.includes('crownStepFor('), 'the Watch plan sends the crown step');
+  const act = src('src/app/actions.ts');
+  assert(/export async function setMachinePin\(/.test(act) && act.includes('parsePinKg('), 'the phone can set a machine\'s step, validated');
 }
 
 // ── summary ──────────────────────────────────────────────────

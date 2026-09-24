@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { crownStepFor } from '@/lib/pins';
 import prisma from '@/lib/prisma';
 import { readChart } from '@/lib/chart';
 import {
@@ -60,7 +61,7 @@ export async function GET(request: Request) {
   // Pin spacing learned from THIS gym's judged sessions only — a
   // mixed-building learn infers a step that exists on neither machine
   // (adversary C1); the same map judges over-ramp (rule 4).
-  const pinFor = pinMapFor(training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym) as never, exercises);
+  const pinFor = pinMapFor(training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym) as never, exercises, gym);
   const cleanDates = cleanRampSessionDates(training);
   const status = getTrainingStatus(training.map((w) => w.date), new Date(), cleanDates);
   const inRamp = status.mode === 'return';
@@ -122,6 +123,11 @@ export async function GET(request: Request) {
         prefillKg: scaled,
         prefillReps: openReps,
         pinKg: pin,
+        // What ONE crown detent moves on the Watch: his own step for this
+        // machine once he has set it, else 0.5 kg so any weight he really
+        // lifted is reachable (trainer ruling 4). The prescription above keeps
+        // pinKg. Build 13 ignores this key; the next Watch build reads it.
+        crownStepKg: crownStepFor(gym === DEFAULT_GYM_ID ? ex.pinIncrement : null),
         // The phone opens the first two movements with a ramp-in set; the
         // Watch built its slots straight from `sets` and never offered one,
         // so wrist sessions skipped the warm-ups entirely (owner,

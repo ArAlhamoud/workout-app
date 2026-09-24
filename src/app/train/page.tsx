@@ -196,7 +196,7 @@ export default async function TrainPage() {
   const trainingOnly = workouts.filter(isTrainingSession);
   // ONE pin map for the preview, the prefill and the over-ramp judge
   // (rule 4; judged home-gym rows only, rule 2).
-  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises);
+  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises, DEFAULT_GYM_ID);
   const verdicts = rampSessionVerdicts(trainingOnly);
   const cleanDates = verdicts.filter((v) => v.clean).map((v) => v.date);
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);

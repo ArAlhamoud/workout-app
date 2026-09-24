@@ -88,7 +88,7 @@ export default async function NewWorkoutPage({
   // keep the loads at 60% after the sessions earned 70.
   // ONE pin map for the prefill, the chip and the over-ramp judge (rule 4;
   // judged home-gym rows only, rule 2).
-  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises);
+  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises, DEFAULT_GYM_ID);
   const cleanDates = cleanRampSessionDates(trainingOnly);
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
   const inRamp = status.mode === 'return';

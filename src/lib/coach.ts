@@ -150,12 +150,23 @@ export function learnPinIncrements(workouts: CoachWorkout[]): Record<string, num
  * different pins made following the app's own prefill "over-ramp"
  * (trainer + adversary, 2026-09-18).
  */
+/**
+ * The gym whose stacks Exercise.pinIncrement describes: the home gym. Equal to
+ * DEFAULT_GYM_ID (program.ts) — kept literal here so coach needs no import
+ * from program, and a test pins the two equal.
+ */
+export const MANUAL_PIN_GYM = 'bfit';
+
 export function pinMapFor(
   rows: CoachWorkout[],
-  overrides: Array<{ id: string; pinIncrement?: number | null }> = [],
+  overrides: Array<{ id: string; pinIncrement?: number | null }>,
+  gym: string,
 ): (exerciseId: string) => number {
   const learned = learnPinIncrements(rows);
-  const override = new Map(overrides.map((e) => [e.id, e.pinIncrement ?? null]));
+  // His step describes the B_Fit stack: at Alrajhi it must not apply (rule 2).
+  // Before the setter existed no one wrote pinIncrement, so the leak was
+  // latent; it goes live the moment he sets a step.
+  const override = new Map(gym === MANUAL_PIN_GYM ? overrides.map((e) => [e.id, e.pinIncrement ?? null]) : []);
   return (id) => combineIncrement(learned[id], override.get(id));
 }
 

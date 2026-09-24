@@ -1,6 +1,7 @@
 'use server';
 
-import { pinMapFor } from '@/lib/coach';
+import { combineIncrement, learnPinIncrements, pinMapFor } from '@/lib/coach';
+import { offGridWeights, parsePinKg } from '@/lib/pins';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -62,6 +63,51 @@ export async function deleteExercise(id: string) {
   if (used > 0) throw new Error(`This exercise has ${used} logged sets and cannot be deleted.`);
   await prisma.exercise.delete({ where: { id } });
   revalidatePath('/exercises');
+}
+
+/**
+ * The owner sets a machine's real step — "each machine different". The learner
+ * cannot recover coarse stacks from his log (rule 4), so what he reads off the
+ * plates wins. Exercise.pinIncrement is the HOME gym's step and applies there
+ * only (rule 2; pinMapFor). Blank clears it. Returns the weights in his own
+ * B_Fit log that the step cannot reach — a warning, never a block.
+ */
+export async function setMachinePin(exerciseId: string, raw: string | number | null) {
+  const parsed = parsePinKg(raw);
+  if (!parsed.ok) return { ok: false as const, error: parsed.error };
+  const exists = await prisma.exercise.findUnique({ where: { id: exerciseId }, select: { id: true } });
+  if (!exists) return { ok: false as const, error: 'No such machine' };
+  await prisma.exercise.update({ where: { id: exerciseId }, data: { pinIncrement: parsed.kg } });
+  let offGrid: number[] = [];
+  if (parsed.kg != null) {
+    const sets = await prisma.workoutSet.findMany({
+      where: { exerciseId, isWarmup: false, weight: { gt: 0 }, workout: gymScope(DEFAULT_GYM_ID) },
+      select: { weight: true, workout: { select: { id: true } } },
+      orderBy: { workout: { date: 'asc' } },
+    });
+    const tops = new Map<string, number>();
+    for (const st of sets) tops.set(st.workout.id, Math.max(tops.get(st.workout.id) ?? 0, st.weight));
+    offGrid = offGridWeights([...tops.values()].slice(-10), parsed.kg);
+  }
+  for (const p of ['/exercises', `/progress/${exerciseId}`, '/workouts/new', '/train']) revalidatePath(p);
+  return { ok: true as const, pinKg: parsed.kg, offGrid };
+}
+
+/** Each machine's current step at B_Fit, and whose it is. */
+export async function getMachinePins(): Promise<Record<string, { kg: number; source: 'yours' | 'learned' | 'fallback' }>> {
+  const [workouts, exercises] = await Promise.all([
+    getWorkouts(),
+    prisma.exercise.findMany({ select: { id: true, pinIncrement: true } }),
+  ]);
+  const home = workouts.filter((w) => isTrainingSession(w) && (!w.gym || w.gym === DEFAULT_GYM_ID));
+  const learned = learnPinIncrements(home as never);
+  const out: Record<string, { kg: number; source: 'yours' | 'learned' | 'fallback' }> = {};
+  for (const e of exercises) {
+    if (e.pinIncrement != null && e.pinIncrement > 0) out[e.id] = { kg: e.pinIncrement, source: 'yours' };
+    else if (learned[e.id]) out[e.id] = { kg: learned[e.id], source: 'learned' };
+    else out[e.id] = { kg: combineIncrement(undefined, null), source: 'fallback' };
+  }
+  return out;
 }
 
 export async function getWorkouts() {
@@ -359,7 +405,7 @@ async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: 
   const cut = rampBaseBefore(training, clean);
   // Pins are a property of ONE building's stacks (rules 2 and 4) — the
   // session's own, exactly as the Watch plan learns them.
-  const pinFor = pinMapFor(training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym) as never, exercises);
+  const pinFor = pinMapFor(training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym) as never, exercises, gym);
   return { status, cut, pinFor };
 }
 
