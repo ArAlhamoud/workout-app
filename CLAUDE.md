@@ -34,7 +34,16 @@ Each of these broke something real. Do not relearn them.
 
 4. **Weight stacks move in pins, not kilograms.** A jump from 23→27.5 kg
    is one pin, not a user error. Progression logic learns per-machine pin
-   spacing (`learnPinIncrements`); do not assume 2.5 kg steps.
+   spacing (`learnPinIncrements`); do not assume 2.5 kg steps. But a jump
+   between two sessions is NOT one pin — it can be several, and mid-ramp
+   it IS the ramp: the old learner took Back Extension's 12.5→27.5 as a
+   15 kg pin and nearly seeded a +55% overload (2026-09-24). A pin is now
+   learned only when the WHOLE log proves it: one step puts every rated
+   top on a ladder; from 2.5 kg up it needs three weights and the step
+   seen twice, never above 5 kg; below 2.5 the log's common step is an
+   upper bound and is used (Face Pull 1.25). Otherwise 2.5 until the
+   owner sets the machine's real step — his words: "each machine
+   different". Never invent a pin value.
 
 5. **Commit messages are not implementation.** A commit once described a
    CI workflow in detail that was never actually committed; nothing was
@@ -85,6 +94,22 @@ Each of these broke something real. Do not relearn them.
     existed carry null and are judged on effort alone; that is accepted,
     not a gap to backfill. Same shape as rules 7 and 9: derive once, at
     the moment the inputs are true, and store the answer.
+
+11. **Apple Health: write once, at the real time, never on top.** The
+    app cannot undo what it writes there. A session goes in only after
+    `PUSH_DELAY_MS` (12 h — time for a Watch copy saved on the next wrist
+    raise to land), timed by its main sitting of stamped sets (never the
+    bare date, which was 03:00 Riyadh for every session; never longer
+    than 3 h), and only if Health holds no strength workout over that
+    window (`coveredByExisting` / `isStrengthActivity`, the SAME rule the
+    session detector uses). "Already in Health" is stamped only on proof
+    — an HKWorkout uuid. A row the Watch opened proves nothing: a discard
+    saves no workout, and that stamp hid sessions from Health for good.
+    Three blind review rounds on this path found data loss, a 25-hour
+    workout and a weigh-in overwrite, all in fixes. Review every change
+    to it; anchor an edit on the FUNCTION, not on a line of code — the
+    weigh-in overwrite was an edit that matched the first identical
+    query in the file.
 
 ## The coach layer is deliberately dormant
 
