@@ -126,12 +126,12 @@ const learned = learnPinIncrements(data.workouts);
 const chestPress = data.exercises.find((e) => e.name === 'Chest Press');
 assert(chestPress !== undefined, 'Chest Press exists in exported history');
 const chestInc = chestPress ? learned[chestPress.id] : undefined;
-// Chest Press session maxes ran 20 → 29 → 27.5 → 23; the tightest
-// consecutive step (1.5) is the learned pin spacing.
-assert(chestInc !== undefined && chestInc > 0, `Chest Press learned increment > 0 (got ${chestInc})`);
-assert(chestInc !== undefined && chestInc <= 5, `Chest Press increment is a plausible pin step (got ${chestInc})`);
-assert(Object.values(learned).every((v) => v > 0), 'every learned increment is positive');
-assert(Object.keys(learned).length > 0, 'at least one exercise has a learned increment');
+// Chest Press rated tops run 29, 27.5, 23, 12.5, 27. No step of 1.25 kg or
+// more puts all of them on one ladder, so NOTHING is learned and the pin
+// falls back to 2.5 until the owner sets the real one (2026-09-24: "each
+// machine different"). The old rule taught 4.5 here from a single jump.
+assert(chestInc === undefined, `Chest Press: a log that fits no ladder teaches no pin (got ${chestInc})`);
+assert(Object.values(learned).every((v) => v >= 1.25 && v <= 5), 'every learned increment is a real pin step, 1.25–5 kg');
 
 // ── combineIncrement precedence ──────────────────────────────
 console.log('combineIncrement');
@@ -2250,29 +2250,64 @@ console.log('Tier 1b — program logic');
   assert(rampPrefillWeight({ weight: 29 }, 60, 9) === 27, `9 kg pin, 29 kg base, no rating → 60% = 18 but the three-pin floor (27) holds it (got ${rampPrefillWeight({ weight: 29 }, 60, 9)})`);
   assert(rampPrefillWeight({ weight: 29, rpe: 2 }, 60, 9) === 27 && rampPrefillWeight({ weight: 45, rpe: 2 }, 60, 9) === 27, 'floor applies to Med bases too');
 
-  // 1.8 The pin learner takes the most frequent jump, not the smallest
-  // ever seen: a 27.5 → 27 correction taught it a 0.5 kg pin.
+  // 1.8 The pin learner, rewritten 2026-09-24 (owner: "each machine
+  // different"; trainer ruling 4). A jump between two sessions is NOT one
+  // pin — it can be several, and mid-ramp most jumps ARE the ramp. The old
+  // rule took the most frequent jump and let a single one count, so Back
+  // Extension learned 15 kg from 12.5 → 27.5 and the overload seed would
+  // have opened the next Day B at 42.5 kg (+55%). Now: at least three
+  // DISTINCT rated weights, a step that puts EVERY one of them on one
+  // ladder, that step seen twice between neighbours, nothing above 5 kg.
+  // Anything else learns nothing and combineIncrement falls back to 2.5 —
+  // coarse stacks come from the owner, never from a guess.
   const ex = { id: 'pin-ex', name: 'Pin Test', category: 'LEGS' } as CoachExercise;
   const sess = (date: string, w: number): CoachWorkout => ({ date, sets: [{ exerciseId: ex.id, reps: 10, weight: w, rpe: 1, exercise: ex }] });
-  const noisy = [sess('2026-05-01', 20), sess('2026-05-08', 25), sess('2026-05-15', 30), sess('2026-05-22', 27.5), sess('2026-05-29', 27)];
-  assert(learnPinIncrements(noisy)[ex.id] === 5, `the mode of the real jumps (5) wins over a 0.5 correction (got ${learnPinIncrements(noisy)[ex.id]})`);
-  const halfPlate = [sess('2026-06-01', 7.5), sess('2026-06-08', 8.75), sess('2026-06-15', 10), sess('2026-06-22', 11.25)];
-  assert(learnPinIncrements(halfPlate)[ex.id] === 1.25, `a genuine 1.25 half-plate that REPEATS survives (got ${learnPinIncrements(halfPlate)[ex.id]})`);
-  const oneSmall = [sess('2026-07-01', 20), sess('2026-07-08', 21)];
-  assert(learnPinIncrements(oneSmall)[ex.id] === undefined, 'a lone sub-2 kg jump teaches nothing (combineIncrement falls back to 2.5)');
-  const lone = [sess('2026-07-01', 27.5), sess('2026-07-08', 27)];
-  assert(learnPinIncrements(lone)[ex.id] === undefined, 'a lone 0.5 correction teaches nothing');
+  const ladder = (...ws: number[]) => ws.map((w, i) => sess(`2026-05-${String(1 + i * 3).padStart(2, '0')}`, w));
+  const learn = (ws: CoachWorkout[]) => learnPinIncrements(ws)[ex.id];
+  assert(learn(ladder(12.5, 27.5)) === undefined, `one jump teaches nothing — Back Extension 12.5 → 27.5 was the ramp, not a 15 kg pin (got ${learn(ladder(12.5, 27.5))})`);
+  assert(learn(ladder(20, 20, 12.5, 20)) === undefined, `revisiting one pair is not a repeat — Leg Curl 20 ↔ 12.5 (got ${learn(ladder(20, 20, 12.5, 20))})`);
+  assert(learn(ladder(29, 29, 20, 30)) === undefined, `29 and 30 on one machine contradict any 9 kg ladder — Leg Extension (got ${learn(ladder(29, 29, 20, 30))})`);
+  assert(learn(ladder(20, 29, 27, 20, 29)) === undefined, `Mid Row 20/27/29 fits no ladder at all (got ${learn(ladder(20, 29, 27, 20, 29))})`);
+  assert(learn(ladder(20, 35, 50)) === undefined, `even a consistent 15 kg ladder is not learned — above 5 kg only the owner can set it (got ${learn(ladder(20, 35, 50))})`);
+  assert(learn(ladder(20, 25, 35)) === undefined, `the step must show up twice as a real gap, or it is only an upper bound (got ${learn(ladder(20, 25, 35))})`);
+  assert(learn(ladder(20, 25, 30, 35)) === 5, `a clean 5 kg ladder is learned (got ${learn(ladder(20, 25, 30, 35))})`);
+  assert(learn(ladder(7.5, 8.75, 10, 11.25)) === 1.25, `a genuine 1.25 half-plate ladder is learned (got ${learn(ladder(7.5, 8.75, 10, 11.25))})`);
+  const noisy = ladder(20, 25, 30, 27.5, 27);
+  assert(learn(noisy) === undefined, `27.5 and 27 contradict the 5 kg ladder of 20/25/30 — a contradicted log teaches nothing (was 5 under the most-frequent-jump rule; got ${learn(noisy)})`);
+  assert(learn([sess('2026-07-01', 20), sess('2026-07-08', 21)]) === undefined, 'a lone sub-2 kg jump teaches nothing (combineIncrement falls back to 2.5)');
+  assert(learn([sess('2026-07-01', 27.5), sess('2026-07-08', 27)]) === undefined, 'a lone 0.5 correction teaches nothing');
   // An untouched ramp prefill (no set rated) is not a jump he made (trainer).
   const unrated = (date: string, w: number): CoachWorkout => ({ date, sets: [{ exerciseId: ex.id, reps: 10, weight: w, rpe: null, exercise: ex }] });
   const prefills = [sess('2026-05-01', 27), unrated('2026-07-29', 15), unrated('2026-09-01', 20), sess('2026-09-12', 36)];
-  assert(learnPinIncrements(prefills)[ex.id] === 9, `unrated sessions are skipped: 27 → 36 is the only real jump (got ${learnPinIncrements(prefills)[ex.id]})`);
+  assert(learn(prefills) === undefined, `unrated prefills are skipped, and the one rated jump left (27 → 36) teaches nothing (got ${learn(prefills)})`);
+
+  // On his real history: every learned pin is a real step AND fits every
+  // rated weight logged on that machine (the ladder property).
   const real = learnPinIncrements(data.workouts);
   for (const [id, pin] of Object.entries(real)) {
     const name = data.exercises.find((e) => e.id === id)?.name ?? id;
-    assert(pin >= 1.25, `${name}: learned pin ${pin} is a step a stack can actually take`);
+    assert(pin >= 1.25 && pin <= 5, `${name}: learned pin ${pin} is a step a stack can actually take`);
+    const tops = data.workouts.flatMap((w) => {
+      const own = w.sets.filter((st) => st.exerciseId === id && !st.isWarmup && st.weight > 0);
+      return own.some((st) => st.rpe != null && st.rpe > 0) ? [Math.max(...own.map((st) => st.weight))] : [];
+    });
+    const lo = Math.min(...tops);
+    assert(tops.every((t) => Math.abs((t - lo) / pin - Math.round((t - lo) / pin)) < 0.02), `${name}: every rated top weight sits on the learned ${pin} kg ladder`);
   }
-  const legExt = data.exercises.find((e) => e.name === 'Leg Extension')!.id;
-  assert(real[legExt] === 9, `Leg Extension learns its 9 kg pin once untouched prefills are ignored (got ${real[legExt]})`);
+  // The ten machines whose live pins came from comeback jumps all resolve to
+  // the 2.5 fallback until he sets them (live 2026-09-24: 9, 9, 15, 7.5, 7.5,
+  // 7.5, 4.5, 5, 2, 2).
+  for (const name of ['Leg Extension', 'Mid Row', 'Back Extension', 'Hip Abduction', 'Leg Curl', 'Triceps Extension', 'Chest Press', 'Pec Fly', 'Shoulder Press', 'Lat Pulldown']) {
+    const id = data.exercises.find((e) => e.name === name)?.id;
+    assert(id !== undefined && combineIncrement(real[id], null) === 2.5, `${name} resolves to the 2.5 kg fallback (got ${id ? combineIncrement(real[id], null) : 'missing'})`);
+  }
+  // F1, the live hazard: one more all-Easy Back Extension at 27.5 must NOT
+  // make the overload seed jump a guessed 15 kg pin.
+  const beEx = data.exercises.find((e) => e.name === 'Back Extension')!;
+  const beSets = [1, 2, 3].map(() => ({ exerciseId: beEx.id, reps: 12, weight: 27.5, rpe: 1, exercise: beEx }));
+  const withNextDayB = [...data.workouts, { date: '2026-09-25T00:00:00.000Z', sets: beSets } as CoachWorkout];
+  const bePin = combineIncrement(learnPinIncrements(withNextDayB)[beEx.id], null);
+  assert(27.5 + bePin <= 30, `Back Extension overload after another Easy 27.5 opens at most 30 kg, not 42.5 (pin ${bePin})`);
 
   // 1.9 A 6-second mis-tap is not a training session.
   const un = (n: number) => Array.from({ length: n }, () => ({ rpe: null, isWarmup: false }));

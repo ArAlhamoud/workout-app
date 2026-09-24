@@ -78,36 +78,57 @@ function sessionTops(workouts: CoachWorkout[]): Record<string, SessionTop[]> {
   return tops;
 }
 
+/** Fewer DISTINCT rated weights than this on a machine and nothing is learned. */
+export const MIN_DISTINCT_PIN_WEIGHTS = 3;
 /**
- * Learns each machine's pin spacing from history: the smallest positive
- * jump between consecutive session-max weights. An exercise with no weight
- * change yet simply isn't in the result.
+ * The largest pin the learner may infer. Coarser stacks exist, but only the
+ * owner can say so (Exercise.pinIncrement): guessed 9 and 15 kg pins became
+ * +9/+15 kg overload seeds and a Watch crown that skipped the weights he
+ * actually lifts (2026-09-24).
+ */
+export const MAX_LEARNED_PIN_KG = 5;
+const MIN_LEARNED_PIN_KG = 1.25;
+
+const gcdInt = (a: number, b: number): number => (b === 0 ? a : gcdInt(b, a % b));
+
+/**
+ * Learns a machine's pin spacing from history — conservatively, because a
+ * wrong pin is worse than none (trainer ruling 4, 2026-09-24).
+ *
+ * The old rule took the most frequent jump between consecutive sessions and
+ * let a single jump count. But a jump is not one pin: it can be several, and
+ * in a return ramp most jumps ARE the ramp. Back Extension learned 15 kg from
+ * 12.5 → 27.5 and would have seeded a 27.5 → 42.5 kg overload (+55%); 10 of
+ * 16 live pins were contradicted by weights he had logged on that machine.
+ *
+ * Now a pin is learned only when the log proves it:
+ *   1. at least MIN_DISTINCT_PIN_WEIGHTS distinct rated session-top weights —
+ *      revisiting a pair (Leg Curl 20 ↔ 12.5) is one piece of evidence;
+ *   2. one step puts EVERY one of them on a single ladder (their greatest
+ *      common difference, at 0.25 kg resolution) — 29 and 30 on the same
+ *      Leg Extension rule out 9 kg;
+ *   3. that step appears as a real gap between neighbours at least twice,
+ *      otherwise it is only an upper bound on the pin;
+ *   4. it lies between 1.25 and MAX_LEARNED_PIN_KG.
+ * Anything else learns nothing and combineIncrement falls back to 2.5, until
+ * the owner sets the real step (his words: "each machine different").
  */
 export function learnPinIncrements(workouts: CoachWorkout[]): Record<string, number> {
   const learned: Record<string, number> = {};
   for (const [id, allTops] of Object.entries(sessionTops(workouts))) {
     // A session where nothing on this machine was rated is an untouched
-    // prefill, not a jump he made — ramp-scaled prefills were teaching
-    // the learner their own steps (trainer, 2026-09-18).
-    const tops = allTops.filter((t) => t.rated);
-    const jumps: number[] = [];
-    for (let i = 1; i < tops.length; i++) {
-      const diff = round2(Math.abs(tops[i].top - tops[i - 1].top));
-      if (diff > 0) jumps.push(diff);
-    }
-    if (!jumps.length) continue;
-    // The MOST FREQUENT jump, not the smallest ever seen: one 27.5 → 27
-    // correction taught a 0.5 kg pin that no stack has, and the overload
-    // seed then added a step he could not set (trainer, 2026-09-18).
-    // Jumps under 2 kg count only when they repeat — the genuine 1.25 kg
-    // half-plate does; a typo does not. Ties go to the smaller step.
-    const count = new Map<number, number>();
-    for (const j of jumps) count.set(j, (count.get(j) ?? 0) + 1);
-    const ranked = [...count.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
-    // No credible jump → learn nothing; combineIncrement falls back to
-    // 2.5 rather than to a 0.5 typo.
-    const credible = ranked.filter(([j, n]) => j >= 2 || n >= 2);
-    if (credible.length) learned[id] = credible[0][0];
+    // prefill, not a weight he chose (trainer, 2026-09-18).
+    const rated = allTops.filter((t) => t.rated);
+    const quarters = [...new Set(rated.map((t) => Math.round(t.top * 4)))].sort((a, b) => a - b);
+    if (quarters.length < MIN_DISTINCT_PIN_WEIGHTS) continue;
+    let step = 0;
+    for (const q of quarters) step = gcdInt(step, q - quarters[0]);
+    const pin = step / 4;
+    if (pin < MIN_LEARNED_PIN_KG || pin > MAX_LEARNED_PIN_KG) continue;
+    let gaps = 0;
+    for (let i = 1; i < quarters.length; i++) if (quarters[i] - quarters[i - 1] === step) gaps++;
+    if (gaps < 2) continue;
+    learned[id] = pin;
   }
   return learned;
 }
