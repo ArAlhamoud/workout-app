@@ -11,7 +11,7 @@ import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fue
 import { importHealthSamples } from '@/lib/health-import';
 import { detectUnloggedWorkouts } from '@/lib/health-detect';
 import { storeHrSeries } from '@/lib/health-hr';
-import { planHealthPush } from '@/lib/health';
+import { PUSH_DELAY_MS, planHealthPush } from '@/lib/health';
 
 const PROFILE_ID = 'profile';
 
@@ -560,12 +560,6 @@ export async function saveHrSeries(payload: { workoutId?: string; bins?: unknown
   return storeHrSeries(payload as Parameters<typeof storeHrSeries>[0]);
 }
 
-/** The first and last stamped set — what times a session (healthPushWindow). */
-function setSpan(sets: Array<{ completedAt: Date | null }>): { firstSetAt: Date | null; lastSetAt: Date | null } {
-  const t = sets.map((st) => st.completedAt).filter((d): d is Date => d != null).sort((a, b) => a.getTime() - b.getTime());
-  return { firstSetAt: t[0] ?? null, lastSetAt: t[t.length - 1] ?? null };
-}
-
 /** How far back an unsynced session may still be written to Apple Health. */
 const PUSH_WINDOW_DAYS = 14;
 /** At most this many per run: a row that always fails must not stall every run. */
@@ -581,7 +575,14 @@ const PUSH_BATCH = 10;
 export async function getWorkoutsToPush() {
   const since = new Date(Date.now() - PUSH_WINDOW_DAYS * 86_400_000);
   const rows = await prisma.workout.findMany({
-    where: { healthSyncedAt: null, healthWorkoutUuid: null, date: { gte: since }, sets: { some: {} } },
+    where: {
+      healthSyncedAt: null,
+      healthWorkoutUuid: null,
+      date: { gte: since },
+      // Not before a Watch copy has had time to land (PUSH_DELAY_MS).
+      createdAt: { lte: new Date(Date.now() - PUSH_DELAY_MS) },
+      sets: { some: {} },
+    },
     orderBy: { date: 'desc' },
     take: PUSH_BATCH,
     select: { id: true, name: true, date: true, duration: true, createdAt: true, sets: { select: { completedAt: true } } },
@@ -594,9 +595,10 @@ export async function getWorkoutsToPush() {
       date: w.date,
       duration: w.duration,
       createdAt: w.createdAt,
-      ...setSpan(w.sets),
+      setTimes: w.sets.map((st) => st.completedAt).filter((d): d is Date => d != null),
       setCount: w.sets.length,
     })),
+    new Date(),
   ).map((p) => ({
     id: p.id,
     name: p.name,

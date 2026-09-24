@@ -28,7 +28,10 @@ async function upsertBodyStats(weightSamples: ParsedSample[]): Promise<number> {
   for (const [key, sample] of latestByDay) {
     const { start, end } = dayRange(key);
     const existing = await prisma.bodyStat.findFirst({
-      where: { date: { gte: start, lt: end } },
+      // One day back as well: a sample between 00:00 and 01:00Z (03:00–04:00
+      // Riyadh) belongs to the PREVIOUS activity day's row. The window match
+      // keeps it off any other row.
+      where: { date: { gte: new Date(start.getTime() - 86_400_000), lt: end } },
       orderBy: { date: 'asc' },
     });
     if (existing) {
@@ -65,14 +68,9 @@ async function enrichWorkouts(samples: ParsedSample[]): Promise<number> {
 
     for (const workout of workouts) {
       // The same window the Apple Health push read: timed by the stamped sets.
-      const stamps = workout.sets
-        .map((st) => st.completedAt)
-        .filter((d): d is Date => d != null)
-        .sort((a, b) => a.getTime() - b.getTime());
       const { avgHr, maxHr, activeKcal } = matchSamplesToWorkout(daySamples, {
         ...workout,
-        firstSetAt: stamps[0] ?? null,
-        lastSetAt: stamps[stamps.length - 1] ?? null,
+        setTimes: workout.sets.map((st) => st.completedAt).filter((d): d is Date => d != null),
       });
       // Only fill nulls — never clobber existing values.
       const data: { avgHr?: number; maxHr?: number; activeKcal?: number } = {};

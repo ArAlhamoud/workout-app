@@ -245,23 +245,18 @@ export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date =
 }
 
 /**
- * Did the Watch SAVE this session into Apple Health? Then the phone's
- * write-through must not add a second copy. Stamped only on evidence of a
- * saved HKWorkout:
- *  - the Watch finished it: finish() ends its HKWorkoutSession, which saves
- *    the workout. The uuid alone is not enough — the one real Watch session
- *    (Sep 1) came back with healthWorkoutUuid null when end() hit its 10 s
- *    deadline;
- *  - or an HKWorkout uuid came with the save.
- * Who OPENED the live row proves nothing. The Watch may have discarded its
- * recording (discard() saves no workout), and a stamp then hid the session
- * from Health for good (review, 2026-09-24). Every other session is pushed,
- * and the push itself skips any window Health already holds
- * (coveredByExisting) — which also catches a Watch that joined, logged
- * nothing, and saved its own workout later.
+ * Is this session PROVABLY already in Apple Health? Only when an HKWorkout
+ * uuid came with the save — end() returned it, so the workout was saved.
+ * Nothing else is proof. Who opened the live row proves nothing (the Watch
+ * may have discarded its recording), and neither does a Watch finish without
+ * a uuid (end() gives up after 10 s, and with sharing off nothing is saved at
+ * all) — a stamp there hid the session from Health for good (reviews,
+ * 2026-09-24). Everything else waits out PUSH_DELAY_MS, then is written only
+ * if Health holds no strength workout over that window (coveredByExisting) —
+ * by then a Watch copy saved on the next wrist raise has landed.
  */
-export function recordedInHealth(p: { finishSource?: string; healthWorkoutUuid?: string | null }): boolean {
-  return !!p.healthWorkoutUuid || p.finishSource === 'watch';
+export function recordedInHealth(p: { healthWorkoutUuid?: string | null }): boolean {
+  return !!p.healthWorkoutUuid;
 }
 
 /** One set of the Watch's finished-session payload, after validation. */

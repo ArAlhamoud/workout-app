@@ -221,9 +221,8 @@ export interface WorkoutWindowInput {
   /** Workout duration in seconds (app stores seconds). */
   duration: number | null;
   createdAt: Date;
-  /** Earliest / latest completedAt among the workout's sets, when stamped. */
-  firstSetAt?: Date | null;
-  lastSetAt?: Date | null;
+  /** completedAt of every stamped set, any order. */
+  setTimes?: Date[] | null;
 }
 
 const DEFAULT_DURATION_SECONDS = 60 * 60;
@@ -231,36 +230,60 @@ const DEFAULT_DURATION_SECONDS = 60 * 60;
 const HOUR_MS = 3_600_000;
 /** Setup and warm-up before the first set is ticked done. */
 const SET_LEAD_MS = 5 * 60_000;
+/** Ticks further apart than this belong to different sittings. */
+const SITTING_GAP_MS = 30 * 60_000;
+/** No logged session runs longer — the logger clamps its own duration here. */
+const MAX_SESSION_MS = 3 * HOUR_MS;
 
 /**
- * A logged session's clock window, before any honesty check.
- *
- * A row with a real start instant uses it. A bare-day row (almost all of
- * them) is timed by its SETS when they are stamped: first set − 5 min to the
- * last set — that is when he trained, however late he tapped Save. Without
- * stamps (the logger before set times) it ENDED at the Save: createdAt −
- * duration to createdAt. The old window STARTED at createdAt, reading heart
- * rate for the 50 minutes after he had left; a duration-based window also
- * stretched a late save backwards into a 2-hour session (review, 2026-09-24).
+ * The sitting a session's stamped sets describe: ticks split at 30-minute
+ * gaps, and the sitting with the most sets wins (ties to the later one). A
+ * stray tick in the morning, a set ticked late at Save, or a draft carried
+ * into the next day otherwise stretched a 45-minute session across 13 to 25
+ * hours in Apple Health (second review, 2026-09-24).
  */
-function sessionWindow(w: WorkoutWindowInput): { start: Date; end: Date } {
-  const durationMs = (w.duration ?? DEFAULT_DURATION_SECONDS) * 1000;
-  if (!isBareDay(w.date)) return { start: w.date, end: new Date(w.date.getTime() + durationMs) };
-  if (w.firstSetAt && w.lastSetAt && w.lastSetAt.getTime() > w.firstSetAt.getTime()) {
-    return { start: new Date(w.firstSetAt.getTime() - SET_LEAD_MS), end: w.lastSetAt };
+function mainSitting(times: Date[] | null | undefined): { first: number; last: number } | null {
+  const t = (times ?? []).map((d) => d.getTime()).filter(Number.isFinite).sort((a, b) => a - b);
+  let best: { first: number; last: number; n: number } | null = null;
+  let i = 0;
+  while (i < t.length) {
+    let j = i;
+    while (j + 1 < t.length && t[j + 1] - t[j] < SITTING_GAP_MS) j++;
+    const n = j - i + 1;
+    if (n >= 2 && (!best || n >= best.n)) best = { first: t[i], last: t[j], n };
+    i = j + 1;
   }
-  return { start: new Date(w.createdAt.getTime() - durationMs), end: w.createdAt };
+  return best && best.last > best.first ? { first: best.first, last: best.last } : null;
 }
 
 /**
- * A bare-day row's window must start inside its ACTIVITY day,
- * [date + 01:00Z, date + 25:00Z) — the 04:00 Riyadh rollover. A session typed
- * in days later has no real clock time, and one is never invented.
+ * A logged session's clock window — or null when it has no honest one.
+ *
+ *  - A row with a real start instant uses it.
+ *  - A bare-day row (almost all of them) is timed by its main sitting of
+ *    stamped sets: first set − 5 min to the last set, which is when he
+ *    trained however late he tapped Save. That first set must fall inside
+ *    the row's ACTIVITY day, [date + 01:00Z, date + 25:00Z) — the 04:00
+ *    Riyadh rollover — and the lead-in never crosses the rollover.
+ *  - Without stamps (the logger before set times) it ENDED at the Save:
+ *    createdAt − duration, which must start inside the activity day.
+ * Never longer than 3 h. A session typed in days later, or whose sets
+ * contradict its date, has no clock time, and none is invented.
  */
-function honest(w: WorkoutWindowInput, win: { start: Date }): boolean {
-  if (!isBareDay(w.date)) return true;
-  const day = w.date.getTime();
-  return win.start.getTime() >= day + HOUR_MS && win.start.getTime() < day + 25 * HOUR_MS;
+function sessionWindow(w: WorkoutWindowInput): { start: Date; end: Date } | null {
+  const durationMs = Math.min((w.duration ?? DEFAULT_DURATION_SECONDS) * 1000, MAX_SESSION_MS);
+  if (!isBareDay(w.date)) return { start: w.date, end: new Date(w.date.getTime() + durationMs) };
+  const dayStart = w.date.getTime() + HOUR_MS;
+  const dayEnd = w.date.getTime() + 25 * HOUR_MS;
+  const inDay = (t: number) => t >= dayStart && t < dayEnd;
+  const sit = mainSitting(w.setTimes);
+  if (sit) {
+    if (!inDay(sit.first)) return null;
+    const start = Math.max(sit.first - SET_LEAD_MS, sit.last - MAX_SESSION_MS, dayStart);
+    return { start: new Date(start), end: new Date(sit.last) };
+  }
+  const start = w.createdAt.getTime() - durationMs;
+  return inDay(start) ? { start: new Date(start), end: w.createdAt } : null;
 }
 
 /**
@@ -271,8 +294,7 @@ function honest(w: WorkoutWindowInput, win: { start: Date }): boolean {
  * it in.
  */
 export function workoutWindow(workout: WorkoutWindowInput): { start: Date; end: Date } {
-  const win = sessionWindow(workout);
-  return honest(workout, win) ? win : { start: workout.date, end: workout.date };
+  return sessionWindow(workout) ?? { start: workout.date, end: workout.date };
 }
 
 export type HealthPushInput = WorkoutWindowInput;
@@ -283,9 +305,16 @@ export type HealthPushInput = WorkoutWindowInput;
  * UTC midnight: 03:00 Riyadh for every session he ever logged (2026-09-24).
  */
 export function healthPushWindow(w: HealthPushInput): { start: Date; end: Date } | null {
-  const win = sessionWindow(w);
-  return honest(w, win) ? win : null;
+  return sessionWindow(w);
 }
+
+/**
+ * A session is written to Apple Health only once it is this old. Finished on
+ * the phone while the Watch is still recording, the Watch saves its own copy
+ * on the next wrist raise; writing at once duplicated it (second review).
+ * Waiting lets that copy land, and the push then finds it and writes nothing.
+ */
+export const PUSH_DELAY_MS = 12 * HOUR_MS;
 
 export interface HealthPushRow extends HealthPushInput {
   id: string;
@@ -297,12 +326,14 @@ export interface HealthPushRow extends HealthPushInput {
  * Which logged sessions to write to Apple Health, and when. Strength sessions
  * only: a cardio quick-log carries no sets, and it used to go into Health as
  * "Traditional Strength Training" at 03:00 — the only type the bridge writes.
- * A row with no honest clock time is skipped rather than guessed.
+ * A row with no honest clock time is skipped rather than guessed, and a row
+ * younger than PUSH_DELAY_MS waits.
  */
-export function planHealthPush(rows: HealthPushRow[]): Array<{ id: string; name: string; start: Date; end: Date; durationMin: number }> {
+export function planHealthPush(rows: HealthPushRow[], now: Date = new Date()): Array<{ id: string; name: string; start: Date; end: Date; durationMin: number }> {
   const out: Array<{ id: string; name: string; start: Date; end: Date; durationMin: number }> = [];
   for (const r of rows) {
     if (r.setCount < 1) continue;
+    if (now.getTime() - r.createdAt.getTime() < PUSH_DELAY_MS) continue;
     const win = healthPushWindow(r);
     if (!win) continue;
     out.push({ id: r.id, name: r.name, start: win.start, end: win.end, durationMin: Math.max(1, Math.round((win.end.getTime() - win.start.getTime()) / 60_000)) });
@@ -332,22 +363,27 @@ export const WATCH_UPLOAD_GRACE_H = 6;
 
 /** Share of a push window another Health workout must cover to be the same session. */
 export const SAME_SESSION_OVERLAP = 0.5;
+/** Health workout types that are the same kind of session as a logged machine day. */
+const STRENGTH_TYPES = new Set(['traditionalStrengthTraining', 'functionalStrengthTraining']);
 
 /**
  * Does Apple Health already hold a workout over this window? Any source
  * counts: Apple's Workout app, the Watch app (it saves its own HKWorkout even
  * when it posted nothing to the server), or an earlier push whose mark
  * failed. The phone's write-through skips such a window instead of writing a
- * second copy on top (review, 2026-09-24). A workout that only brushes the
- * window — a walk that ended as the session began — is a different workout.
+ * second copy on top (review, 2026-09-24). Only a STRENGTH workout counts: a
+ * walk left running across the session is not the session, and counting it
+ * marked the session synced and kept it out of Health for good (second
+ * review). A workout that only brushes the window is a different workout.
  */
 export function coveredByExisting(
   win: { start: number; end: number },
-  existing: Array<{ startISO: string; endISO: string }>,
+  existing: Array<{ startISO: string; endISO: string; activityType?: string }>,
 ): boolean {
   const len = win.end - win.start;
   if (len <= 0) return false;
   return existing.some((e) => {
+    if (!e.activityType || !STRENGTH_TYPES.has(e.activityType)) return false;
     const s0 = Date.parse(e.startISO);
     const e0 = Date.parse(e.endISO);
     if (!Number.isFinite(s0) || !Number.isFinite(e0)) return false;

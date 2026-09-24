@@ -42,7 +42,7 @@ export async function pushWorkoutsToHealth(candidates: HealthPushCandidate[]): P
   if (!candidates.length) return out;
 
   const earliest = Math.min(...candidates.map((c) => Date.parse(c.start)));
-  let existing: Array<{ startISO: string; endISO: string }>;
+  let existing: Array<{ startISO: string; endISO: string; activityType?: string }>;
   try {
     existing = await queryWorkouts(new Date(earliest - LOOKBACK_MS).toISOString());
   } catch (e) {
@@ -79,7 +79,7 @@ export async function pushWorkoutsToHealth(candidates: HealthPushCandidate[]): P
       await saveWorkout({ startISO: c.start, endISO, name: c.name });
       out.savedIds.push(c.id);
       // Two candidates in one run can never both land on the same window.
-      existing = [...existing, { startISO: c.start, endISO }];
+      existing = [...existing, { startISO: c.start, endISO, activityType: 'traditionalStrengthTraining' }];
     } catch (e) {
       out.errors.push(`save: ${why(e)}`);
     }

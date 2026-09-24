@@ -212,10 +212,9 @@ export async function createWorkout(data: {
           })),
         });
       }
-      // The Watch saved this session into Apple Health (it finished it, or its
-      // uuid came back): mark it, so the phone's write-through never adds a
-      // second copy.
-      if (recordedInHealth({ finishSource: data.finishSource, healthWorkoutUuid: data.healthWorkoutUuid })) {
+      // An HKWorkout uuid came with this save — proof the workout is in Apple
+      // Health: mark it, so the phone's write-through never adds a copy.
+      if (recordedInHealth({ healthWorkoutUuid: data.healthWorkoutUuid })) {
         await tx.workout.updateMany({ where: { id: existing.id, healthSyncedAt: null }, data: { healthSyncedAt: new Date() } });
       }
       return { id: existing.id, merged: missing.length };
@@ -268,10 +267,10 @@ export async function createWorkout(data: {
       duration: data.duration ?? null,
       healthWorkoutUuid: data.healthWorkoutUuid || null,
       clientSaveId: data.clientSaveId || null,
-      // Already in Apple Health when the Watch saved it (rule 10: record the
-      // fact at save time). Anything else is pushed, and the push skips a
-      // window Health already holds.
-      healthSyncedAt: recordedInHealth({ finishSource: data.finishSource, healthWorkoutUuid: data.healthWorkoutUuid }) ? new Date() : null,
+      // Provably in Apple Health already (rule 10: record the fact at save
+      // time). Anything else waits out the push delay, then is written only
+      // if Health holds no strength workout over that window.
+      healthSyncedAt: recordedInHealth({ healthWorkoutUuid: data.healthWorkoutUuid }) ? new Date() : null,
       sets: {
         create: data.sets.map((s) => ({
           ...s,
