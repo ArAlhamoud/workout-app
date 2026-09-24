@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getExercises } from '../actions';
+import { getExercises, getMachinePins } from '../actions';
+import { getDayTemplate } from '@/lib/program';
 import ExerciseForm from '@/components/ExerciseForm';
 import { CATEGORY_BADGE } from '@/lib/format';
 
@@ -11,7 +12,12 @@ export const metadata: Metadata = { title: 'Exercises' };
 const CATEGORIES = ['CHEST', 'BACK', 'LEGS', 'SHOULDERS', 'ARMS', 'CORE', 'CARDIO', 'OTHER'];
 
 export default async function ExercisesPage() {
-  const exercises = await getExercises();
+  const [exercises, pins] = await Promise.all([getExercises(), getMachinePins()]);
+  // Timed holds and cardio have no stack, so no step.
+  const timed = new Set(
+    [...getDayTemplate('A').exercises, ...getDayTemplate('B').exercises].filter((t) => t.unit === 'seconds').map((t) => t.name),
+  );
+  const fmt = (kg: number) => String(+kg.toFixed(2));
 
   const grouped = exercises.reduce<Record<string, typeof exercises>>((acc, ex) => {
     if (!acc[ex.category]) acc[ex.category] = [];
@@ -65,7 +71,15 @@ export default async function ExercisesPage() {
                       className="flex items-center justify-between py-2.5 border-b border-app-border last:border-0 last:pb-0 transition-colors hover:text-acc-teal"
                     >
                       <span className="text-app-tx1 text-sm">{ex.name}</span>
-                      <span className="text-app-tx3 text-xs">→</span>
+                      {/* Each machine's step at B_Fit: his own in teal, learned
+                          in grey, "set" where he has not said yet. */}
+                      {pins[ex.id] && !timed.has(ex.name) && ex.category !== 'CARDIO' ? (
+                        <span className={`text-xs tabular-nums ${pins[ex.id].source === 'yours' ? 'text-acc-teal' : 'text-app-tx3'}`}>
+                          {pins[ex.id].source === 'fallback' ? 'set step →' : `${fmt(pins[ex.id].kg)} kg →`}
+                        </span>
+                      ) : (
+                        <span className="text-app-tx3 text-xs">→</span>
+                      )}
                     </Link>
                   ))}
                 </div>

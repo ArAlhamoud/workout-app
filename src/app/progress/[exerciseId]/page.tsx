@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import BackLink from '@/components/BackLink';
-import { getExerciseHistory } from '@/app/actions';
+import { getExerciseHistory, getMachinePins } from '@/app/actions';
+import MachinePinCard from '@/components/MachinePinCard';
+import { getDayTemplate } from '@/lib/program';
 import ProgressChart from '@/components/ProgressChart';
 import { CATEGORY_BADGE, formatDateShort } from '@/lib/format';
 
@@ -20,6 +22,12 @@ export default async function ProgressPage({
   if (!result) notFound();
 
   const { exercise, history, pr, totalSessions, latestWeight } = result;
+  // His step for this machine — B_Fit only (the step describes the home
+  // stack, rule 2), and never for a timed hold.
+  const isTimed = [...getDayTemplate('A').exercises, ...getDayTemplate('B').exercises].some(
+    (t) => t.name === exercise.name && t.unit === 'seconds',
+  );
+  const pin = gym === 'bfit' && !isTimed && exercise.category !== 'CARDIO' ? (await getMachinePins())[params.exerciseId] : undefined;
   const colorClass = CATEGORY_BADGE[exercise.category] ?? 'text-app-tx2 bg-app-surface2 border-app-border';
 
   const firstWeight = history[0]?.maxWeight ?? 0;
@@ -74,6 +82,8 @@ export default async function ProgressPage({
           <div className="metric-label">Improvement</div>
         </div>
       </div>
+
+      {pin && <MachinePinCard exerciseId={params.exerciseId} kg={pin.kg} source={pin.source} />}
 
       {/* Chart */}
       <div className="card-lg p-4">
