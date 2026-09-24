@@ -397,6 +397,16 @@ export function hoursSince(iso: string | null | undefined): number | null {
  * training stimulus this rule is about. Omitting it simply drops the recovery
  * clause; the resting-HR and sleep clauses still stand on their own.
  */
+/**
+ * The raw readiness readings, for the server to judge (reportReadiness):
+ * the same three HealthKit reads readReadiness uses. null off-native.
+ */
+export async function readReadinessReadings(): Promise<{ rhrDeltaBpm: number | null; sleepHours: number | null; hrvRatio: number | null } | null> {
+  if (!isNativeApp()) return null;
+  const [rhr, sleepHours, hrv] = await Promise.all([restingHeartRateTrend(), lastNightSleepHours(), hrvTrend()]);
+  return { rhrDeltaBpm: rhr?.deltaBpm ?? null, sleepHours, hrvRatio: hrv?.ratio ?? null };
+}
+
 export async function readReadiness(
   options: { lastSessionISO?: string | null; afOnChart?: boolean } = {},
 ): Promise<ReadinessSignal | null> {

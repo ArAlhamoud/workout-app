@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, pushLiveSets } from '@/app/actions';
@@ -17,8 +17,9 @@ import {
   nextTryWeight,
   repeatToEarn,
   prefillReps,
+  programSpec,
 } from '@/lib/program';
-import { prescribeWarmup, prescribeWorking } from '@/lib/prescription';
+import { prescribeWarmup, prescribeWorking, warmupRowsToDrop } from '@/lib/prescription';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -93,9 +94,24 @@ interface ExerciseBlock {
   /** One line from the prescription: a deload, or a step down after short
    *  Hard sets. Per gym — the switch recomputes it. */
   prescriptionNote?: string;
-  /** One of the first two weighted machines, or alwaysWarm: a warm-up row
-   *  belongs here whenever the stack has something lighter to offer. */
+  /** A weighted machine (not a rescue): a warm-up row belongs here while
+   *  fewer than two machines are started, or always if alwaysWarm. */
   warmupEligible?: boolean;
+  /** Warms up wherever it lands (Back Extension). */
+  alwaysWarm?: boolean;
+}
+
+/** A machine's working rows resized to the prescribed count — only ever on
+ *  a block with nothing done (the rest capsule rates by index). */
+function resizeWorking(sets: SetEntry[], count: number): SetEntry[] {
+  const warm = sets.filter((st) => st.isWarmup);
+  const work = sets.filter((st) => !st.isWarmup);
+  if (count < 1 || !work.length || work.length === count) return sets;
+  const base = work[0];
+  const next = Array.from({ length: count }, (_, i) =>
+    work[i] ? { ...work[i], setNumber: i + 1 } : { ...base, setNumber: i + 1, done: false, notes: '', rpe: 0, completedAt: null },
+  );
+  return [...warm, ...next];
 }
 
 /** Re-prescribe a block's PENDING sets at a new working weight. Done sets
@@ -169,7 +185,6 @@ function buildBlocks(
   isRescue = false,
   hisSteps: string[] = [],
 ): ExerciseBlock[] {
-  let weightedBefore = 0;
   return initialExercises.map((ie, blockIdx) => {
     const prev = lastSession[ie.exerciseId];
     const unit = ie.unit === 'seconds' ? 'seconds' : 'reps';
@@ -188,14 +203,15 @@ function buildBlocks(
       plateauKgs[ie.exerciseId] ?? null,
       { rampPct: returnLoadPct ?? null, rescue: isRescue, anchored },
     );
-    // One auto warm-up set on the first two weighted machines, plus any
-    // alwaysWarm one (Back Extension) wherever it sits — at ~55% of the
-    // PRESCRIBED weight, so a deload day warms up lighter too. A 15-minute
-    // rescue opens none: a short session warms up on its first work set
-    // (adversary, 2026-09-18). Flagged so it never touches records, volume
-    // or plateaus.
-    const eligible = !isRescue && unit !== 'seconds' && (ie.alwaysWarm === true || weightedBefore < 2);
-    if (unit !== 'seconds') weightedBefore++;
+    // Trainer ruling 5: the first two machines he STARTS warm up, whatever
+    // they are. Nobody knows which those are yet, so every weighted machine
+    // opens with a warm-up row, at ~55% of the PRESCRIBED weight (a deload
+    // day warms up lighter too); once two are started the untouched rows on
+    // the others go (toggleSetDone → warmupRowsToDrop), Back Extension's
+    // excepted. A 15-minute rescue opens none: a short session warms up on
+    // its first work set (adversary, 2026-09-18). Flagged so a warm-up never
+    // touches records, volume or plateaus.
+    const eligible = !isRescue && unit !== 'seconds';
     const warm = eligible && warmupDue(0, unit, p.workingKg, ie.alwaysWarm) ? prescribeWarmup(p, unit, inc, isRescue, anchored) : null;
     return {
       // Deterministic, NOT Math.random(): buildBlocks runs during SSR and
@@ -219,6 +235,7 @@ function buildBlocks(
       maxReps: ie.maxReps,
       plannedSets: ie.sets,
       warmupEligible: eligible,
+      alwaysWarm: ie.alwaysWarm === true,
       overloadApplied: p.reason === 'overload' && p.fromKg != null && p.workingKg != null ? { from: p.fromKg, to: p.workingKg } : undefined,
       prescriptionNote: (p.reason === 'deload' || p.reason === 'short') && p.note ? p.note : undefined,
       sets: [
@@ -245,7 +262,8 @@ function buildBlocks(
         // Clamped into the range for EVERY unit (trainer ruling 6): a short
         // set is never the next prefill — Triceps carried 10 against a 12
         // minimum three sessions running.
-        reps: prefillReps(prev?.reps, ie.defaultReps, ie.maxReps ?? Number.POSITIVE_INFINITY),
+        // A coarse step asks for one more rep before the pin (reason 'reps').
+        reps: p.reps ?? prefillReps(prev?.reps, ie.defaultReps, ie.maxReps ?? Number.POSITIVE_INFINITY),
         weight: unit === 'seconds' ? 0 : p.workingKg ?? 0,
         done: false,
         notes: '',
@@ -347,6 +365,12 @@ export default function WorkoutForm({
   const [repRecordsState, setRepRecordsState] = useState(repRecords);
   /** Health-derived read on today; 'hold' softens every push-harder cue. */
   const [readiness, setReadiness] = useState<ReadinessSignal | null>(null);
+  // Read by the gym switch, which must never put back a seed a HOLD took.
+  const readinessRef = useRef(readiness);
+  readinessRef.current = readiness;
+  // The ticked block's screen position when a tick strips warm-up rows from
+  // other blocks — restored before paint so nothing moves under his thumb.
+  const anchorRef = useRef<{ uid: string; top: number } | null>(null);
   /** Lazy per-exercise history for the ⓘ drawer, keyed by exerciseId. */
   const [recentSessions, setRecentSessions] = useState<
     Record<string, Array<{ date: string; topWeight: number; reps: number; rpe: number | null }>>
@@ -502,6 +526,13 @@ export default function WorkoutForm({
       // switch and refetches weights over the draft's own numbers.
       if (draft.gym) { lastGymRef.current = draft.gym; setGym(draft.gym); }
       setBlocks(draft.blocks as ExerciseBlock[]);
+      // …but THAT building's pins, steps, memory and records must come back
+      // too: the page only ever sends B_Fit's, so a restored Alrajhi draft
+      // stepped by his B_Fit step and was judged on Alrajhi's (review F1).
+      // The draft's own numbers are his; nothing is repriced.
+      if (draft.gym && draft.gym !== DEFAULT_GYM_ID) {
+        loadGymContext(draft.gym, false, (draft.blocks as ExerciseBlock[]).map((b) => b.exerciseId));
+      }
       if (draft.startTime) startRef.current = draft.startTime;
       setDraftRestored(true);
       setDraftIsStale(age > 24 * 60 * 60 * 1000);
@@ -891,12 +922,23 @@ export default function WorkoutForm({
     if (lastGymRef.current === gym) return;
     lastGymRef.current = gym;
 
-    const ids = Array.from(new Set(blocksRef.current.map((b) => b.exerciseId)));
-    if (!ids.length) return;
+    return loadGymContext(gym, true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gym, initialized, returnLoadPct, rescueMode]);
+
+  /**
+   * THIS building's pins, his steps there, weight memory and records — and,
+   * on a real switch, its prices for every machine not yet started. A
+   * restored draft reloads the context only: its numbers are his (review F1).
+   * One round trip (getGymMemory): three POSTs used to race from gym LTE.
+   */
+  function loadGymContext(target: string, reprice: boolean, onlyIds?: string[]): () => void {
+    const ids = Array.from(new Set(onlyIds ?? blocksRef.current.map((b) => b.exerciseId)));
+    if (!ids.length) return () => {};
     let cancelled = false;
     // ONE round trip for all three memories — three separate POSTs used to
     // race from gym LTE to us-east-1, and the prefill waited on the slowest.
-    getGymMemory(ids, gym)
+    getGymMemory(ids, target)
       .then(({ lastSession: next, personalRecords, repRecords, pins: gymPins, hisSteps: gymHisSteps, plateauKgs: gymPlateaus }) => {
         if (cancelled) return;
         setGymRecords(personalRecords);
@@ -904,6 +946,9 @@ export default function WorkoutForm({
         setSessionMemory(next);
         setPins(gymPins);
         setAnchoredIds(gymHisSteps);
+        // 6: the ⓘ drawer cache is the other building's numbers.
+        setRecentSessions({});
+        if (!reprice) return;
         setBlocks((prev) =>
           prev.map((b) => {
             const prevSession = next[b.exerciseId];
@@ -913,8 +958,7 @@ export default function WorkoutForm({
             if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession, overloadApplied: undefined, prescriptionNote: undefined };
             // THIS building's prescription, with THIS building's pins and
             // plateaus — the same numbers the Watch plan sends for gym=work
-            // (A3). The set count stays: rows appearing and vanishing on a
-            // tag change is worse than a deload note beside full sets.
+            // (A3). Only machines not yet started are repriced or resized.
             const unit = b.unit === 'seconds' ? 'seconds' : 'reps';
             const inc = gymPins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
             const anchored = gymHisSteps.includes(b.exerciseId);
@@ -925,23 +969,37 @@ export default function WorkoutForm({
               gymPlateaus[b.exerciseId] ?? null,
               { rampPct: returnLoadPct ?? null, rescue: rescueMode, anchored },
             );
-            const seeded = p.reason === 'overload' && !b.overloadDeclined;
+            // Never a seed on a HOLD morning: the readiness revert already
+            // took it back and does not run again (review F3).
+            const seeded = p.reason === 'overload' && !b.overloadDeclined && readinessRef.current?.verdict !== 'hold';
             const working = seeded ? p.workingKg ?? 0 : p.reason === 'overload' ? p.fromKg ?? 0 : p.workingKg ?? 0;
             return {
               ...b,
               lastSession: prevSession,
               overloadApplied: seeded && p.fromKg != null && p.workingKg != null ? { from: p.fromKg, to: p.workingKg } : undefined,
               prescriptionNote: (p.reason === 'deload' || p.reason === 'short') && p.note ? p.note : undefined,
-              sets: repriceSets(b, working, inc, anchored),
+              // THIS gym's set count too — a B_Fit deload must not halve an
+              // Alrajhi machine, nor an Alrajhi one run full (review F2).
+              sets: resizeWorking(repriceSets(b, working, inc, anchored), p.sets),
             };
           }),
         );
-        // 6: the ⓘ drawer cache is B_Fit numbers — poison at another gym.
-        setRecentSessions({});
       })
       .catch(() => { /* keep the current numbers (and badges) rather than blanking the form */ });
     return () => { cancelled = true; };
-  }, [gym, initialized, returnLoadPct, rescueMode]);
+  }
+
+  // Rows stripped above the ticked block must not move the page under his
+  // thumb (WKWebView has no scroll anchoring): put the block back where it was.
+  useLayoutEffect(() => {
+    const a = anchorRef.current;
+    if (!a) return;
+    anchorRef.current = null;
+    const el = document.getElementById(`block-${a.uid}`);
+    if (!el) return;
+    const delta = el.getBoundingClientRect().top - a.top;
+    if (Math.abs(delta) > 1) window.scrollBy(0, delta);
+  }, [blocks]);
 
   // Auto-dismiss draft restored banner after 4s
   useEffect(() => {
@@ -1071,6 +1129,7 @@ export default function WorkoutForm({
     // this handler never did.
     const swapInc = pins[exerciseId] ?? DEFAULT_PIN_INCREMENT;
     const swapAnchored = anchoredIds.includes(exerciseId);
+    const swapSpec = programSpec(exerciseById.get(exerciseId)?.name);
     const swapWorking = prev?.weight
       ? rampPrefillWeight(prev, returnLoadPct ?? 100, swapInc, swapAnchored)
       : 0;
@@ -1089,6 +1148,12 @@ export default function WorkoutForm({
               // Chest Press kilos into Pec Fly rows — then a fake PR on save
               // (adversary; same class as the gym-switch leak).
               overloadApplied: undefined,
+              overloadDeclined: undefined,
+              // The NEW exercise's range and count — the old one's made the
+              // coarse Try gate read the wrong top of the range (review F5).
+              defaultReps: swapSpec?.repsMin,
+              maxReps: swapSpec?.repsMax,
+              plannedSets: swapSpec?.sets,
               programName: undefined,
               machine: undefined,
               cues: undefined,
@@ -1139,8 +1204,10 @@ export default function WorkoutForm({
 
   function toggleSetDone(uid: string, idx: number) {
     const now = new Date().toISOString();
+    const el = typeof document !== 'undefined' ? document.getElementById(`block-${uid}`) : null;
+    anchorRef.current = el ? { uid, top: el.getBoundingClientRect().top } : null;
     setBlocks((prev) => {
-      const updated = prev.map((b) =>
+      const ticked = prev.map((b) =>
         b.uid === uid
           ? {
               ...b,
@@ -1152,6 +1219,22 @@ export default function WorkoutForm({
             }
           : b,
       );
+      // Ruling 5: once two weighted machines are started, the untouched
+      // warm-up rows on machines not yet started go (Back Extension's stay;
+      // a started block is never touched — the capsule rates by index).
+      const drop = ticked[ticked.findIndex((b) => b.uid === uid)].sets[idx].done
+        ? warmupRowsToDrop(ticked.map((b) => ({
+            uid: b.uid,
+            started: b.sets.some((st) => st.done),
+            weighted: b.unit !== 'seconds',
+            alwaysWarm: b.alwaysWarm === true,
+            hasUntouchedWarmup: b.sets.some((st) => st.isWarmup && !st.done),
+          })))
+        : [];
+      if (!drop.length) anchorRef.current = null;
+      const updated = drop.length
+        ? ticked.map((b) => (drop.includes(b.uid) ? { ...b, sets: b.sets.filter((st) => !(st.isWarmup && !st.done)) } : b))
+        : ticked;
       const block = updated.find((b) => b.uid === uid)!;
       const set = block.sets[idx];
       if (set.done) {
@@ -1802,9 +1885,12 @@ export default function WorkoutForm({
             : null;
           const deload = block.prescriptionNote;
           const readinessHold = readiness?.verdict === 'hold';
+          // Never beside a deload or a step-down: the rows already hold less,
+          // and "Hold" next to "one pin lighter" asked two things (review E1).
           const shouldHold =
-            (!returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3) ||
-            readinessHold;
+            !deload &&
+            ((!returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3) ||
+              readinessHold);
           // One learned pin, only after two all-Easy sessions (program.ts
           // nextTryWeight) — never a hard-coded 5 kg after one Easy session.
           const suggestWeight =
@@ -1857,7 +1943,11 @@ export default function WorkoutForm({
                   {exerciseById.get(block.exerciseId)?.name ?? 'Exercise'}
                 </span>
                 {isFocus && !allDone && (
-                  <span className="volt-setflag flex-shrink-0">
+                  // Keyed by its text: WKWebView did not repaint an in-place
+                  // text change inside this skewed flag (seen on the sim: DOM
+                  // "Set 1/3", screen "SET 1/4" after a draft restore). A new
+                  // node is painted fresh.
+                  <span key={`${Math.min(doneCount + 1, block.sets.length)}/${block.sets.length}`} className="volt-setflag flex-shrink-0">
                     Set {Math.min(doneCount + 1, block.sets.length)}/{block.sets.length}
                   </span>
                 )}
@@ -1987,7 +2077,7 @@ export default function WorkoutForm({
                         ))}
                     </select>
                   </label>
-                  {progressionHints[block.exerciseId] && !shouldHold && !allDone && (
+                  {progressionHints[block.exerciseId] && !block.overloadApplied && !shouldHold && !allDone && (
                     <span className="text-xs bg-acc-teal/10 text-acc-teal px-2.5 py-1 rounded-full border border-acc-teal/30 font-medium">
                       ⬆ Ready to progress
                     </span>
@@ -2071,7 +2161,10 @@ export default function WorkoutForm({
                   const isSwipedOpen = !set.done && block.sets.length > 1 && swipedSet?.uid === block.uid && swipedSet?.idx === i;
                   return (
                     <div
-                      key={i}
+                      // Keyed by the set, not its position: a stripped warm-up
+                      // row shifted every index, and WKWebView kept painting
+                      // the old label ("W") over the new row's data.
+                      key={set.isWarmup ? 'w' : `s${set.setNumber}`}
                       onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX; }}
                       onTouchEnd={(e) => {
                         const dx = touchStartX.current - e.changedTouches[0].clientX;

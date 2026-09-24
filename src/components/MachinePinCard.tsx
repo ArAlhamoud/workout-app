@@ -77,7 +77,7 @@ export default function MachinePinCard({ exerciseId, kg, source }: { exerciseId:
             <p className="mt-1 max-w-[16rem] text-xs text-app-tx3">
               {source === 'yours'
                 ? 'One pin on this B_Fit stack. The +1 pin and the Watch crown move by it.'
-                : 'One pin on this B_Fit stack. The +1 pin moves by it; the Watch crown moves 0.5 kg until you set it.'}
+                : 'One pin on this B_Fit stack. The +1 pin moves by it.'}
             </p>
           </details>
           <div className="text-xl font-light font-round tabular-nums text-app-tx1">

@@ -16,12 +16,15 @@ import {
   recordedInHealth,
 } from '@/lib/live-session';
 import { ownerActivityDayUtc } from '@/lib/health-insights';
+import { readChart } from '@/lib/chart';
+import { computeReadiness } from '@/lib/health-metrics';
 import { closeLive, readLive, upsertLive } from '@/lib/live-store';
 import {
   DEFAULT_GYM_ID,
   isTrainingSession,
   pickRampMemory,
   allowedRampKg,
+  afOnChart,
   lastFullLoad,
 } from '@/lib/program';
 
@@ -347,6 +350,9 @@ export async function deleteWorkout(id: string) {
 // pure, so the suite runs the server's exact rule over the export.
 export type { ExerciseMemory } from '@/lib/prescription';
 
+const READINESS_SAMPLE = 'readiness_hold';
+const READINESS_SOURCE = 'ar-health';
+
 /**
  * Weight memory for the logger, /train and the watch plan, ramp-aware.
  * Outside a return ramp (rampBaseBeforeISO undefined) it is the plain last
@@ -369,7 +375,13 @@ export async function getLoggerMemory(
   const out: Record<string, ExerciseMemory> = {};
   for (const id of exerciseIds) {
     const m = pickRampMemory(preBreak[id], latest[id]);
-    if (m) out[id] = m;
+    if (!m) continue;
+    // Ruling 6 in the ramp: a short set rated Hard in this block HOLDS.
+    // The scaled prescription reads pre-break memory only, so without this
+    // a set he could not finish at 35 opened at 40 the next week.
+    const l = latest[id];
+    if (preBreak[id] && l?.lastShortHard && l.lastDate && l.lastDate >= rampBaseBeforeISO) out[id] = { ...m, holdAtKg: l.weight };
+    else out[id] = m;
   }
   return out;
 }
@@ -718,6 +730,49 @@ export async function getRecentExerciseSessions(
     }
   }
   return [...bySession.values()].slice(0, limit);
+}
+
+// ── Readiness, told to the server ────────────────────────────
+
+/**
+ * The phone reports the readiness READINGS it takes from HealthKit on open;
+ * the verdict is worked out here by the one computeReadiness, with the
+ * chart's AF flag, and stored for the activity day. The Watch plan and
+ * /train read it, so on a HOLD morning no device seeds +1 pin — the phone
+ * already took its seeds back; the wrist used to add them (T1, 2026-09-24).
+ * No readings, no row: unknown is not a hold.
+ */
+export async function reportReadiness(readings: { rhrDeltaBpm: number | null; sleepHours: number | null; hrvRatio: number | null } | null) {
+  if (!readings) return;
+  const chart = await readChart();
+  const signal = computeReadiness({
+    rhrDeltaBpm: readings.rhrDeltaBpm,
+    sleepHours: readings.sleepHours,
+    hrvRatio: readings.hrvRatio,
+    hoursSinceLastSession: null,
+    afOnChart: afOnChart(chart.conditions),
+  });
+  if (!signal) return;
+  const date = ownerActivityDayUtc();
+  const value = signal.verdict === 'hold' ? 1 : 0;
+  await prisma.healthSample.upsert({
+    where: { type_date_source: { type: READINESS_SAMPLE, date, source: READINESS_SOURCE } },
+    create: { type: READINESS_SAMPLE, date, value, unit: 'flag', source: READINESS_SOURCE, meta: signal.note ?? null },
+    update: { value, meta: signal.note ?? null },
+  });
+}
+
+/** Did the phone's readiness say HOLD today? false when nothing was reported. */
+export async function readinessHoldToday(): Promise<boolean> {
+  try {
+    const row = await prisma.healthSample.findUnique({
+      where: { type_date_source: { type: READINESS_SAMPLE, date: ownerActivityDayUtc(), source: READINESS_SOURCE } },
+      select: { value: true },
+    });
+    return row?.value === 1;
+  } catch {
+    return false;
+  }
 }
 
 // ── Holds — "holding, not losing" ────────────────────────────

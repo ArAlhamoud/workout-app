@@ -30,7 +30,10 @@ Each of these broke something real. Do not relearn them.
    date-field paint-over, the sticky header hiding behind the Dynamic
    Island, and the draft pill clipping three screens were all invisible in
    a browser. If a change touches layout, someone has to look at it in the
-   simulator before merge.
+   simulator before merge. WKWebView also fails to REPAINT an in-place text
+   change inside a transformed element (the skewed volt flag, rows that slide
+   on swipe): the DOM said "Set 1/3", the screen said "SET 1/4". Key such
+   nodes by what they show, and key list rows by identity, never by index.
 
 4. **Weight stacks move in pins, not kilograms.** A jump from 23→27.5 kg
    is one pin, not a user error. Progression logic learns per-machine pin

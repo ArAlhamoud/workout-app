@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { getExercises, getLiveSession, getLoggerMemory, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
 import RescueWalkButton from '@/components/RescueWalkButton';
 import WorkoutForm from '@/components/WorkoutForm';
-import { prescriptionInputs } from '@/lib/prescription';
+import { earnedPin, prescriptionInputs } from '@/lib/prescription';
 import {
   DEFAULT_GYM_ID,
   getDayTemplate,
@@ -161,21 +161,6 @@ export default async function NewWorkoutPage({
   // the percentage scales), never a previous ramp session.
   const lastSession = await getLoggerMemory(exerciseIds, DEFAULT_GYM_ID, inputs.cut);
 
-  // Compute progression hints: exerciseId → true if same weight 2+ sessions with Easy/Med RPE
-  const last2ByExercise: Record<string, { weight: number; rpe: number | null }[]> = {};
-  for (const workout of allWorkouts) {
-    const seen = new Set<string>();
-    for (const set of workout.sets) {
-      if (set.weight <= 0 || seen.has(set.exerciseId)) continue;
-      seen.add(set.exerciseId);
-      if (!last2ByExercise[set.exerciseId]) last2ByExercise[set.exerciseId] = [];
-      if (last2ByExercise[set.exerciseId].length < 2) {
-        const maxW = Math.max(...workout.sets.filter((s) => s.exerciseId === set.exerciseId && s.weight > 0).map((s) => s.weight));
-        const rpEs = workout.sets.filter((s) => s.exerciseId === set.exerciseId && s.rpe != null && s.rpe > 0).map((s) => s.rpe!);
-        last2ByExercise[set.exerciseId].push({ weight: maxW, rpe: rpEs.length ? Math.max(...rpEs) : null });
-      }
-    }
-  }
   const isReturning = inRamp;
 
   // Per-machine pin spacing: learned from weight-jump history, with any
@@ -189,17 +174,15 @@ export default async function NewWorkoutPage({
   // ladder through what he lifted, not on a grid counted from zero.
   const hisSteps = exercises.filter((ex) => inputs.stepIsHis(ex.id)).map((ex) => ex.id);
 
-  // "Ready to progress" is derived from pre-break sessions, so it is
-  // actively wrong while ramping back — the return target replaces it.
+  // "Ready to progress" is the seed's own evidence — two sessions that
+  // proved the weight light (earnsOverload: every set in full, no short
+  // set), home gym only — never the old max-RPE scan, which read short sets
+  // and other-gym sessions as ready (ruling 6). Off during the ramp: the
+  // return target replaces it.
   const progressionHints: Record<string, boolean> = {};
   if (!isReturning) {
-    for (const [exId, sessions] of Object.entries(last2ByExercise)) {
-      if (sessions.length === 2) {
-        const [recent, prev] = sessions;
-        if (recent.weight === prev.weight && recent.rpe != null && recent.rpe <= 2) {
-          progressionHints[exId] = true;
-        }
-      }
+    for (const [exId, mem] of Object.entries(lastSession)) {
+      if (earnedPin(mem)) progressionHints[exId] = true;
     }
   }
 

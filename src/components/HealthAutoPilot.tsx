@@ -45,7 +45,8 @@ import { flushOutbox, retryDead } from '@/lib/outbox';
 import { importHealth, getWeeklyDigest, getWorkoutsToPush, markWorkoutsPushed } from '@/app/health-actions';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { runCloudBackup } from '@/lib/native-cloud-backup';
-import { lastNightSleepHours, readSickSignal } from '@/lib/health-metrics';
+import { lastNightSleepHours, readReadinessReadings, readSickSignal } from '@/lib/health-metrics';
+import { reportReadiness } from '@/app/actions';
 import type { DayId } from '@/lib/program';
 
 const AUTOPILOT_STAMP_KEY = 'health-autopilot-last-run';
@@ -283,6 +284,12 @@ async function runSyncs(): Promise<void> {
     if (rows.length) {
       await importHealth(rows);
     }
+  } catch { /* next open retries */ }
+
+  // 2b — today's readiness, TOLD to the server so the Watch plan and /train
+  // hold the +1 pin on a HOLD morning, as the logger already does (T1).
+  try {
+    await reportReadiness(await readReadinessReadings());
   } catch { /* next open retries */ }
 
   // 3 — write-through of unsynced app workouts to HealthKit, through the one

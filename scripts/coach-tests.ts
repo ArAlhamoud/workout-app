@@ -8,7 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
-import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
+import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
   combineIncrement,
   detectPlateau,
@@ -155,6 +155,20 @@ function assert(cond: boolean, label: string): void {
 
 /** New assertions read the export as it stood here; the sync bot appends daily. */
 const FROZEN_AT = '2026-09-23T09:47:51.194Z'; // that export's exportedAt — end-of-day let rows created after it in (third review)
+
+/** A synthetic history (one machine plus filler) folded the way the server folds it. */
+function foldFromRows(ws: Array<{ id: string; date: string; sets: Array<[number, number, number, number | null]> }>, name: string) {
+  const rows: MemorySetRow[] = [];
+  const evidence = new Map<string, Array<{ rpe: number | null; isWarmup: boolean }>>();
+  for (const w of ws) {
+    const all = [...w.sets.map(([setNumber, weight, reps, rpe]) => ({ exerciseId: 'm', exerciseName: name, setNumber, weight, reps, rpe })),
+      ...[1, 2, 3].map((setNumber) => ({ exerciseId: 'filler', exerciseName: 'Leg Curl', setNumber, weight: 20, reps: 12, rpe: null }))];
+    for (const x of all) rows.push({ ...x, workout: { id: w.id, date: new Date(w.date), duration: 2400 } });
+    evidence.set(w.id, all.map((x) => ({ rpe: x.rpe, isWarmup: false })));
+  }
+  rows.sort((a, b) => b.workout.date.getTime() - a.workout.date.getTime() || b.setNumber - a.setNumber);
+  return foldExerciseMemory(rows, evidence).m;
+}
 
 // ── learnPinIncrements on real history ───────────────────────
 console.log('learnPinIncrements');
@@ -1984,7 +1998,8 @@ console.log('Watch wave — one prescription (A3, trainer rulings 1, 5, 6)');
   assert(pShortRamp.reason === 'ramp', 'during the ramp a short set only holds — the ramp is already light');
   // Trainer ruling 4: on a coarse stack, reps before the pin.
   const coarse = { weight: 27.5, reps: 12, rpe: 1, overload: true, repsFloor: 12 };
-  assert(prescribeWorking(spec('Back Extension'), coarse, 5, null, { rampPct: null, rescue: false }).reason === 'last', 'a 5 kg step on 27.5 (18%) waits until every set reaches 15');
+  const coarseP = prescribeWorking(spec('Back Extension'), coarse, 5, null, { rampPct: null, rescue: false });
+  assert(coarseP.reason === 'reps' && coarseP.workingKg === 27.5 && coarseP.reps === 13, `a 5 kg step on 27.5 (18%) waits for 15 on every set — and asks for one more rep meanwhile (got ${JSON.stringify(coarseP)})`);
   assert(prescribeWorking(spec('Back Extension'), { ...coarse, repsFloor: 15 }, 5, null, { rampPct: null, rescue: false }).workingKg === 32.5, 'at 15 reps on every set the coarse step is taken');
 
   // R5: warm up the first two weighted machines he STARTS, not the first two
@@ -2052,6 +2067,80 @@ console.log('Watch wave — one prescription (A3, trainer rulings 1, 5, 6)');
   assert(/rampSnapshot[\s\S]{0,1400}prescriptionInputs\(/.test(src('src/app/actions.ts')), 'the ramp allowance reads the same inputs as the prescription');
   const route = src('src/app/api/watch/plan/route.ts');
   for (const key of ['reason:', 'fromKg:', 'note:', 'extraSetAllowed', 'warmupFirstN', 'alwaysWarm']) assert(route.includes(key), `the Watch plan sends ${key.replace(':', '')}`);
+}
+
+// ── Watch wave, phase 3 review fixes (round 2) ────────────────────────────
+console.log('Watch wave — phase 3 review fixes');
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const tpl = (name: string) => getDayTemplate('A').exercises.concat(getDayTemplate('B').exercises).find((e) => e.name === name)!;
+
+  // T1 / F6: on a readiness-hold morning the phone takes back every +1 pin
+  // seed; the Watch and /train must hold too — the server is TOLD the
+  // verdict (a readiness_hold sample the phone reports), never guesses it.
+  const earned = { weight: 30, reps: 12, rpe: 1, overload: true, repsFloor: 12 };
+  const pHold = prescribeWorking(tpl('Mid Row'), earned, 2.5, null, { rampPct: null, rescue: false, readinessHold: true });
+  assert(pHold.workingKg === 30 && pHold.reason === 'last', `a hold morning opens at the proven weight, no seed (got ${JSON.stringify(pHold)})`);
+  const pHeldHold = prescribeWorking(tpl('Hip Abduction'), { ...earned, rampHold: true }, 2.5, null, { rampPct: 85, rescue: false, readinessHold: true });
+  assert(pHeldHold.workingKg === 30 && pHeldHold.reason === 'held', 'a held machine in the ramp does not seed on a hold morning either');
+  for (const f of ['src/app/api/watch/plan/route.ts', 'src/app/train/page.tsx']) {
+    assert(/readinessHoldToday\(/.test(src(f)) && /readinessHold/.test(src(f)), `${f}: reads today's readiness verdict and passes it to the prescription`);
+  }
+  assert(/reportReadiness\(/.test(src('src/components/HealthAutoPilot.tsx')), 'the phone reports its readiness verdict when it opens');
+  assert(/computeReadiness\(/.test(src('src/app/actions.ts')) && /readiness_hold/.test(src('src/app/actions.ts')), 'the verdict is worked out by the ONE computeReadiness, with the chart, and stored for the day');
+
+  // T2: ruling 6's ramp clause — a short set rated Hard HOLDS. A scaled
+  // machine read only its pre-break memory, so after a short Hard 35 at
+  // RELOAD it opened at 40 in RESTORE.
+  const lpShort = foldFromRows([
+    { id: 'r1', date: '2026-09-20', sets: [[1, 35, 10, null], [2, 35, 10, null], [3, 35, 8, 3]] },
+  ], 'Lat Pulldown');
+  assert(lpShort?.lastShortHard === true, `the fold marks a latest session with a short Hard set (got ${JSON.stringify(lpShort)})`);
+  const pRampHold = prescribeWorking(tpl('Lat Pulldown'), { weight: 40, reps: 10, rpe: 2, holdAtKg: 35 }, 2.5, null, { rampPct: 100, rescue: false });
+  assert(pRampHold.workingKg === 35, `in the ramp a short Hard set holds its weight — 35, not 40 (got ${pRampHold.workingKg})`);
+  assert(pRampHold.workingKg! <= allowedRampKg({ weight: 40, rpe: 2 }, 85, 2.5)!, 'a hold never exceeds the allowance');
+  assert(/holdAtKg/.test(src('src/app/actions.ts')), 'getLoggerMemory hands the in-block short Hard weight to the ramp prescription');
+
+  // T4: on a coarse step the pin waits for repsMax — so the prescription
+  // must ASK for the reps, one more per session, or the machine stalls.
+  const fp = prescribeWorking(tpl('Cable Face Pull'), { weight: 7.5, reps: 15, rpe: 1, overload: true, repsFloor: 15 }, 1.25, null, { rampPct: null, rescue: false });
+  assert(fp.reason === 'reps' && fp.workingKg === 7.5 && fp.reps === 16, `Face Pull 7.5 on a 1.25 step asks for 16 reps (got ${JSON.stringify(fp)})`);
+  const at20 = prescribeWorking(tpl('Cable Face Pull'), { weight: 7.5, reps: 20, rpe: 1, overload: true, repsFloor: 20 }, 1.25, null, { rampPct: null, rescue: false });
+  assert(at20.reason === 'overload' && at20.workingKg === 8.75, 'at the top of the range the pin is taken');
+  const byName = new Map([['Cable Face Pull', { id: 'fp' }]]);
+  const planFp = planExercises([tpl('Cable Face Pull')], byName, { fp: { weight: 7.5, reps: 15, rpe: 1, overload: true, repsFloor: 15 } },
+    { pinFor: () => 1.25, plateauKgFor: () => null, rampPct: null, stepIsHis: () => false });
+  assert(planFp[0].prefillReps === 16, `the Watch plan opens the asked-for reps (got ${planFp[0].prefillReps})`);
+  assert(/p\.reps \?\?/.test(src('src/components/WorkoutForm.tsx')), 'the phone opens the asked-for reps too');
+
+  // Phone logger (source): the restore keeps the gym's context; the switch
+  // applies the gym's set count and never re-seeds on a hold; a swap takes
+  // the new exercise's rep range; Hold never sits beside a step-down;
+  // "Ready to progress" is the seed's own rule.
+  const form = src('src/components/WorkoutForm.tsx');
+  assert(/loadGymContext\(draft\.gym/.test(form), 'a restored draft at Alrajhi reloads Alrajhi\'s pins, steps, memory and records');
+  assert(/resizeWorking\(/.test(form), 'a gym switch applies that gym\'s set count to a machine not yet started');
+  assert(/readinessRef\.current\?\.verdict !== 'hold'/.test(form), 'a gym switch never re-seeds on a hold morning');
+  assert(/programSpec\(/.test(form), 'a swap takes the new exercise\'s rep range and set count');
+  assert(/const shouldHold =\s*!deload &&/.test(form), '"Hold" never shows beside a deload or a step-down');
+  const page = src('src/app/workouts/new/page.tsx');
+  assert(!/last2ByExercise/.test(page) && /\.overload === true/.test(page) === false && /earnedPin/.test(page), '"Ready to progress" comes from the memory fold (short sets, gym, coarse steps), not a max-RPE scan');
+  // Ruling 5 on the phone: rows on every weighted machine until two are
+  // started, then untouched ones on unstarted machines go (never on a
+  // started block — the rest capsule rates by index).
+  assert(warmupRowsToDrop([
+    { uid: 'a', started: true, weighted: true, alwaysWarm: false, hasUntouchedWarmup: false },
+    { uid: 'b', started: true, weighted: true, alwaysWarm: false, hasUntouchedWarmup: false },
+    { uid: 'c', started: false, weighted: true, alwaysWarm: false, hasUntouchedWarmup: true },
+    { uid: 'd', started: false, weighted: true, alwaysWarm: true, hasUntouchedWarmup: true },
+    { uid: 'e', started: true, weighted: true, alwaysWarm: false, hasUntouchedWarmup: true },
+  ]).join() === 'c', 'after two starts: the unstarted machine loses its warm-up; Back Extension and a started block keep theirs');
+  assert(warmupRowsToDrop([
+    { uid: 'a', started: true, weighted: true, alwaysWarm: false, hasUntouchedWarmup: false },
+    { uid: 'c', started: false, weighted: true, alwaysWarm: false, hasUntouchedWarmup: true },
+  ]).length === 0, 'with one machine started every other machine keeps its warm-up');
+  const card = src('src/components/MachinePinCard.tsx');
+  assert(!/crown moves 0\.5 kg/.test(card), 'the ⓘ promises nothing about the crown the installed Watch build does not do');
 }
 
 // ── summary ──────────────────────────────────────────────────

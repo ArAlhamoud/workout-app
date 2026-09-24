@@ -43,6 +43,14 @@ export type ExerciseMemory = {
   /** The last two sessions each had a short set rated Hard or Grind at the
    *  same top weight (trainer ruling 6): one pin lighter next time. */
   shortHard?: boolean;
+  /** The LATEST session had a short set rated Hard or Grind. */
+  lastShortHard?: boolean;
+  /** Ramp only: the in-block weight a short Hard set was lifted at — the
+   *  ramp holds there instead of climbing to the week's percentage (ruling
+   *  6: "during the ramp, hold only"). Set by getLoggerMemory. */
+  holdAtKg?: number;
+  /** ISO date of the latest session on this machine. */
+  lastDate?: string;
 };
 
 /** One working-set row, as getLastSessionForExercises selects it. */
@@ -103,12 +111,22 @@ export function foldExerciseMemory(
       allEasy: earned(sessions[0]),
       ...(overload ? { repsFloor: Math.min(...sessions[0].concat(sessions[1]).map((x) => x.reps)) } : {}),
       ...(shortHard ? { shortHard: true } : {}),
+      ...(shortSetVerdict(sessions[0], spec) === 'short-hard' ? { lastShortHard: true } : {}),
+      lastDate: first.workout.date.toISOString(),
     };
   }
   return out;
 }
 
+/** "Ready to progress": the seed's own evidence (earnsOverload twice at one
+ *  weight, home gym), never a max-RPE scan that read short sets as ready. */
+export function earnedPin(memory: ExerciseMemory | undefined): boolean {
+  return memory?.overload === true;
+}
+
 export type PrescriptionReason =
+  /** a coarse step: one more rep before the pin */
+  | 'reps'
   /** no history on this machine at this gym */
   | 'none'
   /** a timed hold: no weight */
@@ -136,6 +154,8 @@ export interface Prescription {
   fromKg: number | null;
   /** One line for a deload or a short-set step down; else null. */
   note: string | null;
+  /** Reps to open at when the prescription asks for more reps (reason 'reps'). */
+  reps?: number;
 }
 
 /** A step bigger than this share of the working weight is coarse: reps first. */
@@ -162,8 +182,11 @@ export function prescribeWorking(
   memory: ExerciseMemory | undefined,
   pin: number,
   plateauKg: number | null,
-  ctx: { rampPct: number | null; rescue: boolean; anchored?: boolean },
+  ctx: { rampPct: number | null; rescue: boolean; anchored?: boolean; readinessHold?: boolean },
 ): Prescription {
+  // ctx.readinessHold: the phone's readiness said HOLD today (a resting-HR
+  // spike or a short night — on his chart it can be an AF episode). No seed
+  // on any device: the phone takes it back, the Watch is told (T1).
   // ctx.anchored: the step is his (stepIsHis), so scaled weights land on the
   // ladder through the weight he lifted. Overload, deload and the short-set
   // step are already relative to a lifted weight (w ± step).
@@ -186,12 +209,24 @@ export function prescribeWorking(
   // on 27.5 is +18%, so it waits until every set reached the top of the range.
   const coarse = p > w * COARSE_PIN_SHARE;
   const repsReady = coarse ? (memory.repsFloor ?? memory.reps) >= ex.repsMax : memory.reps >= ex.repsMin;
-  if ((!inRamp || memory.rampHold) && !ctx.rescue && memory.overload && repsReady) {
+  const seedable = (!inRamp || memory.rampHold) && !ctx.rescue && memory.overload && !ctx.readinessHold;
+  if (seedable && repsReady) {
     return { ...base, workingKg: round2(w + p), reason: 'overload', fromKg: w };
   }
+  if (seedable && coarse && Number.isFinite(ex.repsMax)) {
+    // The pin is earned but the step is coarse: ASK for the reps, one more
+    // than last time, or the machine silently never moves (he logs what
+    // the prefill says — 169 of 215 working sets sit at repsMin).
+    return { ...base, workingKg: w, reason: 'reps', fromKg: w, reps: Math.min(ex.repsMax, memory.reps + 1) };
+  }
+  const scaled = rampPrefillWeight(memory, ctx.rampPct ?? 100, p, ctx.anchored === true);
+  // In the ramp a short Hard set HOLDS its weight: a scaled machine reads
+  // only pre-break memory, so without this a set he could not finish at 35
+  // opened at 40 the next week (T2).
+  const held = inRamp && memory.holdAtKg != null ? Math.min(scaled, memory.holdAtKg) : scaled;
   return {
     ...base,
-    workingKg: rampPrefillWeight(memory, ctx.rampPct ?? 100, p, ctx.anchored === true),
+    workingKg: held,
     reason: !inRamp ? 'last' : memory.rampHold ? 'held' : 'ramp',
     fromKg: w,
   };
@@ -309,9 +344,10 @@ export function planExercises(
   byName: Map<string, { id: string }>,
   memory: Record<string, ExerciseMemory>,
   inputs: Pick<PrescriptionInputs, 'pinFor' | 'plateauKgFor' | 'rampPct' | 'stepIsHis'>,
-  opts: { rescue?: boolean } = {},
+  opts: { rescue?: boolean; readinessHold?: boolean } = {},
 ): PlanEntry[] {
   const rescue = opts.rescue === true;
+  const readinessHold = opts.readinessHold === true;
   return template
     .filter((t) => byName.has(t.name))
     .map((t, order) => {
@@ -319,7 +355,7 @@ export function planExercises(
       const pin = inputs.pinFor(ex.id);
       const last = memory[ex.id];
       const anchored = inputs.stepIsHis(ex.id);
-      const p = prescribeWorking(t, last, pin, inputs.plateauKgFor(ex.id), { rampPct: inputs.rampPct, rescue, anchored });
+      const p = prescribeWorking(t, last, pin, inputs.plateauKgFor(ex.id), { rampPct: inputs.rampPct, rescue, anchored, readinessHold });
       return {
         exerciseId: ex.id,
         name: t.name,
@@ -329,7 +365,20 @@ export function planExercises(
         prescription: p,
         warmupKg: prescribeWarmup(p, t.unit, pin, rescue, anchored),
         alwaysWarm: t.alwaysWarm === true,
-        prefillReps: prefillReps(last?.reps, t.repsMin, t.repsMax),
+        prefillReps: p.reps ?? prefillReps(last?.reps, t.repsMin, t.repsMax),
       };
     });
+}
+
+/**
+ * Warm-up rows on the phone (trainer ruling 5): every weighted machine opens
+ * with one until two machines are STARTED; then the untouched ones on
+ * machines not yet started go — except an alwaysWarm machine (Back
+ * Extension). A started block keeps its rows whatever happens: the rest
+ * capsule rates a set by its index in that block. Returns the uids to strip.
+ */
+export function warmupRowsToDrop(blocks: Array<{ uid: string; started: boolean; weighted: boolean; alwaysWarm: boolean; hasUntouchedWarmup: boolean }>): string[] {
+  const startedWeighted = blocks.filter((b) => b.started && b.weighted).length;
+  if (startedWeighted < 2) return [];
+  return blocks.filter((b) => !b.started && b.hasUntouchedWarmup && !b.alwaysWarm).map((b) => b.uid);
 }

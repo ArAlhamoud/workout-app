@@ -1,7 +1,7 @@
 import { readChart } from '@/lib/chart';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { getExercises, getLoggerMemory, getWorkouts } from '../actions';
+import { getExercises, getLoggerMemory, getWorkouts, readinessHoldToday } from '../actions';
 import {
   getDynamicPlan,
   getExercisesForDuration,
@@ -223,8 +223,11 @@ export default async function TrainPage() {
   // The SAME prescription the logger opens and the Watch is sent — one
   // plan, not three (adversary: /train once showed a different ramp weight
   // than the logger prefilled the same day).
-  const lastByExercise = await getLoggerMemory(previewIds, DEFAULT_GYM_ID, inputs.cut);
-  const preview = planExercises(template, exerciseByName, lastByExercise, inputs).map((e) => ({
+  const [lastByExercise, readinessHold] = await Promise.all([
+    getLoggerMemory(previewIds, DEFAULT_GYM_ID, inputs.cut),
+    readinessHoldToday(),
+  ]);
+  const preview = planExercises(template, exerciseByName, lastByExercise, inputs, { readinessHold }).map((e) => ({
     name: e.name,
     setsReps: `${e.prescription.sets} × ${e.template.repsDisplay}`,
     isHold: e.template.unit === 'seconds',
@@ -375,7 +378,7 @@ export default async function TrainPage() {
                       </p>
                       {row.reason !== 'ramp' && (
                         <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-app-tx3">
-                          {row.reason === 'overload' ? '+1 pin' : row.reason === 'deload' ? 'Deload' : row.reason === 'short' ? '−1 pin' : 'Last time'}
+                          {row.reason === 'overload' ? '+1 pin' : row.reason === 'deload' ? 'Deload' : row.reason === 'short' ? '−1 pin' : row.reason === 'reps' ? '+1 rep' : 'Last time'}
                         </p>
                       )}
                     </>

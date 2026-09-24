@@ -13,7 +13,7 @@ import {
   DEFAULT_GYM_ID,
 } from '@/lib/program';
 import { extraSetAllowed, planExercises, prescriptionInputs, PRESCRIPTION_WINDOW } from '@/lib/prescription';
-import { getLoggerMemory } from '@/app/actions';
+import { getLoggerMemory, readinessHoldToday } from '@/app/actions';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   // Weights and pins are per building (rule 2) — default gym unless asked.
   const gym = url.searchParams.get('gym') === 'work' ? 'work' : DEFAULT_GYM_ID;
 
-  const [exercises, workoutRows, chart] = await Promise.all([
+  const [exercises, workoutRows, chart, readinessHold] = await Promise.all([
     prisma.exercise.findMany({ select: { id: true, name: true, pinIncrement: true } }),
     // The same newest rows the phone page and the save-time allowance read,
     // so the learned pins cannot differ by window (A3).
@@ -47,6 +47,9 @@ export async function GET(request: Request) {
     // The chart's effort ceiling rides with the plan (rule 9: told, not
     // taught) — the wrist greys RPE above it exactly as the phone does.
     readChart(),
+    // The phone's readiness verdict for today (reportReadiness): on a HOLD
+    // morning the wrist opens at the proven weight, as the phone does.
+    readinessHoldToday(),
   ]);
 
   // Status, ramp percentage, memory cut, THIS gym's pins and plateaus — the
@@ -80,7 +83,7 @@ export async function GET(request: Request) {
     warmupFirstN: WARMUP_BLOCKS,
     // planExercises filters unseeded names out FIRST, then numbers — the
     // same `order` the phone's blocks carry.
-    exercises: planExercises(template, byName, memory, inputs).map((e) => ({
+    exercises: planExercises(template, byName, memory, inputs, { readinessHold }).map((e) => ({
       exerciseId: e.exerciseId,
       name: e.name,
       machine: e.template.machine,
