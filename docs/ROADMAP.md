@@ -241,9 +241,13 @@ are ranked by how hard they attack that, then by build lane.
 - **Location gym auto-tag** — his workplace *is* the second gym's
   building; a mis-fire corrupts per-gym weight memory (corrupts-data
   class). The manual toggle cannot mis-fire.
-- **Siri voice logging** — split-brain with an open draft (double-logged
-  sessions); exercise vocabulary compiles into the intent and goes stale
-  against a web-deployed exercise list.
+- ~~**Siri voice logging**~~ — reopened by the owner (2026-09-18: a
+  hands-free lane BESIDE the buttons) and built in the Watch wave in a
+  shape that answers both objections: it has no exercise vocabulary (a
+  spoken "done" logs whatever card is up, as shown) and it has no draft of
+  its own (it calls the same `logCurrentSet`, so the live row and the
+  finish-merge see one session). Still rejected: spoken weights/reps
+  ("done, 8") and voice finish/discard/undo.
 - ~~**Live Activity countdown**~~ — shipped in Wave 5 under this entry's
   own reconsider clause; the skipped-set objection is answered (the
   activity ends on skip/Done/0:00, and staleDate reaps the app-killed
@@ -283,3 +287,43 @@ tombstones in the live session; activity-day clock on sessions, cardio
 and meals), Tier 3 screens and copy (say each thing once; ~40 cuts;
 reps stepper unclipped; dead components and exports removed). Status
 and what was deliberately left: the review doc's closing section.
+
+## Watch wave — one prescription, the real crown (2026-09-24)
+
+The owner: "what do you suggest to make the watch app better?", then
+"depend on machine each different / do all". Built in five phases, each
+blind-reviewed (adversary, trainer, data-steward, editor, device-tester,
+a skeptic per finding) before it shipped:
+
+1. **Pins and defaults** — the learner no longer guesses coarse steps
+   (Back Extension's 12.5→27.5 ramp jump was a "15 kg pin" and a +55%
+   seed in waiting); default session 45 min; Pec Fly 3 sets; reps prefill
+   clamped into the range; one session per activity day for the ramp;
+   Apple Health written once, at the real time, never on top (rule 11).
+2. **His step per machine** — a Step card on each machine's page
+   (B_Fit only; a slipped decimal is held back until he insists), every
+   step on /exercises, the Watch told `crownStepKg`. Once the step is his,
+   ramp and warm-up weights land on the ladder through a weight he lifted.
+3. **One prescription** (rule 9) — `src/lib/prescription.ts` for the
+   logger, /train, the Watch plan and the save-time judge: the overload
+   seed and the plateau deload now reach the wrist; one Easy last-set
+   rating can earn the pin (the Watch rates only the last set) under
+   strict guards; short sets never read as ready, and Hard short sets
+   twice step one pin down; a coarse step waits for repsMax; warm-ups
+   follow the first two machines he STARTS, Back Extension always.
+4. **The Watch build** — the crown counts detents and moves one step from
+   wherever the weight is (no grid from 0, no snap-back, no +/- buttons);
+   warm-up cards; reps carry forward, tap +1 / hold −1; undo last set;
+   '+1 set' after a below-cap rating; an honest outbox (a refusal is kept,
+   never "saved"); the session loads before anything can overwrite it;
+   the Action Button continues the phone's session; per-set times; the
+   rest survives a relaunch and names the next weight.
+5. **The Siri lane** — "Done in AR Health" logs the card, unrated; "What's
+   next in AR Health" reads it.
+
+Deliberately not built, with reasons: the Action Button as a mid-set
+logger (a physical button that writes history — his call); the app
+speaking "rest over" itself (unverified audio on the Ultra); a phone-side
+warm-up row that moves when he goes out of order (it would mean showing a
+warm-up on every machine until two are started).
+

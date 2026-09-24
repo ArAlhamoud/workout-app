@@ -164,6 +164,13 @@ shipped; the other two are pure UI and unstarted.
    one, so swapping a weighted movement for a timed hold leaves a
    weighted warm-up behind. Both are phone-side and worth their own
    pass.
+   → **BUILT (Watch wave, 2026-09-24, build 14).** Warm-up slots from
+   `warmupKg`, `isWarmup` on the log and the live post, labelled
+   "warm-up", never rated; "Ceiling" outside a ramp; a rating keeps the
+   set's own time. Gap (a) is closed by the one prescription
+   (src/lib/prescription.ts): both devices warm up from the same working
+   weight. Gap (b): a warm-up is now re-weighted, added back or removed
+   on a gym switch or swap (repriceSets) — never left at a working weight.
 
 2. **Digital Crown weight adjustment is unusable.** Owner's words: it
    "keeps pulling me to the current number", and a slightly faster turn
@@ -176,6 +183,13 @@ shipped; the other two are pure UI and unstarted.
    **No `+`/`−` buttons — the owner rejected that fallback explicitly
    (2026-09-18): "the digital crown is what i need". Fix the crown
    itself; do not work around it with taps.**
+   → **BUILT (build 14).** The crown counts detents
+   (`digitalCrownRotation(detent:…by: 1)`) and moves the weight one
+   `crownStepKg` relative to where it is — no grid counted from 0, so
+   nothing to snap back to. His own step per machine once he sets it on
+   the machine's page, else 0.5 kg. Plank: one second per detent. Not
+   drivable on the simulator: **the feel (sensitivity .low) must be
+   checked on his wrist.**
 
 3. **Siri / App Intents, side by side with the buttons (iOS 27).** He
    upgraded and wants a hands-free lane: Siri announces the next set,
@@ -189,6 +203,13 @@ shipped; the other two are pure UI and unstarted.
    the set and leave the RPE unrated rather than inventing one — an
    unrated set is already excluded from the clean-session ramp count,
    which is the honest outcome.
+   → **BUILT (build 14), the safe half.** "Done in AR Health" / "Log set
+   in AR Health" logs the card as shown through `logCurrentSet`, unrated,
+   and the reply says what was logged, the rest and the next set; "What's
+   next in AR Health" reads it. Refused during a rest, a rating, the
+   summary, or on a weighted card at 0 kg. Open for the owner: should the
+   Action Button log mid-set, should Siri ask "how hard?", the exact
+   words, and whether the watch should speak "rest over" itself.
 
 
 - **Two-simulator handoff E2E PASSED (Mac session, 2026-09-02, iPhone 17
