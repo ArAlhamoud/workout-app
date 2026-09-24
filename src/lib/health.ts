@@ -363,8 +363,22 @@ export const WATCH_UPLOAD_GRACE_H = 6;
 
 /** Share of a push window another Health workout must cover to be the same session. */
 export const SAME_SESSION_OVERLAP = 0.5;
-/** Health workout types that are the same kind of session as a logged machine day. */
-const STRENGTH_TYPES = new Set(['traditionalStrengthTraining', 'functionalStrengthTraining']);
+/**
+ * The Apple Health workout types that ARE a logged machine day — one rule for
+ * the session detector (health-detect) and the push's duplicate check. They
+ * disagreed: the detector hid HIIT and Core Training as the session he had
+ * logged, while the push ignored them and wrote a second copy (third review).
+ * Matched case- and separator-insensitively, like the bridge's names.
+ */
+const STRENGTH_ACTIVITY_KEYS = new Set([
+  'traditionalstrengthtraining',
+  'functionalstrengthtraining',
+  'highintensityintervaltraining',
+  'coretraining',
+]);
+export function isStrengthActivity(type?: string | null): boolean {
+  return STRENGTH_ACTIVITY_KEYS.has((type ?? '').toLowerCase().replace(/[^a-z]/g, ''));
+}
 
 /**
  * Does Apple Health already hold a workout over this window? Any source
@@ -383,7 +397,7 @@ export function coveredByExisting(
   const len = win.end - win.start;
   if (len <= 0) return false;
   return existing.some((e) => {
-    if (!e.activityType || !STRENGTH_TYPES.has(e.activityType)) return false;
+    if (!isStrengthActivity(e.activityType)) return false;
     const s0 = Date.parse(e.startISO);
     const e0 = Date.parse(e.endISO);
     if (!Number.isFinite(s0) || !Number.isFinite(e0)) return false;

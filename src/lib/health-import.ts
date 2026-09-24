@@ -28,10 +28,9 @@ async function upsertBodyStats(weightSamples: ParsedSample[]): Promise<number> {
   for (const [key, sample] of latestByDay) {
     const { start, end } = dayRange(key);
     const existing = await prisma.bodyStat.findFirst({
-      // One day back as well: a sample between 00:00 and 01:00Z (03:00–04:00
-      // Riyadh) belongs to the PREVIOUS activity day's row. The window match
-      // keeps it off any other row.
-      where: { date: { gte: new Date(start.getTime() - 86_400_000), lt: end } },
+      // Exactly this day. A wider lookup once matched YESTERDAY's row and
+      // overwrote its weigh-in with today's (third review, 2026-09-24).
+      where: { date: { gte: start, lt: end } },
       orderBy: { date: 'asc' },
     });
     if (existing) {
@@ -61,7 +60,10 @@ async function enrichWorkouts(samples: ParsedSample[]): Promise<number> {
   for (const key of days) {
     const { start, end } = dayRange(key);
     const workouts = await prisma.workout.findMany({
-      where: { date: { gte: start, lt: end } },
+      // One day back as well: a sample between 00:00 and 01:00Z (03:00–04:00
+      // Riyadh) belongs to the PREVIOUS activity day's row. The window match
+      // keeps it off any other row.
+      where: { date: { gte: new Date(start.getTime() - 86_400_000), lt: end } },
       select: { id: true, date: true, duration: true, createdAt: true, avgHr: true, maxHr: true, activeKcal: true, sets: { select: { completedAt: true } } },
     });
     const daySamples = workoutSamples.filter((s) => dayKey(s.date) === key);

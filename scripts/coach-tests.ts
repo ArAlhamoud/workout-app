@@ -147,7 +147,7 @@ function assert(cond: boolean, label: string): void {
 }
 
 /** New assertions read the export as it stood here; the sync bot appends daily. */
-const FROZEN_AT = '2026-09-23T23:59:59.999Z';
+const FROZEN_AT = '2026-09-23T09:47:51.194Z'; // that export's exportedAt — end-of-day let rows created after it in (third review)
 
 // ── learnPinIncrements on real history ───────────────────────
 console.log('learnPinIncrements');
@@ -1692,6 +1692,12 @@ console.log('Watch wave — Apple Health write-through');
   assert(!coveredByExisting(w45, []), 'nothing in Health over that time → write it');
   assert(!coveredByExisting(w45, [hk('2026-09-20T15:40:00Z', '2026-09-20T17:30:00Z', 'walking')]), 'a walk left running over the session is not the session — only a strength workout counts (second review)');
   assert(coveredByExisting(w45, [hk('2026-09-20T16:00:00Z', '2026-09-20T16:45:00Z', 'functionalStrengthTraining')]), 'functional strength counts as strength');
+  // ONE definition of "a gym session in Health": the detector already hid
+  // HIIT and Core Training as the session he logged; the push ignored them
+  // and wrote a second copy on top (third review).
+  assert(coveredByExisting(w45, [hk('2026-09-20T15:58:00Z', '2026-09-20T16:47:00Z', 'highIntensityIntervalTraining')]) && coveredByExisting(w45, [hk('2026-09-20T15:58:00Z', '2026-09-20T16:47:00Z', 'coreTraining')]), 'HIIT and Core Training recordings are the session too');
+  const detect = src('src/lib/health-detect.ts');
+  assert(!/const STRENGTH_TYPES/.test(detect) && detect.includes('isStrengthActivity('), 'the session detector uses the one shared strength rule');
   for (const f of ['src/components/HealthAutoPilot.tsx', 'src/components/NativeHealthCard.tsx']) {
     const c = src(f);
     assert(c.includes('pushWorkoutsToHealth(') && !c.includes('saveWorkout('), `${f}: writes to Health only through the one guarded helper`);
@@ -1723,6 +1729,20 @@ console.log('Watch wave — Apple Health write-through');
   }
   const banner = src('src/components/health/DetectedSessionBanner.tsx');
   assert(!/function localDayOf/.test(banner) && banner.includes('activityDayStr('), 'the banner dates a session by the activity day (a 00:30 start belongs to the day before), like the Stats card');
+}
+
+// ── Watch wave, phase 1: the weigh-in import stays one day (third review) ───
+console.log('Watch wave — weigh-in import');
+{
+  // A heart-rate fix meant for enrichWorkouts landed in the weigh-in import:
+  // the day lookup widened a day back, so each sync overwrote YESTERDAY's
+  // weigh-in with today's and dragged rows forward — the one weight store the
+  // Mounjaro trend reads. No test touched it. These guard both ends.
+  const hi = fs.readFileSync(path.join(__dirname, '..', 'src/lib/health-import.ts'), 'utf8');
+  const bodyImport = hi.slice(hi.indexOf('async function upsertBodyStats'), hi.indexOf('async function enrichWorkouts'));
+  const enrich = hi.slice(hi.indexOf('async function enrichWorkouts'));
+  assert(bodyImport.length > 0 && /where:\s*\{\s*date:\s*\{\s*gte:\s*start,\s*lt:\s*end\s*\}\s*\}/.test(bodyImport) && !bodyImport.includes('86_400_000'), 'the weigh-in import matches exactly one day — never yesterday\'s row');
+  assert(enrich.includes('86_400_000'), 'the heart-rate match looks one day back (a 03:00–04:00 Riyadh session belongs to the previous activity day)');
 }
 
 // ── summary ──────────────────────────────────────────────────

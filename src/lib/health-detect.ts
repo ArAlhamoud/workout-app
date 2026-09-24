@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { dayKey, isBareDay, workoutWindow } from '@/lib/health';
+import { dayKey, isBareDay, isStrengthActivity, workoutWindow } from '@/lib/health';
 
 // Which HealthKit workouts the app is willing to offer as "you trained this
 // and never logged it". Deliberately narrow. The Watch writes a workout for
@@ -12,12 +12,6 @@ import { dayKey, isBareDay, workoutWindow } from '@/lib/health';
 // The strings mirror the native bridge's activityName() vocabulary exactly
 // (see HealthKitBridgePlugin.swift); matching is case- and separator-insensitive
 // so a bridge that ever switches to "Traditional Strength Training" still lands.
-const STRENGTH_TYPES = new Set([
-  'traditionalstrengthtraining',
-  'functionalstrengthtraining',
-  'highintensityintervaltraining',
-  'coretraining',
-]);
 const CARDIO_TYPES = new Set(['swimming']);
 
 /** Anything shorter than this is incidental movement, not a session. */
@@ -55,7 +49,8 @@ function str(raw: unknown): string | null {
 
 function classify(activityType: string | null): DetectKind | null {
   const key = activityType?.toLowerCase().replace(/[\s_-]/g, '') ?? '';
-  if (STRENGTH_TYPES.has(key)) return 'strength';
+  // The one shared rule — the push's duplicate check uses it too.
+  if (isStrengthActivity(activityType)) return 'strength';
   if (CARDIO_TYPES.has(key)) return 'cardio';
   return null;
 }
