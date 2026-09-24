@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { getExercises, getLiveSession, getLoggerMemory, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
 import RescueWalkButton from '@/components/RescueWalkButton';
 import WorkoutForm from '@/components/WorkoutForm';
-import { earnedPin, prescriptionInputs } from '@/lib/prescription';
+import { prescriptionInputs } from '@/lib/prescription';
 import {
   DEFAULT_GYM_ID,
   getDayTemplate,
@@ -174,18 +174,6 @@ export default async function NewWorkoutPage({
   // ladder through what he lifted, not on a grid counted from zero.
   const hisSteps = exercises.filter((ex) => inputs.stepIsHis(ex.id)).map((ex) => ex.id);
 
-  // "Ready to progress" is the seed's own evidence — two sessions that
-  // proved the weight light (earnsOverload: every set in full, no short
-  // set), home gym only — never the old max-RPE scan, which read short sets
-  // and other-gym sessions as ready (ruling 6). Off during the ramp: the
-  // return target replaces it.
-  const progressionHints: Record<string, boolean> = {};
-  if (!isReturning) {
-    for (const [exId, mem] of Object.entries(lastSession)) {
-      if (earnedPin(mem)) progressionHints[exId] = true;
-    }
-  }
-
   // The plateau's ACTION: a plateaued machine opens AT its deload weight
   // with half the sets — prescribeWorking decides, from this weight, on the
   // phone and the Watch alike. Never inside a ramp (plateauKgFor).
@@ -277,7 +265,6 @@ export default async function NewWorkoutPage({
         liveOpenElsewhere={Boolean(liveRow)}
         durationMin={validDur}
         personalRecords={personalRecords}
-        progressionHints={progressionHints}
         repRecords={repRecords}
         plateauKgs={plateauKgs}
         rescueMode={isRescue}

@@ -8,7 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
-import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
+import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
   combineIncrement,
   detectPlateau,
@@ -2120,11 +2120,11 @@ console.log('Watch wave — phase 3 review fixes');
   const form = src('src/components/WorkoutForm.tsx');
   assert(/loadGymContext\(draft\.gym/.test(form), 'a restored draft at Alrajhi reloads Alrajhi\'s pins, steps, memory and records');
   assert(/resizeWorking\(/.test(form), 'a gym switch applies that gym\'s set count to a machine not yet started');
-  assert(/readinessRef\.current\?\.verdict !== 'hold'/.test(form), 'a gym switch never re-seeds on a hold morning');
+  assert(/const hold = readinessRef\.current\?\.verdict === 'hold';[\s\S]{0,120}!hold/.test(form), 'a gym switch never re-seeds on a hold morning');
   assert(/programSpec\(/.test(form), 'a swap takes the new exercise\'s rep range and set count');
   assert(/const shouldHold =\s*!deload &&/.test(form), '"Hold" never shows beside a deload or a step-down');
   const page = src('src/app/workouts/new/page.tsx');
-  assert(!/last2ByExercise/.test(page) && /\.overload === true/.test(page) === false && /earnedPin/.test(page), '"Ready to progress" comes from the memory fold (short sets, gym, coarse steps), not a max-RPE scan');
+  assert(!/last2ByExercise/.test(page), 'no max-RPE scan reads short sets as ready (the badge itself went in round 3)');
   // Ruling 5 on the phone: rows on every weighted machine until two are
   // started, then untouched ones on unstarted machines go (never on a
   // started block — the rest capsule rates by index).
@@ -2141,6 +2141,40 @@ console.log('Watch wave — phase 3 review fixes');
   ]).length === 0, 'with one machine started every other machine keeps its warm-up');
   const card = src('src/components/MachinePinCard.tsx');
   assert(!/crown moves 0\.5 kg/.test(card), 'the ⓘ promises nothing about the crown the installed Watch build does not do');
+}
+
+// ── Watch wave, phase 3 review fixes (round 3) ────────────────────────────
+console.log('Watch wave — phase 3 review fixes, round 3');
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const tpl = (name: string) => getDayTemplate('A').exercises.concat(getDayTemplate('B').exercises).find((e) => e.name === name)!;
+  // C: the save-time allowance follows the hold — lifting the week's full
+  // target after a short Hard set is over-ramp, not allowed.
+  const heldMem = { weight: 40, rpe: 2, holdAtKg: 30 };
+  assert(allowedRampKg(heldMem, 85, 2.5) === 32.5, `the allowance after a short Hard 30 is 32.5, not 37.5 (got ${allowedRampKg(heldMem, 85, 2.5)})`);
+  // B: one ramp target for the chip, the swap and step-from-zero.
+  assert(rampTargetKg(heldMem, 85, 2.5, false) === 30 && rampTargetKg({ weight: 40, rpe: 2 }, 85, 2.5, false) === 35, 'the ramp target honours the hold, and is the scaler otherwise');
+  const form = src('src/components/WorkoutForm.tsx');
+  const body = form.slice(form.indexOf('export default function WorkoutForm'));
+  assert(!/rampPrefillWeight\(/.test(body) && (body.match(/rampTargetKg\(/g) ?? []).length >= 3, 'inside the logger every ramp number (chip, swap, step-from-zero) comes from rampTargetKg');
+  // I: after a coarse pin the reps start again at the bottom of the range.
+  const pin = prescribeWorking(tpl('Back Extension'), { weight: 27.5, reps: 15, rpe: 1, overload: true, repsFloor: 15 }, 5, null, { rampPct: null, rescue: false });
+  assert(pin.reason === 'overload' && pin.workingKg === 32.5 && pin.reps === 12, `a coarse pin opens at repsMin, so the reps-first wait starts again (got ${JSON.stringify(pin)})`);
+  // F: a warm-up comes back only where it is still due.
+  const lite = (uid: string, started: boolean, alwaysWarm = false) => ({ uid, started, weighted: true, alwaysWarm, hasUntouchedWarmup: false });
+  assert(!warmupStillDue([lite('a', true), lite('b', true), lite('c', false)], 'c') && warmupStillDue([lite('a', true), lite('c', false)], 'c') && warmupStillDue([lite('a', true), lite('b', true), lite('d', false, true)], 'd'), 'after two starts only Back Extension may regain a warm-up');
+  // K: nothing ticked — only the first two weighted machines' warm-ups (and Back Extension's) are saved.
+  assert(untickedWarmupsKept([{ uid: 'a', weighted: true, alwaysWarm: false }, { uid: 'p', weighted: false, alwaysWarm: false }, { uid: 'b', weighted: true, alwaysWarm: false }, { uid: 'c', weighted: true, alwaysWarm: false }, { uid: 'd', weighted: true, alwaysWarm: true }]).join() === 'a,b,d', 'a save with nothing ticked keeps two warm-ups (plus Back Extension), not one per machine');
+  // A, D, E, G, H, J on the source.
+  assert(/restoreCancelRef\.current\?\.\(\)/.test(form) && /setGymRecords\(personalRecords\)/.test(form) && /setSessionMemory\(lastSession\)/.test(form), 'a reset cancels the restored-draft fetch and puts back B_Fit records and memory');
+  assert(/swapSpec[\s\S]{0,600}prefillReps\(/.test(form) && /resizeWorking\([\s\S]{0,200}swapSpec/.test(form), 'a swap re-opens the new exercise\'s reps and set count');
+  assert(/repsAsk/.test(form) && /readinessRef\.current\?\.verdict === 'hold'/.test(form), 'the +1 rep ask is taken back on a hold morning, and a switch re-derives it');
+  assert(/compressedRef\.current/.test(form), 'a gym switch keeps a compressed session compressed');
+  assert(!/progressionHints/.test(form) && !/progressionHints/.test(src('src/app/workouts/new/page.tsx')), '"Ready to progress" is gone — the seed chip and the Try chip say it once');
+  assert(/stripDueWarmups\(/.test(form.slice(form.indexOf('function overlayLive'))), 'a Watch handoff strips the warm-ups no longer due');
+  assert(/untickedWarmupsKept\(/.test(form), 'the nothing-ticked save uses the warm-up rule');
+  // Phase 4 review T3, server half: the plan says until when a cached copy may start offline.
+  assert(/startableUntil/.test(src('src/app/api/watch/plan/route.ts')) && /BREAK_THRESHOLD_DAYS/.test(src('src/app/api/watch/plan/route.ts')), 'the Watch plan carries startableUntil = last session + the layoff threshold');
 }
 
 // ── summary ──────────────────────────────────────────────────
@@ -2772,9 +2806,10 @@ console.log('health-insights');
   };
   walk(path.join(__dirname, '..', 'src'));
 
-  // Five since A3 folded the route, the logger page, /train and buildBlocks
-  // into prescription.ts — fewer copies is the point of that change.
-  assert(callSites.length >= 5, `expected to find the rampPrefillWeight call sites, found ${callSites.length}`);
+  // Three since A3 folded the route, the logger page, /train and buildBlocks
+  // into prescription.ts, and the logger's chip, swap and stepper into
+  // rampTargetKg — fewer copies is the point.
+  assert(callSites.length >= 3, `expected to find the rampPrefillWeight call sites, found ${callSites.length}`);
   const pinless = callSites.filter((c) => c.args < 3);
   // And whether the step is HIS (review B1/F4): with it the scaled weight
   // lands on the ladder through a weight he lifted; a call that leaves it

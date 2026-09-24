@@ -8,6 +8,7 @@ import {
   getExercisesForDuration,
   queuedDay,
   WARMUP_BLOCKS,
+  BREAK_THRESHOLD_DAYS,
   type DayId,
   DEFAULT_SESSION_MIN,
   DEFAULT_GYM_ID,
@@ -81,6 +82,12 @@ export async function GET(request: Request) {
     // whatever they are. Every weighted machine carries its warm-up weight;
     // the device counts starts and inserts the set (alwaysWarm: always).
     warmupFirstN: WARMUP_BLOCKS,
+    // The latest moment a CACHED copy of this plan may start a session
+    // offline: the day a layoff would trigger the return ramp. Past it the
+    // weights here could be a comeback at 100% (trainer, phase 4 review).
+    startableUntil: new Date(
+      (inputs.training[0] ? new Date(inputs.training[0].date).getTime() : Date.now()) + BREAK_THRESHOLD_DAYS * 86_400_000,
+    ).toISOString(),
     // planExercises filters unseeded names out FIRST, then numbers — the
     // same `order` the phone's blocks carry.
     exercises: planExercises(template, byName, memory, inputs, { readinessHold }).map((e) => ({

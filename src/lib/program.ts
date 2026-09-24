@@ -557,7 +557,7 @@ export interface OverRamp {
  * pin map and block cut all drift after the fact).
  */
 export function allowedRampKg(
-  memory: { weight: number; rampHold?: boolean; rpe?: number | null },
+  memory: { weight: number; rampHold?: boolean; rpe?: number | null; holdAtKg?: number },
   loadPct: number,
   pin: number,
   anchored = false,
@@ -569,7 +569,11 @@ export function allowedRampKg(
   // weeks: its allowance is that prefill, one pin above its weight
   // (adversary pass 4).
   if (memory.rampHold) return +(memory.weight + p).toFixed(2);
-  const prescribed = rampPrefillWeight(memory, loadPct, p, anchored);
+  // A short set rated Hard in this block HOLDS the prescription (ruling 6),
+  // so the allowance is judged from the held weight: after a short Hard 30,
+  // loading the week's full 35 is over-ramp (review round 3).
+  const scaled = rampPrefillWeight(memory, loadPct, p, anchored);
+  const prescribed = memory.holdAtKg != null ? Math.min(scaled, memory.holdAtKg) : scaled;
   return +Math.min(prescribed + p, Math.max(prescribed, memory.weight)).toFixed(2);
 }
 

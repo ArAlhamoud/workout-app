@@ -82,8 +82,13 @@ returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
   history: show `— kg`.
 - `reason` says which, so the wrist can label it without computing
   anything: `none | timed | last | ramp | held | overload | deload |
-  short`. `fromKg` is the weight it came from (overload: 20 → 22.5);
-  `note` is the deload / step-down line, else null.
+  short | reps`. `fromKg` is the weight it came from (overload: 20 → 22.5);
+  `note` is the deload / step-down line, else null. `reps`: a coarse step
+  (more than 15% of the weight) asks for one more rep before the pin —
+  `prefillReps` already carries the asked-for number.
+- `startableUntil` (top level): the latest moment a CACHED copy of this plan
+  may start a session offline — the last session plus the layoff threshold,
+  after which the weights here could be a comeback at 100%.
 - Pins and prefills are **per gym** — pass `gym=work` at Alrajhi or the
   numbers describe the wrong building's stacks.
 - `pinKg` is the machine's prescription step (his own at B_Fit once set,

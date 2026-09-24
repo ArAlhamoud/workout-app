@@ -118,12 +118,6 @@ export function foldExerciseMemory(
   return out;
 }
 
-/** "Ready to progress": the seed's own evidence (earnsOverload twice at one
- *  weight, home gym), never a max-RPE scan that read short sets as ready. */
-export function earnedPin(memory: ExerciseMemory | undefined): boolean {
-  return memory?.overload === true;
-}
-
 export type PrescriptionReason =
   /** a coarse step: one more rep before the pin */
   | 'reps'
@@ -211,7 +205,10 @@ export function prescribeWorking(
   const repsReady = coarse ? (memory.repsFloor ?? memory.reps) >= ex.repsMax : memory.reps >= ex.repsMin;
   const seedable = (!inRamp || memory.rampHold) && !ctx.rescue && memory.overload && !ctx.readinessHold;
   if (seedable && repsReady) {
-    return { ...base, workingKg: round2(w + p), reason: 'overload', fromKg: w };
+    // After a coarse pin the reps start again at the bottom: opening at
+    // repsMax on the heavier weight skipped the reps-first wait for good
+    // (+18% then +15% every two sessions on a lumbar machine — round 3).
+    return { ...base, workingKg: round2(w + p), reason: 'overload', fromKg: w, ...(coarse ? { reps: ex.repsMin } : {}) };
   }
   if (seedable && coarse && Number.isFinite(ex.repsMax)) {
     // The pin is earned but the step is coarse: ASK for the reps, one more
@@ -219,11 +216,10 @@ export function prescribeWorking(
     // the prefill says — 169 of 215 working sets sit at repsMin).
     return { ...base, workingKg: w, reason: 'reps', fromKg: w, reps: Math.min(ex.repsMax, memory.reps + 1) };
   }
-  const scaled = rampPrefillWeight(memory, ctx.rampPct ?? 100, p, ctx.anchored === true);
   // In the ramp a short Hard set HOLDS its weight: a scaled machine reads
   // only pre-break memory, so without this a set he could not finish at 35
   // opened at 40 the next week (T2).
-  const held = inRamp && memory.holdAtKg != null ? Math.min(scaled, memory.holdAtKg) : scaled;
+  const held = inRamp ? rampTargetKg(memory, ctx.rampPct ?? 100, p, ctx.anchored === true) : rampPrefillWeight(memory, 100, p, ctx.anchored === true);
   return {
     ...base,
     workingKg: held,
@@ -381,4 +377,41 @@ export function warmupRowsToDrop(blocks: Array<{ uid: string; started: boolean; 
   const startedWeighted = blocks.filter((b) => b.started && b.weighted).length;
   if (startedWeighted < 2) return [];
   return blocks.filter((b) => !b.started && b.hasUntouchedWarmup && !b.alwaysWarm).map((b) => b.uid);
+}
+
+/**
+ * The ramp's number for one machine this week — the scaler, held at an
+ * in-block short Hard set (ruling 6). The logger's "↓ Return" chip, a swap
+ * and step-from-zero all read it, so no screen invites the climb the
+ * prescription holds back.
+ */
+export function rampTargetKg(
+  memory: { weight: number; rampHold?: boolean; rpe?: number | null; holdAtKg?: number },
+  rampPct: number,
+  pin: number,
+  anchored: boolean,
+): number {
+  const scaled = rampPrefillWeight(memory, rampPct, pin, anchored);
+  return memory.holdAtKg != null ? Math.min(scaled, memory.holdAtKg) : scaled;
+}
+
+/** May this block (re)gain a warm-up row? Only while fewer than two
+ *  weighted machines are started — or always for Back Extension. */
+export function warmupStillDue(blocks: Array<{ uid: string; started: boolean; weighted: boolean; alwaysWarm: boolean }>, uid: string): boolean {
+  const b = blocks.find((x) => x.uid === uid);
+  if (!b || !b.weighted) return false;
+  if (b.alwaysWarm) return true;
+  return blocks.filter((x) => x.started && x.weighted).length < 2;
+}
+
+/** A save with nothing ticked ("he forgot to tick") keeps the warm-ups of
+ *  the first two weighted machines in list order, plus Back Extension's —
+ *  never one per machine he may not have warmed at all. */
+export function untickedWarmupsKept(blocks: Array<{ uid: string; weighted: boolean; alwaysWarm: boolean }>): string[] {
+  let n = 0;
+  return blocks.filter((b) => {
+    if (!b.weighted) return false;
+    if (b.alwaysWarm) return true;
+    return n++ < 2;
+  }).map((b) => b.uid);
 }

@@ -9,7 +9,6 @@ import { liveKey, overlayLiveSets, visibleSets, type LiveSession, type LiveSet, 
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
 import {
-  rampPrefillWeight,
   GYMS,
   DEFAULT_GYM_ID,
   warmupDue,
@@ -19,7 +18,7 @@ import {
   prefillReps,
   programSpec,
 } from '@/lib/program';
-import { prescribeWarmup, prescribeWorking, warmupRowsToDrop } from '@/lib/prescription';
+import { prescribeWarmup, prescribeWorking, rampTargetKg, untickedWarmupsKept, warmupRowsToDrop, warmupStillDue } from '@/lib/prescription';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -81,7 +80,7 @@ interface ExerciseBlock {
   unit?: 'reps' | 'seconds';
   showCues: boolean;
   expandedNoteIdx: number | null;
-  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean; repsFloor?: number; shortHard?: boolean };
+  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean; repsFloor?: number; shortHard?: boolean; holdAtKg?: number };
   /** Overload by default took one learned pin at seed time; tap undoes it. */
   overloadApplied?: { from: number; to: number };
   /** He undid the seed: do not re-offer the same number as a chip. */
@@ -99,6 +98,30 @@ interface ExerciseBlock {
   warmupEligible?: boolean;
   /** Warms up wherever it lands (Back Extension). */
   alwaysWarm?: boolean;
+  /** A coarse step asked for one more rep (reason 'reps'): the reps it asked
+   *  up from, so a HOLD morning can take the ask back like a seed. */
+  repsAsk?: { from: number; to: number };
+}
+
+/** The lite view of blocks the warm-up rules read. */
+function warmupLite(blocks: ExerciseBlock[]) {
+  return blocks.map((b) => ({
+    uid: b.uid,
+    started: b.sets.some((st) => st.done),
+    weighted: b.unit !== 'seconds',
+    alwaysWarm: b.alwaysWarm === true,
+    hasUntouchedWarmup: b.sets.some((st) => st.isWarmup && !st.done),
+  }));
+}
+
+/** Strip the untouched warm-up rows that are no longer due (ruling 5):
+ *  unstarted machines once two are started. Started blocks are never
+ *  touched here — the rest capsule rates by index. */
+function stripDueWarmups(blocks: ExerciseBlock[]): ExerciseBlock[] {
+  const drop = warmupRowsToDrop(warmupLite(blocks));
+  return drop.length
+    ? blocks.map((b) => (drop.includes(b.uid) ? { ...b, sets: b.sets.filter((st) => !(st.isWarmup && !st.done)) } : b))
+    : blocks;
 }
 
 /** A machine's working rows resized to the prescribed count — only ever on
@@ -122,7 +145,7 @@ function resizeWorking(sets: SetEntry[], count: number): SetEntry[] {
  *  (program.ts warmupWeight). Rows are only added or removed on a block with
  *  nothing done: a started block's set indices are what the rest capsule
  *  rates by. */
-function repriceSets(block: ExerciseBlock, workingKg: number, pin: number, anchored = false): SetEntry[] {
+function repriceSets(block: ExerciseBlock, workingKg: number, pin: number, anchored = false, mayAddWarmup = true): SetEntry[] {
   const isTimed = block.unit === 'seconds';
   const warm = !isTimed && workingKg > 0 ? warmupWeight(workingKg, pin, anchored) : null;
   const started = block.sets.some((st) => st.done);
@@ -132,7 +155,7 @@ function repriceSets(block: ExerciseBlock, workingKg: number, pin: number, ancho
     if (warm != null) return [{ ...st, weight: warm }];
     return started ? [st] : [];
   });
-  if (!started && warm != null && block.warmupEligible && !out.some((st) => st.isWarmup)) {
+  if (!started && warm != null && mayAddWarmup && block.warmupEligible && !out.some((st) => st.isWarmup)) {
     out.unshift({
       exerciseId: block.exerciseId, setNumber: 0, reps: block.defaultReps ?? out[0]?.reps ?? 10,
       weight: warm, done: false, notes: '', rpe: 0, completedAt: null, isWarmup: true,
@@ -178,7 +201,7 @@ function formatElapsed(seconds: number): string {
 
 function buildBlocks(
   initialExercises: InitialExercise[],
-  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean }>,
+  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean; repsFloor?: number; shortHard?: boolean; holdAtKg?: number }>,
   returnLoadPct?: number,
   pinIncrements: Record<string, number> = {},
   plateauKgs: Record<string, number> = {},
@@ -238,6 +261,9 @@ function buildBlocks(
       alwaysWarm: ie.alwaysWarm === true,
       overloadApplied: p.reason === 'overload' && p.fromKg != null && p.workingKg != null ? { from: p.fromKg, to: p.workingKg } : undefined,
       prescriptionNote: (p.reason === 'deload' || p.reason === 'short') && p.note ? p.note : undefined,
+      repsAsk: p.reason === 'reps' && p.reps != null
+        ? { from: prefillReps(prev?.reps, ie.defaultReps, ie.maxReps ?? Number.POSITIVE_INFINITY), to: p.reps }
+        : undefined,
       sets: [
         ...(warm != null
           ? [{
@@ -279,9 +305,8 @@ export default function WorkoutForm({
   exercises,
   initialName = '',
   initialExercises = [],
-  lastSession = {} as Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean }>,
+  lastSession = {} as Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; holdAtKg?: number }>,
   personalRecords = {},
-  progressionHints = {},
   returnLoadPct,
   returnRpeCap,
   afOnChart = false,
@@ -305,7 +330,6 @@ export default function WorkoutForm({
   initialExercises?: InitialExercise[];
   lastSession?: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean }>;
   personalRecords?: Record<string, number>;
-  progressionHints?: Record<string, boolean>;
   returnLoadPct?: number;
   returnRpeCap?: number;
   /** AF on his chart — silences the HRV readiness clause (server-derived). */
@@ -371,11 +395,15 @@ export default function WorkoutForm({
   // The ticked block's screen position when a tick strips warm-up rows from
   // other blocks — restored before paint so nothing moves under his thumb.
   const anchorRef = useRef<{ uid: string; top: number } | null>(null);
+  /** Cancels the restored draft's gym-context fetch (see applyDraft). */
+  const restoreCancelRef = useRef<(() => void) | null>(null);
   /** Lazy per-exercise history for the ⓘ drawer, keyed by exerciseId. */
   const [recentSessions, setRecentSessions] = useState<
     Record<string, Array<{ date: string; topWeight: number; reps: number; rpe: number | null }>>
   >({});
   const [compressed, setCompressed] = useState(false);
+  const compressedRef = useRef(compressed);
+  compressedRef.current = compressed;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   // nonce keys the <RestTimer> so a set ticked mid-rest REMOUNTS it (fresh
@@ -465,11 +493,16 @@ export default function WorkoutForm({
     if (readiness?.verdict !== 'hold') return;
     setBlocks((prev) =>
       prev.map((b) => {
-        if (!b.overloadApplied) return b;
+        // The coarse step's one-more-rep ask is a seed too: on a HOLD
+        // morning the Watch and /train drop it, so the phone does (round 3).
+        const unasked = b.repsAsk
+          ? { ...b, repsAsk: undefined, sets: b.sets.map((st) => (st.done || st.isWarmup ? st : { ...st, reps: b.repsAsk!.from })) }
+          : b;
+        if (!unasked.overloadApplied) return unasked;
         return {
-          ...b,
+          ...unasked,
           overloadApplied: undefined,
-          sets: repriceSets(b, b.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId)),
+          sets: repriceSets(unasked, unasked.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId), false),
         };
       }),
     );
@@ -531,7 +564,8 @@ export default function WorkoutForm({
       // stepped by his B_Fit step and was judged on Alrajhi's (review F1).
       // The draft's own numbers are his; nothing is repriced.
       if (draft.gym && draft.gym !== DEFAULT_GYM_ID) {
-        loadGymContext(draft.gym, false, (draft.blocks as ExerciseBlock[]).map((b) => b.exerciseId));
+        restoreCancelRef.current?.();
+        restoreCancelRef.current = loadGymContext(draft.gym, false, (draft.blocks as ExerciseBlock[]).map((b) => b.exerciseId));
       }
       if (draft.startTime) startRef.current = draft.startTime;
       setDraftRestored(true);
@@ -568,8 +602,15 @@ export default function WorkoutForm({
         setDate(today);
         lastGymRef.current = DEFAULT_GYM_ID;
         setGym(DEFAULT_GYM_ID);
+        // Back to B_Fit wholesale: a restored Alrajhi draft's context fetch
+        // must not land after this (round 3), and its records/memory go.
+        restoreCancelRef.current?.();
+        restoreCancelRef.current = null;
         setPins(pinIncrements);
         setAnchoredIds(hisSteps);
+        setGymRecords(personalRecords);
+        setRepRecordsState(repRecords);
+        setSessionMemory(lastSession);
         startRef.current = Date.now();
         setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, plateauKgs, rescueMode, hisSteps));
         setDraftRestored(false);
@@ -633,7 +674,9 @@ export default function WorkoutForm({
     for (const ls of applied) {
       liveSnapRef.current.set(liveKey(ls), liveSerial({ reps: ls.reps, weight: ls.weight, rpe: ls.rpe, completedAt: ls.completedAt }));
     }
-    return next;
+    // Machines the Watch already started count as started: warm-ups no
+    // longer due go, as they would after two ticks here (round 3, DT-3).
+    return stripDueWarmups(next);
   }
 
   function applyLive(live: LiveSession) {
@@ -921,6 +964,8 @@ export default function WorkoutForm({
     if (lastGymRef.current === null) { lastGymRef.current = gym; return; }
     if (lastGymRef.current === gym) return;
     lastGymRef.current = gym;
+    restoreCancelRef.current?.();
+    restoreCancelRef.current = null;
 
     return loadGymContext(gym, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -949,8 +994,9 @@ export default function WorkoutForm({
         // 6: the ⓘ drawer cache is the other building's numbers.
         setRecentSessions({});
         if (!reprice) return;
-        setBlocks((prev) =>
-          prev.map((b) => {
+        setBlocks((prev) => {
+          const lite = warmupLite(prev);
+          return prev.map((b) => {
             const prevSession = next[b.exerciseId];
             // overloadApplied dies with the switch: its undo held the OTHER
             // building's weight, and pressing it after a switch would write
@@ -971,19 +1017,32 @@ export default function WorkoutForm({
             );
             // Never a seed on a HOLD morning: the readiness revert already
             // took it back and does not run again (review F3).
-            const seeded = p.reason === 'overload' && !b.overloadDeclined && readinessRef.current?.verdict !== 'hold';
+            const hold = readinessRef.current?.verdict === 'hold';
+            const seeded = p.reason === 'overload' && !b.overloadDeclined && !hold;
             const working = seeded ? p.workingKg ?? 0 : p.reason === 'overload' ? p.fromKg ?? 0 : p.workingKg ?? 0;
+            // THIS gym's reps too: its one-more-rep ask, or its baseline —
+            // never B_Fit's ask carried across (round 3); none on a hold day.
+            const baseReps = prefillReps(prevSession?.reps, b.defaultReps ?? 1, b.maxReps ?? Number.POSITIVE_INFINITY);
+            const ask = p.reason === 'reps' && p.reps != null && !hold ? { from: baseReps, to: p.reps } : undefined;
+            const repsFor = ask ? ask.to : baseReps;
+            // A compressed session stays compressed, and a warm-up comes
+            // back only where it is still due (round 3).
+            const compressedNow = compressedRef.current;
+            const repriced = repriceSets(b, working, inc, anchored, !compressedNow && warmupStillDue(lite, b.uid))
+              .map((st) => (st.isWarmup || st.done ? st : { ...st, reps: unit === 'seconds' ? st.reps : repsFor }));
             return {
               ...b,
               lastSession: prevSession,
               overloadApplied: seeded && p.fromKg != null && p.workingKg != null ? { from: p.fromKg, to: p.workingKg } : undefined,
               prescriptionNote: (p.reason === 'deload' || p.reason === 'short') && p.note ? p.note : undefined,
+              repsAsk: unit === 'seconds' ? undefined : ask,
               // THIS gym's set count too — a B_Fit deload must not halve an
-              // Alrajhi machine, nor an Alrajhi one run full (review F2).
-              sets: resizeWorking(repriceSets(b, working, inc, anchored), p.sets),
+              // Alrajhi machine, nor an Alrajhi one run full (review F2) —
+              // unless he compressed the session.
+              sets: compressedNow ? repriced : resizeWorking(repriced, p.sets),
             };
-          }),
-        );
+          });
+        });
       })
       .catch(() => { /* keep the current numbers (and badges) rather than blanking the form */ });
     return () => { cancelled = true; };
@@ -1058,8 +1117,13 @@ export default function WorkoutForm({
     setName(initialName);
     setDate(today);
     setGym(DEFAULT_GYM_ID);
+    restoreCancelRef.current?.();
+    restoreCancelRef.current = null;
     setPins(pinIncrements);
     setAnchoredIds(hisSteps);
+    setGymRecords(personalRecords);
+    setRepRecordsState(repRecords);
+    setSessionMemory(lastSession);
     setNotes('');
     setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, plateauKgs, rescueMode, hisSteps));
     startRef.current = Date.now();
@@ -1092,7 +1156,7 @@ export default function WorkoutForm({
           ...b,
           overloadApplied: undefined,
           overloadDeclined: true,
-          sets: repriceSets(b, b.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId)),
+          sets: repriceSets(b, b.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId), false),
         };
       }),
     );
@@ -1131,7 +1195,7 @@ export default function WorkoutForm({
     const swapAnchored = anchoredIds.includes(exerciseId);
     const swapSpec = programSpec(exerciseById.get(exerciseId)?.name);
     const swapWorking = prev?.weight
-      ? rampPrefillWeight(prev, returnLoadPct ?? 100, swapInc, swapAnchored)
+      ? rampTargetKg(prev, returnLoadPct ?? 100, swapInc, swapAnchored)
       : 0;
     setBlocks((cur) =>
       cur.map((b) =>
@@ -1174,12 +1238,21 @@ export default function WorkoutForm({
               // on, which is also what makes them save correctly. The gym
               // switch has guarded this since :822 — this handler did not.
               prescriptionNote: undefined,
-              sets: repriceSets(
-                { ...b, exerciseId, unit: undefined, sets: b.sets.map((s) => (s.done ? s : { ...s, exerciseId })) },
-                swapWorking,
-                swapInc,
-                swapAnchored,
-              ),
+              // The NEW exercise's reps and set count on screen too (round 3):
+              // Hip Abduction swapped in for Chest Press opened 3 × 10 under
+              // a 12 minimum — short sets written into history.
+              sets: (() => {
+                const started = b.sets.some((st) => st.done);
+                const reps = swapSpec ? prefillReps(prev?.reps, swapSpec.repsMin, swapSpec.repsMax) : null;
+                const repriced = repriceSets(
+                  { ...b, exerciseId, unit: undefined, defaultReps: swapSpec?.repsMin ?? b.defaultReps, sets: b.sets.map((st) => (st.done ? st : { ...st, exerciseId })) },
+                  swapWorking,
+                  swapInc,
+                  swapAnchored,
+                  !compressedRef.current && warmupStillDue(warmupLite(cur), b.uid),
+                ).map((st) => (st.done || st.isWarmup || reps == null ? st : { ...st, reps }));
+                return !started && swapSpec && !compressedRef.current ? resizeWorking(repriced, swapSpec.sets) : repriced;
+              })(),
             }
           : b,
       ),
@@ -1202,7 +1275,8 @@ export default function WorkoutForm({
     );
   }
 
-  function toggleSetDone(uid: string, idx: number) {
+  function toggleSetDone(uid: string, setIdx: number) {
+    let idx = setIdx;
     const now = new Date().toISOString();
     const el = typeof document !== 'undefined' ? document.getElementById(`block-${uid}`) : null;
     anchorRef.current = el ? { uid, top: el.getBoundingClientRect().top } : null;
@@ -1214,27 +1288,28 @@ export default function WorkoutForm({
               sets: b.sets.map((s, i) =>
                 // Stamp the moment the set was ticked; un-ticking clears it so
                 // a mis-tap never leaves a bogus time on the record.
-                i === idx ? { ...s, done: !s.done, completedAt: s.done ? null : now } : s,
+                i === setIdx ? { ...s, done: !s.done, completedAt: s.done ? null : now } : s,
               ),
             }
           : b,
       );
       // Ruling 5: once two weighted machines are started, the untouched
-      // warm-up rows on machines not yet started go (Back Extension's stay;
-      // a started block is never touched — the capsule rates by index).
-      const drop = ticked[ticked.findIndex((b) => b.uid === uid)].sets[idx].done
-        ? warmupRowsToDrop(ticked.map((b) => ({
-            uid: b.uid,
-            started: b.sets.some((st) => st.done),
-            weighted: b.unit !== 'seconds',
-            alwaysWarm: b.alwaysWarm === true,
-            hasUntouchedWarmup: b.sets.some((st) => st.isWarmup && !st.done),
-          })))
-        : [];
-      if (!drop.length) anchorRef.current = null;
-      const updated = drop.length
-        ? ticked.map((b) => (drop.includes(b.uid) ? { ...b, sets: b.sets.filter((st) => !(st.isWarmup && !st.done)) } : b))
-        : ticked;
+      // warm-up rows on machines not yet started go (Back Extension's stay).
+      // A working set ticked past this block's own untouched warm-up skips
+      // it: the row goes too, or the card never reaches Done and a stale W
+      // stays under his thumb (round 3). Its index shift is carried below.
+      const tickedIdx = ticked.findIndex((b) => b.uid === uid);
+      const tickedSet = ticked[tickedIdx].sets[idx];
+      let ownDropped = 0;
+      if (tickedSet.done && !tickedSet.isWarmup) {
+        const own = ticked[tickedIdx].sets;
+        const keep = own.filter((st) => !(st.isWarmup && !st.done));
+        ownDropped = own.slice(0, idx).length - own.slice(0, idx).filter((st) => !(st.isWarmup && !st.done)).length;
+        if (keep.length !== own.length) ticked[tickedIdx] = { ...ticked[tickedIdx], sets: keep };
+      }
+      const updated = tickedSet.done ? stripDueWarmups(ticked) : ticked;
+      if (updated === ticked && !ownDropped) anchorRef.current = null;
+      idx -= ownDropped;
       const block = updated.find((b) => b.uid === uid)!;
       const set = block.sets[idx];
       if (set.done) {
@@ -1375,7 +1450,7 @@ export default function WorkoutForm({
       cur > 0
         ? Math.max(0, +(cur + dir * inc).toFixed(2))
         : block.lastSession?.weight
-          ? rampPrefillWeight(block.lastSession, returnLoadPct ?? 100, inc, anchoredIds.includes(block.exerciseId))
+          ? rampTargetKg(block.lastSession, returnLoadPct ?? 100, inc, anchoredIds.includes(block.exerciseId))
           : inc;
     updateSet(block.uid, idx, 'weight', next);
   }
@@ -1429,9 +1504,13 @@ export default function WorkoutForm({
     const anyDone = blocks.some((b) => b.sets.some((s) => s.done));
     const isEmpty = (b: ExerciseBlock, s: SetEntry) =>
       b.unit === 'seconds' ? s.reps <= 0 : s.weight <= 0 && s.reps <= 0;
+    // Nothing ticked ("forgot to tick"): the warm-ups of the first two
+    // weighted machines (and Back Extension's) — never one per machine,
+    // which every weighted block now opens with (round 3).
+    const warmKept = new Set(untickedWarmupsKept(blocks.map((b) => ({ uid: b.uid, weighted: b.unit !== 'seconds', alwaysWarm: b.alwaysWarm === true }))));
     const submitBlocks = blocks.map((b) => ({
       block: b,
-      sets: b.sets.filter((s) => (anyDone ? s.done : !isEmpty(b, s))),
+      sets: b.sets.filter((s) => (anyDone ? s.done : !isEmpty(b, s) && (!s.isWarmup || warmKept.has(b.uid)))),
     }));
     const setsToSave = submitBlocks.flatMap(({ sets }) =>
       sets.map(({ done: _d, notes: sn, rpe: r, completedAt: at, ...rest }) => ({
@@ -1876,7 +1955,7 @@ export default function WorkoutForm({
           // (Lat Pulldown: box 21 kg, chip "Return 25 kg"). Rule 4: stacks
           // move in pins, and the pin is per machine.
           const returnTarget = returnLoadPct && !isTimed && block.lastSession?.weight
-            ? rampPrefillWeight(
+            ? rampTargetKg(
                 block.lastSession,
                 returnLoadPct,
                 pins[block.exerciseId] ?? DEFAULT_PIN_INCREMENT,
@@ -2077,11 +2156,6 @@ export default function WorkoutForm({
                         ))}
                     </select>
                   </label>
-                  {progressionHints[block.exerciseId] && !block.overloadApplied && !shouldHold && !allDone && (
-                    <span className="text-xs bg-acc-teal/10 text-acc-teal px-2.5 py-1 rounded-full border border-acc-teal/30 font-medium">
-                      ⬆ Ready to progress
-                    </span>
-                  )}
                   {block.targetReps && (
                     <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border">
                       Target {block.targetReps}
