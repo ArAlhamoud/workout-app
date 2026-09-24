@@ -254,6 +254,35 @@ enum SessionCore {
     /// A warm-up is followed by a short rest, not the machine's full one.
     static func restSeconds(after slot: SetSlot) -> Int { slot.isWarmup ? min(slot.restSec, 60) : slot.restSec }
 
+    // MARK: - Spoken lines (the Siri lane)
+
+    /// "36 kilos", "8.75 kilos" — the card's number, never recomputed (rule 9).
+    static func spokenKg(_ kg: Double) -> String {
+        let t = String(format: "%.2f", kg).replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
+        return "\(t) kilos"
+    }
+
+    /// What the card asks for, as Siri would say it.
+    static func cardLine(_ slot: SetSlot) -> String {
+        if slot.isSeconds { return "\(slot.exerciseName), set \(slot.setNumber) of \(slot.setsTotal). Hold \(slot.reps) seconds." }
+        let what = slot.isWarmup ? "warm-up" : "set \(slot.setNumber) of \(slot.setsTotal)"
+        let weight = slot.weightKg > 0 ? spokenKg(slot.weightKg) : "bodyweight"
+        return "\(slot.exerciseName), \(what). \(weight), \(slot.reps) reps."
+    }
+
+    /// The reply to a spoken "done": what was logged, the rest, what is next.
+    static func loggedLine(_ set: LogSet, restSeconds: Int?, next: SetSlot?) -> String {
+        var parts: [String] = []
+        if set.weight > 0 {
+            parts.append("Logged \(spokenKg(set.weight)) by \(set.reps).")
+        } else {
+            parts.append("Logged \(set.reps).")
+        }
+        if let r = restSeconds { parts.append("Rest \(r) seconds.") }
+        if let next { parts.append("Next: \(cardLine(next))") } else { parts.append("That was the last set. Finish on the watch.") }
+        return parts.joined(separator: " ")
+    }
+
     // MARK: - Machine position
 
     /// "2/6": the current machine's place in TODAY'S PLAN (never the queue).

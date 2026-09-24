@@ -163,6 +163,20 @@ do {
     check(SessionCore.restSeconds(after: slots[0]) == 60 && SessionCore.restSeconds(after: slots[1]) == 75, "a warm-up is followed by a short rest")
 }
 
+print("Watch core — spoken lines (Siri lane)")
+do {
+    let slots = SessionCore.buildSlots(plan([ex("lp", "Leg Press", order: 0, prefill: 36, reps: 12, warm: 17.5),
+                                             ex("fp", "Cable Face Pull", order: 1, prefill: 8.75, reps: 15),
+                                             ex("pl", "Plank", order: 2, unit: "seconds", prefill: nil, reps: 21)]))
+    check(SessionCore.cardLine(slots[0]) == "Leg Press, warm-up. 17.5 kilos, 12 reps.", "a warm-up card is spoken as a warm-up")
+    check(SessionCore.cardLine(slots[1]) == "Leg Press, set 1 of 3. 36 kilos, 12 reps.", "a working set speaks the card's numbers")
+    check(SessionCore.cardLine(slots.first { $0.exerciseId == "fp" }!) == "Cable Face Pull, set 1 of 3. 8.75 kilos, 15 reps.", "8.75 is said as 8.75, not 8.8")
+    check(SessionCore.cardLine(slots.last!) == "Plank, set 3 of 3. Hold 21 seconds.", "a hold speaks seconds")
+    let set = LogSet(exerciseId: "lp", setNumber: 1, reps: 12, weight: 36, rpe: nil, isWarmup: false)
+    check(SessionCore.loggedLine(set, restSeconds: 120, next: slots[2]) == "Logged 36 kilos by 12. Rest 120 seconds. Next: Leg Press, set 2 of 3. 36 kilos, 12 reps.", "the reply to 'done' says what, the rest, and what is next")
+    check(SessionCore.loggedLine(set, restSeconds: nil, next: nil).hasSuffix("Finish on the watch."), "after the last set it points at the watch to finish")
+}
+
 print("Watch core — upgrade path (build 13 files)")
 do {
     let b13Session = """

@@ -463,6 +463,51 @@ final class SessionStore: ObservableObject {
         WKInterfaceDevice.current().play(.directionUp)
     }
 
+    // MARK: - The Siri lane
+
+    /// A spoken "done" (LogSetIntent): logs the card EXACTLY as it stands,
+    /// through the same logCurrentSet the button uses, and leaves the set
+    /// unrated (owner's rule, 2026-09-18). Only on a set card — never during
+    /// a rest, a rating, the summary or with nothing running — and never a
+    /// weighted card at 0 kg (the amber button's case). Voice never finishes,
+    /// discards or undoes; the card stays the UI. Returns the spoken reply.
+    func voiceLog() -> String {
+        guard session != nil else { return "No workout running on the watch." }
+        switch phase {
+        case .active: break
+        case .resting(let until):
+            let left = max(0, Int(until.timeIntervalSinceNow.rounded()))
+            return "Resting — \(left) seconds left."
+        case .rpePrompt: return "Rate the last set on the watch first."
+        case .summary: return "All sets are logged. Finish on the watch."
+        default: return "Nothing to log right now."
+        }
+        guard let slot = currentSlot else { return "All sets are logged. Finish on the watch." }
+        if !slot.isSeconds && slot.weightKg <= 0 { return "Set the weight on the watch first." }
+        logCurrentSet()
+        guard let set = session?.logged.last else { return "Couldn't log that." }
+        if case .rpePrompt = phase { skipRPE() }
+        var rest: Int?
+        if case .resting(let until) = phase { rest = max(0, Int(until.timeIntervalSinceNow.rounded())) }
+        return SessionCore.loggedLine(set, restSeconds: rest, next: currentSlot)
+    }
+
+    /// "What's next" (WhatsNextIntent): read-only, never writes.
+    func voiceStatus() -> String {
+        guard session != nil else { return "No workout running on the watch." }
+        switch phase {
+        case .resting(let until):
+            let left = max(0, Int(until.timeIntervalSinceNow.rounded()))
+            if let next = currentSlot { return "Resting, \(left) seconds left. Next: \(SessionCore.cardLine(next))" }
+            return "Resting, \(left) seconds left."
+        case .rpePrompt(_, let name): return "Rate \(name) on the watch."
+        case .summary: return "All sets are logged. Finish on the watch."
+        default:
+            if let next = currentSlot { return SessionCore.cardLine(next) }
+            return "All sets are logged. Finish on the watch."
+        }
+    }
+
     // MARK: - Occupied machine
 
     /// Machine taken? Rotate the PENDING exercise groups: the next machine's
