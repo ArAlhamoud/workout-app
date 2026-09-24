@@ -224,9 +224,92 @@ const DEFAULT_DURATION_SECONDS = 60 * 60;
  */
 export function workoutWindow(workout: WorkoutWindowInput): { start: Date; end: Date } {
   const durationMs = (workout.duration ?? DEFAULT_DURATION_SECONDS) * 1000;
-  const start = isBareDay(workout.date) ? workout.createdAt : workout.date;
-  return { start, end: new Date(start.getTime() + durationMs) };
+  // A bare-day row is saved when he taps Save at the END of the session, so it
+  // began at createdAt − duration. This used to START the window at createdAt,
+  // which read heart rate and energy for the 50 minutes after he had already
+  // left (2026-09-24).
+  if (isBareDay(workout.date)) {
+    const end = workout.createdAt;
+    return { start: new Date(end.getTime() - durationMs), end };
+  }
+  return { start: workout.date, end: new Date(workout.date.getTime() + durationMs) };
 }
+
+const HOUR_MS = 3_600_000;
+/** A save this long after the last set is a replay, not the end of the session. */
+const REPLAY_GAP_MS = 10 * 60_000;
+
+export interface HealthPushInput {
+  date: Date;
+  duration: number | null;
+  createdAt: Date;
+  /** Latest completedAt among the workout's sets, when any set carries one. */
+  lastSetAt?: Date | null;
+}
+
+/**
+ * The real clock window to write a logged session into Apple Health — or
+ * null when there is no honest one. Every push used the bare date, which is
+ * UTC midnight: 03:00 Riyadh for every session he ever logged (2026-09-24).
+ *
+ * A bare-day row ends at its save (createdAt), unless it was saved long after
+ * its last set (an outbox replay) — then the last set ends it. The start must
+ * fall inside the row's ACTIVITY day, [date + 01:00Z, date + 25:00Z) — the
+ * 04:00 Riyadh rollover; an entry typed in days later has no real clock time,
+ * and one is never invented.
+ */
+export function healthPushWindow(w: HealthPushInput): { start: Date; end: Date } | null {
+  const durationMs = (w.duration ?? DEFAULT_DURATION_SECONDS) * 1000;
+  if (!isBareDay(w.date)) return { start: w.date, end: new Date(w.date.getTime() + durationMs) };
+  const end = w.lastSetAt && w.createdAt.getTime() - w.lastSetAt.getTime() > REPLAY_GAP_MS ? w.lastSetAt : w.createdAt;
+  const start = new Date(end.getTime() - durationMs);
+  const day = w.date.getTime();
+  if (start.getTime() < day + HOUR_MS || start.getTime() >= day + 25 * HOUR_MS) return null;
+  return { start, end };
+}
+
+export interface HealthPushRow extends HealthPushInput {
+  id: string;
+  name: string;
+  setCount: number;
+}
+
+/**
+ * Which logged sessions to write to Apple Health, and when. Strength sessions
+ * only: a cardio quick-log carries no sets, and it used to go into Health as
+ * "Traditional Strength Training" at 03:00 — the only type the bridge writes.
+ * A row with no honest clock time is skipped rather than guessed.
+ */
+export function planHealthPush(rows: HealthPushRow[]): Array<{ id: string; name: string; start: Date; end: Date; durationMin: number }> {
+  const out: Array<{ id: string; name: string; start: Date; end: Date; durationMin: number }> = [];
+  for (const r of rows) {
+    if (r.setCount < 1) continue;
+    const win = healthPushWindow(r);
+    if (!win) continue;
+    out.push({ id: r.id, name: r.name, start: win.start, end: win.end, durationMin: Math.max(1, Math.round((win.end.getTime() - win.start.getTime()) / 60_000)) });
+  }
+  return out;
+}
+
+/** The phone app's bundle id. The Watch app is `${OWN_BUNDLE_ID}.watchkitapp`. */
+export const OWN_BUNDLE_ID = 'com.aralhamoud.workout';
+export type HealthSourceKind = 'phone' | 'watch' | 'foreign';
+
+/**
+ * Who wrote an Apple Health workout — one rule for every screen. The Stats
+ * card matched the bundle id EXACTLY and the Home banner by PREFIX, so the
+ * Watch app's own workouts were offered as "trained without the app" on one
+ * screen and hidden on the other, and a lookalike id would have slipped
+ * through the prefix (2026-09-24).
+ */
+export function healthSourceKind(bundleId?: string | null): HealthSourceKind {
+  if (bundleId === OWN_BUNDLE_ID) return 'phone';
+  if (bundleId?.startsWith(`${OWN_BUNDLE_ID}.`)) return 'watch';
+  return 'foreign';
+}
+
+/** A Watch-app session still unlogged after this long is a lost upload, worth showing. */
+export const WATCH_UPLOAD_GRACE_H = 6;
 
 export interface WorkoutHealthAggregates {
   avgHr: number | null;

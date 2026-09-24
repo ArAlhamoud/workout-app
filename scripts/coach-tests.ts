@@ -66,6 +66,7 @@ import {
   mergeCandidates,
   type OverlaySet,
   sanitizeWatchLogSets,
+  recordedInHealth,
 } from '../src/lib/live-session';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
@@ -112,7 +113,15 @@ import {
   doseLedger,
   bpSplitAroundAnchor,
 } from '../src/lib/health-insights';
-import { normalizeSampleType, pairBpSamples } from '../src/lib/health';
+import {
+  normalizeSampleType,
+  pairBpSamples,
+  workoutWindow,
+  healthPushWindow,
+  planHealthPush,
+  healthSourceKind,
+  OWN_BUNDLE_ID,
+} from '../src/lib/health';
 
 interface HistoryFile {
   exercises: { id: string; name: string; category: string }[];
@@ -1572,6 +1581,75 @@ console.log('Watch wave — watch log sets and session counting');
   const twice = getTrainingStatus([...trainingDates, nextDayB, nextDayB], later);
   assert(twice.week === once.week, `a same-day duplicate row does not advance the ramp (one row: week ${once.week}, with a duplicate: week ${twice.week})`);
   assert(once.mode === 'return' && once.week === 3, `real history plus one Day B is still week 3 at 85% (got ${once.mode} week ${once.week})`);
+}
+
+// ── Watch wave, phase 1: Apple Health write-through (A4), source kind (A5) ─
+console.log('Watch wave — Apple Health write-through');
+{
+  type Row = { name: string; date: string; duration: number | null; createdAt: string; sets: Array<{ completedAt?: string | null }> };
+  const rows = data.workouts as unknown as Row[];
+  const rowOf = (name: string) => rows.find((w) => w.name === name)!;
+  const lastSetAt = (w: Row) => {
+    const t = w.sets.map((st) => st.completedAt).filter((x): x is string => !!x).sort().pop();
+    return t ? new Date(t) : null;
+  };
+  const inputOf = (w: Row) => ({ date: new Date(w.date), duration: w.duration, createdAt: new Date(w.createdAt), lastSetAt: lastSetAt(w) });
+
+  // A bare-day row is saved at the END of the session, so it began at
+  // createdAt − duration. The old window STARTED at createdAt, so heart rate
+  // and energy were read for the 50 minutes after he had left.
+  const sep17 = rowOf('Day A 45m — Sep 17');
+  const win = workoutWindow({ date: new Date(sep17.date), duration: sep17.duration, createdAt: new Date(sep17.createdAt) });
+  assert(win.start.toISOString() === '2026-09-17T20:44:38.971Z', `Sep 17's window starts when he started, not when he saved (got ${win.start.toISOString()})`);
+
+  // The push to Apple Health used the bare date: UTC midnight = 03:00 Riyadh,
+  // on every session he ever logged.
+  const p12 = healthPushWindow(inputOf(rowOf('Day B 45m — Sep 12')));
+  assert(p12?.start.toISOString() === '2026-09-12T20:03:30.238Z' && p12?.end.toISOString() === '2026-09-12T20:41:17.238Z', `Sep 12 goes to Health at 23:03 Riyadh, the time he trained (got ${p12?.start.toISOString()} – ${p12?.end.toISOString()})`);
+  for (const w of rows.filter((r) => r.sets.length)) {
+    const p = healthPushWindow(inputOf(w));
+    const day = new Date(w.date).getTime();
+    assert(
+      p !== null && !p.start.toISOString().endsWith('T00:00:00.000Z') && p.start.getTime() >= day + 3_600_000 && p.start.getTime() < day + 25 * 3_600_000,
+      `${w.name}: pushed at a real clock time inside its activity day (got ${p?.start.toISOString()})`,
+    );
+  }
+  // Never invent a clock time: an entry typed in three days late has none.
+  assert(healthPushWindow({ date: new Date('2026-09-10T00:00:00.000Z'), duration: 2400, createdAt: new Date('2026-09-13T20:00:00.000Z'), lastSetAt: null }) === null, 'a back-dated entry gets no invented time — it is not pushed');
+  // An outbox replay saves hours after the last set: the last set ends it.
+  const replay = healthPushWindow({ date: new Date('2026-09-20T00:00:00.000Z'), duration: 2400, createdAt: new Date('2026-09-21T00:30:00.000Z'), lastSetAt: new Date('2026-09-20T19:30:00.000Z') });
+  assert(replay?.end.toISOString() === '2026-09-20T19:30:00.000Z', `an outbox replay is timed by its last set, not its save (got ${replay?.end.toISOString()})`);
+
+  // What gets pushed: strength sessions only, at their real time.
+  const plan = planHealthPush(rows.map((w, i) => ({ id: String(i), name: w.name, ...inputOf(w), setCount: w.sets.length })));
+  assert(plan.every((x) => !/^(Swim|Walk)\b/.test(x.name)), 'cardio quick-logs (no sets) are never written to Health as strength training');
+  assert(plan.length === rows.filter((r) => r.sets.length).length, `every strength session with an honest time is pushable (${plan.length})`);
+  const ah = fs.readFileSync(path.join(__dirname, '..', 'src/app/health-actions.ts'), 'utf8');
+  assert(/orderBy:\s*\{\s*date:\s*'desc'\s*\}/.test(ah) && /take:\s*\w+/.test(ah) && ah.includes('planHealthPush('), 'the push query is newest-first, capped, and goes through planHealthPush');
+
+  // A session the Watch recorded is already in Health: the phone must not
+  // write it a second time. The uuid alone is not enough — the one real Watch
+  // session (Sep 1) was saved with healthWorkoutUuid null.
+  assert(recordedInHealth({ finishSource: 'watch' }), 'finished on the Watch (Sep 1 shape, no uuid) → already in Health');
+  assert(recordedInHealth({ finishSource: 'phone', live: { source: 'watch', sets: [] } }), 'started on the Watch, finished on the phone (Sep 17 shape) → already in Health');
+  assert(recordedInHealth({ finishSource: 'phone', live: { source: 'phone', sets: [{ source: 'watch' }] } }), 'any Watch set in the live row → its workout session ran');
+  assert(recordedInHealth({ healthWorkoutUuid: 'abc' }), 'an HKWorkout uuid → already in Health');
+  assert(!recordedInHealth({ finishSource: 'phone', live: { source: 'phone', sets: [{ source: 'phone' }] } }) && !recordedInHealth({}), 'a phone-only session still gets pushed');
+  const act = fs.readFileSync(path.join(__dirname, '..', 'src/app/actions.ts'), 'utf8');
+  assert((act.match(/recordedInHealth\(/g) ?? []).length >= 2, 'createWorkout stamps the Health fact on both the create and the merge path');
+
+  // A5: one source rule. The Stats card matched the bundle id EXACTLY and
+  // the Home banner by PREFIX, so the Watch app's own workouts were offered
+  // as "trained without the app" on one screen and hidden on the other.
+  assert(healthSourceKind(OWN_BUNDLE_ID) === 'phone', 'the app itself is phone');
+  assert(healthSourceKind(`${OWN_BUNDLE_ID}.watchkitapp`) === 'watch', 'the Watch app is watch');
+  assert(healthSourceKind(`${OWN_BUNDLE_ID}s`) === 'foreign' && healthSourceKind('com.apple.health.X') === 'foreign' && healthSourceKind(undefined) === 'foreign', 'anything else — including a lookalike prefix — is foreign');
+  for (const f of ['src/components/NativeHealthCard.tsx', 'src/components/health/DetectedSessionBanner.tsx']) {
+    const c = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+    assert(!/const OWN_BUNDLE_ID/.test(c) && c.includes('healthSourceKind('), `${f}: uses the shared source rule, no private bundle id`);
+  }
+  const banner = fs.readFileSync(path.join(__dirname, '..', 'src/components/health/DetectedSessionBanner.tsx'), 'utf8');
+  assert(!/function localDayOf/.test(banner) && banner.includes('activityDayStr('), 'the banner dates a session by the activity day (a 00:30 start belongs to the day before), like the Stats card');
 }
 
 // ── summary ──────────────────────────────────────────────────

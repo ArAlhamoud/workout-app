@@ -11,6 +11,7 @@ import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fue
 import { importHealthSamples } from '@/lib/health-import';
 import { detectUnloggedWorkouts } from '@/lib/health-detect';
 import { storeHrSeries } from '@/lib/health-hr';
+import { planHealthPush } from '@/lib/health';
 
 const PROFILE_ID = 'profile';
 
@@ -560,29 +561,49 @@ export async function saveHrSeries(payload: { workoutId?: string; bins?: unknown
   return storeHrSeries(payload as Parameters<typeof storeHrSeries>[0]);
 }
 
-/** Workouts logged here but not yet written to Apple Health. */
+/** How far back an unsynced session may still be written to Apple Health. */
+const PUSH_WINDOW_DAYS = 14;
+/** At most this many per run: a row that always fails must not stall every run. */
+const PUSH_BATCH = 10;
+
+/**
+ * Workouts logged here but not yet in Apple Health, with the real clock
+ * window to write them at (planHealthPush). Newest first and capped, so one
+ * permanently failing old row cannot block new ones and a months-old session
+ * is never written into Health. Rows the Watch already recorded are stamped
+ * at save time (createWorkout → recordedInHealth), so they never appear here.
+ */
 export async function getWorkoutsToPush() {
-  const workouts = await prisma.workout.findMany({
-    where: { healthSyncedAt: null },
-    orderBy: { date: 'asc' },
-    select: { id: true, name: true, date: true, duration: true },
+  const since = new Date(Date.now() - PUSH_WINDOW_DAYS * 86_400_000);
+  const rows = await prisma.workout.findMany({
+    where: { healthSyncedAt: null, healthWorkoutUuid: null, date: { gte: since }, sets: { some: {} } },
+    orderBy: { date: 'desc' },
+    take: PUSH_BATCH,
+    select: { id: true, name: true, date: true, duration: true, createdAt: true, sets: { select: { completedAt: true } } },
   });
 
-  return workouts.map((w) => {
-    const durationMin = w.duration ? Math.max(1, Math.round(w.duration / 60)) : DEFAULT_DURATION_MIN;
-    return {
+  return planHealthPush(
+    rows.map((w) => ({
       id: w.id,
       name: w.name,
-      start: w.date.toISOString(),
-      durationMin,
-      /**
-       * App-side estimate. Deliberately NOT written to HealthKit — the Watch
-       * already logs energy for the same window, and writing this on top
-       * double-counts the session.
-       */
-      estKcal: Math.round(durationMin * KCAL_PER_MIN),
-    };
-  });
+      date: w.date,
+      duration: w.duration,
+      createdAt: w.createdAt,
+      lastSetAt: w.sets.reduce<Date | null>((m, st) => (st.completedAt && (!m || st.completedAt > m) ? st.completedAt : m), null),
+      setCount: w.sets.length,
+    })),
+  ).map((p) => ({
+    id: p.id,
+    name: p.name,
+    start: p.start.toISOString(),
+    durationMin: p.durationMin,
+    /**
+     * App-side estimate. Deliberately NOT written to HealthKit — the Watch
+     * already logs energy for the same window, and writing this on top
+     * double-counts the session.
+     */
+    estKcal: Math.round(p.durationMin * KCAL_PER_MIN),
+  }));
 }
 
 /** Mark workouts as pushed. Only ever moves null → now, never back. */

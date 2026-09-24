@@ -11,10 +11,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { detectUnlogged } from '@/app/health-actions';
 import { isNativeApp, queryWorkouts, windowStartISO } from '@/lib/native-health';
+import { healthSourceKind } from '@/lib/health';
+import { activityDayStr } from '@/lib/health-insights';
 
 /** Shared with NativeHealthCard: a uuid acted on anywhere stays dismissed. */
 const DISMISSED_KEY = 'health-detect-dismissed';
-const OWN_BUNDLE_ID = 'com.aralhamoud.workout';
 /** Fresh means confirm-worthy; an older session belongs to the Stats card. */
 const FRESH_HOURS = 36;
 
@@ -25,11 +26,16 @@ interface Offer {
   localDay: string | null;
 }
 
-function localDayOf(iso: string): string | null {
+/**
+ * The ACTIVITY day a session belongs to (04:00 Riyadh rollover), the same
+ * rule as the Stats card. The calendar day put a 00:30 start on the next
+ * date, so the logged-today check missed it and the logger link carried the
+ * wrong date (2026-09-24).
+ */
+const sessionDay = (iso: string): string | null => {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+  return Number.isNaN(d.getTime()) ? null : activityDayStr(d);
+};
 
 function readDismissed(): string[] {
   try {
@@ -51,14 +57,16 @@ export default function DetectedSessionBanner() {
       try {
         const workouts = await queryWorkouts(windowStartISO(2));
         const candidates = workouts
-          .filter((w) => !w.sourceBundleId?.startsWith(OWN_BUNDLE_ID))
+          // Only sessions trained without the app — the Watch app's own are
+          // logged by its upload, and this banner says "from your Watch".
+          .filter((w) => healthSourceKind(w.sourceBundleId) === 'foreign')
           .map((w) => ({
             uuid: w.uuid,
             startISO: w.startISO,
             endISO: w.endISO,
             durationSec: w.durationSec,
             activityType: w.activityType,
-            localDay: localDayOf(w.startISO),
+            localDay: sessionDay(w.startISO),
           }));
         if (!candidates.length) return;
         const res = (await detectUnlogged({ candidates })) as {
@@ -76,7 +84,7 @@ export default function DetectedSessionBanner() {
             uuid: fresh.uuid,
             startISO: fresh.startISO,
             durationMin: Math.round(fresh.durationSec / 60),
-            localDay: localDayOf(fresh.startISO),
+            localDay: sessionDay(fresh.startISO),
           });
         }
       } catch {

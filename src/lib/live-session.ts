@@ -244,6 +244,25 @@ export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date =
   };
 }
 
+/**
+ * Did the Watch's workout session already record this workout in Apple
+ * Health? Then the phone's write-through must not add a second copy. The
+ * HKWorkout uuid alone is not enough: the one real Watch session (Sep 1) was
+ * saved with healthWorkoutUuid null — end() gives up after 10 s — and a
+ * session started on the Watch but finished on the phone (Sep 17) carries no
+ * uuid at all. Any Watch involvement means its HKWorkoutSession ran.
+ */
+export function recordedInHealth(p: {
+  finishSource?: string;
+  healthWorkoutUuid?: string | null;
+  live?: { source?: string; sets?: Array<{ source?: string }> } | null;
+}): boolean {
+  if (p.healthWorkoutUuid) return true;
+  if (p.finishSource === 'watch') return true;
+  if (p.live?.source === 'watch') return true;
+  return !!p.live?.sets?.some((s) => s.source === 'watch');
+}
+
 /** One set of the Watch's finished-session payload, after validation. */
 export interface WatchLogSet {
   exerciseId: string;

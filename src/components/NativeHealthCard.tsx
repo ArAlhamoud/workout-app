@@ -4,6 +4,7 @@
 // On the plain web / PWA this component returns null and costs nothing.
 
 import { activityDayStr } from '@/lib/health-insights';
+import { healthSourceKind, WATCH_UPLOAD_GRACE_H } from '@/lib/health';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { importHealthWorkout } from '@/app/actions';
@@ -31,8 +32,6 @@ const CONNECTED_KEY = 'health-native-connected';
 /** UUIDs the user has already acted on — never offered again on this device. */
 const DISMISSED_KEY = 'health-detect-dismissed';
 
-/** This app's own bundle id — sessions it wrote to Health are already logged. */
-const OWN_BUNDLE_ID = 'com.aralhamoud.workout';
 /** How far back to look for sessions that were trained but never logged. */
 const DETECT_WINDOW_DAYS = 14;
 /** Cap on the local dismissed list so it can't grow forever in localStorage. */
@@ -96,7 +95,15 @@ async function detectUnlogged(): Promise<Detected[]> {
   try {
     const workouts = await queryWorkouts(windowStartISO(DETECT_WINDOW_DAYS));
     const candidates = workouts
-      .filter((w) => w.sourceBundleId !== OWN_BUNDLE_ID)
+      // The app's own writes are already logged. A Watch-app session is too
+      // once its upload lands (server rule 3 hides it then), so one still
+      // unlogged after WATCH_UPLOAD_GRACE_H is shown as a lost upload rather
+      // than hidden. Everything else was trained without the app.
+      .filter((w) => {
+        const kind = healthSourceKind(w.sourceBundleId);
+        if (kind === 'foreign') return true;
+        return kind === 'watch' && Date.now() - new Date(w.startISO).getTime() > WATCH_UPLOAD_GRACE_H * 3_600_000;
+      })
       .map((w) => ({
         uuid: w.uuid,
         startISO: w.startISO,
