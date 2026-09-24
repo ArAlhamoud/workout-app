@@ -12,11 +12,13 @@ struct StartTrainingIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult {
         let store = SessionStore.shared
+        // The session file is already loaded (SessionStore.init), so a press
+        // during a session — even a cold launch — finds it and leaves it
+        // where it stands. With none on the wrist, a session open on the
+        // PHONE is continued rather than split in two.
         if store.session == nil {
-            await store.start(day: nil, dur: nil)
+            await store.startFromButton()
         }
-        // Mid-session press: just open the app where it stands — forcing
-        // .active would stomp a rest countdown or an unanswered RPE strip.
         return .result()
     }
 }

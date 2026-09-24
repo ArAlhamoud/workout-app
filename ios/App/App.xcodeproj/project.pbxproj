@@ -22,6 +22,7 @@
 		6FED573AB02BEB93BECC65D6 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFFB7073B92B0AB6FD1D35F9 /* API.swift */; };
 		8529606DE24CFA2A7E017C90 /* RestActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D320A77CFB73C9B5736C7FB3 /* RestActivityPlugin.swift */; };
 		92EE044015CEE77C2888FC39 /* CloudBackupPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40419EABB67F21087D713F50 /* CloudBackupPlugin.swift */; };
+		96E1A50AE2A558512F75AA51 /* SessionCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83F3DB34B1B38E1F51DF2CC7 /* SessionCore.swift */; };
 		997BAFFB80CD7E3418132DEA /* WatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 669A28B73E6709C6A15A7600 /* WatchApp.swift */; };
 		AA0100000000000000000002 /* HealthKitBridgePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0100000000000000000001 /* HealthKitBridgePlugin.swift */; };
 		AA0100000000000000000004 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0100000000000000000003 /* MainViewController.swift */; };
@@ -102,6 +103,7 @@
 		6152D74701E54F5A639E6AFF /* WorkoutManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutManager.swift; sourceTree = "<group>"; };
 		669A28B73E6709C6A15A7600 /* WatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchApp.swift; sourceTree = "<group>"; };
 		731098EFA29918C3AFEDE702 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		83F3DB34B1B38E1F51DF2CC7 /* SessionCore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionCore.swift; sourceTree = "<group>"; };
 		8DED2A5C6FDC76C0C0A02A0F /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		9472C2BD99ACEE55845BE028 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		958DCC722DB07C7200EA8C5F /* debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = debug.xcconfig; path = ../debug.xcconfig; sourceTree = SOURCE_ROOT; };
@@ -225,6 +227,7 @@
 				EF482DCB6EC268E611788FD4 /* Assets.xcassets */,
 				97B62BC9EEFFD8850A81F2AF /* Info.plist */,
 				5D5D65D5D01EB68E79407A95 /* WatchApp.entitlements */,
+				83F3DB34B1B38E1F51DF2CC7 /* SessionCore.swift */,
 			);
 			name = WatchApp;
 			path = WatchApp;
@@ -402,6 +405,7 @@
 				458950ED9C4B92222A8EB670 /* WorkoutManager.swift in Sources */,
 				4893DE74B394BA0CDD5A64BB /* Views.swift in Sources */,
 				566BD583161FDF9B360CCF86 /* StartTrainingIntent.swift in Sources */,
+				96E1A50AE2A558512F75AA51 /* SessionCore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

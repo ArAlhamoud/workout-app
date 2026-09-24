@@ -1,6 +1,11 @@
 import Foundation
 
 // Mirrors of docs/WATCH.md's server contract, field for field.
+//
+// EVERY field added after build 13 is optional. A build upgrade lands in the
+// middle of a session more often than not (TestFlight installs overnight),
+// and synthesised Codable throws on a missing non-optional key — loadSession()
+// would return nil and the session in progress would silently vanish.
 
 struct Plan: Codable, Equatable {
     let day: String
@@ -10,6 +15,9 @@ struct Plan: Codable, Equatable {
     let loadPct: Int
     let rpeCap: Int
     let exercises: [PlanExercise]
+    /// How many weighted machines he STARTS get a warm-up set (trainer
+    /// ruling 5). nil on plans from before it existed: 2.
+    let warmupFirstN: Int?
 }
 
 struct PlanExercise: Codable, Equatable, Identifiable {
@@ -25,6 +33,18 @@ struct PlanExercise: Codable, Equatable, Identifiable {
     let prefillKg: Double?
     let prefillReps: Int
     let pinKg: Double
+    /// What ONE crown detent moves: his own step once he has set it, else 0.5.
+    let crownStepKg: Double?
+    /// This machine's warm-up weight, sent for every weighted machine; the
+    /// wrist decides whether it is due (warmupFirstN / alwaysWarm).
+    let warmupKg: Double?
+    let alwaysWarm: Bool?
+    /// Why prefillKg is what it is: none|timed|last|ramp|held|overload|deload|short.
+    let reason: String?
+    let fromKg: Double?
+    let note: String?
+    /// '+1 set' may be offered after a below-cap rating (never REBOOT/REBUILD).
+    let extraSetAllowed: Bool?
 
     var id: String { exerciseId }
 }
@@ -39,6 +59,10 @@ struct LogSet: Codable, Equatable {
     /// "phone" when the set arrived through the live row rather than this
     /// wrist — never rated here, dropped if the phone un-ticks or discards.
     var origin: String? = nil
+    /// The instant the set was logged. Rides the live row and the finish,
+    /// so a removal the phone recorded earlier never beats it — and a
+    /// rating added later keeps this stamp, not the moment of the tap.
+    var completedAt: String? = nil
 }
 
 struct LogPayload: Codable, Equatable {
@@ -68,8 +92,11 @@ struct SetSlot: Codable, Equatable, Identifiable {
     let exerciseId: String
     let exerciseName: String
     let machine: String
-    let setNumber: Int
-    let setsTotal: Int
+    /// 0 = the warm-up (the server's convention too); working sets 1…n.
+    var setNumber: Int
+    /// Grows by one when he takes '+1 set', on every slot of that machine,
+    /// so the rating strip follows the NEW last set.
+    var setsTotal: Int
     let repsMin: Int
     let repsMax: Int
     let unit: String
@@ -77,11 +104,19 @@ struct SetSlot: Codable, Equatable, Identifiable {
     let pinKg: Double
     var weightKg: Double // 0 = no history ("— kg" until nudged)
     var reps: Int
+    var crownStepKg: Double? = nil
+    var alwaysWarm: Bool? = nil
+    var reason: String? = nil
+    var extraSetAllowed: Bool? = nil
 
     var isSeconds: Bool { unit == "seconds" }
+    var isWarmup: Bool { setNumber == 0 }
 
     var id: String { "\(exerciseId)-\(setNumber)" }
-    var isLastOfExercise: Bool { setNumber == setsTotal }
+    var isLastOfExercise: Bool { !isWarmup && setNumber == setsTotal }
+    /// One crown detent. An unconfirmed machine moves 0.5 kg so any weight
+    /// he really lifted is reachable (trainer ruling 4).
+    var crownStep: Double { (crownStepKg ?? 0) > 0 ? crownStepKg! : 0.5 }
 }
 
 /// The whole in-flight session, written to disk after every mutation so a
@@ -92,6 +127,9 @@ struct SetSlot: Codable, Equatable, Identifiable {
 struct CachedPlan: Codable {
     let plan: Plan
     let fetchedAt: Date
+    /// The building it was fetched for — a B_Fit plan must never start an
+    /// Alrajhi session offline (rule 2). nil = before it was recorded: B_Fit.
+    var gym: String? = nil
 }
 
 struct ActiveSession: Codable, Equatable {
@@ -114,6 +152,25 @@ struct ActiveSession: Codable, Equatable {
     /// missing key unless the property is optional; `gym` is optional for
     /// the same reason).
     var planOrder: [String]? = nil
+    /// The plan's load (100 outside a ramp): the strip says "Ramp target"
+    /// only below 100, "Ceiling" otherwise.
+    var loadPct: Int? = nil
+    /// The session's own length, for the live row (not whichever plan was
+    /// fetched last).
+    var durationMin: Int? = nil
+    var warmupFirstN: Int? = nil
+    /// Live-row updates not yet acknowledged; every post resends them. An
+    /// undo whose removal never arrived would otherwise come back when the
+    /// phone finishes first.
+    var unsentLive: [LiveUpdate]? = nil
+    /// The rest in progress, so a relaunch resumes the countdown instead of
+    /// dropping onto the set card.
+    var restUntil: Date? = nil
+    /// Machines that already took their '+1 set' (once per machine).
+    var extraSetsTaken: [String]? = nil
+    /// The machine whose '+1 set' is on offer right now (after a below-cap
+    /// rating), cleared by the next log.
+    var extraSetOffer: String? = nil
 }
 
 // MARK: - Live session (phone ↔ watch handoff, docs/WATCH.md "Live session")
@@ -148,7 +205,7 @@ struct LiveSession: Codable, Equatable {
 struct LiveEnvelope: Codable { let live: LiveSession? }
 
 /// One outbound update: a logged set, or an un-log.
-struct LiveUpdate: Codable {
+struct LiveUpdate: Codable, Equatable {
     let exerciseId: String
     let setNumber: Int
     var reps: Int?

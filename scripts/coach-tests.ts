@@ -1874,6 +1874,38 @@ console.log('Watch wave — phase 2 review fixes');
   assert(/min-h-\[44px\]/.test(card) && /Tap again to clear|clear\?/i.test(card), 'card controls are 44 pt and Clear asks twice');
 }
 
+// ── Watch wave, phase 4: the Watch build, checked on the SOURCE in CI ─────
+// Ubuntu CI cannot compile the watch target; the pure core runs under
+// `npm run test:watch` on the Mac. These guards hold the lines that were
+// bugs on the wrist, in plain text.
+console.log('Watch wave — the Watch build (source guards)');
+{
+  const dir = path.join(__dirname, '..', 'ios', 'App', 'WatchApp');
+  const swift = (f: string) => fs.readFileSync(path.join(dir, f), 'utf8');
+  const views = swift('Views.swift');
+  // The crown counts detents; kilograms never enter the modifier (B7).
+  const crowns = views.match(/\.digitalCrownRotation\([\s\S]*?\)/g) ?? [];
+  assert(crowns.length >= 2, `found the crown modifiers (${crowns.length})`);
+  assert(crowns.every((c) => /detent:\s*\$detent/.test(c) && /by:\s*1\b/.test(c)), 'every crown counts detents one at a time');
+  assert(crowns.every((c) => !/pinKg|weightKg|reps/.test(c)), 'no crown modifier holds a weight or a rep count — no grid counted from 0 to snap back to');
+  assert(!/crownWeight|onChange\(of: slot\.id\)/.test(views), 'no Double copy of the weight in the card to fight the store');
+  assert(/restRange\(now: Date\(\), until: until\)/.test(views) && !/timerInterval: Date\(\)\.\.\.until/.test(views), 'the rest countdown never builds an inverted range');
+  assert(/confirmationDialog\("Discard this session\?"/.test(views), 'Discard asks first');
+  // Every field after build 13 is optional, or an upgrade mid-session loses it.
+  const models = swift('Models.swift');
+  for (const f of ['crownStepKg', 'warmupKg', 'alwaysWarm', 'reason', 'extraSetAllowed', 'warmupFirstN', 'completedAt', 'loadPct', 'unsentLive', 'restUntil']) {
+    assert(new RegExp(`(let|var) ${f}: [A-Za-z\\[\\]]+\\?`).test(models), `Models.swift: ${f} is optional`);
+  }
+  const api = swift('API.swift');
+  assert(!/\(400\.\.\.499\)\.contains\(code\)\) \{ return true \}/.test(api) && /case rejected/.test(api), 'a 4xx is never counted as delivered');
+  assert(/actor Outbox/.test(api), 'one writer for the outbox');
+  const store = swift('SessionStore.swift');
+  assert(/init\(\) \{[\s\S]*?Store\.loadSession\(\)/.test(store), 'the session loads at init, before any start can run');
+  assert(/fetchPlan\(day: row\.day, dur: row\.durationMin, gym: row\.gym\)/.test(store), 'continuing the phone\'s session asks for the phone\'s gym');
+  assert(/startFromButton/.test(swift('StartTrainingIntent.swift')), 'the Action Button continues a phone session instead of splitting it');
+  assert(fs.existsSync(path.join(__dirname, 'watch-core-tests', 'main.swift')), 'the Watch core harness exists');
+}
+
 // ── Watch wave, phase 3: one prescription for the phone and the wrist ─────
 // Rule 9: the server works the number out and the Watch is told. The phone
 // seeded +1 pin and deloaded plateaus; the Watch plan did neither, so the

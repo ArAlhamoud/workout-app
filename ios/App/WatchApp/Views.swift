@@ -21,7 +21,7 @@ struct RootView: View {
                 // crown seed — carrying a kg value onto the seconds card,
                 // where the 5…180 range clamps it and writes a phantom short
                 // hold. That is the 10 s plank bug (e9be317) by another road.
-                SetCardView(slot: slot).id(slot.id)
+                SetCardView(slot: slot, workout: store.workout).id(slot.id)
             } else {
                 SummaryView()
             }
@@ -33,8 +33,8 @@ struct RootView: View {
             SummaryView()
         case .uploading:
             ProgressView("Saving…")
-        case .done(let banked):
-            DoneView(banked: banked)
+        case .done(let outcome):
+            DoneView(outcome: outcome)
         }
     }
 }
@@ -132,6 +132,13 @@ struct StartView: View {
                         .font(.system(size: 11, design: .rounded))
                         .foregroundStyle(.orange)
                 }
+                // Refused by the server and kept here, never retried — a Mac
+                // session can recover them (outbox-rejected.json).
+                if store.rejectedCount > 0 {
+                    Text("\(store.rejectedCount) refused — kept on watch")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(.orange)
+                }
                 // Which build is on the wrist, readable without a Mac. A swipe
                 // fix "did not reach the watch" (owner, 2026-09-12) and there
                 // was no way to tell from the wrist whether the new build had
@@ -158,57 +165,79 @@ struct StartView: View {
 
 struct SetCardView: View {
     @EnvironmentObject var store: SessionStore
+    @ObservedObject var workout: WorkoutManager
     let slot: SetSlot
-    @State private var crownWeight: Double
+    /// The crown COUNTS detents; it never holds kilograms. Each change moves
+    /// the weight by (new − old) steps RELATIVE to where it is, so there is
+    /// no grid counted from 0 to settle onto — that grid is what "kept
+    /// pulling me to the current number", and a half-step turn landing a
+    /// whole 9 kg pin away was "goes way up to the farther number" (owner,
+    /// 2026-09-18). Starts at 0, inside any range (the e9be317 lesson), and
+    /// resets per slot because RootView gives every slot a fresh view.
+    @State private var detent = 0
     @FocusState private var crownFocused: Bool
 
-    /// The crown binding must START inside its range: a 0 default on the
-    /// seconds card (range 5…180) was clamped before onAppear could seed
-    /// it, and the clamp wrote a phantom short hold — the 10 s planks on
-    /// the first wrist session (prefill was 21 s).
-    init(slot: SetSlot) {
+    init(slot: SetSlot, workout: WorkoutManager) {
         self.slot = slot
-        _crownWeight = State(initialValue: slot.isSeconds ? Double(slot.reps) : slot.weightKg)
+        self.workout = workout
     }
 
     private var weightText: String {
-        slot.weightKg <= 0 ? "—" : slot.weightKg.truncatingRemainder(dividingBy: 1) == 0
-            ? String(Int(slot.weightKg))
-            : String(format: "%.1f", slot.weightKg)
+        guard slot.weightKg > 0 else { return "—" }
+        // Up to two decimals, trimmed: Face Pull 8.75 read "8.8".
+        return String(format: "%.2f", slot.weightKg)
+            .replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
+    }
+
+    /// Why the weight is what it is, only when it is not simply "last time"
+    /// — the server's reason, never worked out here (rule 9).
+    private var reasonLabel: (text: String, color: Color)? {
+        guard !slot.isWarmup else { return nil }
+        switch slot.reason {
+        case "overload": return ("+1 pin", .green)
+        case "deload": return ("deload", .orange)
+        case "short": return ("−1 pin", .orange)
+        default: return nil
+        }
     }
 
     var body: some View {
         VStack(spacing: 6) {
-            // Just the counter — "2/6" — with no machine name (owner,
-            // 2026-09-12: "remove the machine name just keep 1/6"). Dropping
-            // the name also ends two things the review flagged: the "2/6 · "
-            // prefix re-truncated names that used to fit, and Day A's Hip
-            // Abduction / Hip Adduction rendered identically on this line.
-            // The exercise name still sits on the line below.
-            //
-            // The old .padding(.leading, 50) went with it. That inset existed
-            // only to hold a long machine name clear of the "End" badge, a
-            // fixed top-LEFT overlay at x 15.5…48 pt; a short centred number
-            // clears it at any height, and this VStack is centred so it does
-            // drift upward as content grows.
-            //
-            // Nothing renders when there is no counter: a one-machine session
-            // ("1/1" says nothing), or a session started before planOrder
-            // existed, where any number would be a lie.
-            if let pos = store.machinePosition {
-                Text("\(pos.index)/\(pos.total)")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+            // The counter — "2/6" — with no machine name (owner, 2026-09-12:
+            // "remove the machine name just keep 1/6"). A reason rides beside
+            // it only when the prescription moved; a heart only when the
+            // workout session is NOT running (tap to restart it).
+            if store.machinePosition != nil || reasonLabel != nil || !workout.isActive {
+                HStack(spacing: 4) {
+                    if let pos = store.machinePosition {
+                        Text("\(pos.index)/\(pos.total)")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    if let r = reasonLabel {
+                        Text("· \(r.text)").foregroundStyle(r.color)
+                    }
+                    if !workout.isActive {
+                        Button {
+                            Task { await workout.recoverOrBegin() }
+                        } label: {
+                            Image(systemName: "heart.slash.fill").foregroundStyle(.orange)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Workout not recording — tap to restart")
+                    }
+                }
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
             }
-            Text("Set \(slot.setNumber)/\(slot.setsTotal) · \(slot.exerciseName)")
+            Text(slot.isWarmup ? "Warm-up · \(slot.exerciseName)" : "Set \(slot.setNumber)/\(slot.setsTotal) · \(slot.exerciseName)")
                 .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(slot.isWarmup ? Color.orange : Color.primary)
                 .lineLimit(1)
 
             if slot.isSeconds {
                 // Plank-class card: the hold time IS the progression axis —
-                // the crown owns seconds and kilograms don't exist here
-                // (trainer review: a crown brush must not write phantom kg).
+                // the crown owns seconds, one detent = one second, and
+                // kilograms don't exist here (a brush must not write phantom kg).
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text("\(slot.reps)")
                         .font(.system(size: 40, weight: .black, design: .rounded))
@@ -220,15 +249,11 @@ struct SetCardView: View {
                 .focusable()
                 .focused($crownFocused)
                 .digitalCrownRotation(
-                    $crownWeight,
-                    from: 5, through: 180, by: 5,
-                    sensitivity: .medium, isContinuous: false
+                    detent: $detent, from: -1000, through: 1000, by: 1,
+                    sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: true
                 )
-                .onChange(of: crownWeight) { _, v in
-                    store.setSeconds(Int(v))
-                }
-                .onAppear { crownWeight = Double(slot.reps); crownFocused = true }
-                .onChange(of: slot.id) { _, _ in crownWeight = Double(slot.reps); crownFocused = true }
+                .onChange(of: detent) { old, new in store.nudge(detents: new - old) }
+                .onAppear { crownFocused = true }
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(weightText)
@@ -237,28 +262,31 @@ struct SetCardView: View {
                     Text("kg")
                         .font(.system(size: 15, weight: .bold, design: .rounded))
                         .foregroundStyle(.secondary)
-                    Button {
-                        store.cycleReps()
-                    } label: {
-                        Text("× \(slot.reps)")
-                            .font(.system(size: 26, weight: .black, design: .rounded))
-                            .monospacedDigit()
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.teal)
+                    // Tap = one more rep (wrapping at the top of the range);
+                    // hold = one fewer, down to 1, so a short set is
+                    // recordable (trainer ruling 6). One gesture, exclusive:
+                    // a hold never also counts as a tap. Orange below the range.
+                    Text("× \(slot.reps)")
+                        .font(.system(size: 26, weight: .black, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(slot.reps < slot.repsMin ? Color.orange : Color.teal)
+                        .contentShape(Rectangle())
+                        .gesture(
+                            LongPressGesture(minimumDuration: 0.5)
+                                .onEnded { _ in store.decrementReps() }
+                                .exclusively(before: TapGesture().onEnded { store.cycleReps() })
+                        )
+                        .accessibilityLabel("\(slot.reps) reps")
+                        .accessibilityHint("Tap for one more, hold for one fewer")
                 }
                 .focusable()
                 .focused($crownFocused)
                 .digitalCrownRotation(
-                    $crownWeight,
-                    from: 0, through: 500, by: max(slot.pinKg, 0.5),
-                    sensitivity: .medium, isContinuous: false
+                    detent: $detent, from: -1000, through: 1000, by: 1,
+                    sensitivity: .low, isContinuous: false, isHapticFeedbackEnabled: true
                 )
-                .onChange(of: crownWeight) { _, v in
-                    store.adjust(weight: v)
-                }
-                .onAppear { crownWeight = slot.weightKg; crownFocused = true }
-                .onChange(of: slot.id) { _, _ in crownWeight = slot.weightKg; crownFocused = true }
+                .onChange(of: detent) { old, new in store.nudge(detents: new - old) }
+                .onAppear { crownFocused = true }
             }
 
             if !slot.isSeconds && slot.weightKg <= 0 {
@@ -296,12 +324,21 @@ struct SetCardView: View {
             Button {
                 store.logCurrentSet()
             } label: {
-                Text(!slot.isSeconds && slot.weightKg <= 0 ? "Log bodyweight · 0 kg" : "Log set")
+                Text(!slot.isSeconds && slot.weightKg <= 0 ? "Log bodyweight · 0 kg" : slot.isWarmup ? "Log warm-up" : "Log set")
                     .font(.system(size: !slot.isSeconds && slot.weightKg <= 0 ? 14 : 17, weight: .black, design: .rounded))
                     .frame(maxWidth: .infinity, minHeight: 40)
             }
             .buttonStyle(.borderedProminent)
             .tint(!slot.isSeconds && slot.weightKg <= 0 ? .orange : .green)
+            if slot.isWarmup {
+                // Warm or not is his call — the card never traps him on it.
+                Button("skip warm-up") { store.skipWarmup() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, minHeight: 28)
+                    .contentShape(Rectangle())
+            }
         }
         .padding(.horizontal, 2)
         .contentShape(Rectangle())
@@ -344,17 +381,28 @@ struct RestView: View {
     @EnvironmentObject var store: SessionStore
     let until: Date
 
+    private func kg(_ w: Double) -> String {
+        String(format: "%.2f", w).replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
+    }
+
     var body: some View {
+        ScrollView {
         VStack(spacing: 8) {
             Text("REST")
                 .font(.system(size: 13, weight: .black, design: .rounded))
                 .foregroundStyle(.secondary)
-            Text(timerInterval: Date()...until, countsDown: true)
+            // Never `Date()...until` straight: once `until` has passed and the
+            // view re-renders before the timer fires, that range traps.
+            Text(timerInterval: SessionCore.restRange(now: Date(), until: until), countsDown: true)
                 .font(.system(size: 44, weight: .black, design: .rounded))
                 .monospacedDigit()
                 .multilineTextAlignment(.center)
             if let next = store.currentSlot {
-                Text("Next: \(next.exerciseName) · set \(next.setNumber)")
+                // The machine he is walking to AND its weight, so the pin can
+                // be set before he sits down (C1). The server's number.
+                let what = next.isWarmup ? "warm-up" : "set \(next.setNumber)"
+                let weight = !next.isSeconds && next.weightKg > 0 ? " · \(kg(next.weightKg)) kg" : ""
+                Text("Next: \(next.exerciseName) · \(what)\(weight)")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -365,21 +413,37 @@ struct RestView: View {
                 .font(.system(size: 14, weight: .bold, design: .rounded))
             // He walks to the next machine DURING the rest — this is where
             // "it's taken" is discovered, so the switch lives here too. The
-            // machine AT RISK is the one he is walking to, i.e. the slot that
-            // is up next — NOT nextMachineName, which is the machine a switch
-            // would land him on. Naming the wrong one asked "Plank taken?"
-            // while he stood at an occupied Mid Row (adversary, 2026-09-07).
+            // machine AT RISK is the one he is walking to (the slot that is
+            // up next), not the one a switch would land him on.
             if store.pendingMachineCount > 1, store.nextMachineName != nil,
                let walkingTo = store.currentSlot?.exerciseName {
                 Button { store.switchMachineFromRest() } label: {
                     Text("\(walkingTo) taken? ›")
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
                         .lineLimit(1)
-                        // Full-width target: a near-miss used to fall through
-                        // to the parent's tap and kill the rest outright, with
-                        // no undo. A mis-fired rotation is recoverable; a
-                        // destroyed rest timer is not, so the row favours it.
                         .frame(maxWidth: .infinity, minHeight: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+            // '+1 set' — only after a below-cap rating on a machine that
+            // allows it, once per machine (trainer ruling 2). Recording, not
+            // a suggestion: the extra set is simply next.
+            if let name = store.extraSetOfferName {
+                Button { store.addExtraSet() } label: {
+                    Text("+1 set · \(name)")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.bordered)
+            }
+            if store.undoableSet != nil {
+                Button { store.undoLastSet() } label: {
+                    Text("undo last set")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .frame(maxWidth: .infinity, minHeight: 28)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -387,18 +451,16 @@ struct RestView: View {
             }
         }
         .contentShape(Rectangle())
+        // Tap anywhere to end the rest — kept from the first build.
         .onTapGesture { store.skipRest() }
+        }
         .highPriorityGesture(
             // 40 pt, translation only — see the set card for why the 20 pt
-            // predicted-flick version was reverted. Here it also mattered
-            // more: a hooked vertical wipe with that version cancelled the
-            // rest timer.
+            // predicted-flick version was reverted.
             DragGesture(minimumDistance: 40)
                 .onEnded { v in
                     guard abs(v.translation.width) > abs(v.translation.height), v.translation.width < 0 else { return }
-                    // Gated: switchMachineFromRest kills the timer BEFORE
-                    // rotatePending's own guard runs, so an ungated sleeve
-                    // brush on the last machine ate the rest for nothing.
+                    // Gated: an ungated brush on the last machine ate the rest.
                     guard store.pendingMachineCount > 1 else { return }
                     store.switchMachineFromRest()
                 }
@@ -430,7 +492,9 @@ struct RPEStripView: View {
             // the signal that slows the ramp (trainer review, blocking).
             let cap = store.session?.rpeCap ?? 4
             if cap < 4 {
-                Text("Ramp target: ≤ \(labels[cap - 1])")
+                // "Ramp target" only while the ramp scales loads; at 100% the
+                // cap is the chart's effort ceiling, not a ramp.
+                Text("\((store.session?.loadPct ?? 100) < 100 ? "Ramp target" : "Ceiling"): ≤ \(labels[cap - 1])")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(.orange)
             }
@@ -452,6 +516,11 @@ struct RPEStripView: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(.secondary)
+            // A mis-logged last set: take it back before rating it.
+            Button("undo last set") { store.undoLastSet() }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 2)
         }
@@ -462,11 +531,15 @@ struct RPEStripView: View {
 
 struct SummaryView: View {
     @EnvironmentObject var store: SessionStore
+    @State private var confirmDiscard = false
+
+    /// Working sets only — warm-ups count for nothing.
+    private var working: [LogSet] { store.session?.logged.filter { !$0.isWarmup } ?? [] }
 
     private var topWeights: [(String, Double)] {
         guard let s = store.session else { return [] }
         var best: [String: (name: String, kg: Double)] = [:]
-        for set in s.logged {
+        for set in working {
             let name = s.slots.first { $0.exerciseId == set.exerciseId }?.exerciseName ?? "?"
             if set.weight > (best[set.exerciseId]?.kg ?? -1) {
                 best[set.exerciseId] = (name, set.weight)
@@ -475,21 +548,30 @@ struct SummaryView: View {
         return best.values.sorted { $0.kg > $1.kg }.prefix(3).map { ($0.name, $0.kg) }
     }
 
+    private func kg(_ w: Double) -> String {
+        String(format: "%.2f", w).replacingOccurrences(of: "\\.?0+$", with: "", options: .regularExpression)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 6) {
-                let logged = store.session?.logged.count ?? 0
                 let mins = Int(Date().timeIntervalSince(store.session?.startedAt ?? Date()) / 60)
-                Text("\(logged) sets · \(mins) min")
+                Text("\(working.count) sets · \(mins) min")
                     .font(.system(size: 17, weight: .black, design: .rounded))
-                ForEach(topWeights, id: \.0) { name, kg in
+                ForEach(topWeights, id: \.0) { name, w in
                     HStack {
                         Text(name).font(.system(size: 12, weight: .semibold, design: .rounded)).lineLimit(1)
                         Spacer()
-                        Text("\(kg.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(kg)) : String(format: "%.1f", kg)) kg")
+                        Text("\(kg(w)) kg")
                             .font(.system(size: 12, weight: .black, design: .rounded))
                             .monospacedDigit()
                     }
+                }
+                if let n = store.notice {
+                    Text(n)
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.center)
                 }
                 Button {
                     Task { await store.finish() }
@@ -500,10 +582,37 @@ struct SummaryView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
+                // "End" can be taken back: pending sets are still there.
+                if let next = store.currentSlot {
+                    Button { store.backToSet() } label: {
+                        Text("Back to \(next.exerciseName)")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                if let name = store.extraSetOfferName {
+                    Button { store.addExtraSet() } label: {
+                        Text("+1 set · \(name)")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, minHeight: 32)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                if store.undoableSet != nil {
+                    Button("undo last set") { store.undoLastSet() }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, minHeight: 28)
+                }
                 // Always offered: a test run with logged sets needs a way
-                // out that isn't "save it into the training history".
-                Button(store.session?.logged.isEmpty ?? true ? "Discard" : "Discard — don't save") {
-                    store.discard()
+                // out that isn't "save it into the training history". Asks
+                // first — one tap used to throw the session away.
+                Button(working.isEmpty ? "Discard" : "Discard — don't save") {
+                    if store.session?.logged.isEmpty ?? true { store.discard() } else { confirmDiscard = true }
                 }
                 .buttonStyle(.bordered)
                 .tint(.red)
@@ -511,19 +620,42 @@ struct SummaryView: View {
             }
             .padding(.horizontal, 4)
         }
+        .confirmationDialog("Discard this session?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button("Discard", role: .destructive) { store.discard() }
+            Button("Keep", role: .cancel) {}
+        } message: {
+            Text(store.session?.gym != nil ? "Sets logged on the phone stay there." : "Nothing from this session is saved.")
+        }
     }
 }
 
 struct DoneView: View {
     @EnvironmentObject var store: SessionStore
-    let banked: Bool
+    let outcome: SessionStore.DoneOutcome
+
+    private var icon: (name: String, color: Color) {
+        switch outcome {
+        case .saved, .merged: return ("checkmark.circle.fill", .green)
+        case .banked: return ("tray.and.arrow.up", .orange)
+        case .rejected: return ("exclamationmark.triangle.fill", .orange)
+        }
+    }
+
+    private var line: String {
+        switch outcome {
+        case .saved: return "Session saved"
+        case .merged: return "Added to the phone's workout"
+        case .banked: return "Saved on watch — will upload"
+        case .rejected: return "Server refused it — kept on watch"
+        }
+    }
 
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: banked ? "tray.and.arrow.up" : "checkmark.circle.fill")
+            Image(systemName: icon.name)
                 .font(.system(size: 34))
-                .foregroundStyle(banked ? .orange : .green)
-            Text(banked ? "Saved on watch — will upload" : "Session saved")
+                .foregroundStyle(icon.color)
+            Text(line)
                 .font(.system(size: 14, weight: .bold, design: .rounded))
                 .multilineTextAlignment(.center)
             Button("Done") { store.reset() }
