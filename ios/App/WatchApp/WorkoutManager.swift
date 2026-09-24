@@ -73,6 +73,16 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
         let recovered: HKWorkoutSession? = await withCheckedContinuation { cont in
             store.recoverActiveWorkoutSession { s, _ in cont.resume(returning: s) }
         }
+        // A recovered session older than the 3 h cap is not taken over: its
+        // save would span it all (a relaunch next day wrote ~22 h). It is
+        // ended and discarded, and a bounded one begins instead (rule 11).
+        if let s = recovered, let st = s.startDate, Date().timeIntervalSince(st) > SessionCore.healthRestartWindow {
+            let b = s.associatedWorkoutBuilder()
+            s.end()
+            b.endCollection(withEnd: Date()) { _, _ in b.discardWorkout() }
+            begin(startDate: startDate)
+            return
+        }
         if let s = recovered, s.state == .running || s.state == .paused || s.state == .prepared {
             let b = s.associatedWorkoutBuilder()
             if b.dataSource == nil {
@@ -135,7 +145,11 @@ final class WorkoutManager: NSObject, ObservableObject, HKWorkoutSessionDelegate
                 if first { cont.resume(returning: v) }
             }
             DispatchQueue.global().asyncAfter(deadline: .now() + 10) { finishOnce(nil) }
-            b.endCollection(withEnd: Date()) { _, _ in
+            // Never longer than 3 h in Apple Health, whatever happened in
+            // between (rule 11 — the phone's own write caps it the same).
+            let now = Date()
+            let endAt = b.startDate.map { min(now, $0.addingTimeInterval(SessionCore.healthRestartWindow)) } ?? now
+            b.endCollection(withEnd: endAt) { _, _ in
                 b.finishWorkout { workout, _ in
                     finishOnce(workout?.uuid.uuidString)
                 }

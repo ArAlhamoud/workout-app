@@ -218,6 +218,9 @@ final class SessionStore: ObservableObject {
         // An empty row's start is only when the phone's page opened — never
         // backdate the workout (or Apple Health) to it (review F3).
         let begun = row.sets.isEmpty ? Date() : row.startedDate
+        // The workout itself is backdated at most 3 h (rule 11); the session
+        // keeps the phone's real start for its own timing.
+        let hkStart = SessionCore.healthRestartStart(startedAt: begun, now: Date())
         var s = ActiveSession(
             clientSaveId: row.clientSaveId, day: row.day ?? p.day, rpeCap: p.rpeCap,
             startedAt: begun, slots: slots, currentIndex: 0, logged: [],
@@ -229,7 +232,7 @@ final class SessionStore: ObservableObject {
         phoneLive = nil
         phase = s.currentIndex >= s.slots.count ? .summary : .active
         await workout.requestAuthorization()
-        workout.begin(startDate: begun)
+        workout.begin(startDate: hkStart)
     }
 
     /// Every update goes to the live row as it happens, so the phone can take
@@ -696,9 +699,16 @@ final class SessionStore: ObservableObject {
     /// top of the first (rule 11).
     private func rememberWorkoutEnd() async -> String? {
         if let s = session, s.hkEnded == true { return s.hkWorkoutUuid }
-        let uuid = await workout.end()
+        // Marked ended on disk BEFORE ending: a kill or a heart tap during
+        // the save can never begin a second workout on top (the heart hides
+        // on hkEnded). If the save then fails, Health simply lacks it, and
+        // the phone's write fills the gap — never a duplicate.
         if var s = session {
             s.hkEnded = true
+            commit(s)
+        }
+        let uuid = await workout.end()
+        if var s = session {
             s.hkWorkoutUuid = uuid
             commit(s)
         }

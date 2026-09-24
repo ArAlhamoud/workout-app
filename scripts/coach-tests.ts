@@ -2249,6 +2249,10 @@ console.log('Watch wave — final review fixes');
   // Rule 11: a HealthKit restart is never backdated past 3 h, and never after
   // this session's workout was already saved.
   assert(/hkWorkoutUuid/.test(store) && /healthRestartStart\(/.test(store), 'a saved workout is remembered on the session and restarts are bounded');
+  const wm2 = fs.readFileSync(path.join(__dirname, '..', 'ios', 'App', 'WatchApp', 'WorkoutManager.swift'), 'utf8');
+  assert(/endCollection\(withEnd: endAt\)/.test(wm2) && /healthRestartWindow/.test(wm2), 'every saved HKWorkout is capped at 3 h, and a stale recovered session is not taken over');
+  const rw = store.slice(store.indexOf('private func rememberWorkoutEnd'), store.indexOf('private func rememberWorkoutEnd') + 900);
+  assert(rw.indexOf('s.hkEnded = true') < rw.indexOf('await workout.end()'), 'the session is marked ended on disk before the save starts');
 }
 
 // ── summary ──────────────────────────────────────────────────
