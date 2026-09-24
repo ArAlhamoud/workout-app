@@ -8,9 +8,16 @@ import { activityDayStr } from '@/lib/health-insights';
 import { liveKey, overlayLiveSets, visibleSets, type LiveSession, type LiveSet, type LiveSetUpdate } from '@/lib/live-session';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
-import { rampPrefillWeight, GYMS, DEFAULT_GYM_ID,
+import {
+  rampPrefillWeight,
+  GYMS,
+  DEFAULT_GYM_ID,
   hasWarmupSet,
-  warmupWeight, clampTimedReps, nextTryWeight, repeatToEarn } from '@/lib/program';
+  warmupWeight,
+  nextTryWeight,
+  repeatToEarn,
+  prefillReps,
+} from '@/lib/program';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -203,7 +210,10 @@ function buildBlocks(
         // repsMin is only a floor; starting every set there means stepping up to
         // what you actually did, once per set, ~27 times a session.
         // A timed hold never opens past its ceiling (plank: 30 s).
-        reps: isTimed && ie.maxReps ? clampTimedReps(prev?.reps ?? ie.defaultReps, ie.defaultReps, ie.maxReps) : prev?.reps ?? ie.defaultReps,
+        // Clamped into the range for EVERY unit (trainer ruling 6): a short
+        // set is never the next prefill — Triceps carried 10 against a 12
+        // minimum three sessions running.
+        reps: prefillReps(prev?.reps, ie.defaultReps, ie.maxReps ?? Number.POSITIVE_INFINITY),
         weight: isTimed
           ? 0
           : deload

@@ -3,7 +3,6 @@ import prisma from '@/lib/prisma';
 import { readChart } from '@/lib/chart';
 import {
   cleanRampSessionDates,
-  clampTimedReps,
   effortCeiling,
   getDynamicPlan,
   getExercisesForDuration,
@@ -15,6 +14,8 @@ import {
   rampPrefillWeight,
   warmupWeight,
   type DayId,
+  DEFAULT_SESSION_MIN,
+  prefillReps,
 } from '@/lib/program';
 import { pinMapFor } from '@/lib/coach';
 import { getLoggerMemory } from '@/app/actions';
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
   const loadPct = inRamp ? status.returnWeek.loadPct : 100;
   const ceiling = effortCeiling(chart.conditions, chart.medications);
   const rpeCap = Math.min(inRamp ? status.returnWeek.rpeCap : 4, ceiling);
-  const dur = durParam === 30 || durParam === 45 || durParam === 60 ? durParam : inRamp ? 45 : 60;
+  const dur = durParam === 30 || durParam === 45 || durParam === 60 ? durParam : DEFAULT_SESSION_MIN;
 
   const template = getExercisesForDuration(day, dur as 30 | 45 | 60);
   const byName = new Map(exercises.map((e) => [e.name, e]));
@@ -104,8 +105,10 @@ export async function GET(request: Request) {
       // Timed holds never scale — a plank at bodyweight is the same load in
       // every ramp week — and never open below the program floor (trainer:
       // the 10 s planks on the first wrist session).
-      const prefillReps =
-        t.unit === 'seconds' ? clampTimedReps(last?.reps ?? t.repsMin, t.repsMin, t.repsMax) : last?.reps ?? t.repsMin;
+      // Last session's reps clamped into the range for every unit: a short
+      // set is never the next prefill (trainer ruling 6). Timed holds keep
+      // their floor and ceiling the same way (the 10 s planks, 2026-09-01).
+      const openReps = prefillReps(last?.reps, t.repsMin, t.repsMax);
       return {
         exerciseId: ex.id,
         name: t.name,
@@ -117,7 +120,7 @@ export async function GET(request: Request) {
         unit: t.unit,
         restSec: parseInt(t.rest, 10) || 90,
         prefillKg: scaled,
-        prefillReps,
+        prefillReps: openReps,
         pinKg: pin,
         // The phone opens the first two movements with a ramp-in set; the
         // Watch built its slots straight from `sets` and never offered one,

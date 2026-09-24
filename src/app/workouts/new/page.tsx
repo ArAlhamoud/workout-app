@@ -18,7 +18,11 @@ import {
   queuedDay,
   type Duration,
   cleanRampSessionDates,
-  rampBaseBefore, effortCeiling, afOnChart } from '@/lib/program';
+  rampBaseBefore,
+  effortCeiling,
+  afOnChart,
+  DEFAULT_SESSION_MIN,
+} from '@/lib/program';
 
 export const metadata: Metadata = { title: 'Log Workout' };
 
@@ -89,7 +93,7 @@ export default async function NewWorkoutPage({
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
   const inRamp = status.mode === 'return';
   const validDur: Duration =
-    durStr === '30' ? 30 : durStr === '45' ? 45 : durStr === '60' ? 60 : inRamp ? 45 : 60;
+    durStr === '30' ? 30 : durStr === '45' ? 45 : durStr === '60' ? 60 : DEFAULT_SESSION_MIN;
 
   // No ?day= — e.g. the tab bar or a deep link — so fall back to the day the
   // dynamic plan has queued rather than dropping him into a blank freestyle log.

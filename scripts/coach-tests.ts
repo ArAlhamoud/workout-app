@@ -33,6 +33,8 @@ import {
   CARDIO,
   cardioForGym,
   getDayTemplate,
+  DEFAULT_SESSION_MIN,
+  prefillReps,
   getTrainingStatus,
   hasWarmupSet,
   isTrainingSession,
@@ -1474,6 +1476,44 @@ console.log('coach-ladder');
   assert(routeForDeepLink(`${app}/statsish`) === null,
     'prefix match is per segment, not per string');
   assert(routeForDeepLink('workout://stats') === '/stats', 'the workout:// scheme still works');
+}
+
+// ── Watch wave, phase 1: program defaults (trainer rulings 2, 3, 6) ──────
+console.log('Watch wave — program defaults');
+{
+  // R6: a set opens at last session's reps, clamped into the prescribed
+  // range for EVERY unit. Triceps prefilled 10 against a 12 minimum on
+  // May 30, Sep 1 and Sep 12 because the raw carry kept copying the short
+  // set forward — and the short set then blocked progress for good.
+  assert(prefillReps(10, 12, 15) === 12, 'a short set never becomes the next prefill — Triceps 10 opens at 12');
+  assert(prefillReps(16, 12, 15) === 15, 'reps past the range open at the top of it');
+  assert(prefillReps(13, 12, 15) === 13, 'reps inside the range carry unchanged');
+  assert(prefillReps(undefined, 12, 15) === 12 && prefillReps(null, 12, 15) === 12, 'no history opens at repsMin');
+  // Both producers derive it the same way — the phone logger and the Watch
+  // plan (rule 9: the server derives once, the wrist is told).
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  assert(src('src/app/api/watch/plan/route.ts').includes('prefillReps('), 'the Watch plan derives reps with prefillReps');
+  assert(src('src/components/WorkoutForm.tsx').includes('prefillReps('), 'the phone logger derives reps with prefillReps');
+
+  // R3: a bare Start opens 45 minutes, in the ramp and after it. Every
+  // session he has logged was 30 or 45; 60 only adds Lateral Raise to Day A,
+  // which he has never logged.
+  assert(DEFAULT_SESSION_MIN === 45, 'the default session is 45 minutes');
+  assert(!getExercisesForDuration('A', DEFAULT_SESSION_MIN).some((e) => e.name === 'Lateral Raise'), 'the default Day A carries no Lateral Raise — never logged, it would open at 0 kg');
+  for (const f of ['src/app/api/watch/plan/route.ts', 'src/app/workouts/new/page.tsx']) {
+    assert(!/inRamp \? 45 : 60/.test(src(f)), `${f}: no ramp-dependent 60-minute default`);
+  }
+  const loggedIds = new Set(data.workouts.flatMap((w) => w.sets.map((st) => st.exerciseId)));
+  for (const day of ['A', 'B'] as const) {
+    for (const t of getExercisesForDuration(day, DEFAULT_SESSION_MIN)) {
+      const id = data.exercises.find((e) => e.name === t.name)?.id;
+      assert(id !== undefined && loggedIds.has(id), `Day ${day} default: ${t.name} has logged history`);
+    }
+  }
+
+  // R2: Pec Fly is 3 sets. He did 3 in 5 of 7 sessions; a prescription he
+  // routinely overrides teaches him the numbers are optional.
+  assert(getDayTemplate('A').exercises.find((e) => e.name === 'Pec Fly')?.sets === 3, 'Pec Fly is prescribed 3 sets');
 }
 
 // ── summary ──────────────────────────────────────────────────
