@@ -2242,6 +2242,13 @@ console.log('Watch wave — final review fixes');
   assert(/recoverOrBegin\(startDate: /.test(store), 'every restart passes the session start');
   // F3 (Watch): an open phone logger is continued if its row is fresh, even with nothing pushed.
   assert(/liveFreshWindow/.test(store) && /row\.updatedDate/.test(store), 'the Action Button continues a fresh phone row, not only one with sets');
+  // Round-4 check: "Fill all" reads settled rows; a Rescue swap records 2 sets.
+  const fill = form.slice(form.indexOf('function fillDown'), form.indexOf('function fillDown') + 600);
+  assert(/settledSet\(/.test(fill), '"Fill all" starts from the first unsettled row, never a skipped warm-up');
+  assert(/plannedSets: rescueMode \? b\.plannedSets : swapSpec\?\.sets/.test(form), 'a Rescue swap keeps the block\'s own set count for later reprices');
+  // Rule 11: a HealthKit restart is never backdated past 3 h, and never after
+  // this session's workout was already saved.
+  assert(/hkWorkoutUuid/.test(store) && /healthRestartStart\(/.test(store), 'a saved workout is remembered on the session and restarts are bounded');
 }
 
 // ── summary ──────────────────────────────────────────────────

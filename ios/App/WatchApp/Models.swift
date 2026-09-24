@@ -178,6 +178,12 @@ struct ActiveSession: Codable, Equatable {
     /// Warm-ups retired because enough machines were started — kept so an
     /// undo can bring back the ones that are due again.
     var retiredWarmups: [SetSlot]? = nil
+    /// The HKWorkout this session already saved (end() ran). Kept so a
+    /// session that survives its own finish (a failed save, a killed
+    /// process) never starts a second workout on top of it, and the finish
+    /// still carries the uuid (rule 11).
+    var hkWorkoutUuid: String? = nil
+    var hkEnded: Bool? = nil
 }
 
 // MARK: - Live session (phone ↔ watch handoff, docs/WATCH.md "Live session")

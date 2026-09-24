@@ -209,7 +209,10 @@ struct SetCardView: View {
             // "remove the machine name just keep 1/6"). A reason rides beside
             // it only when the prescription moved; a heart only when the
             // workout session is NOT running (tap to restart it).
-            if store.machinePosition != nil || reasonLabel != nil || !workout.isActive {
+            // No heart once this session's workout is saved: a restart then
+            // would put a second workout on top of it in Health (rule 11).
+            let heartDown = !workout.isActive && store.session?.hkEnded != true
+            if store.machinePosition != nil || reasonLabel != nil || heartDown {
                 HStack(spacing: 4) {
                     if let pos = store.machinePosition {
                         Text("\(pos.index)/\(pos.total)")
@@ -219,9 +222,9 @@ struct SetCardView: View {
                     if let r = reasonLabel {
                         Text("· \(r.text)").foregroundStyle(r.color)
                     }
-                    if !workout.isActive {
+                    if heartDown {
                         Button {
-                            let begun = store.session?.startedAt ?? Date()
+                            let begun = SessionCore.healthRestartStart(startedAt: store.session?.startedAt ?? Date(), now: Date())
                             Task { await workout.recoverOrBegin(startDate: begun) }
                         } label: {
                             Image(systemName: "heart.slash.fill").foregroundStyle(.orange)

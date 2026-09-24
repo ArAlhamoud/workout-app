@@ -234,6 +234,14 @@ do {
     check(!SessionCore.planStartable(old, fetchedAt: f.date(from: "2026-10-01T00:00:00.000Z")!, now: f.date(from: "2026-10-09T00:00:00.000Z")!), "a plan without the field keeps the 7-day window")
 }
 
+print("Watch core — HealthKit restarts stay honest (rule 11)")
+do {
+    let start = t0
+    check(SessionCore.healthRestartStart(startedAt: start, now: start.addingTimeInterval(40 * 60)) == start, "a restart 40 min in covers the whole session")
+    let late = start.addingTimeInterval(14 * 3600)
+    check(SessionCore.healthRestartStart(startedAt: start, now: late) == late, "a session 14 h old restarts at now — never a 14-hour workout in Health")
+}
+
 print("Watch core — upgrade path (build 13 files)")
 do {
     let b13Session = """

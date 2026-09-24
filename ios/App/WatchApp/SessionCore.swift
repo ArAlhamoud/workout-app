@@ -308,6 +308,18 @@ enum SessionCore {
         return parts.joined(separator: " ")
     }
 
+    // MARK: - HealthKit restarts
+
+    /// Where a restarted HealthKit workout begins: the session's start while
+    /// that is within 3 h (a crash or another app ending ours mid-session),
+    /// else now. Apple Health writes cannot be undone, and an unbounded
+    /// backdate wrote a 14-hour workout for a session relaunched next day
+    /// (rule 11; the phone's own write caps a session at 3 h too).
+    static let healthRestartWindow: TimeInterval = 3 * 3600
+    static func healthRestartStart(startedAt: Date, now: Date) -> Date {
+        now.timeIntervalSince(startedAt) <= healthRestartWindow ? startedAt : now
+    }
+
     // MARK: - Offline start
 
     /// May a CACHED plan start a session now? Within 7 days of the fetch,

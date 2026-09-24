@@ -89,8 +89,12 @@ final class SessionStore: ObservableObject {
         if session != nil {
             // The HKWorkoutSession died with the process; get one running
             // again so the wrist behaves like a workout, not a launcher.
-            let begun = session?.startedAt ?? Date()
-            Task { await workout.recoverOrBegin(startDate: begun) }
+            // Never again once this session's workout was saved, and never
+            // backdated past 3 h (rule 11).
+            if let s = session, s.hkEnded != true {
+                let begun = SessionCore.healthRestartStart(startedAt: s.startedAt, now: Date())
+                Task { await workout.recoverOrBegin(startDate: begun) }
+            }
             if case .resting(let until) = phase { scheduleRestEnd(until: until) }
         }
         Task {
@@ -176,7 +180,7 @@ final class SessionStore: ObservableObject {
         finishing = true
         defer { finishing = false }
         stopRest()
-        let uuid = await workout.end()
+        let uuid = await rememberWorkoutEnd()
         guard let s = session, s.clientSaveId == s0.clientSaveId else { return }
         let own = s.logged.filter { $0.origin != "phone" }
         var outcome: DoneOutcome = .merged
@@ -686,6 +690,21 @@ final class SessionStore: ObservableObject {
         }
     }
 
+    /// End the HealthKit workout ONCE per session and remember it on disk:
+    /// a session that survives its finish (a failed save, a killed process)
+    /// keeps the uuid for the retry and never records a second workout on
+    /// top of the first (rule 11).
+    private func rememberWorkoutEnd() async -> String? {
+        if let s = session, s.hkEnded == true { return s.hkWorkoutUuid }
+        let uuid = await workout.end()
+        if var s = session {
+            s.hkEnded = true
+            s.hkWorkoutUuid = uuid
+            commit(s)
+        }
+        return uuid
+    }
+
     private func keepAfterFailedSave() {
         notice = "Couldn't store the session — it's still on the watch"
         phase = .summary
@@ -706,7 +725,7 @@ final class SessionStore: ObservableObject {
         defer { finishing = false }
         stopRest()
         phase = .uploading
-        let uuid = await workout.end()
+        let uuid = await rememberWorkoutEnd()
         // Re-read: sets merged from the phone while HealthKit wrapped up
         // belong in the payload; a session replaced meanwhile is not ours.
         guard let s = session, s.clientSaveId == s0.clientSaveId else { return }

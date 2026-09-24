@@ -1230,7 +1230,8 @@ export default function WorkoutForm({
               // coarse Try gate read the wrong top of the range (review F5).
               defaultReps: swapSpec?.repsMin,
               maxReps: swapSpec?.repsMax,
-              plannedSets: swapSpec?.sets,
+              // A Rescue day's block keeps ITS count for later reprices.
+              plannedSets: rescueMode ? b.plannedSets : swapSpec?.sets,
               programName: undefined,
               machine: undefined,
               cues: undefined,
@@ -1473,9 +1474,13 @@ export default function WorkoutForm({
     setBlocks((prev) =>
       prev.map((b) => {
         if (b.uid !== uid) return b;
-        const firstUndoneWeight = b.sets.find((s) => !s.done)?.weight ?? 0;
+        // Working rows only, from the first one still open: a warm-up (open
+        // or skipped — settledSet) is never the source and never overwritten.
+        // It copied the warm-up weight into working sets (round-4 check).
+        const open = (s: SetEntry) => !s.isWarmup && !settledSet(b.sets, s);
+        const firstUndoneWeight = b.sets.find(open)?.weight ?? 0;
         if (!firstUndoneWeight) return b;
-        return { ...b, sets: b.sets.map((s) => (s.done ? s : { ...s, weight: firstUndoneWeight })) };
+        return { ...b, sets: b.sets.map((s) => (open(s) ? { ...s, weight: firstUndoneWeight } : s)) };
       }),
     );
   }
@@ -2450,7 +2455,7 @@ export default function WorkoutForm({
                 >
                   &#183;&#183;&#183; note
                 </button>
-                {!isTimed && block.sets.filter((s) => !s.done).length > 1 && (block.sets.find((s) => !s.done)?.weight ?? 0) > 0 && (
+                {!isTimed && block.sets.filter((s) => !s.isWarmup && !s.done).length > 1 && (block.sets.find((s) => !s.isWarmup && !s.done)?.weight ?? 0) > 0 && (
                   <button
                     type="button"
                     onClick={() => fillDown(block.uid)}
