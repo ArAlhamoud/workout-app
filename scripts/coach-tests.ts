@@ -7,7 +7,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG } from '../src/lib/pins';
+import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
+import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
   combineIncrement,
   detectPlateau,
@@ -39,7 +40,6 @@ import {
   DEFAULT_SESSION_MIN,
   prefillReps,
   getTrainingStatus,
-  hasWarmupSet,
   isTrainingSession,
   pickRampMemory,
   rampBaseBefore,
@@ -56,6 +56,9 @@ import {
   type DynamicPlan,
   type LoggedSession,
   DEFAULT_GYM_ID,
+  earnsOverload,
+  shortSetVerdict,
+  warmupDue,
 } from '../src/lib/program';
 import {
   isLiveFresh,
@@ -1523,7 +1526,7 @@ console.log('Watch wave — program defaults');
   // Both producers derive it the same way — the phone logger and the Watch
   // plan (rule 9: the server derives once, the wrist is told).
   const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-  assert(src('src/app/api/watch/plan/route.ts').includes('prefillReps('), 'the Watch plan derives reps with prefillReps');
+  assert(src('src/lib/prescription.ts').includes('prefillReps(') && src('src/app/api/watch/plan/route.ts').includes('planExercises('), 'the Watch plan derives reps with prefillReps (through planExercises)');
   assert(src('src/components/WorkoutForm.tsx').includes('prefillReps('), 'the phone logger derives reps with prefillReps');
 
   // R3: a bare Start opens 45 minutes, in the ramp and after it. Every
@@ -1770,8 +1773,11 @@ console.log('Watch wave — machine steps (the setter)');
   assert(pinMapFor([], [{ id: setEx.id, pinIncrement: 9 }], MANUAL_PIN_GYM)(setEx.id) === 9, 'at B_Fit his step wins');
   assert(pinMapFor([], [{ id: setEx.id, pinIncrement: 9 }], 'work')(setEx.id) === 2.5, 'at Alrajhi his B_Fit step does not leak (rule 2)');
   const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  // Every pin map is built in ONE place (prescriptionInputs) and told its gym.
+  assert(/pinMapFor\([\s\S]*?exercises,\s*gym\)/.test(src('src/lib/prescription.ts')), 'prescriptionInputs builds the pin map for the gym it was asked about');
   for (const f of ['src/app/actions.ts', 'src/app/workouts/new/page.tsx', 'src/app/train/page.tsx', 'src/app/api/watch/plan/route.ts']) {
-    assert(/pinMapFor\([\s\S]*?exercises,\s*(gym|DEFAULT_GYM_ID)\)/.test(src(f)), `${f}: the pin map is told which gym it is for`);
+    assert(!src(f).includes('pinMapFor('), `${f}: no pin map of its own — it reads prescriptionInputs`);
+    assert(/prescriptionInputs\([^)]*,\s*(gym|DEFAULT_GYM_ID)\)/.test(src(f)), `${f}: prescription inputs are told which gym they are for`);
   }
 
   // The Watch crown steps by HIS step once he has set it; until then 0.5 kg,
@@ -1783,6 +1789,269 @@ console.log('Watch wave — machine steps (the setter)');
   assert(route.includes('crownStepKg') && route.includes('crownStepFor('), 'the Watch plan sends the crown step');
   const act = src('src/app/actions.ts');
   assert(/export async function setMachinePin\(/.test(act) && act.includes('parsePinKg('), 'the phone can set a machine\'s step, validated');
+}
+
+// ── Watch wave, phase 2 review fixes ──────────────────────────────────────
+console.log('Watch wave — phase 2 review fixes');
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+
+  // A1 / F1 / DS-1 (blocker): his B_Fit step reached the phone logger at
+  // Alrajhi — the page built one home-gym map and the gym switch kept it, so
+  // the phone prescribed with his 9 kg while the save-time judge (and the
+  // Watch) used Alrajhi's 2.5: a session done exactly as prescribed was
+  // judged over-ramp, for good. The switch now brings THAT gym's pins.
+  const gm = src('src/app/actions.ts');
+  const gmBody = gm.slice(gm.indexOf('export async function getGymMemory('), gm.indexOf('export async function getRecentExerciseSessions('));
+  assert(/rampSnapshot\(gym\)/.test(gmBody) && /pins\[/.test(gmBody) && /return \{[^}]*pins/.test(gmBody), 'getGymMemory returns the tagged gym\'s own pin map');
+  const form = src('src/components/WorkoutForm.tsx');
+  const body = form.slice(form.indexOf('export default function WorkoutForm'));
+  assert(!/pinIncrements\[/.test(body), 'inside the logger no read of the home-gym pin prop — every step reads the tagged gym\'s pins');
+  assert(/setPins\(gymPins\)/.test(body), 'the gym switch installs the new building\'s pins');
+  const hx = { id: 'hx', name: 'Leg Extension', category: 'LEGS' } as CoachExercise;
+  const workIn = prescriptionInputs([], [{ id: hx.id, pinIncrement: 9 }], 'work');
+  const homeIn = prescriptionInputs([], [{ id: hx.id, pinIncrement: 9 }], DEFAULT_GYM_ID);
+  assert(workIn.pinFor(hx.id) === 2.5 && homeIn.pinFor(hx.id) === 9, 'his 9 kg step prescribes at B_Fit only');
+  assert(workIn.stepIsHis(hx.id) === false && homeIn.stepIsHis(hx.id) === true, 'and his ladder is anchored only where the step is his');
+
+  // B1 / F4: once the step is his, ramp and warm-up weights snapped to
+  // multiples of the step counted from ZERO — off every plate on a stack
+  // that starts at an offset (Chest Press 23 / 27.5 on 4.5; plates 5, 12.5,
+  // 20, 27.5, 35 on 7.5). The ladder now runs through a weight he lifted.
+  assert(rampPrefillWeight({ weight: 23, rpe: null }, 85, 4.5, true) === 18.5, `Chest Press 23 on his 4.5 ladder at 85% opens at 18.5, a real plate (got ${rampPrefillWeight({ weight: 23, rpe: null }, 85, 4.5, true)})`);
+  assert(rampPrefillWeight({ weight: 23, rpe: null }, 85, 4.5) === 18, 'without his step the zero-based grid is unchanged (18)');
+  assert(rampPrefillWeight({ weight: 35, rpe: 2 }, 60, 7.5, true) === 20 && rampPrefillWeight({ weight: 35, rpe: 2 }, 85, 7.5, true) === 27.5, `35 on a 7.5 ladder: 20 at 60%, 27.5 at 85% (got ${rampPrefillWeight({ weight: 35, rpe: 2 }, 60, 7.5, true)} / ${rampPrefillWeight({ weight: 35, rpe: 2 }, 85, 7.5, true)})`);
+  assert(warmupWeight(27.5, 4.5, true) === 14 && warmupWeight(35, 7.5, true) === 12.5, `warm-ups land on his plates too (got ${warmupWeight(27.5, 4.5, true)} / ${warmupWeight(35, 7.5, true)})`);
+  assert(warmupWeight(5, 7.5, true) === null, 'a working weight on the bottom plate has no lighter warm-up');
+  let rungs = 0;
+  for (const p of [2, 4.5, 5, 7.5, 9, 10]) for (let w = p; w <= 90; w += 0.5) for (const pct of [60, 70, 85]) for (const rpe of [null, 2, 3]) {
+    const got = rampPrefillWeight({ weight: w, rpe }, pct, p, true);
+    const steps = (w - got) / p;
+    rungs++;
+    assert(Math.abs(steps - Math.round(steps)) < 1e-6 && got > 0 && got <= w, `ramp ${w}@${pct}% on a ${p} ladder lands on a rung (${got})`);
+    const allowed = allowedRampKg({ weight: w, rpe }, pct, p, true);
+    assert(allowed != null && got <= allowed + 1e-9, `the anchored prescription is inside its own anchored allowance (${got} ≤ ${allowed})`);
+    const warm = warmupWeight(got, p, true);
+    assert(warm == null || (warm < got && Math.abs((got - warm) / p - Math.round((got - warm) / p)) < 1e-6), `the anchored warm-up is a lighter rung (${warm} under ${got})`);
+  }
+  assert(rungs > 1000, `the ladder sweep covered ${rungs} cases`);
+  const chest = { weight: 23, reps: 10, rpe: null };
+  const pAnch = prescribeWorking({ unit: 'reps', sets: 3, repsMin: 10, repsMax: 12 }, chest, 4.5, null, { rampPct: 85, rescue: false, anchored: true });
+  assert(pAnch.workingKg === 18.5 && prescribeWarmup(pAnch, 'reps', 4.5, false, true) === 9.5, `the one prescription carries the anchor (got ${pAnch.workingKg} / ${prescribeWarmup(pAnch, 'reps', 4.5, false, true)})`);
+  assert(/allowedRampKg\(m, status\.returnWeek\.loadPct, pinFor\(id\), (inputs|snap)\.stepIsHis\(id\)\)/.test(gm), 'the save-time judge uses the same anchored ladder');
+
+  // F2: a missed decimal (25 for 2.5) was accepted.
+  assert(stepPlausible(25, 20) !== null && /2\.5/.test(stepPlausible(25, 20)!), `25 on a machine he lifts 20 on is refused, with the decimal it probably meant (got ${stepPlausible(25, 20)})`);
+  assert(stepPlausible(12.5, 8.75) !== null && /1\.25/.test(stepPlausible(12.5, 8.75)!), '12.5 for 1.25 on Face Pull is refused too');
+  assert(stepPlausible(9, 29) === null && stepPlausible(4.5, 23) === null, 'real steps pass');
+  assert(stepPlausible(15, null) === null && stepPlausible(15, 0) === null, 'no history on the machine, nothing to check against');
+  assert(/export async function setMachinePin\([^)]*force/.test(gm) && gm.includes('stepPlausible('), 'the setter checks plausibility, and he can still insist');
+
+  // F5: on a coarse stack, +1 pin waited for nothing but repsMin — the step
+  // he typed set the size of the jump (29 → 38 at 12 reps). The Try chip
+  // must agree with the seed: reps to the top of the range first.
+  assert(nextTryWeight({ weight: 29, reps: 12, rpe: 1, overload: true, repsFloor: 12 }, 9, 12, 15) === null, 'a 9 kg step on 29 (31%) offers nothing until every set reached 15');
+  assert(nextTryWeight({ weight: 29, reps: 15, rpe: 1, overload: true, repsFloor: 15 }, 9, 12, 15) === 38, 'at 15 on every set it offers the step');
+
+  // E1 / DT1 / DT2 — the step card.
+  const card = src('src/components/MachinePinCard.tsx');
+  assert(!card.includes('The watch crown and the +1 pin move by it.'), 'the ⓘ no longer promises a crown stride the Watch does not use on an unset machine');
+  assert(/try \{[\s\S]*?await setMachinePin\([\s\S]*?\} catch/.test(card), 'a failed save stays on the card as an error, never the root error screen');
+  assert(/min-h-\[44px\]/.test(card) && /Tap again to clear|clear\?/i.test(card), 'card controls are 44 pt and Clear asks twice');
+}
+
+// ── Watch wave, phase 3: one prescription for the phone and the wrist ─────
+// Rule 9: the server works the number out and the Watch is told. The phone
+// seeded +1 pin and deloaded plateaus; the Watch plan did neither, so the
+// two devices opened the same machine at different weights (Rear Delt Fly
+// 22.5 on the phone, 20 on the wrist, the week the ramp ends).
+console.log('Watch wave — one prescription (A3, trainer rulings 1, 5, 6)');
+{
+  type JsonSet = { exerciseId: string; setNumber: number; weight: number; reps: number; rpe: number | null; isWarmup?: boolean; exercise: { name: string } };
+  type JsonWorkout = { id: string; name: string; date: string; gym?: string | null; duration?: number | null; createdAt?: string; sets: JsonSet[] };
+  const frozenRows = (data.workouts as unknown as JsonWorkout[]).filter((w) => String(w.createdAt ?? '9999') <= FROZEN_AT);
+  // The same query getLastSessionForExercises runs, over the export: working
+  // sets, B_Fit (untagged counts), before the cut and never a rescue.
+  const foldFrom = (ws: JsonWorkout[], before?: string | null) => {
+    const rows: MemorySetRow[] = [];
+    for (const w of ws) {
+      if ((w.gym ?? DEFAULT_GYM_ID) !== DEFAULT_GYM_ID) continue;
+      if (before && !(new Date(w.date) < new Date(before) && !w.name.startsWith('Rescue'))) continue;
+      for (const st of w.sets) {
+        if (st.isWarmup) continue;
+        rows.push({ exerciseId: st.exerciseId, exerciseName: st.exercise.name, setNumber: st.setNumber, weight: st.weight, reps: st.reps, rpe: st.rpe, workout: { id: w.id, date: new Date(w.date), duration: w.duration ?? null } });
+      }
+    }
+    rows.sort((a, b) => b.workout.date.getTime() - a.workout.date.getTime() || b.setNumber - a.setNumber);
+    const evidence = new Map<string, Array<{ rpe: number | null; isWarmup: boolean }>>();
+    for (const w of ws) evidence.set(w.id, w.sets.filter((st) => !st.isWarmup).map((st) => ({ rpe: st.rpe, isWarmup: false })));
+    return foldExerciseMemory(rows, evidence);
+  };
+  const memoryFrom = (ws: JsonWorkout[], cut: string | null | undefined) => {
+    const latest = foldFrom(ws);
+    if (!cut) return latest;
+    const pre = foldFrom(ws, cut);
+    const out: Record<string, ExerciseMemory> = {};
+    for (const id of new Set([...Object.keys(pre), ...Object.keys(latest)])) {
+      const m = pickRampMemory(pre[id], latest[id]);
+      if (m) out[id] = m;
+    }
+    return out;
+  };
+  const idOf = (name: string) => data.exercises.find((e) => e.name === name)!.id;
+  const spec = (name: string) => getDayTemplate('A').exercises.concat(getDayTemplate('B').exercises).find((e) => e.name === name)!;
+
+  // R1: one deliberate Easy on the LAST set can earn the pin. The Watch
+  // rates one set per machine — the last, most fatigued one — so under the
+  // old "two rated sets" rule a wrist-only lifter could never progress.
+  const s = (setNumber: number, weight: number, reps: number, rpe: number | null) => ({ setNumber, weight, reps, rpe });
+  assert(earnsOverload([s(1, 27.5, 12, null), s(2, 27.5, 12, null), s(3, 27.5, 12, 1)], { sets: 3, repsMin: 12 }), 'a single Easy on the last set qualifies when every prescribed set was done in full at one weight');
+  assert(!earnsOverload([s(1, 27.5, 12, null), s(2, 27.5, 12, 1), s(3, 27.5, 12, null)], { sets: 3, repsMin: 12 }), 'an Easy on set 2 of 3 does not — the most fatigued set was not rated');
+  assert(!earnsOverload([s(1, 27.5, 12, null), s(2, 27.5, 12, null), s(3, 27.5, 12, null)], { sets: 3, repsMin: 12 }), 'nothing rated earns nothing (a spoken "done" leaves it unrated)');
+  assert(!earnsOverload([s(1, 27.5, 12, 1), s(2, 27.5, 9, 1), s(3, 27.5, 12, 1)], { sets: 3, repsMin: 12 }), 'a short set anywhere disqualifies — Easy or not');
+  assert(!earnsOverload([s(1, 30, 12, 1), s(2, 27.5, 12, 1), s(3, 27.5, 12, 1)], { sets: 3, repsMin: 12 }), 'a drop set is not one weight done in full');
+  assert(!earnsOverload([s(1, 27.5, 12, 2), s(2, 27.5, 12, null), s(3, 27.5, 12, 1)], { sets: 3, repsMin: 12 }), 'any rated set above Easy disqualifies');
+  assert(!earnsOverload([s(1, 27.5, 12, 1), s(2, 27.5, 12, 1)], { sets: 3, repsMin: 12 }), 'two of three prescribed sets is not the prescription');
+  assert(earnsOverload([s(1, 20, 10, 1), s(2, 20, 10, 1)], undefined) && !earnsOverload([s(1, 20, 10, 1)], undefined), 'an off-plan machine needs two sets, the last one Easy');
+
+  // A real session around the machine under test: without the other
+  // machines' sets a three-set row is a mis-tap stub, not memory (rule 1.9).
+  const synth = (id: string, name: string, date: string, sets: Array<[number, number, number, number | null]>): JsonWorkout => ({
+    id, name: 'Day B 45m', date, gym: 'bfit', duration: 2400,
+    sets: [
+      ...sets.map(([setNumber, weight, reps, rpe]) => ({ exerciseId: 'syn', setNumber, weight, reps, rpe, exercise: { name } })),
+      ...[1, 2, 3].map((setNumber) => ({ exerciseId: 'filler', setNumber, weight: 20, reps: 12, rpe: null, exercise: { name: 'Leg Curl' } })),
+    ],
+  });
+  const midShort = foldFrom([
+    synth('m1', 'Rear Delt Fly', '2026-10-01', [[1, 20, 12, 1], [2, 20, 9, 1], [3, 20, 12, 1]]),
+    synth('m2', 'Rear Delt Fly', '2026-10-03', [[1, 20, 12, 1], [2, 20, 9, 1], [3, 20, 12, 1]]),
+  ]).syn;
+  assert(midShort?.overload === false, `a short set in the middle blocks the pin even when the LAST set reached the reps (got overload ${midShort?.overload})`);
+  const wristOnly = foldFrom([
+    synth('w1', 'Rear Delt Fly', '2026-10-01', [[1, 20, 12, null], [2, 20, 12, null], [3, 20, 12, 1]]),
+    synth('w2', 'Rear Delt Fly', '2026-10-03', [[1, 20, 12, null], [2, 20, 12, null], [3, 20, 12, 1]]),
+  ]).syn;
+  assert(wristOnly?.overload === true && wristOnly.repsFloor === 12, `two Watch sessions, each rated once on the last set, earn the pin (got ${JSON.stringify(wristOnly)})`);
+  const hardShort = foldFrom([
+    synth('h1', 'Rear Delt Fly', '2026-10-01', [[1, 20, 12, null], [2, 20, 12, null], [3, 20, 8, 3]]),
+    synth('h2', 'Rear Delt Fly', '2026-10-03', [[1, 20, 12, null], [2, 20, 10, null], [3, 20, 9, 4]]),
+  ]).syn;
+  assert(hardShort?.shortHard === true && !hardShort.overload, `short and Hard twice at one weight is flagged for one pin lighter (got ${JSON.stringify(hardShort)})`);
+
+  // R6: what a short set means next time.
+  assert(shortSetVerdict([s(1, 20, 12, 1), s(2, 20, 12, 1)], { sets: 2, repsMin: 12 }) === 'full', 'full reps: nothing to say');
+  assert(shortSetVerdict([s(1, 25, 10, 1), s(2, 25, 10, 1)], { sets: 2, repsMin: 12 }) === 'short-easy', 'Triceps 25 × 10 rated Easy: short, not hard — same weight, reps back to 12');
+  assert(shortSetVerdict([s(1, 20, 12, 2), s(2, 20, 9, 3)], { sets: 2, repsMin: 12 }) === 'short-hard', 'Leg Curl May 19 (9 reps @Hard) is short and hard');
+  assert(shortSetVerdict([s(1, 20, 12, null), s(2, 20, 9, null)], { sets: 2, repsMin: 12 }) === 'short-unrated', 'short and unrated holds — it could be a symptom stop, it could be a copied prefill');
+  assert(shortSetVerdict([s(1, 20, 9, null), s(2, 20, 12, 3)], { sets: 2, repsMin: 12 }) === 'short-hard', 'an unrated short set takes the last set\'s rating (the Watch rates only the last)');
+
+  // Real history under the new rule.
+  const latest = foldFrom(frozenRows);
+  assert(latest[idOf('Rear Delt Fly')]?.overload === true && latest[idOf('Rear Delt Fly')].weight === 20, 'Rear Delt Fly: May 30 and Sep 12 were both 3 × 12 at 20, all Easy — it has earned the pin');
+  for (const name of ['Hip Abduction', 'Hip Adduction', 'Back Extension', 'Leg Press', 'Leg Extension', 'Triceps Extension']) {
+    assert(latest[idOf(name)]?.overload !== true, `${name}: no pin earned yet on real history`);
+  }
+  assert(latest[idOf('Leg Press')]?.allEasy === true, 'Sep 17 Leg Press (3 × 12 at 37.5, one Easy on the last set) counts as an Easy session under R1');
+  assert(latest[idOf('Hip Adduction')]?.allEasy === false, 'Sep 17 Hip Adduction left its last set unrated — not an Easy session');
+  assert(latest[idOf('Triceps Extension')]?.shortHard !== true, 'Triceps 10 reps rated Easy is short-easy: no deload');
+
+  // prescribeWorking: the ONE function.
+  const tplRdf = spec('Rear Delt Fly');
+  const pRdf = prescribeWorking(tplRdf, latest[idOf('Rear Delt Fly')], 2.5, null, { rampPct: null, rescue: false });
+  assert(pRdf.workingKg === 22.5 && pRdf.reason === 'overload' && pRdf.fromKg === 20, `Rear Delt Fly after the ramp opens at 22.5 on BOTH devices (got ${JSON.stringify(pRdf)})`);
+  const pRestore = prescribeWorking(tplRdf, latest[idOf('Rear Delt Fly')], 2.5, null, { rampPct: 100, rescue: false });
+  assert(pRestore.workingKg === 20 && pRestore.reason === 'ramp', `RESTORE (100%) is still the ramp — no seed on a scaled machine (got ${JSON.stringify(pRestore)})`);
+  const held = { weight: 35, reps: 15, rpe: 1, overload: true, rampHold: true, repsFloor: 15 };
+  const pHeld = prescribeWorking(spec('Hip Abduction'), held, 2.5, null, { rampPct: 85, rescue: false });
+  assert(pHeld.workingKg === 37.5 && pHeld.reason === 'overload', `a held machine seeds under the ramp exactly as the phone does (got ${JSON.stringify(pHeld)})`);
+  const plateau = { weight: 40, reps: 10, rpe: 1, overload: true, repsFloor: 10 };
+  const pDeload = prescribeWorking(spec('Lat Pulldown'), plateau, 2, 40, { rampPct: null, rescue: false });
+  assert(pDeload.workingKg === 36 && pDeload.sets === 2 && pDeload.reason === 'deload' && pDeload.note === 'Deload: 36 kg × half sets, then build back', `a plateau deloads, and the deload beats the seed (got ${JSON.stringify(pDeload)})`);
+  const pLpDeload = prescribeWorking(spec('Leg Press'), { weight: 40, reps: 12, rpe: 3 }, 2.5, 40, { rampPct: null, rescue: false });
+  assert(pLpDeload.workingKg === 35 && prescribeWarmup(pLpDeload, 'reps', 2.5, false) === 17.5, `a deload day's warm-up follows the DELOAD weight — 17.5 from 35, not 20 from 40 (got ${pLpDeload.workingKg} / ${prescribeWarmup(pLpDeload, 'reps', 2.5, false)})`);
+  const quarter = { weight: 26, reps: 10, rpe: 1, overload: true, rampHold: true, repsFloor: 10 };
+  const pQuarter = prescribeWorking({ unit: 'reps', sets: 3, repsMin: 10, repsMax: 12 }, quarter, 1.25, null, { rampPct: 85, rescue: false });
+  assert(pQuarter.workingKg === 27.25 && pQuarter.workingKg <= allowedRampKg(quarter, 85, 1.25)!, `a 1.25 pin rounds to the quarter kilo (27.25), never over its own allowance (got ${pQuarter.workingKg})`);
+  const pRescue = prescribeWorking(tplRdf, latest[idOf('Rear Delt Fly')], 2.5, null, { rampPct: 60, rescue: true });
+  assert(pRescue.reason === 'ramp' && pRescue.workingKg! <= 20, `a rescue day never seeds (got ${JSON.stringify(pRescue)})`);
+  assert(prescribeWarmup(pRescue, 'reps', 2.5, true) === null, 'a rescue day opens no warm-ups');
+  const pPlank = prescribeWorking(spec('Plank'), latest[idOf('Plank')], 2.5, null, { rampPct: null, rescue: false });
+  assert(pPlank.workingKg === null && pPlank.reason === 'timed', 'a timed hold has no weight to prescribe');
+  const pShort = prescribeWorking(spec('Leg Curl'), { weight: 30, reps: 8, rpe: 3, shortHard: true }, 2.5, null, { rampPct: null, rescue: false });
+  assert(pShort.workingKg === 27.5 && pShort.reason === 'short' && pShort.sets === 3 && !!pShort.note, `short and Hard twice: one pin lighter, full sets (got ${JSON.stringify(pShort)})`);
+  const pShortRamp = prescribeWorking(spec('Leg Curl'), { weight: 30, reps: 8, rpe: 3, shortHard: true }, 2.5, null, { rampPct: 85, rescue: false });
+  assert(pShortRamp.reason === 'ramp', 'during the ramp a short set only holds — the ramp is already light');
+  // Trainer ruling 4: on a coarse stack, reps before the pin.
+  const coarse = { weight: 27.5, reps: 12, rpe: 1, overload: true, repsFloor: 12 };
+  assert(prescribeWorking(spec('Back Extension'), coarse, 5, null, { rampPct: null, rescue: false }).reason === 'last', 'a 5 kg step on 27.5 (18%) waits until every set reaches 15');
+  assert(prescribeWorking(spec('Back Extension'), { ...coarse, repsFloor: 15 }, 5, null, { rampPct: null, rescue: false }).workingKg === 32.5, 'at 15 reps on every set the coarse step is taken');
+
+  // R5: warm up the first two weighted machines he STARTS, not the first two
+  // on paper. Back Extension warms up wherever it lands.
+  assert(warmupDue(0, 'reps', 30) && warmupDue(1, 'reps', 30), 'the first and second machines started warm up');
+  assert(!warmupDue(2, 'reps', 30), 'the third machine started does not — he is warm by then');
+  assert(warmupDue(4, 'reps', 27.5, true), 'Back Extension warms up even fifth (seated forward lean under load)');
+  assert(!warmupDue(0, 'seconds', 30) && !warmupDue(0, 'reps', null), 'no warm-up for a hold, or with no weight to scale');
+  assert(getDayTemplate('B').exercises.find((e) => e.name === 'Back Extension')?.alwaysWarm === true, 'Back Extension carries alwaysWarm');
+  assert(extraSetAllowed(2) === false && extraSetAllowed(3) === true && extraSetAllowed(null) === true, '+1 set is never offered in REBOOT or REBUILD (cap Med)');
+
+  // Today's plan (2026-09-24, RELOAD 85%) is unchanged by A3 — the ramp
+  // only lets held machines seed, and none has earned it.
+  const exercisesWithPins = data.exercises.map((e) => ({ id: e.id, pinIncrement: (e as { pinIncrement?: number | null }).pinIncrement ?? null }));
+  const today = new Date('2026-09-24T09:00:00Z');
+  const inputs = prescriptionInputs(frozenRows as never, exercisesWithPins, DEFAULT_GYM_ID, today);
+  assert(inputs.rampPct === 85, `today is RELOAD 85% (got ${inputs.rampPct})`);
+  const memToday = memoryFrom(frozenRows, inputs.cut);
+  const byName = new Map(data.exercises.map((e) => [e.name, { id: e.id }]));
+  for (const day of ['A', 'B'] as const) {
+    const plan = planExercises(getExercisesForDuration(day, 45), byName, memToday, inputs);
+    for (const e of plan) {
+      const last = memToday[e.exerciseId];
+      const before = e.template.unit === 'seconds' || !last || last.weight <= 0 ? null : rampPrefillWeight(last, 85, e.pinKg);
+      assert(e.prescription.workingKg === before, `Day ${day} ${e.name}: today's weight is unchanged (${before} → ${e.prescription.workingKg})`);
+      const warm = e.prescription.workingKg ? warmupWeight(e.prescription.workingKg, e.pinKg) : null;
+      assert(e.warmupKg === warm, `Day ${day} ${e.name}: the plan carries its warm-up weight wherever it sits (${warm}, got ${e.warmupKg})`);
+    }
+  }
+
+  // Rule 10: following either device's prescription is never over-ramp.
+  let judged = 0;
+  for (const [id, m] of Object.entries(latest)) {
+    if (m.weight <= 0) continue;
+    const name = data.exercises.find((e) => e.id === id)?.name;
+    const tpl = name ? getDayTemplate('A').exercises.concat(getDayTemplate('B').exercises).find((e) => e.name === name) : undefined;
+    if (!tpl || tpl.unit === 'seconds') continue;
+    const pin = inputs.pinFor(id);
+    for (const pct of [60, 70, 85]) for (const rampHold of [true, false]) for (const overload of [true, false]) {
+      const mem = { ...m, rampHold, overload, repsFloor: tpl.repsMax };
+      const allowed = allowedRampKg(mem, pct, pin);
+      if (allowed == null) continue;
+      judged++;
+      const got = prescribeWorking(tpl, mem, pin, null, { rampPct: pct, rescue: false }).workingKg!;
+      assert(got <= allowed + 1e-9, `${name} at ${pct}% (held ${rampHold}, overload ${overload}): prescribed ${got} ≤ allowed ${allowed}`);
+    }
+  }
+  assert(judged > 50, `the rule-10 sweep covered ${judged} cases`);
+
+  // Rule 9 on the SOURCE: the producers call the one function and re-derive
+  // nothing. A copy of the rules is how the two devices drifted.
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  for (const f of ['src/app/api/watch/plan/route.ts', 'src/app/workouts/new/page.tsx', 'src/app/train/page.tsx']) {
+    const text = src(f);
+    for (const banned of ['rampPrefillWeight(', 'deloadTarget(', 'detectPlateau(', 'hasWarmupSet(', '.overload']) {
+      assert(!text.includes(banned), `${f}: no ${banned} — the prescription comes from prescription.ts`);
+    }
+    assert(text.includes('prescriptionInputs('), `${f}: reads its inputs through prescriptionInputs`);
+  }
+  for (const f of ['src/app/api/watch/plan/route.ts', 'src/app/train/page.tsx']) assert(src(f).includes('planExercises('), `${f}: builds its list with planExercises`);
+  const form = src('src/components/WorkoutForm.tsx');
+  const buildBody = form.slice(form.indexOf('function buildBlocks('), form.indexOf('export default function WorkoutForm'));
+  assert(buildBody.includes('prescribeWorking(') && !buildBody.includes('rampPrefillWeight('), 'the phone\'s buildBlocks calls prescribeWorking and re-derives nothing');
+  assert(!/warmupWeight\([^)]*\)\s*\?\?/.test(form), 'no "warm-up ?? working weight" fallback anywhere in the logger — a warm-up that is not lighter is no warm-up');
+  assert(/rampSnapshot[\s\S]{0,1400}prescriptionInputs\(/.test(src('src/app/actions.ts')), 'the ramp allowance reads the same inputs as the prescription');
+  const route = src('src/app/api/watch/plan/route.ts');
+  for (const key of ['reason:', 'fromKg:', 'note:', 'extraSetAllowed', 'warmupFirstN', 'alwaysWarm']) assert(route.includes(key), `the Watch plan sends ${key.replace(':', '')}`);
 }
 
 // ── summary ──────────────────────────────────────────────────
@@ -2414,8 +2683,15 @@ console.log('health-insights');
   };
   walk(path.join(__dirname, '..', 'src'));
 
-  assert(callSites.length >= 6, `expected to find the rampPrefillWeight call sites, found ${callSites.length}`);
+  // Five since A3 folded the route, the logger page, /train and buildBlocks
+  // into prescription.ts — fewer copies is the point of that change.
+  assert(callSites.length >= 5, `expected to find the rampPrefillWeight call sites, found ${callSites.length}`);
   const pinless = callSites.filter((c) => c.args < 3);
+  // And whether the step is HIS (review B1/F4): with it the scaled weight
+  // lands on the ladder through a weight he lifted; a call that leaves it
+  // out silently snaps to a zero-based grid off his plates.
+  const unanchored = callSites.filter((c) => c.args < 4);
+  assert(unanchored.length === 0, `every rampPrefillWeight call says whether the step is his — missing: ${unanchored.map((c) => `${c.file}: ${c.text}`).join(' | ') || 'none'}`);
   assert(
     pinless.length === 0,
     `every rampPrefillWeight call must pass the machine's learned pin (rule 4/7) — ` +
@@ -2428,14 +2704,15 @@ console.log('health-insights');
 // so a wrist session skipped them and the phone then showed "4 sets" where
 // the wrist had shown 3 (owner, 2026-09-18).
 {
-  assert(WARMUP_BLOCKS === 2, 'only the first two movements of a day warm up');
+  assert(WARMUP_BLOCKS === 2, 'only the first two machines started warm up');
 
-  assert(hasWarmupSet(0, 'reps', 40), 'first movement with a known weight warms up');
-  assert(hasWarmupSet(1, 'reps', 40), 'second movement warms up');
-  assert(!hasWarmupSet(2, 'reps', 40), 'the third movement does not — the body is warm by then');
-  assert(!hasWarmupSet(0, 'seconds', 40), 'a timed hold has no warm-up set');
-  assert(!hasWarmupSet(0, 'reps', null), 'no previous weight, nothing to scale a warm-up from');
-  assert(!hasWarmupSet(0, 'reps', 0), 'a zero working weight is not a warm-up either');
+  // Counted in machines STARTED (trainer ruling 5), not plan position.
+  assert(warmupDue(0, 'reps', 40), 'first machine started, with a known weight, warms up');
+  assert(warmupDue(1, 'reps', 40), 'second machine started warms up');
+  assert(!warmupDue(2, 'reps', 40), 'the third does not — the body is warm by then');
+  assert(!warmupDue(0, 'seconds', 40), 'a timed hold has no warm-up set');
+  assert(!warmupDue(0, 'reps', null), 'no previous weight, nothing to scale a warm-up from');
+  assert(!warmupDue(0, 'reps', 0), 'a zero working weight is not a warm-up either');
 
   // 55% floored to a whole pin, never below one pin.
   assert(warmupWeight(40, 2.5) === 20, `40kg on 2.5 pins warms at 20 (55% = 22, floored), got ${warmupWeight(40, 2.5)}`);

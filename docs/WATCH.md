@@ -38,51 +38,68 @@ posts in one shot.
 ### `GET /api/watch/plan?day=A|B&dur=30|45|60&gym=bfit|work` — all params optional
 
 Omitting `day` returns the dynamic plan's queued day; omitting `dur`
-returns 60 (45 during a return ramp). Response:
+returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
 
 ```json
 {
   "day": "B",
   "mode": "train",
   "focus": "Day B",
-  "durationMin": 60,
+  "durationMin": 45,
   "loadPct": 100,
-  "rpeCap": 4,
+  "rpeCap": 3,
+  "warmupFirstN": 2,
   "exercises": [
     {
       "exerciseId": "ckq…",
-      "name": "Lat Pulldown",
-      "machine": "Life Fitness pulldown",
-      "order": 0,
+      "name": "Rear Delt Fly",
+      "machine": "Life Fitness",
+      "order": 7,
       "sets": 3,
-      "repsMin": 10,
-      "repsMax": 12,
+      "repsMin": 12,
+      "repsMax": 15,
       "unit": "reps",
-      "prefillKg": 55,
-      "prefillReps": 10,
+      "restSec": 45,
+      "prefillKg": 22.5,
+      "prefillReps": 12,
       "pinKg": 2.5,
-      "warmupKg": 30
+      "crownStepKg": 0.5,
+      "warmupKg": 10,
+      "alwaysWarm": false,
+      "reason": "overload",
+      "fromKg": 20,
+      "note": null,
+      "extraSetAllowed": true
     }
   ]
 }
 ```
 
-- `prefillKg` is **already ramp-scaled** (floored to the pin during a
-  ramp — conservative, matching the phone) — display it as is. `null`
-  means no history: the watch shows `— kg` and the crown starts from 0
-  in `pinKg` steps.
+- `prefillKg` and `sets` are **the prescription** — the same numbers the
+  phone logger opens with, from one function (`src/lib/prescription.ts`,
+  CLAUDE.md rule 9): ramp-scaled, held, one pin up, deloaded (sets
+  halved) or stepped down. Display them as they are. `null` means no
+  history: show `— kg`.
+- `reason` says which, so the wrist can label it without computing
+  anything: `none | timed | last | ramp | held | overload | deload |
+  short`. `fromKg` is the weight it came from (overload: 20 → 22.5);
+  `note` is the deload / step-down line, else null.
 - Pins and prefills are **per gym** — pass `gym=work` at Alrajhi or the
   numbers describe the wrong building's stacks.
-- `pinKg` is that machine's **learned pin increment** (CLAUDE.md rule 4:
-  stacks move in pins, not kilograms — the crown must step by `pinKg`,
-  never by a fixed 2.5).
-- `warmupKg` is the **ramp-in set** for this movement, or `null` when it
-  has none — only the first two movements of a day get one, timed holds
-  never do, and a stack too coarse for a lighter pin gets `null` rather
-  than a "warm-up" at the working weight. Prepend it as `setNumber: 0`,
-  `isWarmup: true`, labelled *warm-up* rather than *set 0*. The rule
-  itself (55% of working, floored to the pin) lives in
-  `src/lib/program.ts`; do not reimplement it in Swift — CLAUDE.md rule 9.
+- `pinKg` is the machine's prescription step (his own at B_Fit once set,
+  else learned, else 2.5 — CLAUDE.md rule 4). `crownStepKg` is what ONE
+  crown detent moves: his step once he has set it, else 0.5 kg so any
+  weight he really lifted is reachable. Count detents from the card's
+  starting weight, never from 0 — a stack need not start at zero.
+- `warmupKg` is this machine's **ramp-in weight**, sent for every weighted
+  movement (null for holds, with nothing to scale, or when the stack has
+  nothing lighter). WHETHER it is used is the device's count: the first
+  `warmupFirstN` weighted machines he actually STARTS get one, and an
+  `alwaysWarm` machine (Back Extension) always does — trainer ruling 5.
+  Insert it as `setNumber: 0`, `isWarmup: true`, labelled *warm-up*, never
+  *set 0*; it is never rated.
+- `extraSetAllowed`: '+1 set' may be offered after the last set is rated
+  below the cap — never in REBOOT/REBUILD weeks (trainer ruling 2).
 - `rpeCap` < 4 during a ramp, OR while the chart caps effort (AF / antiarrhythmic / hypertension — the plan sends the min of both, 2026-09-18): grey out RPE buttons above the cap. Do not label it "Ramp target" when `loadPct` is 100 — it is the chart's ceiling, not a ramp.
 - Fetch the plan when the session starts; **cache the last plan on the
   watch** so a dead-signal gym still opens with yesterday's numbers.

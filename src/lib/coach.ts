@@ -170,6 +170,20 @@ export function pinMapFor(
   return (id) => combineIncrement(learned[id], override.get(id));
 }
 
+/**
+ * Is this machine's step HIS — set on its page, at the gym it describes?
+ * Only then is the stack's offset known (his lifted weights sit on it), so
+ * ramp and warm-up weights snap to the ladder through them instead of to a
+ * grid counted from zero (program.ts rampPrefillWeight `anchored`).
+ */
+export function stepIsHisFor(
+  overrides: Array<{ id: string; pinIncrement?: number | null }>,
+  gym: string,
+): (exerciseId: string) => boolean {
+  const his = new Set(gym === MANUAL_PIN_GYM ? overrides.filter((e) => e.pinIncrement != null && e.pinIncrement > 0).map((e) => e.id) : []);
+  return (id) => his.has(id);
+}
+
 /** Manual override on the exercise wins, else the learned value, else 2.5 kg. */
 export function combineIncrement(
   learned: number | undefined,

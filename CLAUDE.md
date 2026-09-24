@@ -43,7 +43,13 @@ Each of these broke something real. Do not relearn them.
    seen twice, never above 5 kg; below 2.5 the log's common step is an
    upper bound and is used (Face Pull 1.25). Otherwise 2.5 until the
    owner sets the machine's real step — his words: "each machine
-   different". Never invent a pin value.
+   different". Never invent a pin value. His step is B_Fit's only and must
+   reach EVERY consumer through the tagged gym's map — the phone's gym
+   switch once kept the home map and got a correct session judged
+   over-ramp for good. And a stack need not start at zero (5, 12.5, 20 is
+   a 7.5 stack): once the step is his, scaled and warm-up weights snap to
+   the ladder through a weight he lifted (`anchored`), never to multiples
+   of the step counted from 0.
 
 5. **Commit messages are not implementation.** A commit once described a
    CI workflow in detail that was never actually committed; nothing was
@@ -75,13 +81,16 @@ Each of these broke something real. Do not relearn them.
    not an error. Contract and merge rules: docs/WATCH.md "Live session".
 
 9. **A rule the phone applies, the Watch must be TOLD — not taught.**
-   The warm-up set (first two movements, ~55% of working, floored to the
-   pin) lived only in `WorkoutForm`, so the wrist never offered one and
-   a Watch-run session silently skipped it. `/api/watch/plan` now sends
-   `warmupKg` per exercise, computed by `hasWarmupSet` +
-   `warmupWeight` in `src/lib/program.ts`. Same shape as rule 7: when
-   both devices need a derived number, the server derives it once and
-   ships the answer. Never re-implement a program rule in Swift.
+   The warm-up set lived only in `WorkoutForm`, so the wrist never
+   offered one; then the overload seed and the plateau deload lived only
+   there too, and the same machine opened at 22.5 on the phone and 20 on
+   the wrist. Today's working weight, set count and warm-up come from ONE
+   pure module, `src/lib/prescription.ts` (`prescriptionInputs` →
+   `prescribeWorking` / `planExercises`), read by the logger, `/train`,
+   `/api/watch/plan` and the save-time ramp judge over the same newest
+   `PRESCRIPTION_WINDOW` rows. The suite fails if any of them calls
+   `rampPrefillWeight`, `deloadTarget` or `detectPlateau` itself. Never
+   re-implement a program rule in Swift or in a page.
 
 10. **Record a prescription at save time; never reconstruct it later.**
     The over-ramp judge first tried to re-derive "what the logger showed

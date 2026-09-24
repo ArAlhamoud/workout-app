@@ -21,6 +21,9 @@ export interface ProgramExercise {
   cues: string;
   youtubeUrl: string;
   priority: Priority;
+  /** Warms up wherever it lands in the session, not only as one of the first
+   *  two machines started (trainer ruling 5). */
+  alwaysWarm?: true;
 }
 
 export interface DayTemplate {
@@ -60,7 +63,7 @@ export const DAY_B: DayTemplate = {
   warmup: '5 min elliptical (easy pace) + shoulder rolls + gentle torso twists + 10 cat-cows on mat + 8 bird-dogs each side',
   cardioFinisher: '25–30 min swimming (best cardio on this day) OR 15 min elliptical at moderate pace',
   exercises: [
-    { name: 'Back Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '75s', machine: 'Life Fitness (seated Back Extension)', cues: 'This is the SEATED machine, not a roman chair — you sit upright, not face-down. Set the back pad so it sits across your upper back / shoulder blades, and the seat so your hips sit at the machine pivot. Cross arms on your chest or hold the handles. Press BACKWARD by driving your hips down into the seat and squeezing your glutes — the movement is a hip extension, the spine stays neutral and travels as one piece. Push back 2s, hold 1s, return 3s under control, stopping before the stack touches down. Range: only as far back as you can go without your ribs flaring or your chin lifting. MISTAKE TO AVOID: cranking backward with the lower back to chase range — a shorter, controlled rep with the glutes doing the work is the whole point, and at your bodyweight the seated version is far kinder to your spine than a roman chair.', youtubeUrl: 'https://www.youtube.com/watch?v=gLT-WLH84B4', priority: 1 },
+    { name: 'Back Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '75s', machine: 'Life Fitness (seated Back Extension)', cues: 'This is the SEATED machine, not a roman chair — you sit upright, not face-down. Set the back pad so it sits across your upper back / shoulder blades, and the seat so your hips sit at the machine pivot. Cross arms on your chest or hold the handles. Press BACKWARD by driving your hips down into the seat and squeezing your glutes — the movement is a hip extension, the spine stays neutral and travels as one piece. Push back 2s, hold 1s, return 3s under control, stopping before the stack touches down. Range: only as far back as you can go without your ribs flaring or your chin lifting. MISTAKE TO AVOID: cranking backward with the lower back to chase range — a shorter, controlled rep with the glutes doing the work is the whole point, and at your bodyweight the seated version is far kinder to your spine than a roman chair.', youtubeUrl: 'https://www.youtube.com/watch?v=gLT-WLH84B4', priority: 1, alwaysWarm: true },
     { name: 'Lat Pulldown', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hammer Strength', cues: 'Grip just outside shoulder width — wider is NOT better. Lock thighs under the pad. BEFORE pulling: depress your shoulder blades (pull shoulders away from ears). Then pull the bar to your upper chest by driving elbows straight DOWN and BACK toward your hips. Lean back 10–15° naturally. Hold 1s at bottom with lats squeezed. Return with arms fully extending for a full lat stretch at the top. MISTAKE TO AVOID: leaning back 45°+ turns this into a row — keep the lean minimal and feel your lats, not your biceps.', youtubeUrl: 'https://www.youtube.com/watch?v=NYQ-o3ffxOc', priority: 1 },
     { name: 'Mid Row', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hoist ROC-IT', cues: 'Adjust seat so handles are at mid-abdomen height. Sit upright with a slight forward lean at the hips — chest up, not hunched. Neutral grip (palms facing each other). BEFORE pulling: depress and slightly retract shoulder blades. Then row by driving elbows past your torso — aim for 90° elbow angle at full contraction. Squeeze shoulder blades together hard and hold 1s. Return 3s to a full arm extension and feel the lats stretch. IMPORTANT — this Hoist seat is DESIGNED TO MOVE as you row: keep your chest against the pad as it rocks and do not let it push you into a shrug. MISTAKE TO AVOID: shrugging shoulders up toward ears during the row — keep them down throughout.', youtubeUrl: 'https://www.youtube.com/watch?v=GZbfZ033f74', priority: 1 },
     { name: 'Plank', sets: 3, repsMin: 20, repsMax: 30, unit: 'seconds', repsDisplay: '20–30s', rest: '45s', machine: 'Floor / mat', cues: "KNEE PLANK is the default at your bodyweight — or dead bugs, which are as good for the spine. Knees and forearms on the mat, elbows directly under shoulders, a straight line from knees to head. KEEP BREATHING — slow, steady breaths in and out for the whole hold, 4–6 breaths per 30 s. Never hold your breath: a held breath under load spikes blood pressure. Squeeze glutes, draw the belly button toward the spine, push the floor away with the forearms. Hold 20–30 s; to progress, add a SET, not seconds. MISTAKE TO AVOID: hips piked up, or hips sagging — the moment the hips drop, the set is over. And no toes-down plank yet: at this bodyweight it drags the pelvis into a tilt and loads the lumbar spine.", youtubeUrl: 'https://www.youtube.com/watch?v=A2b2EmIg0dA', priority: 2 },
@@ -83,8 +86,8 @@ export function getExercisesForDuration(day: 'A' | 'B', duration: Duration): Pro
 }
 
 // ── Warm-up sets ─────────────────────────────────────────────
-// The first two movements of a day get a ramp-in set at ~55% of the
-// working weight, floored to the machine's pin. Only the first two: by
+// The first two machines he starts get a ramp-in set at ~55% of the
+// working weight, floored to the machine's pin (warmupDue). Only two: by
 // the third the body is warm and an extra set is just fatigue.
 //
 // This lived only in WorkoutForm, so the Watch — which builds its slots
@@ -93,13 +96,9 @@ export function getExercisesForDuration(day: 'A' | 'B', duration: Duration): Pro
 // "4 sets" where the wrist had shown 3 (owner, 2026-09-18). One rule,
 // one home, same lesson as rule 7.
 
-/** How many movements of a day open with a warm-up set. */
+/** How many machines of a session open with a warm-up set (plus alwaysWarm ones). */
 export const WARMUP_BLOCKS = 2;
 
-/** Does this position in the day get a warm-up set? */
-export function hasWarmupSet(order: number, unit: 'reps' | 'seconds', workingKg: number | null | undefined): boolean {
-  return order < WARMUP_BLOCKS && unit !== 'seconds' && !!workingKg;
-}
 
 /**
  * ~55% of the working weight, floored to a whole pin, never below one
@@ -110,10 +109,117 @@ export function hasWarmupSet(order: number, unit: 'reps' | 'seconds', workingKg:
  * (adversary, 2026-09-18). A warm-up that is not lighter is not a
  * warm-up; on a coarse stack the honest answer is no warm-up set.
  */
-export function warmupWeight(workingKg: number, pin: number): number | null {
+export function warmupWeight(workingKg: number, pin: number, anchored = false): number | null {
   const step = pin > 0 ? pin : 2.5;
+  if (anchored) {
+    // On HIS stack the rungs run through the working weight, not from zero:
+    // Chest Press at 27.5 on a 4.5 step warms up on 14, the real plate, not
+    // 13.5 (trainer + adversary, 2026-09-24). ~55%, floored to a rung.
+    let warm = workingKg - Math.ceil((workingKg * 0.45) / step - 1e-9) * step;
+    if (warm <= 1e-9) warm = lowestRung(workingKg, step);
+    warm = Math.round(warm * 100) / 100;
+    return warm < workingKg - 1e-9 ? warm : null;
+  }
   const warm = Math.max(step, Math.floor((workingKg * 0.55) / step) * step);
   return warm < workingKg ? warm : null;
+}
+
+/**
+ * The bottom rung of a stack `step` apart that runs through `weightKg` — a
+ * weight he really lifted. A machine's plates need not be multiples of its
+ * step counted from zero: 5, 12.5, 20, 27.5 is a 7.5 kg stack, and so is
+ * his Chest Press 23 / 27.5 on 4.5 (CLAUDE.md rule 4's own example).
+ */
+export function lowestRung(weightKg: number, step: number): number {
+  const r = weightKg - Math.floor((weightKg - 1e-9) / step) * step;
+  return Math.round(r * 100) / 100;
+}
+
+/**
+ * Does the machine he is about to START get a warm-up set? The first two
+ * weighted machines he actually starts warm up — whatever they are — and a
+ * machine marked alwaysWarm warms up wherever it lands (trainer ruling 5,
+ * 2026-09-24). The warm-up is for cold joints meeting load, which is about
+ * what he does first, not where a machine sits on paper: an occupied Leg
+ * Press sent him to Chest Press cold, then warmed Leg Press up third. The
+ * server sends each machine's warm-up weight; the device counts the starts.
+ */
+export function warmupDue(
+  startedWeighted: number,
+  unit: 'reps' | 'seconds',
+  workingKg: number | null | undefined,
+  alwaysWarm?: boolean,
+): boolean {
+  return unit !== 'seconds' && !!workingKg && (alwaysWarm === true || startedWeighted < WARMUP_BLOCKS);
+}
+
+/** The prescription for one named movement, wherever it sits in the week. */
+export function programSpec(name: string | null | undefined): { sets: number; repsMin: number; repsMax: number } | undefined {
+  if (!name) return undefined;
+  const e = [...DAY_A.exercises, ...DAY_B.exercises].find((x) => x.name === name);
+  return e ? { sets: e.sets, repsMin: e.repsMin, repsMax: e.repsMax } : undefined;
+}
+
+/** One logged working set, as the progression rules read it. */
+export interface EvidenceSet {
+  setNumber: number;
+  weight: number;
+  reps: number;
+  rpe: number | null;
+}
+
+const isRated = (rpe: number | null | undefined): rpe is number => rpe != null && rpe > 0;
+
+/**
+ * Did this session prove the weight light? (trainer ruling 1, 2026-09-24)
+ *
+ * The Watch rates ONE set per machine — the last, most fatigued one — so the
+ * old "two or more rated sets, all Easy" rule meant a wrist-only session
+ * could never earn a pin. An Easy on the last set at full reps says the
+ * earlier sets were Easy too, so it now counts, under guards that matter
+ * because he rates nearly everything Easy (Sep 12: 29 of 29 sets):
+ *   - every prescribed working set logged (an off-plan machine: two);
+ *   - all at one weight — no drop sets;
+ *   - every set at or above repsMin — a short set anywhere disqualifies;
+ *   - the highest-numbered set rated Easy;
+ *   - no other rated set above Easy.
+ * Unrated (a spoken "done", a skipped strip) never qualifies. Two such
+ * sessions in a row at the same top weight still gate the pin.
+ */
+export function earnsOverload(sets: EvidenceSet[], spec: { sets: number; repsMin: number } | undefined): boolean {
+  const work = sets.filter((x) => x.weight > 0);
+  if (work.length < (spec?.sets ?? 2)) return false;
+  const top = Math.max(...work.map((x) => x.weight));
+  if (work.some((x) => Math.abs(x.weight - top) > 1e-6)) return false;
+  if (spec && work.some((x) => x.reps < spec.repsMin)) return false;
+  const last = work.reduce((a, b) => (b.setNumber > a.setNumber ? b : a));
+  if (last.rpe !== 1) return false;
+  return work.every((x) => !isRated(x.rpe) || x.rpe === 1);
+}
+
+export type ShortSetVerdict = 'full' | 'short-easy' | 'short-hard' | 'short-unrated';
+
+/**
+ * What a short set means for next time (trainer ruling 6). A set under
+ * repsMin is a real event — fatigue, a symptom stop on flecainide and
+ * nebivolol, or a copied prefill — so it stays in the log and is never
+ * read as "ready for more". The rating that counts is the short set's own;
+ * an unrated short set takes the last set's rating, because the Watch only
+ * rates the last. Only 'short-hard' twice at one weight changes the load.
+ */
+export function shortSetVerdict(sets: EvidenceSet[], spec: { sets: number; repsMin: number } | undefined): ShortSetVerdict {
+  if (!spec) return 'full';
+  const work = sets.filter((x) => x.weight > 0);
+  const short = work.filter((x) => x.reps < spec.repsMin);
+  if (!short.length) return 'full';
+  const ratings = short.map((x) => x.rpe).filter(isRated);
+  let rating: number | null = ratings.length ? Math.max(...ratings) : null;
+  if (rating == null) {
+    const last = work.reduce((a, b) => (b.setNumber > a.setNumber ? b : a));
+    if (isRated(last.rpe)) rating = last.rpe;
+  }
+  if (rating == null) return 'short-unrated';
+  return rating >= 3 ? 'short-hard' : 'short-easy';
 }
 
 // Capped at 30 s (trainer, 2026-09-18): at 126 kg a longer isometric is a
@@ -454,6 +560,7 @@ export function allowedRampKg(
   memory: { weight: number; rampHold?: boolean; rpe?: number | null },
   loadPct: number,
   pin: number,
+  anchored = false,
 ): number | null {
   if (loadPct >= 100 || memory.weight <= 0) return null;
   const p = pin > 0 ? pin : 2.5;
@@ -462,7 +569,7 @@ export function allowedRampKg(
   // weeks: its allowance is that prefill, one pin above its weight
   // (adversary pass 4).
   if (memory.rampHold) return +(memory.weight + p).toFixed(2);
-  const prescribed = rampPrefillWeight(memory, loadPct, p);
+  const prescribed = rampPrefillWeight(memory, loadPct, p, anchored);
   return +Math.min(prescribed + p, Math.max(prescribed, memory.weight)).toFixed(2);
 }
 
@@ -721,10 +828,12 @@ export function rampPrefillWeight(
   memory: { weight: number; rampHold?: boolean; rpe?: number | null },
   loadPct: number,
   pin = 2.5,
+  anchored = false,
 ): number {
   if (memory.weight <= 0) return 0;
   if (memory.rampHold || loadPct >= 100) return memory.weight;
   const p = pin > 0 ? pin : 2.5;
+  const w = memory.weight;
   const rpe = memory.rpe ?? null;
   // Hold on HOW the base was rated, not where it sits on the stack: his
   // whole pre-break history is learn-phase weights rated Easy, and 60% of
@@ -734,9 +843,18 @@ export function rampPrefillWeight(
   // base scales, floored at three pins so the bottom of the stack is never
   // the prescription. The floor is monotonic — a heavier base never opens
   // lighter than a lighter one (trainer + adversary, 2026-09-18).
-  if (rpe === 1) return memory.weight;
-  const scaled = Math.max(p, Math.round((memory.weight * loadPct) / 100 / p) * p);
-  const floor = rpe != null && rpe >= 3 ? p : Math.min(memory.weight, 3 * p);
+  if (rpe === 1) return w;
+  // `anchored`: the step is HIS (set on the machine's page), so the stack's
+  // rungs run through the weight he lifted — base − k × step, nearest — and
+  // its bottom is the lowest of those rungs. Counted from zero, his real
+  // 4.5 kg Chest Press ladder through 23 prescribed 18, which is not a
+  // plate; through 23 it is 18.5 (review B1/F4, 2026-09-24). A learned or
+  // fallback step keeps the zero-based grid: its offset is not known.
+  const bottom = anchored ? lowestRung(w, p) : p;
+  const target = (w * loadPct) / 100;
+  const nearest = anchored ? w - Math.round((w - target) / p) * p : Math.round(target / p) * p;
+  const scaled = Math.max(bottom, nearest);
+  const floor = rpe != null && rpe >= 3 ? bottom : Math.min(w, bottom + 2 * p);
   return +Math.max(scaled, floor).toFixed(2);
 }
 
@@ -909,9 +1027,10 @@ export function effortCeiling(
  * 2026-09-18). Null = nothing to suggest.
  */
 export function nextTryWeight(
-  last: { weight: number; reps?: number; rpe: number | null; overload?: boolean } | null | undefined,
+  last: { weight: number; reps?: number; rpe: number | null; overload?: boolean; repsFloor?: number } | null | undefined,
   pin: number,
   minReps = 0,
+  maxReps = Number.POSITIVE_INFINITY,
 ): number | null {
   if (!last || last.weight <= 0 || !last.overload) return null;
   if (last.rpe != null && last.rpe >= 3) return null;
@@ -919,6 +1038,10 @@ export function nextTryWeight(
   // the chip must not offer what the seed declined (trainer).
   if (typeof last.reps === 'number' && last.reps < minReps) return null;
   const p = pin > 0 ? pin : 2.5;
+  // A coarse step (more than 15% of the weight) waits until every set
+  // reached the top of the range — the same gate as the seed
+  // (prescription.ts COARSE_PIN_SHARE; review F5: 29 → 38 at 12 reps).
+  if (p > last.weight * 0.15 && (last.repsFloor ?? last.reps ?? 0) < maxReps) return null;
   return +(last.weight + p).toFixed(2);
 }
 

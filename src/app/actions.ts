@@ -1,7 +1,8 @@
 'use server';
 
-import { combineIncrement, learnPinIncrements, pinMapFor } from '@/lib/coach';
-import { offGridWeights, parsePinKg } from '@/lib/pins';
+import { combineIncrement, learnPinIncrements } from '@/lib/coach';
+import { foldExerciseMemory, prescriptionInputs, PRESCRIPTION_WINDOW, type ExerciseMemory } from '@/lib/prescription';
+import { offGridWeights, parsePinKg, stepPlausible } from '@/lib/pins';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -18,11 +19,8 @@ import { ownerActivityDayUtc } from '@/lib/health-insights';
 import { closeLive, readLive, upsertLive } from '@/lib/live-store';
 import {
   DEFAULT_GYM_ID,
-  cleanRampSessionDates,
-  getTrainingStatus,
   isTrainingSession,
   pickRampMemory,
-  rampBaseBefore,
   allowedRampKg,
   lastFullLoad,
 } from '@/lib/program';
@@ -69,26 +67,32 @@ export async function deleteExercise(id: string) {
  * The owner sets a machine's real step — "each machine different". The learner
  * cannot recover coarse stacks from his log (rule 4), so what he reads off the
  * plates wins. Exercise.pinIncrement is the HOME gym's step and applies there
- * only (rule 2; pinMapFor). Blank clears it. Returns the weights in his own
- * B_Fit log that the step cannot reach — a warning, never a block.
+ * only (rule 2; pinMapFor). Blank clears it. A step over half his last
+ * weight on the machine is held back as a likely slipped decimal until he
+ * insists (`force`; review F2). Returns the weights in his own B_Fit log that
+ * the step cannot reach — a warning, never a block.
  */
-export async function setMachinePin(exerciseId: string, raw: string | number | null) {
+export async function setMachinePin(exerciseId: string, raw: string | number | null, force = false) {
   const parsed = parsePinKg(raw);
-  if (!parsed.ok) return { ok: false as const, error: parsed.error };
+  if (!parsed.ok) return { ok: false as const, error: parsed.error, confirmable: false };
   const exists = await prisma.exercise.findUnique({ where: { id: exerciseId }, select: { id: true } });
-  if (!exists) return { ok: false as const, error: 'No such machine' };
-  await prisma.exercise.update({ where: { id: exerciseId }, data: { pinIncrement: parsed.kg } });
-  let offGrid: number[] = [];
-  if (parsed.kg != null) {
-    const sets = await prisma.workoutSet.findMany({
-      where: { exerciseId, isWarmup: false, weight: { gt: 0 }, workout: gymScope(DEFAULT_GYM_ID) },
-      select: { weight: true, workout: { select: { id: true } } },
-      orderBy: { workout: { date: 'asc' } },
-    });
-    const tops = new Map<string, number>();
-    for (const st of sets) tops.set(st.workout.id, Math.max(tops.get(st.workout.id) ?? 0, st.weight));
-    offGrid = offGridWeights([...tops.values()].slice(-10), parsed.kg);
+  if (!exists) return { ok: false as const, error: 'No such machine', confirmable: false };
+  // His B_Fit session tops on this machine, oldest first — the plausibility
+  // check reads the latest, the off-grid warning reads the last ten.
+  const sets = await prisma.workoutSet.findMany({
+    where: { exerciseId, isWarmup: false, weight: { gt: 0 }, workout: gymScope(DEFAULT_GYM_ID) },
+    select: { weight: true, workout: { select: { id: true } } },
+    orderBy: { workout: { date: 'asc' } },
+  });
+  const tops = new Map<string, number>();
+  for (const st of sets) tops.set(st.workout.id, Math.max(tops.get(st.workout.id) ?? 0, st.weight));
+  const history = [...tops.values()];
+  if (parsed.kg != null && !force) {
+    const doubt = stepPlausible(parsed.kg, history[history.length - 1]);
+    if (doubt) return { ok: false as const, error: doubt, confirmable: true };
   }
+  await prisma.exercise.update({ where: { id: exerciseId }, data: { pinIncrement: parsed.kg } });
+  const offGrid = parsed.kg != null ? offGridWeights(history.slice(-10), parsed.kg) : [];
   for (const p of ['/exercises', `/progress/${exerciseId}`, '/workouts/new', '/train']) revalidatePath(p);
   return { ok: true as const, pinKg: parsed.kg, offGrid };
 }
@@ -339,20 +343,9 @@ export async function deleteWorkout(id: string) {
   redirect('/workouts');
 }
 
-export type ExerciseMemory = {
-  weight: number;
-  reps: number;
-  rpe: number | null;
-  /** Two straight all-Easy sessions at the same top weight — the prefill
-   *  takes one learned pin (Overload by default). Never set during a ramp
-   *  (the client guards that; the flag only reports history). */
-  overload?: boolean;
-  /** Every rated set of the LAST session on this machine was Easy. */
-  allEasy?: boolean;
-  /** Ramp only: this machine has no pre-break record, so the weight is the
-   *  latest in-block one and must NOT be scaled again (pickRampMemory). */
-  rampHold?: boolean;
-};
+// The memory shape (and the fold that builds it) live in prescription.ts,
+// pure, so the suite runs the server's exact rule over the export.
+export type { ExerciseMemory } from '@/lib/prescription';
 
 /**
  * Weight memory for the logger, /train and the watch plan, ramp-aware.
@@ -382,12 +375,14 @@ export async function getLoggerMemory(
 }
 
 /** Where the ramp stands right now, from judged rows: status, the pre-break
- *  cut-off, and the ONE pin map (judged home-gym rows + manual overrides). */
+ *  cut-off, and the ONE pin map (judged rows of this gym + manual overrides)
+ *  — read through prescriptionInputs, the same code and the same window the
+ *  phone page and the Watch plan prescribe from (A3). */
 async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: string) {
   const [allRows, exercises] = await Promise.all([
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
-      take: 120,
+      take: PRESCRIPTION_WINDOW,
       select: { date: true, name: true, gym: true, duration: true, clientSaveId: true, sets: { select: { rpe: true, isWarmup: true, exerciseId: true, weight: true, allowedKg: true } } },
     }),
     prisma.exercise.findMany({ select: { id: true, pinIncrement: true } }),
@@ -396,23 +391,8 @@ async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: 
   // the first half must not step the ramp or become its own machine's
   // memory (adversary pass 4).
   const rows = excludeClientSaveId ? allRows.filter((w) => w.clientSaveId !== excludeClientSaveId) : allRows;
-  const training = rows.filter((w) => isTrainingSession(w));
-  const clean = cleanRampSessionDates(training);
-  const status = getTrainingStatus(training.map((w) => w.date), new Date(), clean);
-  // No mode gate: outside a ramp rampBaseBefore is null unless the latest
-  // sessions are Rescues, which are 60% by construction and never a base
-  // (adversary, 2026-09-18) — memory then reads from before them.
-  const cut = rampBaseBefore(training, clean);
-  // Pins are a property of ONE building's stacks (rules 2 and 4) — the
-  // session's own, exactly as the Watch plan learns them.
-  const pinFor = pinMapFor(training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym) as never, exercises, gym);
-  return { status, cut, pinFor };
-}
-
-/** The ramp cut-off for the client-side gym switch, which has no status
- *  in hand: undefined outside a ramp, else rampBaseBefore (or null). */
-async function rampBase(): Promise<string | null | undefined> {
-  return (await rampSnapshot()).cut;
+  const inputs = prescriptionInputs(rows, exercises, gym);
+  return { status: inputs.status, cut: inputs.cut, pinFor: inputs.pinFor, inputs, exercises };
 }
 
 /**
@@ -434,13 +414,13 @@ async function rampAllowances(
   // yet applied, a cold Neon, a transient error — the workout still lands
   // (steward, 2026-09-18).
   try {
-    const { status, cut, pinFor } = await rampSnapshot(gym ?? DEFAULT_GYM_ID, excludeClientSaveId);
+    const { status, cut, pinFor, inputs } = await rampSnapshot(gym ?? DEFAULT_GYM_ID, excludeClientSaveId);
     if (status.mode !== 'return' || status.returnWeek.loadPct >= 100) return out;
     const ids = [...new Set(sets.filter((s) => !s.isWarmup).map((s) => s.exerciseId))];
     const memory = await getLoggerMemory(ids, gym ?? DEFAULT_GYM_ID, cut);
     for (const id of ids) {
       const m = memory[id];
-      out[id] = m && m.weight > 0 ? allowedRampKg(m, status.returnWeek.loadPct, pinFor(id)) : null;
+      out[id] = m && m.weight > 0 ? allowedRampKg(m, status.returnWeek.loadPct, pinFor(id), inputs.stepIsHis(id)) : null;
     }
   } catch (e) {
     console.warn('rampAllowances: skipped —', e instanceof Error ? e.message : e);
@@ -479,7 +459,8 @@ export async function getLastSessionForExercises(
     },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
     select: {
-      exerciseId: true, weight: true, reps: true, rpe: true,
+      exerciseId: true, setNumber: true, weight: true, reps: true, rpe: true,
+      exercise: { select: { name: true } },
       workout: { select: { id: true, date: true, duration: true } },
     },
     take: Math.min(2000, exerciseIds.length * 40),
@@ -494,49 +475,12 @@ export async function getLastSessionForExercises(
     for (const x of all) (evidence.get(x.workoutId) ?? evidence.set(x.workoutId, []).get(x.workoutId)!).push({ rpe: x.rpe, isWarmup: false });
   }
 
-  const out: Record<string, ExerciseMemory> = {};
-  const byExercise = new Map<string, typeof rows>();
-  for (const r of rows) {
-    if (!isTrainingSession({ name: 'Day', duration: r.workout.duration, sets: evidence.get(r.workout.id) ?? [] })) continue;
-    const list = byExercise.get(r.exerciseId);
-    if (list) list.push(r);
-    else byExercise.set(r.exerciseId, [r]);
-  }
-  for (const [exId, sets] of byExercise) {
-    // First row = last set of the latest session — byte-identical to what
-    // the old `distinct` query returned as the prefill memory.
-    const first = sets[0];
-    // Group by calendar DAY, not workout id: a session saved in two halves
-    // (compress-and-save, then finish) must count as ONE day's evidence,
-    // not "two straight sessions" earned in an afternoon (adversary).
-    const sessions: Array<typeof rows> = [];
-    const order = new Map<string, number>();
-    for (const x of sets) {
-      const dayKey = x.workout.date.toISOString().slice(0, 10);
-      let i = order.get(dayKey);
-      if (i === undefined) {
-        i = sessions.length;
-        order.set(dayKey, i);
-        sessions.push([]);
-      }
-      sessions[i].push(x);
-    }
-    const allEasy = (sess: typeof rows) => {
-      const rated = sess.filter((x) => x.rpe !== null && x.rpe > 0);
-      // ≥2 rated sets, same bar as the ramp's "clean" — one stray Easy tap
-      // per session must not add pins to the prefill (trainer).
-      return rated.length >= 2 && rated.every((x) => x.rpe === 1);
-    };
-    const top = (sess: typeof rows) => Math.max(...sess.map((x) => x.weight));
-    const overload =
-      sessions.length >= 2 &&
-      allEasy(sessions[0]) &&
-      allEasy(sessions[1]) &&
-      top(sessions[0]) === top(sessions[1]) &&
-      top(sessions[0]) > 0;
-    out[exId] = { weight: first.weight, reps: first.reps, rpe: first.rpe, overload, allEasy: allEasy(sessions[0]) };
-  }
-  return out;
+  // The fold — sessions by day, earnsOverload for the pin, shortSetVerdict
+  // for the step down — is pure and shared (prescription.ts).
+  return foldExerciseMemory(
+    rows.map((r) => ({ ...r, exerciseName: r.exercise.name })),
+    evidence,
+  );
 }
 
 export async function getPersonalRecords(gym?: string | null): Promise<Record<string, number>> {
@@ -723,14 +667,31 @@ export async function getRepRecords(
  * The mid-workout gym switch in ONE round trip. Three separate POSTs used to
  * race from gym LTE to us-east-1 and the prefill waited on the slowest;
  * the parallelism belongs next to the database, not on the radio.
+ *
+ * It also carries THAT building's pins and plateaus (rules 2 and 4): the
+ * phone used to re-prescribe an Alrajhi machine with B_Fit's pin map and no
+ * seed, while the Watch plan asked for gym=work prescribed it properly — the
+ * same machine, two numbers (A3).
  */
 export async function getGymMemory(exerciseIds: string[], gym: string) {
+  const snap = await rampSnapshot(gym);
   const [lastSession, personalRecords, repRecords] = await Promise.all([
-    rampBase().then((cut) => getLoggerMemory(exerciseIds, gym, cut)),
+    getLoggerMemory(exerciseIds, gym, snap.cut),
     getPersonalRecords(gym),
     getRepRecords(gym),
   ]);
-  return { lastSession, personalRecords, repRecords };
+  const pins: Record<string, number> = {};
+  const hisSteps: string[] = [];
+  for (const ex of snap.exercises) {
+    pins[ex.id] = snap.pinFor(ex.id);
+    if (snap.inputs.stepIsHis(ex.id)) hisSteps.push(ex.id);
+  }
+  const plateauKgs: Record<string, number> = {};
+  for (const id of exerciseIds) {
+    const kg = snap.inputs.plateauKgFor(id);
+    if (kg != null) plateauKgs[id] = kg;
+  }
+  return { lastSession, personalRecords, repRecords, pins, hisSteps, plateauKgs };
 }
 
 /**

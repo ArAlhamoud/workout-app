@@ -51,3 +51,18 @@ export const UNCONFIRMED_CROWN_STEP_KG = 0.5;
 export function crownStepFor(manualPinKg?: number | null): number {
   return manualPinKg != null && manualPinKg > 0 ? manualPinKg : UNCONFIRMED_CROWN_STEP_KG;
 }
+
+/**
+ * A step bigger than half the weight he last lifted on the machine is almost
+ * certainly a slipped decimal — 25 typed for 2.5 would put +25 kg on the next
+ * overload seed (Rear Delt Fly 20 → 45; review F2, 2026-09-24). The setter
+ * refuses it with the decimal it probably meant, and lets him insist: a real
+ * stack that coarse is possible, and his eyes on the plates win.
+ */
+export const MAX_STEP_SHARE = 0.5;
+export function stepPlausible(kg: number, latestTopKg: number | null | undefined): string | null {
+  if (!(latestTopKg != null && latestTopKg > 0) || kg <= latestTopKg * MAX_STEP_SHARE) return null;
+  const tenth = kg / 10;
+  const guess = tenth >= MIN_PIN_KG && Math.abs(tenth * 4 - Math.round(tenth * 4)) < 1e-9 ? ` — ${+tenth.toFixed(2)}?` : '';
+  return `${+kg.toFixed(2)} kg is over half your last ${+latestTopKg.toFixed(2)} kg${guess}`;
+}

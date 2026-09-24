@@ -4,15 +4,12 @@ import type { Metadata } from 'next';
 import { getExercises, getLoggerMemory, getWorkouts } from '../actions';
 import {
   getDynamicPlan,
-  cleanRampSessionDates,
-  getTrainingStatus,
   getExercisesForDuration,
   queuedDay,
   isTrainingSession,
-  rampBaseBefore,
-  rampPrefillWeight,
-  DEFAULT_GYM_ID, effortCeiling, rampSessionVerdicts } from '@/lib/program';
-import { combineIncrement, phaseForWeek, pinMapFor } from '@/lib/coach';
+  DEFAULT_GYM_ID, DEFAULT_SESSION_MIN, effortCeiling, rampSessionVerdicts } from '@/lib/program';
+import { combineIncrement, phaseForWeek } from '@/lib/coach';
+import { planExercises, prescriptionInputs } from '@/lib/prescription';
 import CoachCard from '@/components/CoachCard';
 import VoltLetter from '@/components/VoltLetter';
 import CardioQuickLog from '@/components/CardioQuickLog';
@@ -192,14 +189,13 @@ export default async function TrainPage() {
   const nextDay: DayId = queuedDay(plan);
   const lastWorkout = workouts[0] ?? null;
 
-  // Where the lifter actually is: fresh, ramping back, or mid-program.
-  const trainingOnly = workouts.filter(isTrainingSession);
-  // ONE pin map for the preview, the prefill and the over-ramp judge
-  // (rule 4; judged home-gym rows only, rule 2).
-  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises, DEFAULT_GYM_ID);
+  // Where the lifter actually is: fresh, ramping back, or mid-program — and
+  // the home gym's pins and plateaus, from the same code and the same rows
+  // the logger and the Watch plan prescribe from (prescription.ts, rule 9).
+  const inputs = prescriptionInputs(workouts, exercises, DEFAULT_GYM_ID);
+  const trainingOnly = inputs.training;
   const verdicts = rampSessionVerdicts(trainingOnly);
-  const cleanDates = verdicts.filter((v) => v.clean).map((v) => v.date);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
+  const status = inputs.status;
   const currentPhase = phaseForWeek(status.week);
   const returnLoadPct = status.mode === 'return' ? status.returnWeek.loadPct : null;
 
@@ -219,34 +215,22 @@ export default async function TrainPage() {
   // by the ramp when it is running. This list IS the plan; the logger just
   // makes it editable.
   const previewDay: DayId = suggestedDay ?? nextDay;
-  const template = getExercisesForDuration(previewDay, 45);
+  const template = getExercisesForDuration(previewDay, DEFAULT_SESSION_MIN);
   const exerciseByName = new Map(exercises.map((e) => [e.name, e]));
   const previewIds = template
     .map((te) => exerciseByName.get(te.name)?.id)
     .filter((id): id is string => Boolean(id));
-  // Same memory and same pin-floored scaler as the logger and the wrist —
-  // one plan, not three (adversary: /train once showed a different ramp
-  // weight than the logger prefilled the same day).
-  const lastByExercise = await getLoggerMemory(
-    previewIds,
-    DEFAULT_GYM_ID,
-    returnLoadPct != null ? rampBaseBefore(trainingOnly, cleanDates) : undefined,
-  );
-  const preview = template.map((te) => {
-    const ex = exerciseByName.get(te.name);
-    const last = ex ? lastByExercise[ex.id] : undefined;
-    const lastW = last && last.weight > 0 ? last.weight : null;
-    const pin = ex ? pinFor(ex.id) : 2.5;
-    const shownW =
-      last && lastW != null && returnLoadPct != null ? rampPrefillWeight(last, returnLoadPct, pin) : lastW;
-    return {
-      name: te.name,
-      setsReps: `${te.sets} × ${te.repsDisplay}`,
-      isHold: te.unit === 'seconds',
-      weight: te.unit === 'seconds' ? null : shownW,
-      scaled: returnLoadPct != null && lastW != null && !last?.rampHold,
-    };
-  });
+  // The SAME prescription the logger opens and the Watch is sent — one
+  // plan, not three (adversary: /train once showed a different ramp weight
+  // than the logger prefilled the same day).
+  const lastByExercise = await getLoggerMemory(previewIds, DEFAULT_GYM_ID, inputs.cut);
+  const preview = planExercises(template, exerciseByName, lastByExercise, inputs).map((e) => ({
+    name: e.name,
+    setsReps: `${e.prescription.sets} × ${e.template.repsDisplay}`,
+    isHold: e.template.unit === 'seconds',
+    weight: e.prescription.workingKg,
+    reason: e.prescription.reason,
+  }));
 
   return (
     <div className="space-y-5">
@@ -389,8 +373,10 @@ export default async function TrainPage() {
                         {row.weight}
                         <span className="ml-1 text-[10px] font-bold text-app-tx3">KG</span>
                       </p>
-                      {!row.scaled && (
-                        <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-app-tx3">Last time</p>
+                      {row.reason !== 'ramp' && (
+                        <p className="mt-1 font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-app-tx3">
+                          {row.reason === 'overload' ? '+1 pin' : row.reason === 'deload' ? 'Deload' : row.reason === 'short' ? '−1 pin' : 'Last time'}
+                        </p>
                       )}
                     </>
                   ) : (

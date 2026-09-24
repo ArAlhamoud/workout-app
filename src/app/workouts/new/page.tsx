@@ -6,19 +6,15 @@ import { redirect } from 'next/navigation';
 import { getExercises, getLiveSession, getLoggerMemory, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
 import RescueWalkButton from '@/components/RescueWalkButton';
 import WorkoutForm from '@/components/WorkoutForm';
-import { combineIncrement, deloadTarget, detectPlateau, learnPinIncrements, pinMapFor } from '@/lib/coach';
+import { prescriptionInputs } from '@/lib/prescription';
 import {
   DEFAULT_GYM_ID,
   getDayTemplate,
-  isTrainingSession,
   getDynamicPlan,
   getExercisesForDuration,
   getPlankTarget,
-  getTrainingStatus,
   queuedDay,
   type Duration,
-  cleanRampSessionDates,
-  rampBaseBefore,
   effortCeiling,
   afOnChart,
   DEFAULT_SESSION_MIN,
@@ -81,16 +77,16 @@ export default async function NewWorkoutPage({
   // default is 45, not 60 — Home's CTA already says 45 then, and entering
   // through a different door must not silently double the prescribed day
   // (device-tester, Aug 5). An explicit ?dur= always wins.
-  const trainingOnly = allWorkouts.filter(isTrainingSession);
-  // Earned Ramp: clean rated sessions can lift the calendar clamp, and the
-  // logger MUST agree with the unlock — this page's returnLoadPct is what
-  // pre-scales every prefit weight, so a stale calendar week here would
-  // keep the loads at 60% after the sessions earned 70.
-  // ONE pin map for the prefill, the chip and the over-ramp judge (rule 4;
-  // judged home-gym rows only, rule 2).
-  const pinFor = pinMapFor(trainingOnly.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID), exercises, DEFAULT_GYM_ID);
-  const cleanDates = cleanRampSessionDates(trainingOnly);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanDates);
+  // ONE set of prescription inputs — status (Earned Ramp included), the
+  // memory cut, the home gym's pin map and its plateaus — built by the same
+  // code, over the same newest rows, as the Watch plan and the save-time
+  // ramp judge (prescription.ts; rules 2, 4, 9). This page's returnLoadPct
+  // pre-scales every prefilled weight, so a stale week here would keep the
+  // loads at 60% after the sessions earned 70.
+  const inputs = prescriptionInputs(allWorkouts, exercises, DEFAULT_GYM_ID);
+  const trainingOnly = inputs.training;
+  const pinFor = inputs.pinFor;
+  const status = inputs.status;
   const inRamp = status.mode === 'return';
   const validDur: Duration =
     durStr === '30' ? 30 : durStr === '45' ? 45 : durStr === '60' ? 60 : DEFAULT_SESSION_MIN;
@@ -153,6 +149,7 @@ export default async function NewWorkoutPage({
           rest: te.rest,
           targetReps: te.repsDisplay,
           unit: te.unit,
+          alwaysWarm: te.alwaysWarm === true,
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -162,11 +159,7 @@ export default async function NewWorkoutPage({
   // Seeded for the default gym; the form refetches if he tags Alrajhi Tower.
   // Ramp-aware: mid-ramp the memory is the last FULL-LOAD weight (the base
   // the percentage scales), never a previous ramp session.
-  const lastSession = await getLoggerMemory(
-    exerciseIds,
-    DEFAULT_GYM_ID,
-    inRamp ? rampBaseBefore(trainingOnly, cleanDates) : undefined,
-  );
+  const lastSession = await getLoggerMemory(exerciseIds, DEFAULT_GYM_ID, inputs.cut);
 
   // Compute progression hints: exerciseId → true if same weight 2+ sessions with Easy/Med RPE
   const last2ByExercise: Record<string, { weight: number; rpe: number | null }[]> = {};
@@ -192,6 +185,9 @@ export default async function NewWorkoutPage({
   // on neither machine.
   const pinIncrements: Record<string, number> = {};
   for (const ex of exercises) pinIncrements[ex.id] = pinFor(ex.id);
+  // Machines whose step is HIS: their ramp and warm-up weights sit on the
+  // ladder through what he lifted, not on a grid counted from zero.
+  const hisSteps = exercises.filter((ex) => inputs.stepIsHis(ex.id)).map((ex) => ex.id);
 
   // "Ready to progress" is derived from pre-break sessions, so it is
   // actively wrong while ramping back — the return target replaces it.
@@ -207,21 +203,13 @@ export default async function NewWorkoutPage({
     }
   }
 
-  // The plateau's ACTION: when detection fires for a machine, its next
-  // session opens with a concrete deload prescription instead of a shrug.
-  // Suppressed during the return ramp — everything is deloaded there already.
-  const deloadHints: Record<string, { weight: number; note: string }> = {};
-  if (!isReturning && !isRescue) {
-    // Home-gym history only — the same scoping pin-increment learning uses,
-    // and for the same reason: an interleaved work-gym session both masks
-    // real plateaus and prescribes deloads from the wrong stack (adversary).
-    const homeWorkouts = allWorkouts.filter((w) => !w.gym || w.gym === DEFAULT_GYM_ID);
-    for (const ex of exercises) {
-      const result = detectPlateau(homeWorkouts, ex.id);
-      if (result.plateaued && result.weight != null && result.suggestion?.includes('pin')) {
-        deloadHints[ex.id] = deloadTarget(result.weight, pinIncrements[ex.id]);
-      }
-    }
+  // The plateau's ACTION: a plateaued machine opens AT its deload weight
+  // with half the sets — prescribeWorking decides, from this weight, on the
+  // phone and the Watch alike. Never inside a ramp (plateauKgFor).
+  const plateauKgs: Record<string, number> = {};
+  for (const id of exerciseIds) {
+    const kg = inputs.plateauKgFor(id);
+    if (kg != null) plateauKgs[id] = kg;
   }
 
   const plankTarget = getPlankTarget(status.week);
@@ -308,7 +296,7 @@ export default async function NewWorkoutPage({
         personalRecords={personalRecords}
         progressionHints={progressionHints}
         repRecords={repRecords}
-        deloadHints={deloadHints}
+        plateauKgs={plateauKgs}
         rescueMode={isRescue}
         returnLoadPct={
           // Memory is the UNSCALED full-load weight now, so a rescue day
@@ -324,6 +312,7 @@ export default async function NewWorkoutPage({
           return cap < 4 ? cap : undefined;
         })()}
         pinIncrements={pinIncrements}
+        hisSteps={hisSteps}
         afOnChart={afFlag}
         coachEnabled={Boolean(process.env.ANTHROPIC_API_KEY)}
         dayAccent={validDay}

@@ -12,12 +12,13 @@ import {
   rampPrefillWeight,
   GYMS,
   DEFAULT_GYM_ID,
-  hasWarmupSet,
+  warmupDue,
   warmupWeight,
   nextTryWeight,
   repeatToEarn,
   prefillReps,
 } from '@/lib/program';
+import { prescribeWarmup, prescribeWorking } from '@/lib/prescription';
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
@@ -47,6 +48,8 @@ interface InitialExercise {
   unit?: 'reps' | 'seconds';
   /** Ceiling for a timed hold (plank 30 s); reps prefill never exceeds it. */
   maxReps?: number;
+  /** Warms up wherever it sits (Back Extension — trainer ruling 5). */
+  alwaysWarm?: boolean;
 }
 
 interface SetEntry {
@@ -77,13 +80,49 @@ interface ExerciseBlock {
   unit?: 'reps' | 'seconds';
   showCues: boolean;
   expandedNoteIdx: number | null;
-  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean };
+  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean; repsFloor?: number; shortHard?: boolean };
   /** Overload by default took one learned pin at seed time; tap undoes it. */
   overloadApplied?: { from: number; to: number };
   /** He undid the seed: do not re-offer the same number as a chip. */
   overloadDeclined?: true;
   /** Template minimum reps — the chip never offers a pin under it. */
   defaultReps?: number;
+  /** Template ceiling and set count — what prescribeWorking re-reads on a gym switch. */
+  maxReps?: number;
+  plannedSets?: number;
+  /** One line from the prescription: a deload, or a step down after short
+   *  Hard sets. Per gym — the switch recomputes it. */
+  prescriptionNote?: string;
+  /** One of the first two weighted machines, or alwaysWarm: a warm-up row
+   *  belongs here whenever the stack has something lighter to offer. */
+  warmupEligible?: boolean;
+}
+
+/** Re-prescribe a block's PENDING sets at a new working weight. Done sets
+ *  are logged facts. The warm-up follows the new weight; where the stack has
+ *  nothing lighter there is no warm-up row — never a "warm-up" at the
+ *  working weight, which is what the old `?? working` fallbacks wrote
+ *  after a gym switch, a swap, an undo or a readiness hold
+ *  (program.ts warmupWeight). Rows are only added or removed on a block with
+ *  nothing done: a started block's set indices are what the rest capsule
+ *  rates by. */
+function repriceSets(block: ExerciseBlock, workingKg: number, pin: number, anchored = false): SetEntry[] {
+  const isTimed = block.unit === 'seconds';
+  const warm = !isTimed && workingKg > 0 ? warmupWeight(workingKg, pin, anchored) : null;
+  const started = block.sets.some((st) => st.done);
+  const out = block.sets.flatMap((st): SetEntry[] => {
+    if (st.done) return [st];
+    if (!st.isWarmup) return [{ ...st, weight: isTimed ? 0 : workingKg }];
+    if (warm != null) return [{ ...st, weight: warm }];
+    return started ? [st] : [];
+  });
+  if (!started && warm != null && block.warmupEligible && !out.some((st) => st.isWarmup)) {
+    out.unshift({
+      exerciseId: block.exerciseId, setNumber: 0, reps: block.defaultReps ?? out[0]?.reps ?? 10,
+      weight: warm, done: false, notes: '', rpe: 0, completedAt: null, isWarmup: true,
+    });
+  }
+  return out;
 }
 
 const DRAFT_KEY = 'workout-draft';
@@ -126,32 +165,38 @@ function buildBlocks(
   lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean }>,
   returnLoadPct?: number,
   pinIncrements: Record<string, number> = {},
-  deloadHints: Record<string, { weight: number; note: string }> = {},
+  plateauKgs: Record<string, number> = {},
   isRescue = false,
+  hisSteps: string[] = [],
 ): ExerciseBlock[] {
+  let weightedBefore = 0;
   return initialExercises.map((ie, blockIdx) => {
     const prev = lastSession[ie.exerciseId];
-    const isTimed = ie.unit === 'seconds';
-    // Overload by default: two straight all-Easy sessions at this weight
-    // already proved it light — the prefill takes one learned pin, and the
-    // chip beside the exercise undoes it in a tap. Never during a ramp
-    // (pre-scaled loads win) — EXCEPT a held machine (no pre-break record,
-    // nothing to scale): its effort rule runs under the ramp's RPE cap,
-    // or it would sit frozen for four weeks (trainer). Never on a deload.
+    const unit = ie.unit === 'seconds' ? 'seconds' : 'reps';
     const inc = pinIncrements[ie.exerciseId] ?? DEFAULT_PIN_INCREMENT;
-    // Rescue is excluded explicitly: the one day readiness says "shrink"
-    // must not open machines a pin heavier (adversary).
-    const overloadTo =
-      (!returnLoadPct || prev?.rampHold) && !isRescue && !isTimed && prev?.overload && prev.weight > 0 && prev.reps >= ie.defaultReps
-        ? +(prev.weight + inc).toFixed(1)
-        : null;
-    // The prefill IS the instruction (that is why ramp weights pre-scale).
-    // A deload rendered only as a chip beside a full-weight prefill loses to
-    // the prefill every time — so a plateaued machine opens AT the deload
-    // weight with half the sets, and building back is the explicit act.
-    const deload = !returnLoadPct && !isTimed ? deloadHints[ie.exerciseId] : undefined;
-    const seededWeight = deload ? null : overloadTo;
-    const setCount = deload ? Math.max(1, Math.ceil(ie.sets / 2)) : ie.sets;
+    const anchored = hisSteps.includes(ie.exerciseId);
+    // THE prescription — the same function the Watch plan and /train call
+    // (prescription.ts, rule 9). Overload by default, the ramp scaler, the
+    // plateau deload and the short-set step down all live there now; this
+    // form used to carry its own copy and the wrist opened lighter (A3).
+    // returnLoadPct is undefined outside a ramp and set (even 100) inside
+    // one or on a rescue — exactly prescribeWorking's `rampPct`.
+    const p = prescribeWorking(
+      { unit, sets: ie.sets, repsMin: ie.defaultReps, repsMax: ie.maxReps ?? Number.POSITIVE_INFINITY },
+      prev,
+      inc,
+      plateauKgs[ie.exerciseId] ?? null,
+      { rampPct: returnLoadPct ?? null, rescue: isRescue, anchored },
+    );
+    // One auto warm-up set on the first two weighted machines, plus any
+    // alwaysWarm one (Back Extension) wherever it sits — at ~55% of the
+    // PRESCRIBED weight, so a deload day warms up lighter too. A 15-minute
+    // rescue opens none: a short session warms up on its first work set
+    // (adversary, 2026-09-18). Flagged so it never touches records, volume
+    // or plateaus.
+    const eligible = !isRescue && unit !== 'seconds' && (ie.alwaysWarm === true || weightedBefore < 2);
+    if (unit !== 'seconds') weightedBefore++;
+    const warm = eligible && warmupDue(0, unit, p.workingKg, ie.alwaysWarm) ? prescribeWarmup(p, unit, inc, isRescue, anchored) : null;
     return {
       // Deterministic, NOT Math.random(): buildBlocks runs during SSR and
       // again at hydration, and the id={`block-${uid}`} attribute made a
@@ -171,39 +216,26 @@ function buildBlocks(
       expandedNoteIdx: null,
       lastSession: prev,
       defaultReps: ie.defaultReps,
-      overloadApplied: seededWeight && prev?.weight ? { from: prev.weight, to: seededWeight } : undefined,
-      // One auto warm-up set on the first two machines of the session, at
-      // ~55% of the working weight rounded DOWN to a real pin. Cold joints
-      // meet the day's two heaviest compound movements first; later machines
-      // arrive warm. Flagged so it never touches records, volume or plateaus.
+      maxReps: ie.maxReps,
+      plannedSets: ie.sets,
+      warmupEligible: eligible,
+      overloadApplied: p.reason === 'overload' && p.fromKg != null && p.workingKg != null ? { from: p.fromKg, to: p.workingKg } : undefined,
+      prescriptionNote: (p.reason === 'deload' || p.reason === 'short') && p.note ? p.note : undefined,
       sets: [
-        // A 15-minute rescue session opens no warm-ups, for the same
-        // reason compressSession strips them: a short session warms up on
-        // its first work set. Without this the rescue put three sets on
-        // Leg Press at ~33% of normal load (adversary, 2026-09-18).
-        ...((() => {
-          if (isRescue) return false;
-          if (!hasWarmupSet(blockIdx, isTimed ? 'seconds' : 'reps', prev?.weight)) return false;
-          const working = seededWeight ?? rampPrefillWeight(prev, returnLoadPct ?? 100, inc);
-          return warmupWeight(working, inc) !== null;
-        })()
-          ? (() => {
-              const working = seededWeight ?? rampPrefillWeight(prev, returnLoadPct ?? 100, inc);
-              const warm = warmupWeight(working, inc)!;
-              return [{
-                exerciseId: ie.exerciseId,
-                setNumber: 0,
-                reps: ie.defaultReps,
-                weight: warm,
-                done: false,
-                notes: '',
-                rpe: 0,
-                completedAt: null,
-                isWarmup: true,
-              }];
-            })()
+        ...(warm != null
+          ? [{
+              exerciseId: ie.exerciseId,
+              setNumber: 0,
+              reps: ie.defaultReps,
+              weight: warm,
+              done: false,
+              notes: '',
+              rpe: 0,
+              completedAt: null,
+              isWarmup: true,
+            }]
           : []),
-        ...Array.from({ length: setCount }, (_, i) => ({
+        ...Array.from({ length: p.sets }, (_, i) => ({
         exerciseId: ie.exerciseId,
         setNumber: i + 1,
         // Last session's reps, same as weight on the line below. The template's
@@ -214,13 +246,7 @@ function buildBlocks(
         // set is never the next prefill — Triceps carried 10 against a 12
         // minimum three sessions running.
         reps: prefillReps(prev?.reps, ie.defaultReps, ie.maxReps ?? Number.POSITIVE_INFINITY),
-        weight: isTimed
-          ? 0
-          : deload
-            ? deload.weight
-            : prev?.weight
-              ? seededWeight ?? rampPrefillWeight(prev, returnLoadPct ?? 100, inc)
-              : 0,
+        weight: unit === 'seconds' ? 0 : p.workingKg ?? 0,
         done: false,
         notes: '',
         rpe: 0,
@@ -243,8 +269,9 @@ export default function WorkoutForm({
   afOnChart = false,
   coachEnabled = false,
   pinIncrements = {},
+  hisSteps = [],
   repRecords = {},
-  deloadHints = {},
+  plateauKgs = {},
   rescueMode = false,
   dayAccent,
   healthWorkoutUuid,
@@ -268,10 +295,13 @@ export default function WorkoutForm({
   /** The coach layer is dormant without its key: never link to an error. */
   coachEnabled?: boolean;
   pinIncrements?: Record<string, number>;
+  /** Machines whose step is his at the home gym: ladders run through his weights. */
+  hisSteps?: string[];
   /** exerciseId → reps → best kg at this gym. Drives the rep-record toast. */
   repRecords?: Record<string, Record<number, number>>;
   /** exerciseId → plateau deload prescription, when detection fired. */
-  deloadHints?: Record<string, { weight: number; note: string }>;
+  /** Plateau weight per machine at the home gym (prescription.ts plateauKgFor). */
+  plateauKgs?: Record<string, number>;
   /** 15-minute rescue session — compressed by construction. */
   rescueMode?: boolean;
   /** Presentation only — threads the Aurora day accent (A violet · B teal) through steppers. */
@@ -304,11 +334,15 @@ export default function WorkoutForm({
   const [gym, setGym] = useState(DEFAULT_GYM_ID);
   const [notes, setNotes] = useState('');
   const [blocks, setBlocks] = useState<ExerciseBlock[]>(() =>
-    buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints, rescueMode),
+    buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, plateauKgs, rescueMode, hisSteps),
   );
   // Weight memory for the gym currently tagged. Seeded for the home gym by
   // the server; replaced wholesale when the tag changes.
   const [sessionMemory, setSessionMemory] = useState(lastSession);
+  // Pin spacing for the gym currently tagged: the home gym's from the server,
+  // replaced by the other building's on a switch (rules 2 and 4).
+  const [pins, setPins] = useState(pinIncrements);
+  const [anchoredIds, setAnchoredIds] = useState<string[]>(hisSteps);
   const [gymRecords, setGymRecords] = useState(personalRecords);
   const [repRecordsState, setRepRecordsState] = useState(repRecords);
   /** Health-derived read on today; 'hold' softens every push-harder cue. */
@@ -408,13 +442,10 @@ export default function WorkoutForm({
     setBlocks((prev) =>
       prev.map((b) => {
         if (!b.overloadApplied) return b;
-        const from = b.overloadApplied.from;
-        const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
-        const warm = warmupWeight(from, inc) ?? from;
         return {
           ...b,
           overloadApplied: undefined,
-          sets: b.sets.map((st) => (st.done ? st : { ...st, weight: st.isWarmup ? warm : from })),
+          sets: repriceSets(b, b.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId)),
         };
       }),
     );
@@ -506,8 +537,10 @@ export default function WorkoutForm({
         setDate(today);
         lastGymRef.current = DEFAULT_GYM_ID;
         setGym(DEFAULT_GYM_ID);
+        setPins(pinIncrements);
+        setAnchoredIds(hisSteps);
         startRef.current = Date.now();
-        setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints, rescueMode));
+        setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, plateauKgs, rescueMode, hisSteps));
         setDraftRestored(false);
         setDraftIsStale(false);
       }
@@ -864,33 +897,42 @@ export default function WorkoutForm({
     // ONE round trip for all three memories — three separate POSTs used to
     // race from gym LTE to us-east-1, and the prefill waited on the slowest.
     getGymMemory(ids, gym)
-      .then(({ lastSession: next, personalRecords, repRecords }) => {
+      .then(({ lastSession: next, personalRecords, repRecords, pins: gymPins, hisSteps: gymHisSteps, plateauKgs: gymPlateaus }) => {
         if (cancelled) return;
         setGymRecords(personalRecords);
         setRepRecordsState(repRecords);
         setSessionMemory(next);
+        setPins(gymPins);
+        setAnchoredIds(gymHisSteps);
         setBlocks((prev) =>
           prev.map((b) => {
             const prevSession = next[b.exerciseId];
             // overloadApplied dies with the switch: its undo held the OTHER
             // building's weight, and pressing it after a switch would write
             // a B_Fit number into an Alrajhi machine (trainer, rule 2).
-            if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession, overloadApplied: undefined };
-            const isTimed = b.unit === 'seconds';
-            const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
-            const working = prevSession?.weight ? rampPrefillWeight(prevSession, returnLoadPct ?? 100, inc) : 0;
-            // The warm-up stays a warm-up across a gym switch: 55% floored
-            // to a pin — mapping it to the other gym's FULL working weight
-            // made the cold first set the heaviest of the day (adversary).
-            const warm = working > 0 ? warmupWeight(working, inc) ?? working : 0;
+            if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession, overloadApplied: undefined, prescriptionNote: undefined };
+            // THIS building's prescription, with THIS building's pins and
+            // plateaus — the same numbers the Watch plan sends for gym=work
+            // (A3). The set count stays: rows appearing and vanishing on a
+            // tag change is worse than a deload note beside full sets.
+            const unit = b.unit === 'seconds' ? 'seconds' : 'reps';
+            const inc = gymPins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+            const anchored = gymHisSteps.includes(b.exerciseId);
+            const p = prescribeWorking(
+              { unit, sets: b.plannedSets ?? b.sets.filter((s) => !s.isWarmup).length, repsMin: b.defaultReps ?? 0, repsMax: b.maxReps ?? Number.POSITIVE_INFINITY },
+              prevSession,
+              inc,
+              gymPlateaus[b.exerciseId] ?? null,
+              { rampPct: returnLoadPct ?? null, rescue: rescueMode, anchored },
+            );
+            const seeded = p.reason === 'overload' && !b.overloadDeclined;
+            const working = seeded ? p.workingKg ?? 0 : p.reason === 'overload' ? p.fromKg ?? 0 : p.workingKg ?? 0;
             return {
               ...b,
               lastSession: prevSession,
-              overloadApplied: undefined,
-              sets: b.sets.map((s) => ({
-                ...s,
-                weight: isTimed ? 0 : s.isWarmup ? warm : working,
-              })),
+              overloadApplied: seeded && p.fromKg != null && p.workingKg != null ? { from: p.fromKg, to: p.workingKg } : undefined,
+              prescriptionNote: (p.reason === 'deload' || p.reason === 'short') && p.note ? p.note : undefined,
+              sets: repriceSets(b, working, inc, anchored),
             };
           }),
         );
@@ -899,7 +941,7 @@ export default function WorkoutForm({
       })
       .catch(() => { /* keep the current numbers (and badges) rather than blanking the form */ });
     return () => { cancelled = true; };
-  }, [gym, initialized, returnLoadPct, pinIncrements]);
+  }, [gym, initialized, returnLoadPct, rescueMode]);
 
   // Auto-dismiss draft restored banner after 4s
   useEffect(() => {
@@ -958,8 +1000,10 @@ export default function WorkoutForm({
     setName(initialName);
     setDate(today);
     setGym(DEFAULT_GYM_ID);
+    setPins(pinIncrements);
+    setAnchoredIds(hisSteps);
     setNotes('');
-    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, deloadHints, rescueMode));
+    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, plateauKgs, rescueMode, hisSteps));
     startRef.current = Date.now();
     saveIdRef.current = null;
     setDraftRestored(false);
@@ -986,16 +1030,11 @@ export default function WorkoutForm({
     setBlocks((prev) =>
       prev.map((b) => {
         if (b.uid !== uid || !b.overloadApplied) return b;
-        const from = b.overloadApplied.from;
-        const inc = pinIncrements[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
-        const warm = warmupWeight(from, inc) ?? from;
         return {
           ...b,
           overloadApplied: undefined,
           overloadDeclined: true,
-          sets: b.sets.map((st) =>
-            st.done ? st : { ...st, weight: st.isWarmup ? warm : from },
-          ),
+          sets: repriceSets(b, b.overloadApplied.from, pins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT, anchoredIds.includes(b.exerciseId)),
         };
       }),
     );
@@ -1030,12 +1069,11 @@ export default function WorkoutForm({
     // 21 kg" — rule 7, and the prefill IS the instruction. The warm-up keeps
     // its 55%-of-working shape too; the gym switch learned that at :826 and
     // this handler never did.
-    const swapInc = pinIncrements[exerciseId] ?? DEFAULT_PIN_INCREMENT;
+    const swapInc = pins[exerciseId] ?? DEFAULT_PIN_INCREMENT;
+    const swapAnchored = anchoredIds.includes(exerciseId);
     const swapWorking = prev?.weight
-      ? rampPrefillWeight(prev, returnLoadPct ?? 100, swapInc)
+      ? rampPrefillWeight(prev, returnLoadPct ?? 100, swapInc, swapAnchored)
       : 0;
-    const swapWarm =
-      swapWorking > 0 ? warmupWeight(swapWorking, swapInc) ?? swapWorking : 0;
     setBlocks((cur) =>
       cur.map((b) =>
         b.uid === uid
@@ -1070,8 +1108,12 @@ export default function WorkoutForm({
               // pending; completed sets keep the exercise they were performed
               // on, which is also what makes them save correctly. The gym
               // switch has guarded this since :822 — this handler did not.
-              sets: b.sets.map((s) =>
-                s.done ? s : { ...s, exerciseId, weight: s.isWarmup ? swapWarm : swapWorking },
+              prescriptionNote: undefined,
+              sets: repriceSets(
+                { ...b, exerciseId, unit: undefined, sets: b.sets.map((s) => (s.done ? s : { ...s, exerciseId })) },
+                swapWorking,
+                swapInc,
+                swapAnchored,
               ),
             }
           : b,
@@ -1244,13 +1286,13 @@ export default function WorkoutForm({
   // (zero) weight jumps to the last-session weight when known — scaled during
   // the return protocol, same as the pre-fill — else to one pin increment.
   function stepWeight(block: ExerciseBlock, idx: number, dir: 1 | -1) {
-    const inc = pinIncrements[block.exerciseId] ?? DEFAULT_PIN_INCREMENT;
+    const inc = pins[block.exerciseId] ?? DEFAULT_PIN_INCREMENT;
     const cur = block.sets[idx].weight;
     const next =
       cur > 0
         ? Math.max(0, +(cur + dir * inc).toFixed(2))
         : block.lastSession?.weight
-          ? rampPrefillWeight(block.lastSession, returnLoadPct ?? 100, inc)
+          ? rampPrefillWeight(block.lastSession, returnLoadPct ?? 100, inc, anchoredIds.includes(block.exerciseId))
           : inc;
     updateSet(block.uid, idx, 'weight', next);
   }
@@ -1344,11 +1386,11 @@ export default function WorkoutForm({
             const prev = b.lastSession?.weight ?? null;
             if (!top || prev == null || top === prev) return null;
             const nm = exerciseById.get(b.exerciseId)?.name ?? '';
-            const inc = pinIncrements[b.exerciseId] ?? 0;
+            const inc = pins[b.exerciseId] ?? 0;
             const diff = +(top - prev).toFixed(1);
-            const pins = inc > 0 ? Math.round(diff / inc) : 0;
-            const label = pins !== 0 && Math.abs(pins * inc - diff) < 0.01
-              ? `${pins > 0 ? '+' : ''}${pins} pin${Math.abs(pins) === 1 ? '' : 's'}`
+            const moves = inc > 0 ? Math.round(diff / inc) : 0;
+            const label = moves !== 0 && Math.abs(moves * inc - diff) < 0.01
+              ? `${moves > 0 ? '+' : ''}${moves} pin${Math.abs(moves) === 1 ? '' : 's'}`
               : `${diff > 0 ? '+' : ''}${diff} kg`;
             return `${nm} · ${label}`;
           })
@@ -1754,10 +1796,11 @@ export default function WorkoutForm({
             ? rampPrefillWeight(
                 block.lastSession,
                 returnLoadPct,
-                pinIncrements[block.exerciseId] ?? DEFAULT_PIN_INCREMENT,
+                pins[block.exerciseId] ?? DEFAULT_PIN_INCREMENT,
+                anchoredIds.includes(block.exerciseId),
               )
             : null;
-          const deload = deloadHints[block.exerciseId];
+          const deload = block.prescriptionNote;
           const readinessHold = readiness?.verdict === 'hold';
           const shouldHold =
             (!returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3) ||
@@ -1767,7 +1810,7 @@ export default function WorkoutForm({
           const suggestWeight =
             !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload &&
             !block.overloadApplied && !block.overloadDeclined
-              ? nextTryWeight(block.lastSession, pinIncrements[block.exerciseId] ?? DEFAULT_PIN_INCREMENT, block.defaultReps ?? 0)
+              ? nextTryWeight(block.lastSession, pins[block.exerciseId] ?? DEFAULT_PIN_INCREMENT, block.defaultReps ?? 0, block.maxReps ?? Number.POSITIVE_INFINITY)
               : null;
           const earnIt = !returnTarget && !isTimed && !shouldHold && !deload && !block.overloadApplied && !block.overloadDeclined && repeatToEarn(block.lastSession);
 
@@ -1870,9 +1913,9 @@ export default function WorkoutForm({
                     +{+(block.overloadApplied.to - block.overloadApplied.from).toFixed(1)} kg &#183; 2&#215; Easy &#183; undo
                   </button>
                 )}
-                {deload && gym === DEFAULT_GYM_ID && !returnTarget && !allDone && (
+                {deload && !returnTarget && !allDone && (
                   <span className="text-xs bg-acc-ember/10 text-acc-ember px-2.5 py-1 rounded-full border border-acc-ember/40 font-medium">
-                    {deload.note}
+                    {deload}
                   </span>
                 )}
                 {allDone && (

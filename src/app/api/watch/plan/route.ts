@@ -3,24 +3,17 @@ import { crownStepFor } from '@/lib/pins';
 import prisma from '@/lib/prisma';
 import { readChart } from '@/lib/chart';
 import {
-  cleanRampSessionDates,
   effortCeiling,
   getDynamicPlan,
   getExercisesForDuration,
-  getTrainingStatus,
-  hasWarmupSet,
-  isTrainingSession,
   queuedDay,
-  rampBaseBefore,
-  rampPrefillWeight,
-  warmupWeight,
+  WARMUP_BLOCKS,
   type DayId,
   DEFAULT_SESSION_MIN,
-  prefillReps,
+  DEFAULT_GYM_ID,
 } from '@/lib/program';
-import { pinMapFor } from '@/lib/coach';
+import { extraSetAllowed, planExercises, prescriptionInputs, PRESCRIPTION_WINDOW } from '@/lib/prescription';
 import { getLoggerMemory } from '@/app/actions';
-import { DEFAULT_GYM_ID } from '@/lib/program';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,9 +37,11 @@ export async function GET(request: Request) {
 
   const [exercises, workoutRows, chart] = await Promise.all([
     prisma.exercise.findMany({ select: { id: true, name: true, pinIncrement: true } }),
+    // The same newest rows the phone page and the save-time allowance read,
+    // so the learned pins cannot differ by window (A3).
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
-      take: 60,
+      take: PRESCRIPTION_WINDOW,
       include: { sets: { select: { exerciseId: true, weight: true, reps: true, rpe: true, isWarmup: true, allowedKg: true } } },
     }),
     // The chart's effort ceiling rides with the plan (rule 9: told, not
@@ -54,20 +49,13 @@ export async function GET(request: Request) {
     readChart(),
   ]);
 
-  const training = workoutRows.filter((w) => isTrainingSession(w));
-  const plan = getDynamicPlan(training.map((w) => ({ date: w.date, name: w.name })));
+  // Status, ramp percentage, memory cut, THIS gym's pins and plateaus — the
+  // same inputs the phone logger builds its blocks from (prescription.ts).
+  const inputs = prescriptionInputs(workoutRows, exercises, gym);
+  const plan = getDynamicPlan(inputs.training.map((w) => ({ date: w.date, name: w.name })));
   const day: DayId = dayParam === 'A' || dayParam === 'B' ? dayParam : queuedDay(plan) ?? 'A';
-
-  // Pin spacing learned from THIS gym's judged sessions only — a
-  // mixed-building learn infers a step that exists on neither machine
-  // (adversary C1); the same map judges over-ramp (rule 4).
-  const pinFor = pinMapFor(training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym) as never, exercises, gym);
-  const cleanDates = cleanRampSessionDates(training);
-  const status = getTrainingStatus(training.map((w) => w.date), new Date(), cleanDates);
-  const inRamp = status.mode === 'return';
-  const loadPct = inRamp ? status.returnWeek.loadPct : 100;
   const ceiling = effortCeiling(chart.conditions, chart.medications);
-  const rpeCap = Math.min(inRamp ? status.returnWeek.rpeCap : 4, ceiling);
+  const rpeCap = Math.min(inputs.rampRpeCap ?? 4, ceiling);
   const dur = durParam === 30 || durParam === 45 || durParam === 60 ? durParam : DEFAULT_SESSION_MIN;
 
   const template = getExercisesForDuration(day, dur as 30 | 45 | 60);
@@ -76,66 +64,49 @@ export async function GET(request: Request) {
   // Ramp-aware: the percentage scales the last FULL-LOAD weight, never a
   // previous ramp session (already scaled — compounding bug, owner's first
   // wrist session).
-  const memory = await getLoggerMemory(ids, gym, inRamp ? rampBaseBefore(training, cleanDates) : undefined);
+  const memory = await getLoggerMemory(ids, gym, inputs.cut);
+  const extraSet = extraSetAllowed(inputs.rampRpeCap);
 
   const payload = {
     day,
     mode: plan.mode,
     focus: `Day ${day}`,
     durationMin: dur,
-    loadPct,
+    loadPct: inputs.rampPct ?? 100,
     rpeCap,
-    // `order` must index the SAME list the phone's blocks do. The phone
-    // filters out template names with no Exercise row FIRST and then
-    // numbers what is left; numbering before the filter would make the
-    // two devices warm up different movements the moment a newly named
-    // movement ships ahead of its seed row — which is exactly the window
-    // Hip Adduction and Back Extension went through (adversary,
-    // 2026-09-18). Filter, then number.
-    exercises: template
-      .filter((t) => byName.has(t.name))
-      .map((t, order) => {
-      const ex = byName.get(t.name)!;
-      const last = memory[ex.id];
-      // Manual per-machine override outranks the learned spacing, exactly
-      // as on the phone.
-      const pin = pinFor(ex.id);
-      // One scaler for wrist and phone: pre-break × loadPct snapped to
-      // THIS machine's nearest pin; held / 100% weights pass through.
-      const scaled = last ? rampPrefillWeight(last, loadPct, pin) : null;
-      // Timed holds never scale — a plank at bodyweight is the same load in
-      // every ramp week — and never open below the program floor (trainer:
-      // the 10 s planks on the first wrist session).
-      // Last session's reps clamped into the range for every unit: a short
-      // set is never the next prefill (trainer ruling 6). Timed holds keep
-      // their floor and ceiling the same way (the 10 s planks, 2026-09-01).
-      const openReps = prefillReps(last?.reps, t.repsMin, t.repsMax);
-      return {
-        exerciseId: ex.id,
-        name: t.name,
-        machine: t.machine,
-        order,
-        sets: t.sets,
-        repsMin: t.repsMin,
-        repsMax: t.repsMax,
-        unit: t.unit,
-        restSec: parseInt(t.rest, 10) || 90,
-        prefillKg: scaled,
-        prefillReps: openReps,
-        pinKg: pin,
-        // What ONE crown detent moves on the Watch: his own step for this
-        // machine once he has set it, else 0.5 kg so any weight he really
-        // lifted is reachable (trainer ruling 4). The prescription above keeps
-        // pinKg. Build 13 ignores this key; the next Watch build reads it.
-        crownStepKg: crownStepFor(gym === DEFAULT_GYM_ID ? ex.pinIncrement : null),
-        // The phone opens the first two movements with a ramp-in set; the
-        // Watch built its slots straight from `sets` and never offered one,
-        // so wrist sessions skipped the warm-ups entirely (owner,
-        // 2026-09-18). Sent as a weight rather than a flag so the rule
-        // stays in one place — null means this movement has no warm-up.
-        warmupKg: hasWarmupSet(order, t.unit, scaled) ? warmupWeight(scaled!, pin) : null,
-      };
-    }),
+    // Trainer ruling 5: the first N weighted machines he STARTS warm up,
+    // whatever they are. Every weighted machine carries its warm-up weight;
+    // the device counts starts and inserts the set (alwaysWarm: always).
+    warmupFirstN: WARMUP_BLOCKS,
+    // planExercises filters unseeded names out FIRST, then numbers — the
+    // same `order` the phone's blocks carry.
+    exercises: planExercises(template, byName, memory, inputs).map((e) => ({
+      exerciseId: e.exerciseId,
+      name: e.name,
+      machine: e.template.machine,
+      order: e.order,
+      sets: e.prescription.sets,
+      repsMin: e.template.repsMin,
+      repsMax: e.template.repsMax,
+      unit: e.template.unit,
+      restSec: parseInt(e.template.rest, 10) || 90,
+      // THE prescription, byte-identical to the phone's: ramp-scaled, held,
+      // +1 pin, deloaded or stepped down (reason says which).
+      prefillKg: e.prescription.workingKg,
+      prefillReps: e.prefillReps,
+      pinKg: e.pinKg,
+      // What ONE crown detent moves on the Watch: his own step for this
+      // machine once he has set it, else 0.5 kg so any weight he really
+      // lifted is reachable (trainer ruling 4). The prescription above keeps
+      // pinKg. Build 13 ignores this key; the next Watch build reads it.
+      crownStepKg: crownStepFor(gym === DEFAULT_GYM_ID ? byName.get(e.name)?.pinIncrement ?? null : null),
+      warmupKg: e.warmupKg,
+      alwaysWarm: e.alwaysWarm,
+      reason: e.prescription.reason,
+      fromKg: e.prescription.fromKg,
+      note: e.prescription.note,
+      extraSetAllowed: extraSet && e.template.unit !== 'seconds',
+    })),
   };
 
   return NextResponse.json(payload);
