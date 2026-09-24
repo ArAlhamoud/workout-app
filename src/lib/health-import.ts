@@ -59,12 +59,21 @@ async function enrichWorkouts(samples: ParsedSample[]): Promise<number> {
     const { start, end } = dayRange(key);
     const workouts = await prisma.workout.findMany({
       where: { date: { gte: start, lt: end } },
-      select: { id: true, date: true, duration: true, createdAt: true, avgHr: true, maxHr: true, activeKcal: true },
+      select: { id: true, date: true, duration: true, createdAt: true, avgHr: true, maxHr: true, activeKcal: true, sets: { select: { completedAt: true } } },
     });
     const daySamples = workoutSamples.filter((s) => dayKey(s.date) === key);
 
     for (const workout of workouts) {
-      const { avgHr, maxHr, activeKcal } = matchSamplesToWorkout(daySamples, workout);
+      // The same window the Apple Health push read: timed by the stamped sets.
+      const stamps = workout.sets
+        .map((st) => st.completedAt)
+        .filter((d): d is Date => d != null)
+        .sort((a, b) => a.getTime() - b.getTime());
+      const { avgHr, maxHr, activeKcal } = matchSamplesToWorkout(daySamples, {
+        ...workout,
+        firstSetAt: stamps[0] ?? null,
+        lastSetAt: stamps[stamps.length - 1] ?? null,
+      });
       // Only fill nulls — never clobber existing values.
       const data: { avgHr?: number; maxHr?: number; activeKcal?: number } = {};
       if (workout.avgHr === null && avgHr !== null) data.avgHr = avgHr;

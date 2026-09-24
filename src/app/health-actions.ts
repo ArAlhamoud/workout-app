@@ -544,7 +544,6 @@ export async function getHealthData() {
 
 // Strength-training estimate for a ~133 kg trainee.
 const KCAL_PER_MIN = 7;
-const DEFAULT_DURATION_MIN = 60;
 
 /** Apple Health samples → BodyStats, HealthSamples, and workout enrichment. */
 export async function importHealth(payload: unknown) {
@@ -559,6 +558,12 @@ export async function detectUnlogged(payload: unknown) {
 /** A workout's downsampled heart-rate curve. */
 export async function saveHrSeries(payload: { workoutId?: string; bins?: unknown }) {
   return storeHrSeries(payload as Parameters<typeof storeHrSeries>[0]);
+}
+
+/** The first and last stamped set — what times a session (healthPushWindow). */
+function setSpan(sets: Array<{ completedAt: Date | null }>): { firstSetAt: Date | null; lastSetAt: Date | null } {
+  const t = sets.map((st) => st.completedAt).filter((d): d is Date => d != null).sort((a, b) => a.getTime() - b.getTime());
+  return { firstSetAt: t[0] ?? null, lastSetAt: t[t.length - 1] ?? null };
 }
 
 /** How far back an unsynced session may still be written to Apple Health. */
@@ -589,7 +594,7 @@ export async function getWorkoutsToPush() {
       date: w.date,
       duration: w.duration,
       createdAt: w.createdAt,
-      lastSetAt: w.sets.reduce<Date | null>((m, st) => (st.completedAt && (!m || st.completedAt > m) ? st.completedAt : m), null),
+      ...setSpan(w.sets),
       setCount: w.sets.length,
     })),
   ).map((p) => ({

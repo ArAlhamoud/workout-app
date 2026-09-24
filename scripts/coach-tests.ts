@@ -121,6 +121,8 @@ import {
   planHealthPush,
   healthSourceKind,
   OWN_BUNDLE_ID,
+  coveredByExisting,
+  parseHealthPayload,
 } from '../src/lib/health';
 
 interface HistoryFile {
@@ -1551,7 +1553,7 @@ console.log('Watch wave — watch log sets and session counting');
     { exerciseId: 'a', setNumber: 1, reps: 10, weight: 30, completedAt: iso },
     { exerciseId: 'a', setNumber: 2, reps: 10, weight: 30, completedAt: 'not a date' },
   ]);
-  assert(t.length === 2 && t[0].completedAt === iso, 'a valid set time rides through to the saved set');
+  assert(t.length === 2 && t[0].completedAt === iso, 'a set time the client sends is kept — the Watch build that sends one is phase 4; the current build sends none');
   assert(t.length === 2 && t[1].completedAt === undefined, 'a garbage set time is dropped, the set is kept');
   const w = sanitizeWatchLogSets([
     { exerciseId: 'a', setNumber: 0, reps: 10, weight: 15, isWarmup: true },
@@ -1572,71 +1574,110 @@ console.log('Watch wave — watch log sets and session counting');
 
   // F3 (trainer): the ramp counts ONE session per activity day. It counted
   // rows, so one real session plus a same-day duplicate row (a Watch finish
-  // and a phone replay under another id) advanced him from 85% to 100% a
-  // whole session early.
-  const trainingDates = data.workouts.filter((wk) => wk.name.startsWith('Day') && isTrainingSession(wk)).map((wk) => new Date(wk.date));
-  const nextDayB = new Date('2026-09-25T00:00:00.000Z');
-  const later = new Date('2026-09-26T12:00:00.000Z');
-  const once = getTrainingStatus([...trainingDates, nextDayB], later);
-  const twice = getTrainingStatus([...trainingDates, nextDayB, nextDayB], later);
-  assert(twice.week === once.week, `a same-day duplicate row does not advance the ramp (one row: week ${once.week}, with a duplicate: week ${twice.week})`);
-  assert(once.mode === 'return' && once.week === 3, `real history plus one Day B is still week 3 at 85% (got ${once.mode} week ${once.week})`);
+  // and a phone replay under another id) advanced him a phase early. Built on
+  // a FIXED block — "real history plus one session" breaks the day the sync
+  // bot lands the next real one (see the preBreak note; steward review).
+  const block = [...preBreak, day('2026-08-10T00:00:00Z'), day('2026-08-14T00:00:00Z'), day('2026-08-22T00:00:00Z')];
+  const at = day('2026-09-01T12:00:00Z');
+  const once = getTrainingStatus(block, at);
+  const fourth = getTrainingStatus([...block, day('2026-08-23T00:00:00Z')], at);
+  const twice = getTrainingStatus([...block, day('2026-08-22T00:00:00Z')], at);
+  assert(once.mode === 'return' && fourth.week === once.week + 1, `a genuine fourth session DOES advance this block (week ${once.week} -> ${fourth.week}), so it can tell a duplicate apart`);
+  assert(twice.week === once.week, `a same-day duplicate row does not advance the ramp (week ${once.week}, with a duplicate: ${twice.week})`);
 }
 
 // ── Watch wave, phase 1: Apple Health write-through (A4), source kind (A5) ─
 console.log('Watch wave — Apple Health write-through');
 {
+  // Frozen at the 2026-09-23 export: the sync bot appends rows daily, and a
+  // sweep over "every row" breaks the day a back-dated entry lands (steward).
   type Row = { name: string; date: string; duration: number | null; createdAt: string; sets: Array<{ completedAt?: string | null }> };
-  const rows = data.workouts as unknown as Row[];
+  const rows = (data.workouts as unknown as Row[]).filter((w) => String(w.date) <= '2026-09-23');
   const rowOf = (name: string) => rows.find((w) => w.name === name)!;
-  const lastSetAt = (w: Row) => {
-    const t = w.sets.map((st) => st.completedAt).filter((x): x is string => !!x).sort().pop();
-    return t ? new Date(t) : null;
+  const stampsOf = (w: Row) => w.sets.map((st) => st.completedAt).filter((x): x is string => !!x).sort();
+  const inputOf = (w: Row) => {
+    const st = stampsOf(w);
+    return { date: new Date(w.date), duration: w.duration, createdAt: new Date(w.createdAt), firstSetAt: st.length ? new Date(st[0]) : null, lastSetAt: st.length ? new Date(st[st.length - 1]) : null };
   };
-  const inputOf = (w: Row) => ({ date: new Date(w.date), duration: w.duration, createdAt: new Date(w.createdAt), lastSetAt: lastSetAt(w) });
+  const win = (x: { start: Date; end: Date } | null) => (x ? `${x.start.toISOString()} – ${x.end.toISOString()}` : 'null');
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
 
-  // A bare-day row is saved at the END of the session, so it began at
-  // createdAt − duration. The old window STARTED at createdAt, so heart rate
-  // and energy were read for the 50 minutes after he had left.
-  const sep17 = rowOf('Day A 45m — Sep 17');
-  const win = workoutWindow({ date: new Date(sep17.date), duration: sep17.duration, createdAt: new Date(sep17.createdAt) });
-  assert(win.start.toISOString() === '2026-09-17T20:44:38.971Z', `Sep 17's window starts when he started, not when he saved (got ${win.start.toISOString()})`);
-
-  // The push to Apple Health used the bare date: UTC midnight = 03:00 Riyadh,
-  // on every session he ever logged.
+  // Stamped sets ARE the session: first set − 5 min (setup, warm-up) to the
+  // last set. A late Save or an offline replay moves createdAt, and the
+  // form's duration runs from open to Save, so any duration-based window
+  // stretched a late save backwards into a 2-hour session (adversary).
   const p12 = healthPushWindow(inputOf(rowOf('Day B 45m — Sep 12')));
-  assert(p12?.start.toISOString() === '2026-09-12T20:03:30.238Z' && p12?.end.toISOString() === '2026-09-12T20:41:17.238Z', `Sep 12 goes to Health at 23:03 Riyadh, the time he trained (got ${p12?.start.toISOString()} – ${p12?.end.toISOString()})`);
+  assert(win(p12) === '2026-09-12T20:01:10.112Z – 2026-09-12T20:41:04.453Z', `Sep 12 goes to Health from its sets, 23:01–23:41 Riyadh (got ${win(p12)})`);
+  const p17 = healthPushWindow(inputOf(rowOf('Day A 45m — Sep 17')));
+  assert(win(p17) === '2026-09-17T20:45:45.412Z – 2026-09-17T21:35:42.313Z', `Sep 17 goes to Health from its sets (got ${win(p17)})`);
+  const setsAt = (from: string, to: string) => ({ firstSetAt: new Date(from), lastSetAt: new Date(to) });
+  const day20 = new Date('2026-09-20T00:00:00.000Z');
+  const late = healthPushWindow({ date: day20, duration: 7200, createdAt: new Date('2026-09-20T18:00:00.000Z'), ...setsAt('2026-09-20T16:05:00.000Z', '2026-09-20T16:45:00.000Z') });
+  assert(win(late) === '2026-09-20T16:00:00.000Z – 2026-09-20T16:45:00.000Z', `a Save tapped 75 min late is not stretched into a 2-hour session (got ${win(late)})`);
+  const replay = healthPushWindow({ date: day20, duration: 2460, createdAt: new Date('2026-09-20T20:00:00.000Z'), ...setsAt('2026-09-20T16:05:00.000Z', '2026-09-20T16:45:00.000Z') });
+  assert(win(replay) === win(late), `an offline replay lands on the same real window (got ${win(replay)})`);
+  // Unstamped (the logger before set times existed): it ended at the Save.
+  const may13 = healthPushWindow(inputOf(rowOf('Day A 45m — May 13')));
+  assert(win(may13) === '2026-05-13T19:24:49.483Z – 2026-05-13T20:08:35.483Z', `an unstamped row ends at its Save (got ${win(may13)})`);
+  // Never invent a clock time.
+  assert(healthPushWindow({ date: new Date('2026-09-10T00:00:00.000Z'), duration: 2400, createdAt: new Date('2026-09-13T20:00:00.000Z'), firstSetAt: null, lastSetAt: null }) === null, 'a back-dated entry gets no invented time — it is not pushed');
+  assert(healthPushWindow({ date: new Date('2026-09-10T00:00:00.000Z'), duration: 2400, createdAt: new Date('2026-09-13T20:10:00.000Z'), ...setsAt('2026-09-13T20:00:00.000Z', '2026-09-13T20:09:00.000Z') }) === null, 'sets ticked while typing a past session in are not its clock time either');
   for (const w of rows.filter((r) => r.sets.length)) {
     const p = healthPushWindow(inputOf(w));
-    const day = new Date(w.date).getTime();
+    const d0 = new Date(w.date).getTime();
     assert(
-      p !== null && !p.start.toISOString().endsWith('T00:00:00.000Z') && p.start.getTime() >= day + 3_600_000 && p.start.getTime() < day + 25 * 3_600_000,
-      `${w.name}: pushed at a real clock time inside its activity day (got ${p?.start.toISOString()})`,
+      p !== null && !p.start.toISOString().endsWith('T00:00:00.000Z') && p.start.getTime() >= d0 + 3_600_000 && p.start.getTime() < d0 + 25 * 3_600_000,
+      `${w.name}: pushed at a real clock time inside its activity day (got ${win(p)})`,
     );
   }
-  // Never invent a clock time: an entry typed in three days late has none.
-  assert(healthPushWindow({ date: new Date('2026-09-10T00:00:00.000Z'), duration: 2400, createdAt: new Date('2026-09-13T20:00:00.000Z'), lastSetAt: null }) === null, 'a back-dated entry gets no invented time — it is not pushed');
-  // An outbox replay saves hours after the last set: the last set ends it.
-  const replay = healthPushWindow({ date: new Date('2026-09-20T00:00:00.000Z'), duration: 2400, createdAt: new Date('2026-09-21T00:30:00.000Z'), lastSetAt: new Date('2026-09-20T19:30:00.000Z') });
-  assert(replay?.end.toISOString() === '2026-09-20T19:30:00.000Z', `an outbox replay is timed by its last set, not its save (got ${replay?.end.toISOString()})`);
+
+  // The heart-rate match uses the SAME window as the push, so what the push
+  // reads and what the match accepts never disagree (adversary: a replayed
+  // session's HR fell outside the match window and a cuff pulse filled it).
+  const sep17 = rowOf('Day A 45m — Sep 17');
+  assert(win(workoutWindow(inputOf(sep17))) === win(p17), 'the heart-rate match window is the push window');
+  const bare17 = workoutWindow({ date: new Date(sep17.date), duration: sep17.duration, createdAt: new Date(sep17.createdAt) });
+  assert(bare17.start.toISOString() === '2026-09-17T20:44:38.971Z', `without set times the window ENDS at the Save (got ${bare17.start.toISOString()})`);
+  const past = workoutWindow({ date: new Date('2026-09-10T00:00:00.000Z'), duration: 2400, createdAt: new Date('2026-09-13T20:00:00.000Z') });
+  assert(past.start.getTime() === past.end.getTime(), 'a back-dated row matches no samples at all (zero-length window)');
 
   // What gets pushed: strength sessions only, at their real time.
   const plan = planHealthPush(rows.map((w, i) => ({ id: String(i), name: w.name, ...inputOf(w), setCount: w.sets.length })));
   assert(plan.every((x) => !/^(Swim|Walk)\b/.test(x.name)), 'cardio quick-logs (no sets) are never written to Health as strength training');
-  assert(plan.length === rows.filter((r) => r.sets.length).length, `every strength session with an honest time is pushable (${plan.length})`);
-  const ah = fs.readFileSync(path.join(__dirname, '..', 'src/app/health-actions.ts'), 'utf8');
+  assert(plan.length === rows.filter((r) => r.sets.length).length, `every frozen strength session has an honest push window (${plan.length})`);
+  const ah = src('src/app/health-actions.ts');
   assert(/orderBy:\s*\{\s*date:\s*'desc'\s*\}/.test(ah) && /take:\s*\w+/.test(ah) && ah.includes('planHealthPush('), 'the push query is newest-first, capped, and goes through planHealthPush');
 
-  // A session the Watch recorded is already in Health: the phone must not
-  // write it a second time. The uuid alone is not enough — the one real Watch
-  // session (Sep 1) was saved with healthWorkoutUuid null.
-  assert(recordedInHealth({ finishSource: 'watch' }), 'finished on the Watch (Sep 1 shape, no uuid) → already in Health');
-  assert(recordedInHealth({ finishSource: 'phone', live: { source: 'watch', sets: [] } }), 'started on the Watch, finished on the phone (Sep 17 shape) → already in Health');
-  assert(recordedInHealth({ finishSource: 'phone', live: { source: 'phone', sets: [{ source: 'watch' }] } }), 'any Watch set in the live row → its workout session ran');
+  // Never write a workout Health already holds — from ANY source: Apple's
+  // Workout app, the Watch app (it saves on its own, even when it posted
+  // nothing), or an earlier push whose mark failed (adversary).
+  const w45 = { start: Date.parse('2026-09-20T16:00:00Z'), end: Date.parse('2026-09-20T16:45:00Z') };
+  const hk = (a: string, b: string) => ({ startISO: a, endISO: b });
+  assert(coveredByExisting(w45, [hk('2026-09-20T15:58:00Z', '2026-09-20T16:47:00Z')]), 'an Apple Workout session over the same time → already in Health');
+  assert(coveredByExisting(w45, [hk('2026-09-20T16:10:00Z', '2026-09-20T16:40:00Z')]), 'a Watch-app session covering most of it → already in Health');
+  assert(!coveredByExisting(w45, [hk('2026-09-20T15:30:00Z', '2026-09-20T16:10:00Z')]), 'a walk that only brushes the start is a different workout');
+  assert(!coveredByExisting(w45, []), 'nothing in Health over that time → write it');
+  for (const f of ['src/components/HealthAutoPilot.tsx', 'src/components/NativeHealthCard.tsx']) {
+    const c = src(f);
+    assert(c.includes('pushWorkoutsToHealth(') && !c.includes('saveWorkout('), `${f}: writes to Health only through the one guarded helper`);
+  }
+  // The push sends the window's REAL max. A lone averaged sample filled
+  // Workout.maxHr with the average, for good (steward).
+  const parsed = parseHealthPayload([{ type: 'heart_rate', value: 118, max: 151, unit: 'count/min', date: '2026-09-20T16:00:00Z' }]);
+  assert(parsed.samples[0]?.max === 151, 'an imported heart-rate sample keeps its max');
+  assert(/max:\s*stats\.maxHr/.test(src('src/lib/health-push.ts')), 'the push enrichment carries the window max, not the average');
+
+  // "Already in Health" is stamped only on evidence an HKWorkout was SAVED:
+  // the Watch finished it (end() saves the workout), or its uuid came back.
+  // Who OPENED the row proves nothing — the Watch may have discarded its
+  // recording, and then the stamp hid the session from Health for good
+  // (adversary + steward). Everything else is pushed, and the push itself
+  // skips anything Health already holds (coveredByExisting).
+  assert(recordedInHealth({ finishSource: 'watch' }), 'finished on the Watch → already in Health');
   assert(recordedInHealth({ healthWorkoutUuid: 'abc' }), 'an HKWorkout uuid → already in Health');
-  assert(!recordedInHealth({ finishSource: 'phone', live: { source: 'phone', sets: [{ source: 'phone' }] } }) && !recordedInHealth({}), 'a phone-only session still gets pushed');
-  const act = fs.readFileSync(path.join(__dirname, '..', 'src/app/actions.ts'), 'utf8');
-  assert((act.match(/recordedInHealth\(/g) ?? []).length >= 2, 'createWorkout stamps the Health fact on both the create and the merge path');
+  assert(!recordedInHealth({ finishSource: 'phone' }), 'finished on the phone — even in a row the Watch opened and discarded — is pushed');
+  assert(!recordedInHealth({}), 'a phone-only session is pushed');
+  assert((src('src/app/actions.ts').match(/recordedInHealth\(/g) ?? []).length >= 2, 'createWorkout stamps the Health fact on both the create and the merge path');
 
   // A5: one source rule. The Stats card matched the bundle id EXACTLY and
   // the Home banner by PREFIX, so the Watch app's own workouts were offered
@@ -1645,10 +1686,10 @@ console.log('Watch wave — Apple Health write-through');
   assert(healthSourceKind(`${OWN_BUNDLE_ID}.watchkitapp`) === 'watch', 'the Watch app is watch');
   assert(healthSourceKind(`${OWN_BUNDLE_ID}s`) === 'foreign' && healthSourceKind('com.apple.health.X') === 'foreign' && healthSourceKind(undefined) === 'foreign', 'anything else — including a lookalike prefix — is foreign');
   for (const f of ['src/components/NativeHealthCard.tsx', 'src/components/health/DetectedSessionBanner.tsx']) {
-    const c = fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+    const c = src(f);
     assert(!/const OWN_BUNDLE_ID/.test(c) && c.includes('healthSourceKind('), `${f}: uses the shared source rule, no private bundle id`);
   }
-  const banner = fs.readFileSync(path.join(__dirname, '..', 'src/components/health/DetectedSessionBanner.tsx'), 'utf8');
+  const banner = src('src/components/health/DetectedSessionBanner.tsx');
   assert(!/function localDayOf/.test(banner) && banner.includes('activityDayStr('), 'the banner dates a session by the activity day (a 00:30 start belongs to the day before), like the Stats card');
 }
 
@@ -2448,6 +2489,14 @@ console.log('Tier 1b — program logic');
   assert(learn(ladder(20, 25, 35)) === undefined, `the step must show up twice as a real gap, or it is only an upper bound (got ${learn(ladder(20, 25, 35))})`);
   assert(learn(ladder(20, 25, 30, 35)) === 5, `a clean 5 kg ladder is learned (got ${learn(ladder(20, 25, 30, 35))})`);
   assert(learn(ladder(7.5, 8.75, 10, 11.25)) === 1.25, `a genuine 1.25 half-plate ladder is learned (got ${learn(ladder(7.5, 8.75, 10, 11.25))})`);
+  // Below 2.5 the log is an UPPER BOUND on the step: two weights 1.25 apart
+  // prove the stack moves in 1.25 (or finer). Falling back to 2.5 there would
+  // prescribe more than one step — Face Pull 7.5 -> 10 kg, +33% on the
+  // smallest shoulder movement (trainer review). Two weights are enough to
+  // bound it; the gap-twice rule is only for steps of 2.5 kg and up.
+  assert(learn(ladder(7.5, 8.75)) === 1.25, `Face Pull 7.5 / 8.75 proves a 1.25 kg step — never a 2.5 jump (got ${learn(ladder(7.5, 8.75))})`);
+  assert(learn(ladder(20, 21.25, 20)) === 1.25, `a revisited 1.25 gap still bounds the step at 1.25 (got ${learn(ladder(20, 21.25, 20))})`);
+  assert(learn(ladder(26, 28)) === 2, `a 2 kg gap bounds the step at 2 (got ${learn(ladder(26, 28))})`);
   const noisy = ladder(20, 25, 30, 27.5, 27);
   assert(learn(noisy) === undefined, `27.5 and 27 contradict the 5 kg ladder of 20/25/30 — a contradicted log teaches nothing (was 5 under the most-frequent-jump rule; got ${learn(noisy)})`);
   assert(learn([sess('2026-07-01', 20), sess('2026-07-08', 21)]) === undefined, 'a lone sub-2 kg jump teaches nothing (combineIncrement falls back to 2.5)');
@@ -2459,11 +2508,14 @@ console.log('Tier 1b — program logic');
 
   // On his real history: every learned pin is a real step AND fits every
   // rated weight logged on that machine (the ladder property).
-  const real = learnPinIncrements(data.workouts);
+  // Frozen at the 2026-09-23 export: the sync bot appends sessions daily, and
+  // a machine that logs a new clean ladder must not turn these red (steward).
+  const frozen = data.workouts.filter((w) => String(w.date) <= '2026-09-23');
+  const real = learnPinIncrements(frozen);
   for (const [id, pin] of Object.entries(real)) {
     const name = data.exercises.find((e) => e.id === id)?.name ?? id;
     assert(pin >= 1.25 && pin <= 5, `${name}: learned pin ${pin} is a step a stack can actually take`);
-    const tops = data.workouts.flatMap((w) => {
+    const tops = frozen.flatMap((w) => {
       const own = w.sets.filter((st) => st.exerciseId === id && !st.isWarmup && st.weight > 0);
       return own.some((st) => st.rpe != null && st.rpe > 0) ? [Math.max(...own.map((st) => st.weight))] : [];
     });
@@ -2477,11 +2529,13 @@ console.log('Tier 1b — program logic');
     const id = data.exercises.find((e) => e.name === name)?.id;
     assert(id !== undefined && combineIncrement(real[id], null) === 2.5, `${name} resolves to the 2.5 kg fallback (got ${id ? combineIncrement(real[id], null) : 'missing'})`);
   }
+  const facePull = data.exercises.find((e) => e.name === 'Cable Face Pull')?.id;
+  assert(facePull !== undefined && real[facePull] === 1.25, `Cable Face Pull learns the 1.25 kg step his log proves (got ${facePull ? real[facePull] : 'missing'})`);
   // F1, the live hazard: one more all-Easy Back Extension at 27.5 must NOT
   // make the overload seed jump a guessed 15 kg pin.
   const beEx = data.exercises.find((e) => e.name === 'Back Extension')!;
   const beSets = [1, 2, 3].map(() => ({ exerciseId: beEx.id, reps: 12, weight: 27.5, rpe: 1, exercise: beEx }));
-  const withNextDayB = [...data.workouts, { date: '2026-09-25T00:00:00.000Z', sets: beSets } as CoachWorkout];
+  const withNextDayB = [...frozen, { date: '2026-09-25T00:00:00.000Z', sets: beSets } as CoachWorkout];
   const bePin = combineIncrement(learnPinIncrements(withNextDayB)[beEx.id], null);
   assert(27.5 + bePin <= 30, `Back Extension overload after another Easy 27.5 opens at most 30 kg, not 42.5 (pin ${bePin})`);
 

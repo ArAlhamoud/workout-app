@@ -245,22 +245,23 @@ export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date =
 }
 
 /**
- * Did the Watch's workout session already record this workout in Apple
- * Health? Then the phone's write-through must not add a second copy. The
- * HKWorkout uuid alone is not enough: the one real Watch session (Sep 1) was
- * saved with healthWorkoutUuid null — end() gives up after 10 s — and a
- * session started on the Watch but finished on the phone (Sep 17) carries no
- * uuid at all. Any Watch involvement means its HKWorkoutSession ran.
+ * Did the Watch SAVE this session into Apple Health? Then the phone's
+ * write-through must not add a second copy. Stamped only on evidence of a
+ * saved HKWorkout:
+ *  - the Watch finished it: finish() ends its HKWorkoutSession, which saves
+ *    the workout. The uuid alone is not enough — the one real Watch session
+ *    (Sep 1) came back with healthWorkoutUuid null when end() hit its 10 s
+ *    deadline;
+ *  - or an HKWorkout uuid came with the save.
+ * Who OPENED the live row proves nothing. The Watch may have discarded its
+ * recording (discard() saves no workout), and a stamp then hid the session
+ * from Health for good (review, 2026-09-24). Every other session is pushed,
+ * and the push itself skips any window Health already holds
+ * (coveredByExisting) — which also catches a Watch that joined, logged
+ * nothing, and saved its own workout later.
  */
-export function recordedInHealth(p: {
-  finishSource?: string;
-  healthWorkoutUuid?: string | null;
-  live?: { source?: string; sets?: Array<{ source?: string }> } | null;
-}): boolean {
-  if (p.healthWorkoutUuid) return true;
-  if (p.finishSource === 'watch') return true;
-  if (p.live?.source === 'watch') return true;
-  return !!p.live?.sets?.some((s) => s.source === 'watch');
+export function recordedInHealth(p: { finishSource?: string; healthWorkoutUuid?: string | null }): boolean {
+  return !!p.healthWorkoutUuid || p.finishSource === 'watch';
 }
 
 /** One set of the Watch's finished-session payload, after validation. */
@@ -285,8 +286,10 @@ type RawWatchSet = {
  * Bounds mirror sanitizeLiveUpdate; junk sets are dropped, never fatal.
  * Three things the old inline mapping in the route got wrong (watch-map,
  * 2026-09-24):
- *  - it dropped each set's time, so every Watch set reached the merge as
- *    "no stamp" and lost to any removal the phone had recorded;
+ *  - it dropped each set's time. The server now keeps one when it is sent,
+ *    but the current Watch build (13) sends none, so until the next build
+ *    does, a Watch set still reaches the merge unstamped and still yields to
+ *    a removal the phone recorded for that key;
  *  - it accepted set 0 without the warm-up flag; now set 0 IS a warm-up (a
  *    flagged warm-up is pinned to 0) or it is dropped, and a working set
  *    must be 1–20, as on the live row;

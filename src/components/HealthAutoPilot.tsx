@@ -26,11 +26,10 @@ import {
   queryWeight,
   queryQuantity,
   queryDailyStats,
-  queryWorkoutStats,
-  saveWorkout,
   windowStartISO,
   type QuantityIdentifier,
 } from '@/lib/native-health';
+import { pushWorkoutsToHealth, type HealthPushCandidate } from '@/lib/health-push';
 import {
   registerRestActions,
   onRestAction,
@@ -286,38 +285,17 @@ async function runSyncs(): Promise<void> {
     }
   } catch { /* next open retries */ }
 
-  // 3 — write-through of unsynced app workouts to HealthKit. Same contract
-  // as the manual card: no energy passed (read-back energy double-counts).
+  // 3 — write-through of unsynced app workouts to HealthKit, through the one
+  // guarded helper: never a window Health already holds, no energy passed.
   try {
-    const workouts = (await getWorkoutsToPush()) as Array<{
-      id: string;
-      name: string;
-      start: string;
-      durationMin: number;
-    }>;
-    const savedIds: string[] = [];
-    const enrichment: Array<{ type: string; value: number; unit: string; date: string }> = [];
-    for (const w of workouts) {
-      const endISO = new Date(new Date(w.start).getTime() + w.durationMin * 60_000).toISOString();
-      try {
-        const stats = await queryWorkoutStats(w.start, endISO);
-        if (stats.avgHr !== null) {
-          enrichment.push({ type: 'heart_rate', value: stats.avgHr, unit: 'count/min', date: w.start });
-        }
-        if (stats.activeKcal !== null && stats.activeKcal > 0) {
-          enrichment.push({ type: 'active_energy', value: stats.activeKcal, unit: 'kcal', date: w.start });
-        }
-      } catch { /* stats are enrichment, not a gate on the write-through */ }
-      try {
-        await saveWorkout({ startISO: w.start, endISO, name: w.name });
-        savedIds.push(w.id);
-      } catch { /* stays unsynced; the card's manual sync can surface why */ }
+    const workouts = (await getWorkoutsToPush()) as HealthPushCandidate[];
+    const out = await pushWorkoutsToHealth(workouts);
+    if (out.enrichment.length) {
+      await importHealth(out.enrichment);
     }
-    if (enrichment.length) {
-      await importHealth(enrichment);
-    }
-    if (savedIds.length) {
-      await markWorkoutsPushed(savedIds);
+    const done = [...out.savedIds, ...out.alreadyIds];
+    if (done.length) {
+      await markWorkoutsPushed(done);
     }
   } catch { /* next open retries */ }
 

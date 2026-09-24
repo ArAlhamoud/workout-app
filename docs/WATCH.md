@@ -100,7 +100,7 @@ returns 60 (45 during a return ramp). Response:
   "healthWorkoutUuid": "<uuid of the HKWorkout the watch recorded>",
   "clientSaveId": "<uuid generated once per session, kept across retries>",
   "sets": [
-    { "exerciseId": "ckq…", "setNumber": 1, "reps": 10, "weight": 55, "rpe": 2, "isWarmup": false }
+    { "exerciseId": "ckq…", "setNumber": 1, "reps": 10, "weight": 55, "rpe": 2, "isWarmup": false, "completedAt": "2026-09-01T17:09:12Z" }
   ]
 }
 ```
@@ -109,6 +109,13 @@ returns 60 (45 during a return ramp). Response:
   the server cannot know the watch's timezone, and every other workout
   sits at UTC midnight of the local day. Omit it and a post-midnight
   session files under the wrong day.
+- Each set SHOULD carry `completedAt` — the instant it was LOGGED on the
+  wrist, not the post time. The server keeps it (`sanitizeWatchLogSets`,
+  2026-09-24); without it a Watch set loses to any removal the phone
+  recorded for that key, and the Apple Health window falls back to
+  Save − duration. Build 13 sends none; the next build must. Set 0 is
+  accepted only with `isWarmup: true`, and duplicate keys collapse (last
+  wins) instead of failing every retry on the unique index.
 - A `startISO` more than 10 minutes in the future is rejected (400) —
   fix the clock, don't retry. `healthWorkoutUuid` over 64 chars is
   rejected. `gym` must be exactly `bfit` or `work`.

@@ -20,12 +20,11 @@ import {
   queryQuantity,
   queryWeight,
   queryWorkouts,
-  queryWorkoutStats,
-  saveWorkout,
   formatSyncAge,
   windowStartISO,
   HEALTH_APP_URL,
 } from '@/lib/native-health';
+import { pushWorkoutsToHealth } from '@/lib/health-push';
 
 const LAST_SYNC_KEY = 'health-native-last-sync';
 const CONNECTED_KEY = 'health-native-connected';
@@ -274,41 +273,15 @@ export default function NativeHealthCard() {
       }
     } catch { /* pre-link build or denied reads: quiet, like the autopilot */ }
 
-    // 2 — un-synced app workouts → HealthKit (+ HR/energy enrichment back to app)
+    // 2 — un-synced app workouts → HealthKit (+ HR/energy enrichment back to
+    // app), through the one guarded helper shared with the autopilot: never a
+    // window Health already holds, no energy passed.
     try {
-      const workouts = await getWorkoutsToPush();
-      const savedIds: string[] = [];
-      const enrichment: ImportSample[] = [];
-
-      for (const w of workouts) {
-        const endISO = new Date(new Date(w.start).getTime() + w.durationMin * 60_000).toISOString();
+      const out = await pushWorkoutsToHealth(await getWorkoutsToPush());
+      errs.push(...out.errors);
+      if (out.enrichment.length > 0) {
         try {
-          const stats = await queryWorkoutStats(w.start, endISO);
-          if (stats.avgHr !== null) {
-            enrichment.push({ type: 'heart_rate', value: stats.avgHr, unit: 'count/min', date: w.start });
-          }
-          if (stats.activeKcal !== null && stats.activeKcal > 0) {
-            enrichment.push({ type: 'active_energy', value: stats.activeKcal, unit: 'kcal', date: w.start });
-          }
-        } catch (e) {
-          errs.push(reason(e, 'stats'));
-        }
-        try {
-          // No energy value, on purpose. stats.activeKcal was READ out of Health
-          // for this window; writing it back as a new HKWorkout double-counts a
-          // session the Watch already logged, and w.estKcal is only our own
-          // guess. HealthKit still derives energy from the Watch's own samples,
-          // so no value is more honest than a wrong one.
-          await saveWorkout({ startISO: w.start, endISO, name: w.name });
-          savedIds.push(w.id);
-        } catch (e) {
-          errs.push(reason(e, 'save'));
-        }
-      }
-
-      if (enrichment.length > 0) {
-        try {
-          const res = (await importHealth(enrichment)) as { workoutsEnriched?: number };
+          const res = (await importHealth(out.enrichment)) as { workoutsEnriched?: number };
           // Counts, not checkmarks: this pipeline once looked green for weeks
           // while delivering zero rows. The number is the honest signal.
           if (typeof res.workoutsEnriched === 'number') workoutsEnriched = res.workoutsEnriched;
@@ -316,9 +289,10 @@ export default function NativeHealthCard() {
           errs.push(reason(e, 'enrich'));
         }
       }
-      if (savedIds.length > 0) {
-        await markWorkoutsPushed(savedIds);
-        workoutsUp = savedIds.length;
+      const done = [...out.savedIds, ...out.alreadyIds];
+      if (done.length > 0) {
+        await markWorkoutsPushed(done);
+        workoutsUp = out.savedIds.length;
       }
     } catch (e) {
       errs.push(reason(e, 'workout sync'));

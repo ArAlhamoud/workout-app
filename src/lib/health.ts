@@ -165,6 +165,9 @@ interface SimpleSample {
   value?: unknown;
   unit?: unknown;
   date?: unknown;
+  /** Optional window extremes — the push sends the real max heart rate. */
+  min?: unknown;
+  max?: unknown;
 }
 
 function parseSimpleSamples(input: unknown): ParseResult {
@@ -185,7 +188,11 @@ function parseSimpleSamples(input: unknown): ParseResult {
       continue;
     }
     const unit = typeof entry.unit === 'string' && entry.unit ? entry.unit : DEFAULT_UNITS[type];
-    samples.push({ type, date, value, unit });
+    // min/max ride along when sent: dropped, the push's one averaged heart-
+    // rate sample became the workout's "max" (steward, 2026-09-24).
+    const min = toNumber(entry?.min);
+    const max = toNumber(entry?.max);
+    samples.push({ type, date, value, unit, ...(min !== null ? { min } : {}), ...(max !== null ? { max } : {}) });
   }
   return { samples, skipped };
 }
@@ -214,58 +221,70 @@ export interface WorkoutWindowInput {
   /** Workout duration in seconds (app stores seconds). */
   duration: number | null;
   createdAt: Date;
+  /** Earliest / latest completedAt among the workout's sets, when stamped. */
+  firstSetAt?: Date | null;
+  lastSetAt?: Date | null;
 }
 
 const DEFAULT_DURATION_SECONDS = 60 * 60;
 
+const HOUR_MS = 3_600_000;
+/** Setup and warm-up before the first set is ticked done. */
+const SET_LEAD_MS = 5 * 60_000;
+
 /**
- * Time window a workout's samples must fall inside. When the workout date is a
- * bare day (no time-of-day), falls back to createdAt..createdAt+duration.
+ * A logged session's clock window, before any honesty check.
+ *
+ * A row with a real start instant uses it. A bare-day row (almost all of
+ * them) is timed by its SETS when they are stamped: first set − 5 min to the
+ * last set — that is when he trained, however late he tapped Save. Without
+ * stamps (the logger before set times) it ENDED at the Save: createdAt −
+ * duration to createdAt. The old window STARTED at createdAt, reading heart
+ * rate for the 50 minutes after he had left; a duration-based window also
+ * stretched a late save backwards into a 2-hour session (review, 2026-09-24).
+ */
+function sessionWindow(w: WorkoutWindowInput): { start: Date; end: Date } {
+  const durationMs = (w.duration ?? DEFAULT_DURATION_SECONDS) * 1000;
+  if (!isBareDay(w.date)) return { start: w.date, end: new Date(w.date.getTime() + durationMs) };
+  if (w.firstSetAt && w.lastSetAt && w.lastSetAt.getTime() > w.firstSetAt.getTime()) {
+    return { start: new Date(w.firstSetAt.getTime() - SET_LEAD_MS), end: w.lastSetAt };
+  }
+  return { start: new Date(w.createdAt.getTime() - durationMs), end: w.createdAt };
+}
+
+/**
+ * A bare-day row's window must start inside its ACTIVITY day,
+ * [date + 01:00Z, date + 25:00Z) — the 04:00 Riyadh rollover. A session typed
+ * in days later has no real clock time, and one is never invented.
+ */
+function honest(w: WorkoutWindowInput, win: { start: Date }): boolean {
+  if (!isBareDay(w.date)) return true;
+  const day = w.date.getTime();
+  return win.start.getTime() >= day + HOUR_MS && win.start.getTime() < day + 25 * HOUR_MS;
+}
+
+/**
+ * Time window a workout's heart-rate / energy samples must fall inside — the
+ * SAME window the Apple Health push reads (healthPushWindow), so the two can
+ * never disagree. A row with no honest clock time matches nothing: a
+ * zero-length window, rather than whatever pulse was recorded while he typed
+ * it in.
  */
 export function workoutWindow(workout: WorkoutWindowInput): { start: Date; end: Date } {
-  const durationMs = (workout.duration ?? DEFAULT_DURATION_SECONDS) * 1000;
-  // A bare-day row is saved when he taps Save at the END of the session, so it
-  // began at createdAt − duration. This used to START the window at createdAt,
-  // which read heart rate and energy for the 50 minutes after he had already
-  // left (2026-09-24).
-  if (isBareDay(workout.date)) {
-    const end = workout.createdAt;
-    return { start: new Date(end.getTime() - durationMs), end };
-  }
-  return { start: workout.date, end: new Date(workout.date.getTime() + durationMs) };
+  const win = sessionWindow(workout);
+  return honest(workout, win) ? win : { start: workout.date, end: workout.date };
 }
 
-const HOUR_MS = 3_600_000;
-/** A save this long after the last set is a replay, not the end of the session. */
-const REPLAY_GAP_MS = 10 * 60_000;
-
-export interface HealthPushInput {
-  date: Date;
-  duration: number | null;
-  createdAt: Date;
-  /** Latest completedAt among the workout's sets, when any set carries one. */
-  lastSetAt?: Date | null;
-}
+export type HealthPushInput = WorkoutWindowInput;
 
 /**
  * The real clock window to write a logged session into Apple Health — or
  * null when there is no honest one. Every push used the bare date, which is
  * UTC midnight: 03:00 Riyadh for every session he ever logged (2026-09-24).
- *
- * A bare-day row ends at its save (createdAt), unless it was saved long after
- * its last set (an outbox replay) — then the last set ends it. The start must
- * fall inside the row's ACTIVITY day, [date + 01:00Z, date + 25:00Z) — the
- * 04:00 Riyadh rollover; an entry typed in days later has no real clock time,
- * and one is never invented.
  */
 export function healthPushWindow(w: HealthPushInput): { start: Date; end: Date } | null {
-  const durationMs = (w.duration ?? DEFAULT_DURATION_SECONDS) * 1000;
-  if (!isBareDay(w.date)) return { start: w.date, end: new Date(w.date.getTime() + durationMs) };
-  const end = w.lastSetAt && w.createdAt.getTime() - w.lastSetAt.getTime() > REPLAY_GAP_MS ? w.lastSetAt : w.createdAt;
-  const start = new Date(end.getTime() - durationMs);
-  const day = w.date.getTime();
-  if (start.getTime() < day + HOUR_MS || start.getTime() >= day + 25 * HOUR_MS) return null;
-  return { start, end };
+  const win = sessionWindow(w);
+  return honest(w, win) ? win : null;
 }
 
 export interface HealthPushRow extends HealthPushInput {
@@ -310,6 +329,31 @@ export function healthSourceKind(bundleId?: string | null): HealthSourceKind {
 
 /** A Watch-app session still unlogged after this long is a lost upload, worth showing. */
 export const WATCH_UPLOAD_GRACE_H = 6;
+
+/** Share of a push window another Health workout must cover to be the same session. */
+export const SAME_SESSION_OVERLAP = 0.5;
+
+/**
+ * Does Apple Health already hold a workout over this window? Any source
+ * counts: Apple's Workout app, the Watch app (it saves its own HKWorkout even
+ * when it posted nothing to the server), or an earlier push whose mark
+ * failed. The phone's write-through skips such a window instead of writing a
+ * second copy on top (review, 2026-09-24). A workout that only brushes the
+ * window — a walk that ended as the session began — is a different workout.
+ */
+export function coveredByExisting(
+  win: { start: number; end: number },
+  existing: Array<{ startISO: string; endISO: string }>,
+): boolean {
+  const len = win.end - win.start;
+  if (len <= 0) return false;
+  return existing.some((e) => {
+    const s0 = Date.parse(e.startISO);
+    const e0 = Date.parse(e.endISO);
+    if (!Number.isFinite(s0) || !Number.isFinite(e0)) return false;
+    return Math.min(win.end, e0) - Math.max(win.start, s0) >= SAME_SESSION_OVERLAP * len;
+  });
+}
 
 export interface WorkoutHealthAggregates {
   avgHr: number | null;

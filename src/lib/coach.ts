@@ -88,6 +88,8 @@ export const MIN_DISTINCT_PIN_WEIGHTS = 3;
  */
 export const MAX_LEARNED_PIN_KG = 5;
 const MIN_LEARNED_PIN_KG = 1.25;
+/** What a machine steps by when nothing better is known. */
+const FALLBACK_PIN_KG = 2.5;
 
 const gcdInt = (a: number, b: number): number => (b === 0 ? a : gcdInt(b, a % b));
 
@@ -102,14 +104,17 @@ const gcdInt = (a: number, b: number): number => (b === 0 ? a : gcdInt(b, a % b)
  * 16 live pins were contradicted by weights he had logged on that machine.
  *
  * Now a pin is learned only when the log proves it:
- *   1. at least MIN_DISTINCT_PIN_WEIGHTS distinct rated session-top weights —
- *      revisiting a pair (Leg Curl 20 ↔ 12.5) is one piece of evidence;
- *   2. one step puts EVERY one of them on a single ladder (their greatest
- *      common difference, at 0.25 kg resolution) — 29 and 30 on the same
- *      Leg Extension rule out 9 kg;
- *   3. that step appears as a real gap between neighbours at least twice,
- *      otherwise it is only an upper bound on the pin;
- *   4. it lies between 1.25 and MAX_LEARNED_PIN_KG.
+ *   - One step must put EVERY distinct rated session-top weight on a single
+ *     ladder (their greatest common difference, at 0.25 kg resolution).
+ *     Revisiting a pair (Leg Curl 20 ↔ 12.5) is one piece of evidence, and
+ *     29 and 30 on the same Leg Extension rule out any step of 1.25 or more.
+ *   - Below the 2.5 fallback that step is an UPPER BOUND on the real one —
+ *     the stack provably moves in it or finer — so two weights suffice and
+ *     it is learned: prescribing 2.5 there would be more than one real step
+ *     (Face Pull 7.5 / 8.75 -> +33%, trainer review 2026-09-24).
+ *   - From 2.5 up an upper bound is not the pin: it needs at least
+ *     MIN_DISTINCT_PIN_WEIGHTS distinct weights, the step seen twice as a real
+ *     gap between neighbours, and nothing above MAX_LEARNED_PIN_KG.
  * Anything else learns nothing and combineIncrement falls back to 2.5, until
  * the owner sets the real step (his words: "each machine different").
  */
@@ -120,11 +125,16 @@ export function learnPinIncrements(workouts: CoachWorkout[]): Record<string, num
     // prefill, not a weight he chose (trainer, 2026-09-18).
     const rated = allTops.filter((t) => t.rated);
     const quarters = [...new Set(rated.map((t) => Math.round(t.top * 4)))].sort((a, b) => a - b);
-    if (quarters.length < MIN_DISTINCT_PIN_WEIGHTS) continue;
+    if (quarters.length < 2) continue;
     let step = 0;
     for (const q of quarters) step = gcdInt(step, q - quarters[0]);
     const pin = step / 4;
-    if (pin < MIN_LEARNED_PIN_KG || pin > MAX_LEARNED_PIN_KG) continue;
+    if (pin < MIN_LEARNED_PIN_KG) continue;
+    if (pin < FALLBACK_PIN_KG) {
+      learned[id] = pin;
+      continue;
+    }
+    if (quarters.length < MIN_DISTINCT_PIN_WEIGHTS || pin > MAX_LEARNED_PIN_KG) continue;
     let gaps = 0;
     for (let i = 1; i < quarters.length; i++) if (quarters[i] - quarters[i - 1] === step) gaps++;
     if (gaps < 2) continue;
@@ -156,7 +166,7 @@ export function combineIncrement(
 ): number {
   if (override != null && override > 0) return override;
   if (learned != null && learned > 0) return learned;
-  return 2.5;
+  return FALLBACK_PIN_KG;
 }
 
 export interface PlateauResult {

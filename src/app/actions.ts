@@ -157,8 +157,6 @@ export async function createWorkout(data: {
   /** Which device is finishing — its own live sets are never re-added. */
   finishSource?: LiveSource;
 }) {
-  // The live row as it stood at finish — what tells us the Watch recorded it.
-  let liveAtFinish: Awaited<ReturnType<typeof readLive>> = null;
   if (data.clientSaveId) {
     // Any set must belong to a machine that exists, or the insert hits the
     // FK and the session becomes unsaveable under its id (steward).
@@ -214,9 +212,10 @@ export async function createWorkout(data: {
           })),
         });
       }
-      // The Watch recorded this session in Apple Health: mark it, so the
-      // phone's write-through never adds a second copy at 03:00.
-      if (recordedInHealth({ finishSource: data.finishSource, healthWorkoutUuid: data.healthWorkoutUuid, live: liveForMerge })) {
+      // The Watch saved this session into Apple Health (it finished it, or its
+      // uuid came back): mark it, so the phone's write-through never adds a
+      // second copy.
+      if (recordedInHealth({ finishSource: data.finishSource, healthWorkoutUuid: data.healthWorkoutUuid })) {
         await tx.workout.updateMany({ where: { id: existing.id, healthSyncedAt: null }, data: { healthSyncedAt: new Date() } });
       }
       return { id: existing.id, merged: missing.length };
@@ -235,7 +234,6 @@ export async function createWorkout(data: {
     // the poster's own live sets are never re-added (an un-tick whose
     // remove never reached the server must stay un-ticked).
     const live = await readLive(data.clientSaveId);
-    liveAtFinish = live;
     if (live && live.sets.length) {
       // A set the OTHER device un-ticked after this one logged it is gone
       // for good — the Watch re-posts everything it ever logged at finish.
@@ -270,9 +268,10 @@ export async function createWorkout(data: {
       duration: data.duration ?? null,
       healthWorkoutUuid: data.healthWorkoutUuid || null,
       clientSaveId: data.clientSaveId || null,
-      // Already in Apple Health when the Watch recorded it (rule 10: record
-      // the fact at save time). Left null, the phone pushed a second copy.
-      healthSyncedAt: recordedInHealth({ finishSource: data.finishSource, healthWorkoutUuid: data.healthWorkoutUuid, live: liveAtFinish }) ? new Date() : null,
+      // Already in Apple Health when the Watch saved it (rule 10: record the
+      // fact at save time). Anything else is pushed, and the push skips a
+      // window Health already holds.
+      healthSyncedAt: recordedInHealth({ finishSource: data.finishSource, healthWorkoutUuid: data.healthWorkoutUuid }) ? new Date() : null,
       sets: {
         create: data.sets.map((s) => ({
           ...s,
