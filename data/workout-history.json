@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-09-25T10:02:30.146Z",
+  "exportedAt": "2026-09-26T09:43:56.233Z",
   "totalWorkouts": 15,
   "totalBodyStats": 35,
   "totalExercises": 21,
@@ -10103,6 +10103,20 @@
         "deepSleepMin": 118,
         "notes": null,
         "createdAt": "2026-09-24T09:26:07.402Z"
+      },
+      {
+        "id": "cmuhn9azx0001e87agl3vpqua",
+        "night": "2026-09-25T00:00:00.000Z",
+        "usageHours": 6.7,
+        "ahi": 2,
+        "leak": 0,
+        "avgPressure": null,
+        "p95Pressure": 14,
+        "maskComfort": null,
+        "sleepQuality": null,
+        "deepSleepMin": 48,
+        "notes": null,
+        "createdAt": "2026-09-26T00:21:10.509Z"
       }
     ],
     "labResult": [
@@ -11144,6 +11158,20 @@
         "flags": null,
         "notes": "Planned: delivery 934/55/93/38 + standing dinner",
         "createdAt": "2026-09-11T11:59:18.096Z"
+      },
+      {
+        "id": "cmuhn9alf0000e87a9rf8g6ik",
+        "day": "2026-09-25T00:00:00.000Z",
+        "proteinG": 99,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1375,
+        "carbsG": 97,
+        "fatG": 65,
+        "flags": null,
+        "notes": "Fri, no delivery; estimates. Cadbury Flake 15g (label): 80 kcal 1P/9C/5F. Lunch out: two grilled herb chicken breasts (~200g cooked) + mashed potato, garlic sauce cup looked untouched so not counted: 570 kcal 65P/22C/23F. Dinner out, shared, his half: saffron rice with fried onion and pine nuts (250",
+        "createdAt": "2026-09-26T00:21:09.985Z"
       },
       {
         "id": "cmtwwlbo300039votmaf9e0je",
