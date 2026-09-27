@@ -8,6 +8,10 @@ copy of anything — **GitHub `main` is the single source of truth.**
 | **Cloud session** (app development) | `src/`, `prisma/`, `scripts/`, `.github/`, `docs/` | Push to `main` → Vercel deploys → live on the phone in ~1 min |
 | **Mac session** (native) | `ios/`, `native/`, `capacitor.config.ts` | Needs an Xcode rebuild + reinstall on the phone |
 
+Moving the Mac session to a new machine: **docs/NEW_MAC.md** (the one file
+that can't be recreated, the two setup routes, and how to prove it works
+without touching the phone).
+
 ## Why the phone updates without rebuilding
 
 `capacitor.config.ts` points the iOS shell at the deployed site:

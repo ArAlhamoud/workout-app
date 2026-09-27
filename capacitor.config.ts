@@ -4,10 +4,11 @@ import type { CapacitorConfig } from '@capacitor/cli';
  * Remote-mode shell: the native app loads the deployed Vercel PWA directly,
  * so `webDir` is unused (but must exist — `public/` satisfies the CLI).
  */
-// Simulator testing of an unmerged branch: point one build at its Vercel
-// preview with e.g. `CAP_SERVER_URL=https://<preview>.vercel.app npm run
-// ios:deploy`. Unset, the shell targets production — the phone's build must
-// only ever come from a deploy without the override.
+// Simulator testing of an unmerged branch: bake another URL into the shell
+// with `CAP_SERVER_URL=<url> npx cap copy ios`, then build (ios:deploy never
+// runs cap copy, so the override must come first). That rewrites the TRACKED
+// ios/App/App/capacitor.config.json — run a bare `npx cap copy ios` before
+// committing; the phone's build must only ever carry production.
 const serverUrl = process.env.CAP_SERVER_URL ?? 'https://workout-app-gamma-rouge.vercel.app';
 
 const config: CapacitorConfig = {
