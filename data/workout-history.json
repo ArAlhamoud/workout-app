@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-09-26T09:43:56.233Z",
+  "exportedAt": "2026-09-27T10:23:50.138Z",
   "totalWorkouts": 15,
   "totalBodyStats": 35,
   "totalExercises": 21,
@@ -11172,6 +11172,20 @@
         "flags": null,
         "notes": "Fri, no delivery; estimates. Cadbury Flake 15g (label): 80 kcal 1P/9C/5F. Lunch out: two grilled herb chicken breasts (~200g cooked) + mashed potato, garlic sauce cup looked untouched so not counted: 570 kcal 65P/22C/23F. Dinner out, shared, his half: saffron rice with fried onion and pine nuts (250",
         "createdAt": "2026-09-26T00:21:09.985Z"
+      },
+      {
+        "id": "cmuiswwkr0000tyecbnw6sz2r",
+        "day": "2026-09-26T00:00:00.000Z",
+        "proteinG": 94,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1328,
+        "carbsG": 59,
+        "fatG": 80,
+        "flags": null,
+        "notes": "Dinner: sliced striploin-style steak ~230g cooked (505 kcal 64P/0C/28F), 3 grilled asparagus (40 kcal 2P/3C/3F), three sauce cups (pepper, mushroom cream, chimichurri) counted at about half used (150 kcal 1P/5C/13F). Estimates. Other Saturday meals not reported. · Brunch shared, menu calories: quarter club sandwich (491), quarter Parisian omelet on croissant (539), quarter halloumi calzone (371), half crazy poached eggs on fried mash with truffle and cheese sauce (443). Macro split estimated. · One Galaxy Flutes finger (~11 g, half a twin pack).",
+        "createdAt": "2026-09-26T19:47:15.817Z"
       },
       {
         "id": "cmtwwlbo300039votmaf9e0je",
