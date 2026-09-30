@@ -7,6 +7,8 @@ import {
   doseLedger,
   ledgerByDose,
   labRefLabel,
+  ongoingSymptoms,
+  sideEffectRows,
   reportLabs,
   treatmentClock,
   weightPace,
@@ -324,12 +326,11 @@ export async function GET(request: Request) {
   }
 
   section('Side effects & GI');
-  if (symptomAgg.size === 0) note('Nothing logged in this range.');
-  else {
-    for (const [kind, v] of [...symptomAgg.entries()].sort((a, b) => b[1].max - a[1].max)) {
-      row(SYMPTOM_LABEL[kind] ?? kind, `${v.n}x · worst ${SEVERITY_WORD[v.max]}`);
-    }
-  }
+  // Ongoing side effects (profile) first, then logged episodes; a kind
+  // that is both prints once — the same rows as the web report.
+  const sideEffects = sideEffectRows(ongoingSymptoms(data.profile.ongoingSymptoms), symptomAgg);
+  if (sideEffects.length === 0) note('Nothing logged in this range.');
+  for (const r of sideEffects) row(r.label, r.value.replace(/×/g, 'x'));
 
   section('Atrial fibrillation');
   row('Episodes in range', String(episodes.length));
