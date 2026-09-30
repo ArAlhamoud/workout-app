@@ -143,6 +143,33 @@ export const DEFAULT_ROTATION: string[] = [
   'thigh-left',
 ];
 
+/**
+ * The doctor report prints only these tests (owner, 2026-09-30: "don't
+ * include any new or old lab tests except LDL and Lp(a)"). The rest stay
+ * stored and in the export. Not range-scoped: both are treatment
+ * baselines, like the dose ledger, and a 4-week window would hide them.
+ */
+export const REPORT_LAB_TESTS = ['ldl', 'lp(a)'] as const;
+
+export function reportLabs<T extends { test: string; date: Date | string }>(labs: T[]): T[] {
+  const keep = new Set<string>(REPORT_LAB_TESTS);
+  return labs
+    .filter((l) => keep.has(l.test.trim().toLowerCase()))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+}
+
+/**
+ * A lab's reference range as the report prints it. Both bounds when the lab
+ * gave both: printing only the ceiling made a vitamin D of 25 read as
+ * "(ref ≤ 250)", normal-looking, when the floor is 75 (2026-09-30).
+ */
+export function labRefLabel(l: { refLow: number | null; refHigh: number | null }): string {
+  if (l.refLow != null && l.refHigh != null) return `ref ${l.refLow}–${l.refHigh}`;
+  if (l.refHigh != null) return `ref ≤ ${l.refHigh}`;
+  if (l.refLow != null) return `ref ≥ ${l.refLow}`;
+  return '';
+}
+
 export function siteLabel(slug: string): string {
   const [area, side] = slug.split('-');
   const areas: Record<string, string> = { abdomen: 'Abdomen', thigh: 'Thigh', arm: 'Upper arm' };

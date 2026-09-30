@@ -120,6 +120,8 @@ import {
   recentMilestoneCross,
   doseLedger,
   bpSplitAroundAnchor,
+  labRefLabel,
+  reportLabs,
 } from '../src/lib/health-insights';
 import {
   normalizeSampleType,
@@ -3471,6 +3473,40 @@ console.log('Doctor report — trend charts');
   assert(/y = top - H - 16;/.test(pdfSrc), 'the PDF leaves room under a chart for its date labels');
   assert(/const section = \(title: string\) => \{[\s\S]{0,200}ensure\(64\)/.test(pdfSrc), 'a PDF section heading never sits alone at the foot of a page');
   assert(src('src/components/health/ReportChart.tsx').includes('layoutChart') && src('src/app/api/health/report-pdf/route.ts').includes('layoutChart'), 'page and PDF lay out through the same layoutChart');
+}
+
+// ── Doctor report: lab reference ranges print both bounds (2026-09-30) ──
+console.log('Doctor report — lab reference ranges');
+{
+  assert(labRefLabel({ refLow: 75, refHigh: 250 }) === 'ref 75–250', 'vitamin D prints its floor, not only its ceiling');
+  assert(labRefLabel({ refLow: null, refHigh: 41 }) === 'ref ≤ 41', 'a ceiling-only range stays ≤');
+  assert(labRefLabel({ refLow: 60, refHigh: null }) === 'ref ≥ 60', 'a floor-only range (eGFR) prints ≥');
+  assert(labRefLabel({ refLow: null, refHigh: null }) === '', 'no range, no bracket');
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
+    assert(read(f).includes('labRefLabel(l)') && !/ref (≤|<=) \$\{l\.refHigh\}/.test(read(f)), `${f} prints the lab range through labRefLabel`);
+  }
+  assert(/\.replace\(\/≤\/g, '<='\)/.test(read('src/app/api/health/report-pdf/route.ts')), 'the PDF font swaps ≤ for <= (WinAnsi has no ≤)');
+}
+
+// ── Doctor report: only LDL and Lp(a) print (owner, 2026-09-30) ──
+console.log('Doctor report — labs limited to LDL and Lp(a)');
+{
+  const rows = [
+    { test: 'alt', date: '2023-05-23', value: 86 },
+    { test: 'ldl', date: '2026-08-20', value: 4.54 },
+    { test: 'vitamin-d', date: '2026-09-17', value: 25 },
+    { test: 'lp(a)', date: '2026-08-20', value: 18.9 },
+    { test: 'LDL', date: '2025-01-10', value: 4.9 },
+  ];
+  const kept = reportLabs(rows);
+  assert(kept.map((r) => r.test.toLowerCase()).every((t) => t === 'ldl' || t === 'lp(a)'), 'nothing but LDL and Lp(a) reaches the report');
+  assert(kept.length === 3, `every LDL and Lp(a) result is kept, old ones too (got ${kept.length})`);
+  assert(kept[0].date === '2025-01-10', 'oldest first, so the LDL trend reads left to right');
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
+    assert(/const labs = reportLabs\(data\.labs\)/.test(read(f)), `${f} filters labs through reportLabs, not the date range`);
+  }
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -5,6 +5,8 @@ import {
   bpAverage,
   bpSplitAroundAnchor,
   doseLedger,
+  labRefLabel,
+  reportLabs,
   siteLabel,
   treatmentClock,
   weightPace,
@@ -41,6 +43,7 @@ const clean = (s: string) =>
   s
     .replace(/−/g, '-')
     .replace(/≥/g, '>=')
+    .replace(/≤/g, '<=')
     .replace(/→/g, '->')
     .replace(/[–—]/g, '-')
     .replace(/·/g, '·'); // middle dot IS WinAnsi — keep
@@ -66,7 +69,7 @@ export async function GET(request: Request) {
   const episodes = inRange(data.afEpisodes, (e) => e.startedAt);
   const bp = inRange(data.bpReadings, (r) => r.at);
   const cpap = inRange(data.cpapNights, (n) => n.night);
-  const labs = inRange(data.labs, (l) => l.date);
+  const labs = reportLabs(data.labs);
 
   const clock = treatmentClock(
     data.injections,
@@ -378,9 +381,9 @@ export async function GET(request: Request) {
   }
 
   section('Laboratory');
-  if (!labs.length) note('No labs in this range.');
+  if (!labs.length) note('No LDL or Lp(a) result logged.');
   for (const l of labs) {
-    row(`${l.test.toUpperCase()} · ${fmt(l.date)}`, `${l.value} ${l.unit}${l.refHigh != null ? ` (ref <= ${l.refHigh})` : ''}`);
+    row(`${l.test.toUpperCase()} · ${fmt(l.date)}`, `${l.value} ${l.unit}${labRefLabel(l) ? ` (${labRefLabel(l)})` : ''}`);
   }
 
   section('Current medications');

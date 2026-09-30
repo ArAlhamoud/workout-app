@@ -201,6 +201,14 @@ logged yet, not that a plan was eaten. Do not pre-log a Friday.
 (owner, 2026-09-30).** Both stay stored on the profile and in the export;
 only the report page and the PDF stop showing them.
 
+**The doctor report prints only LDL and Lp(a) from the labs (owner,
+2026-09-30).** "Don't include any new or old lab tests except LDL and
+Lp(a)." Every other result stays stored and in the export. The two are
+shown whatever the date range, oldest first, and their reference range
+prints both bounds when the lab gave both (`reportLabs`, `labRefLabel`).
+The report also carries trend charts for weight, BP, CPAP and dose
+(`src/lib/report-charts.ts`, one geometry for the page and the PDF).
+
 **Kefir is a probiotic, not a protein source (owner, 2026-09-15).** He
 buys it for the gut, knows it carries ~5 g of protein a bottle, and has
 been told three times that Greek yoghurt would carry more. Log it and

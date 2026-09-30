@@ -11,6 +11,8 @@ import {
   bpAverage,
   bpSplitAroundAnchor,
   doseLedger,
+  labRefLabel,
+  reportLabs,
   siteLabel,
   treatmentClock,
   weightPace,
@@ -74,7 +76,7 @@ export default async function DoctorReportPage({
   const episodes = inRange(data.afEpisodes, (e) => e.startedAt);
   const bp = inRange(data.bpReadings, (r) => r.at);
   const cpap = inRange(data.cpapNights, (n) => n.night);
-  const labs = inRange(data.labs, (l) => l.date);
+  const labs = reportLabs(data.labs);
   const weights = data.bodyStats.filter((b) => b.weight != null);
   const weightsInRange = inRange(weights, (b) => b.date);
 
@@ -445,13 +447,13 @@ export default async function DoctorReportPage({
 
         <Section title="Laboratory">
           {labs.length === 0 ? (
-            <p className="text-sm text-app-tx3 print:text-gray-600">No labs in this range.</p>
+            <p className="text-sm text-app-tx3 print:text-gray-600">No LDL or Lp(a) result logged.</p>
           ) : (
             labs.map((l) => (
               <Row
                 key={l.id}
                 label={`${l.test.toUpperCase()} · ${fmt(l.date)}`}
-                value={`${l.value} ${l.unit}${l.refHigh != null ? ` (ref ≤ ${l.refHigh})` : ''}`}
+                value={`${l.value} ${l.unit}${labRefLabel(l) ? ` (${labRefLabel(l)})` : ''}`}
               />
             ))
           )}
