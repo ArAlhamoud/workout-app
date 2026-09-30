@@ -13,6 +13,15 @@ import {
   SYMPTOM_LABEL,
   type DosePlanStep,
 } from '@/lib/health-insights';
+import {
+  bpChart,
+  cpapAhiChart,
+  cpapHoursChart,
+  doseChart,
+  layoutChart,
+  weightChart,
+  type ChartSpec,
+} from '@/lib/report-charts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -138,6 +147,16 @@ export async function GET(request: Request) {
   );
   const signedKg = (lost: number) => (lost >= 0 ? `-${Math.abs(lost)}` : `+${Math.abs(lost)}`);
 
+  // Trend charts — the SAME specs the page draws (src/lib/report-charts.ts).
+  const weightsInRange = inRange(data.bodyStats.filter((b) => b.weight != null), (b) => b.date);
+  const charts = {
+    weight: weightChart(weightsInRange),
+    bp: bpChart(bp.map((r) => ({ at: r.at, systolic: r.systolic, diastolic: r.diastolic }))),
+    cpapHours: cpapHoursChart(cpap),
+    cpapAhi: cpapAhiChart(cpap),
+    dose: doseChart(ledger),
+  };
+
   // ── draw ──────────────────────────────────────────────────
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -145,6 +164,16 @@ export async function GET(request: Request) {
   const INK = rgb(0.04, 0.04, 0.06);
   const DIM = rgb(0.42, 0.42, 0.46);
   const LINE = rgb(0.85, 0.85, 0.87);
+  // Accent tokens from tailwind.config.ts (text-safe darks): teal #0f766e,
+  // violet #6d28d9, cyan #0e7490. Same colour per series as the page.
+  const TONE: Record<string, ReturnType<typeof rgb>> = {
+    weight: rgb(0.059, 0.463, 0.431),
+    systolic: rgb(0.427, 0.157, 0.851),
+    diastolic: rgb(0.055, 0.455, 0.565),
+    hours: rgb(0.059, 0.463, 0.431),
+    ahi: rgb(0.427, 0.157, 0.851),
+    dose: rgb(0.059, 0.463, 0.431),
+  };
 
   const A4: [number, number] = [595.28, 841.89];
   const M = 56; // margin
@@ -180,6 +209,67 @@ export async function GET(request: Request) {
     text(t, M, 8.5, font, DIM);
     y -= 12;
   };
+  const fmtV = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
+  /** One trend chart, drawn from the shared layout. Layout y runs down from
+   *  the box top; pdf-lib y runs up, so every point is `top - p.y`. */
+  const chart = (spec: ChartSpec) => {
+    const W = A4[0] - 2 * M;
+    const H = 118;
+    ensure(H + 22);
+    y -= 4;
+    const caption = `${spec.title} · ${spec.unit}`;
+    text(caption, M, 8, bold, DIM);
+    if (spec.series.length > 1) {
+      let lx = A4[0] - M;
+      for (const s of [...spec.series].reverse()) {
+        const lbl = `- ${s.label}`;
+        lx -= bold.widthOfTextAtSize(lbl, 8) + 8;
+        page.drawText(lbl, { x: lx, y, size: 8, font: bold, color: TONE[s.key] ?? INK });
+      }
+    }
+    y -= 6;
+    const top = y;
+    const c = layoutChart(spec, W, H, { left: 30, right: 36, top: 6, bottom: 14 });
+    const X = (x: number) => M + x;
+    const Y = (py: number) => top - py;
+    for (const t of c.yTicks) {
+      page.drawLine({ start: { x: X(c.plot.left), y: Y(t.y) }, end: { x: X(c.plot.right), y: Y(t.y) }, thickness: 0.4, color: LINE });
+      const w = font.widthOfTextAtSize(t.label, 7);
+      page.drawText(t.label, { x: X(c.plot.left) - 4 - w, y: Y(t.y) - 2.5, size: 7, font, color: DIM });
+    }
+    c.xTicks.forEach((t, i) => {
+      const w = font.widthOfTextAtSize(t.label, 7);
+      const x = i === 0 ? X(t.x) : i === c.xTicks.length - 1 ? X(t.x) - w : X(t.x) - w / 2;
+      page.drawText(t.label, { x, y: Y(c.height) + 2, size: 7, font, color: DIM });
+    });
+    for (const r of c.refs) {
+      page.drawLine({ start: { x: X(c.plot.left), y: Y(r.y) }, end: { x: X(c.plot.right), y: Y(r.y) }, thickness: 0.7, color: DIM, dashArray: [3, 3] });
+      page.drawText(clean(r.label), { x: X(c.plot.right) + 3, y: Y(r.y) - 2.5, size: 7, font, color: DIM });
+    }
+    for (const s of c.series) {
+      const color = TONE[s.key] ?? INK;
+      if (s.kind === 'bar') {
+        for (const p of s.points) {
+          const h = Math.max(0, c.plot.bottom - p.y);
+          page.drawRectangle({ x: X(p.x - s.barWidth / 2), y: Y(c.plot.bottom), width: s.barWidth, height: h, color, opacity: 0.75 });
+        }
+        continue;
+      }
+      for (let i = 1; i < s.path.length; i++) {
+        page.drawLine({
+          start: { x: X(s.path[i - 1].x), y: Y(s.path[i - 1].y) },
+          end: { x: X(s.path[i].x), y: Y(s.path[i].y) },
+          thickness: 1.3,
+          color,
+        });
+      }
+      for (const p of s.points) page.drawCircle({ x: X(p.x), y: Y(p.y), size: 1.6, color });
+      const last = s.points[s.points.length - 1];
+      if (last) page.drawText(fmtV(last.v), { x: X(c.plot.right) + 3, y: Y(last.y) - 2.5, size: 7, font: bold, color });
+    }
+    y = top - H - 6;
+  };
+  const tooFew = () => note('Not enough readings in this range for a trend yet.');
 
   // Header
   text('AR Health - Doctor Report', M, 18, bold);
@@ -202,6 +292,8 @@ export async function GET(request: Request) {
     row('Change', `${signedKg(snapshot.lostKg)} kg (${snapshot.pctLost}%)`);
     row('BMI', `${snapshot.startBmi} -> ${snapshot.bmi}`);
     if (pace) row('Current pace', `${pace.kgPerWeek > 0 ? '+' : ''}${pace.kgPerWeek} kg/week`);
+    if (charts.weight) chart(charts.weight);
+    else tooFew();
   } else {
     note('No weigh-ins logged.');
   }
@@ -210,6 +302,7 @@ export async function GET(request: Request) {
     section('Mounjaro (tirzepatide) - since dose 1');
     row('First dose', fmt(clock.anchor));
     row('Current dose', `${clock.lastDoseMg} mg weekly · treatment week ${clock.week}`);
+    if (charts.dose) chart(charts.dose);
     y -= 2;
     for (const d of ledger) {
       ensure(24);
@@ -256,6 +349,10 @@ export async function GET(request: Request) {
   if (pulseAvg != null) row('Average pulse', `${pulseAvg} bpm`);
   if (bpSplit.before) row('Before treatment', `${bpSplit.before.systolic}/${bpSplit.before.diastolic} (${bpSplit.before.n} readings)`);
   if (bpSplit.since) row('Since treatment', `${bpSplit.since.systolic}/${bpSplit.since.diastolic} (${bpSplit.since.n} readings)`);
+  if (bp.length) {
+    if (charts.bp) chart(charts.bp);
+    else tooFew();
+  }
 
   section('CPAP');
   if (cpap.length) {
@@ -270,6 +367,9 @@ export async function GET(request: Request) {
     if (cpapDeepMin != null) {
       row('Deep sleep (device estimate)', `${cpapDeepMin} min/night - ${cpapDeep.length} nights`);
     }
+    if (charts.cpapHours) chart(charts.cpapHours);
+    else tooFew();
+    if (charts.cpapAhi) chart(charts.cpapAhi);
   } else {
     note('No CPAP nights logged in this range.');
   }

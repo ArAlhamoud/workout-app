@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
 import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, startableUntilFor, settledSet, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
@@ -3394,6 +3395,79 @@ console.log('Doctor report — sections the owner removed');
   // Removed from the report only; the data itself is kept.
   assert(/familyHistory/.test(read('src/app/api/health/export/route.ts')), 'the export still carries family history');
   assert(/investigations/.test(read('src/app/api/health/profile/route.ts')), 'the profile pipe still stores investigations');
+}
+
+// ── Doctor report trend charts (owner, 2026-09-30) ──
+console.log('Doctor report — trend charts');
+{
+  const d = (s: string) => new Date(`${s}T00:00:00Z`);
+  const inBox = (c: ReturnType<typeof layoutChart>) =>
+    c.series.every((s) => s.points.every((p) => p.x >= c.plot.left - 0.01 && p.x <= c.plot.right + 0.01 && p.y >= c.plot.top - 0.01 && p.y <= c.plot.bottom + 0.01));
+
+  // Too few points is words, not a chart (tracker, not diagnostic).
+  assert(weightChart([{ date: d('2026-09-01'), weight: 127 }, { date: d('2026-09-08'), weight: 126 }]) === null, 'two weigh-ins are not a weight trend');
+  const w = weightChart([
+    { date: d('2026-09-01'), weight: 127.9 }, { date: d('2026-09-08'), weight: null },
+    { date: d('2026-09-15'), weight: 126.4 }, { date: d('2026-09-29'), weight: 125.0 },
+  ]);
+  assert(w !== null && w.series[0].points.length === 3, 'a weigh-in without a weight is skipped, three make a trend');
+  const wc = layoutChart(w!, 320, 112);
+  assert(inBox(wc), 'every weight point lands inside the plot');
+  const wTicks = wc.yTicks.map((t) => Number(t.label));
+  assert(Math.min(...wTicks) <= 125 && Math.max(...wTicks) >= 127.9, `weight ticks bracket the data (got ${wTicks.join(',')})`);
+  assert(wc.series[0].points[0].y < wc.series[0].points[2].y, 'a falling weight draws downward (first point higher on the page)');
+
+  // BP: two lines, one chart.
+  const bpc = bpChart([
+    { at: d('2026-09-08'), systolic: 114, diastolic: 73 },
+    { at: d('2026-09-11'), systolic: 112, diastolic: 72 },
+    { at: d('2026-09-15'), systolic: 118, diastolic: 66 },
+  ]);
+  assert(bpc !== null && bpc.series.map((s) => s.key).join() === 'systolic,diastolic', 'BP charts systolic and diastolic together');
+  assert(bpChart([{ at: d('2026-09-08'), systolic: 114, diastolic: 73 }]) === null, 'one BP reading is not a trend');
+
+  // CPAP: hours as bars from zero with the 4 h line; AHI skips unmeasured nights.
+  const nights = [
+    { night: d('2026-09-26'), usageHours: 7.1, ahi: 3 },
+    { night: d('2026-09-27'), usageHours: 0.5, ahi: null },
+    { night: d('2026-09-28'), usageHours: 3.65, ahi: 2 },
+    { night: d('2026-09-29'), usageHours: 4.82, ahi: 1 },
+  ];
+  const hc = cpapHoursChart(nights);
+  assert(hc !== null && hc.series[0].kind === 'bar' && hc.zeroBased, 'CPAP hours are bars from zero');
+  const hcl = layoutChart(hc!, 320, 112);
+  assert(hcl.refs.length === 1 && hcl.refs[0].y > hcl.plot.top && hcl.refs[0].y < hcl.plot.bottom, 'the 4 h line sits inside the plot');
+  assert(Number(hcl.yTicks[0].label) === 0, 'hours axis starts at 0');
+  assert(hcl.series[0].barWidth > 0 && inBox(hcl), 'bars have width and stay inside the plot');
+  const ac = cpapAhiChart(nights);
+  assert(ac !== null && ac.series[0].points.length === 3, 'a night without AHI is absent, never zero');
+
+  // Dose: a step that holds between injections and runs on to today.
+  const dc = doseChart(
+    [{ at: d('2026-09-15'), doseMg: 2.5 }, { at: d('2026-09-22'), doseMg: 5 }, { at: d('2026-09-29'), doseMg: 5 }],
+    d('2026-10-03'),
+  );
+  assert(dc !== null && dc.series[0].kind === 'step' && dc.zeroBased, 'the dose is a step from zero');
+  const dcl = layoutChart(dc!, 320, 112);
+  const steps = dcl.series[0].path;
+  assert(steps.length === 3 * 2 - 1 + 1, `a step path has a corner per change plus the run to today (got ${steps.length})`);
+  assert(Math.abs(steps[steps.length - 1].x - dcl.plot.right) < 0.01, 'the current dose runs to the right edge (today)');
+  assert(steps[1].y === steps[0].y && steps[1].x === steps[2].x, 'the dose holds flat until the next injection, then steps');
+  assert(doseChart([{ at: d('2026-09-15'), doseMg: 2.5 }]) === null, 'one injection is not a schedule');
+
+  // Scale edge: a flat series still gets a visible band.
+  const flat = yScale([5, 5, 5], false);
+  assert(flat.max > flat.min, 'a flat series is not a zero-height axis');
+
+  // One geometry for both surfaces.
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
+    const t = src(f);
+    for (const fn of ['weightChart', 'bpChart', 'cpapHoursChart', 'cpapAhiChart', 'doseChart']) {
+      assert(t.includes(fn), `${f} draws ${fn}`);
+    }
+  }
+  assert(src('src/components/health/ReportChart.tsx').includes('layoutChart') && src('src/app/api/health/report-pdf/route.ts').includes('layoutChart'), 'page and PDF lay out through the same layoutChart');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

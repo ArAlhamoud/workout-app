@@ -3,6 +3,8 @@ import Link from 'next/link';
 import BackLink from '@/components/BackLink';
 import PrintButton from '@/components/health/PrintButton';
 import PdfShareButton from '@/components/health/PdfShareButton';
+import ReportChart from '@/components/health/ReportChart';
+import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, weightChart } from '@/lib/report-charts';
 import { getHealthData } from '../../health-actions';
 import {
   afStats,
@@ -154,6 +156,20 @@ export default async function DoctorReportPage({
     symptomAgg.set(s.kind, cur);
   }
 
+  // Trend charts (owner, 2026-09-30). Weight, BP and CPAP follow the
+  // selected range like their sections; the dose runs since dose 1 like
+  // the Mounjaro section. null = too few points to call it a trend.
+  const charts = {
+    weight: weightChart(weightsInRange),
+    bp: bpChart(bp.map((r) => ({ at: r.at, systolic: r.systolic, diastolic: r.diastolic }))),
+    cpapHours: cpapHoursChart(cpap),
+    cpapAhi: cpapAhiChart(cpap),
+    dose: doseChart(ledger),
+  };
+  const tooFew = (
+    <p className="mt-1 text-xs text-app-tx3 print:text-gray-600">Not enough readings in this range for a trend yet.</p>
+  );
+
   const fmtMin = (m: number) =>
     m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`;
 
@@ -289,6 +305,7 @@ export default async function DoctorReportPage({
                   value={`${rangeDelta > 0 ? '+' : ''}${rangeDelta} kg · ${weightsInRange.length} weigh-ins`}
                 />
               )}
+              {charts.weight ? <ReportChart spec={charts.weight} /> : tooFew}
             </>
           ) : (
             <p className="text-sm text-app-tx3 print:text-gray-600">No weigh-ins logged.</p>
@@ -304,6 +321,7 @@ export default async function DoctorReportPage({
                 value={`${pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '−' : ''}${Math.abs(pace.kgPerWeek)} kg/week`}
               />
             )}
+            {charts.dose && <ReportChart spec={charts.dose} />}
             <div className="mt-1.5 space-y-1">
               {ledger.map((d) => (
                 <div key={d.n} className="text-sm tabular-nums">
@@ -394,6 +412,7 @@ export default async function DoctorReportPage({
               value={`${bpSplit.since.systolic}/${bpSplit.since.diastolic} · ${bpSplit.since.n} readings`}
             />
           )}
+          {bp.length > 0 && (charts.bp ? <ReportChart spec={charts.bp} /> : tooFew)}
         </Section>
 
         <Section title="CPAP">
@@ -416,6 +435,8 @@ export default async function DoctorReportPage({
                   value={`${cpapDeepMin} min/night · ${cpapDeep.length} nights`}
                 />
               )}
+              {charts.cpapHours ? <ReportChart spec={charts.cpapHours} /> : tooFew}
+              {charts.cpapAhi && <ReportChart spec={charts.cpapAhi} />}
             </>
           ) : (
             <p className="text-sm text-app-tx3 print:text-gray-600">No CPAP nights logged in this range.</p>
