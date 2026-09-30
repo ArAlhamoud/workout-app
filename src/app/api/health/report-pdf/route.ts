@@ -197,7 +197,9 @@ export async function GET(request: Request) {
     y -= 15;
   };
   const section = (title: string) => {
-    ensure(34);
+    // Room for the heading AND its first rows: a heading alone at the foot
+    // of a page, its content on the next, reads as an empty section.
+    ensure(64);
     y -= 8;
     page.drawLine({ start: { x: M, y: y + 4 }, end: { x: A4[0] - M, y: y + 4 }, thickness: 0.7, color: LINE });
     y -= 12;
@@ -267,7 +269,8 @@ export async function GET(request: Request) {
       const last = s.points[s.points.length - 1];
       if (last) page.drawText(fmtV(last.v), { x: X(c.plot.right) + 3, y: Y(last.y) - 2.5, size: 7, font: bold, color });
     }
-    y = top - H - 6;
+    // Clear the date labels before the next line (a Dose 1 row once sat on them).
+    y = top - H - 16;
   };
   const tooFew = () => note('Not enough readings in this range for a trend yet.');
 

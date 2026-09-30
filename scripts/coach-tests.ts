@@ -3467,6 +3467,9 @@ console.log('Doctor report — trend charts');
       assert(t.includes(fn), `${f} draws ${fn}`);
     }
   }
+  const pdfSrc = src('src/app/api/health/report-pdf/route.ts');
+  assert(/y = top - H - 16;/.test(pdfSrc), 'the PDF leaves room under a chart for its date labels');
+  assert(/const section = \(title: string\) => \{[\s\S]{0,200}ensure\(64\)/.test(pdfSrc), 'a PDF section heading never sits alone at the foot of a page');
   assert(src('src/components/health/ReportChart.tsx').includes('layoutChart') && src('src/app/api/health/report-pdf/route.ts').includes('layoutChart'), 'page and PDF lay out through the same layoutChart');
 }
 
