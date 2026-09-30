@@ -197,6 +197,10 @@ Friday is logged only from what he says he ate, meal by meal with
 estimated portions in `notes`; silence on a Friday means nothing was
 logged yet, not that a plan was eaten. Do not pre-log a Friday.
 
+**The doctor report does not print family history or investigations
+(owner, 2026-09-30).** Both stay stored on the profile and in the export;
+only the report page and the PDF stop showing them.
+
 **Kefir is a probiotic, not a protein source (owner, 2026-09-15).** He
 buys it for the gut, knows it carries ~5 g of protein a bottle, and has
 been told three times that Greek yoghurt would carry more. Log it and

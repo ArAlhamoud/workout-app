@@ -161,12 +161,6 @@ export default async function DoctorReportPage({
   const conditions = ((data.profile.conditions as string[] | null) ?? []).filter(
     (c): c is string => typeof c === 'string',
   );
-  const familyHistory = ((data.profile.familyHistory as string[] | null) ?? []).filter(
-    (c) => typeof c === 'string' && c.trim(),
-  );
-  const investigations = ((data.profile.investigations as string[] | null) ?? []).filter(
-    (c) => typeof c === 'string' && c.trim(),
-  );
   const firstCpapNight = data.cpapNights.length
     ? [...data.cpapNights].sort((a, b) => new Date(a.night).getTime() - new Date(b.night).getTime())[0].night
     : null;
@@ -245,16 +239,8 @@ export default async function DoctorReportPage({
               {conditions.join(' · ')}
             </p>
           )}
-          {familyHistory.length > 0 && (
-            <p className="pt-1 text-xs leading-relaxed text-app-tx2 print:text-gray-700">
-              <span className="font-semibold">Family history:</span> {familyHistory.join(' · ')}
-            </p>
-          )}
-          {investigations.length > 0 && (
-            <p className="pt-1 text-xs leading-relaxed text-app-tx2 print:text-gray-700">
-              <span className="font-semibold">Investigations:</span> {investigations.join(' · ')}
-            </p>
-          )}
+          {/* Family history and investigations are not printed (owner,
+              2026-09-30). They stay stored on the profile and in the export. */}
         </div>
 
         {/* The headline numbers */}

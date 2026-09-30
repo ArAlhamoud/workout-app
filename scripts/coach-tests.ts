@@ -3381,5 +3381,20 @@ console.log('Ramp cut — week 4 (adversary, 2026-09-18)');
   assert(rescue.status.mode === 'normal' && rescue.cut === day('2026-08-13T00:00:00Z').toISOString(), `outside a ramp a trailing rescue is still cut out of memory (got ${rescue.status.mode} ${rescue.cut})`);
 }
 
+// ── Doctor report: family history and investigations are not printed (owner, 2026-09-30) ──
+console.log('Doctor report — sections the owner removed');
+{
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
+    const src = read(f);
+    assert(!/Family history:/.test(src), `${f} does not print a family history line`);
+    assert(!/Investigations:/.test(src), `${f} does not print an investigations line`);
+    assert(!/profile\.familyHistory|profile\.investigations/.test(src), `${f} does not read them off the profile`);
+  }
+  // Removed from the report only; the data itself is kept.
+  assert(/familyHistory/.test(read('src/app/api/health/export/route.ts')), 'the export still carries family history');
+  assert(/investigations/.test(read('src/app/api/health/profile/route.ts')), 'the profile pipe still stores investigations');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
