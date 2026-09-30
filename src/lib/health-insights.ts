@@ -145,17 +145,24 @@ export const DEFAULT_ROTATION: string[] = [
 
 /**
  * The doctor report prints only these tests (owner, 2026-09-30: "don't
- * include any new or old lab tests except LDL and Lp(a)"). The rest stay
- * stored and in the export. Not range-scoped: both are treatment
- * baselines, like the dose ledger, and a 4-week window would hide them.
+ * include any new or old lab tests except LDL and Lp(a)"), latest result
+ * of each. The rest stay stored and in the export. Not range-scoped: both
+ * are treatment baselines, like the dose ledger, and a 4-week window
+ * would hide them.
  */
 export const REPORT_LAB_TESTS = ['ldl', 'lp(a)'] as const;
 
 export function reportLabs<T extends { test: string; date: Date | string }>(labs: T[]): T[] {
-  const keep = new Set<string>(REPORT_LAB_TESTS);
-  return labs
-    .filter((l) => keep.has(l.test.trim().toLowerCase()))
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // Only the LATEST result per test (owner, 2026-09-30: "remove the Jul
+  // 2022 LDL"). Older results stay stored and in the export.
+  const latest = new Map<string, T>();
+  for (const l of labs) {
+    const key = l.test.trim().toLowerCase();
+    if (!(REPORT_LAB_TESTS as readonly string[]).includes(key)) continue;
+    const cur = latest.get(key);
+    if (!cur || new Date(l.date).getTime() > new Date(cur.date).getTime()) latest.set(key, l);
+  }
+  return REPORT_LAB_TESTS.map((k) => latest.get(k)).filter((l): l is T => l != null);
 }
 
 /**
@@ -1200,6 +1207,37 @@ export function doseLedger(
         .sort((a, b) => b.maxSeverity - a.maxSeverity || b.count - a.count),
     };
   });
+}
+
+/**
+ * The dose ledger folded into one line per dose LEVEL, for the one-page
+ * PDF (owner, 2026-09-30: page 1 the report, page 2 the graphs). Only
+ * CONSECUTIVE doses at one strength fold, so a step down and back up stays
+ * visible. Side effects keep the dose number they followed.
+ */
+export interface DoseLevelRow {
+  doseMg: number;
+  fromN: number;
+  toN: number;
+  fromAt: Date;
+  toAt: Date;
+  symptoms: Array<{ n: number; kind: string; maxSeverity: number; count: number }>;
+}
+
+export function ledgerByDose(ledger: DoseLedgerRow[]): DoseLevelRow[] {
+  const out: DoseLevelRow[] = [];
+  for (const d of ledger) {
+    const last = out[out.length - 1];
+    const effects = d.symptoms.map((sy) => ({ n: d.n, ...sy }));
+    if (last && last.doseMg === d.doseMg) {
+      last.toN = d.n;
+      last.toAt = d.at;
+      last.symptoms.push(...effects);
+    } else {
+      out.push({ doseMg: d.doseMg, fromN: d.n, toN: d.n, fromAt: d.at, toAt: d.at, symptoms: effects });
+    }
+  }
+  return out;
 }
 
 /** BP averaged before the first dose vs since it — 3+ readings each side
