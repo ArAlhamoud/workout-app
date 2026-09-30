@@ -12,6 +12,8 @@ import {
   bpSplitAroundAnchor,
   doseLedger,
   labRefLabel,
+  ongoingSymptoms,
+  sideEffectRows,
   reportLabs,
   siteLabel,
   treatmentClock,
@@ -171,6 +173,8 @@ export default async function DoctorReportPage({
   const tooFew = (
     <p className="mt-1 text-xs text-app-tx3 print:text-gray-600">Not enough readings in this range for a trend yet.</p>
   );
+
+  const sideEffects = sideEffectRows(ongoingSymptoms(data.profile.ongoingSymptoms), symptomAgg);
 
   const fmtMin = (m: number) =>
     m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`;
@@ -345,18 +349,12 @@ export default async function DoctorReportPage({
         )}
 
         <Section title="Side effects & GI">
-          {symptomAgg.size === 0 ? (
+          {/* Ongoing side effects (profile) first, then logged episodes;
+              a kind that is both prints once (owner, 2026-09-30). */}
+          {sideEffects.length === 0 ? (
             <p className="text-sm text-app-tx3 print:text-gray-600">Nothing logged in this range.</p>
           ) : (
-            [...symptomAgg.entries()]
-              .sort((a, b) => b[1].max - a[1].max)
-              .map(([kind, v]) => (
-                <Row
-                  key={kind}
-                  label={SYMPTOM_LABEL[kind] ?? kind.replace('-', ' ')}
-                  value={`${v.n}× · worst ${SEVERITY_WORD[v.max]}`}
-                />
-              ))
+            sideEffects.map((r) => <Row key={r.kind} label={r.label} value={r.value} />)
           )}
         </Section>
 

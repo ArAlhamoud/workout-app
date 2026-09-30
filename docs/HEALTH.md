@@ -201,6 +201,15 @@ logged yet, not that a plan was eaten. Do not pre-log a Friday.
 (owner, 2026-09-30).** Both stay stored on the profile and in the export;
 only the report page and the PDF stop showing them.
 
+**Ongoing side effects live on the profile, not as episodes (owner,
+2026-09-30).** He has had mild constipation throughout and never logged a
+single episode. `HealthProfile.ongoingSymptoms` holds [{kind, severity}]
+(symptom kinds only, severity 1-3, set through /api/health/profile); the
+doctor report prints them first in "Side effects & GI" as "ongoing ·
+mild", then the logged episodes. A kind that is both prints once. They are
+NOT conditions: an earlier attempt put it on the conditions line and he
+corrected it ("on the side effects").
+
 **The doctor report prints only LDL and Lp(a) from the labs (owner,
 2026-09-30).** "Don't include any new or old lab tests except LDL and
 Lp(a)." Every other result stays stored and in the export. The two are

@@ -124,6 +124,8 @@ import {
   labRefLabel,
   reportLabs,
   ledgerByDose,
+  ongoingSymptoms,
+  sideEffectRows,
 } from '../src/lib/health-insights';
 import {
   normalizeSampleType,
@@ -3561,6 +3563,38 @@ console.log('PDF viewer — pages, zoom, canvas budget');
   assert(/lastScroll\.current/.test(pages) && /onScroll=/.test(pages), 'zoom keeps the reader in place from the last scroll event');
   assert(/c\.width = 0;/.test(pages), 'a replaced page frees its canvas memory');
   assert(/"pdfjs-dist": "\^4\./.test(read('package.json')), 'pdf.js stays on the 4.x line the legacy import path belongs to');
+}
+
+// ── Doctor report: ongoing side effects (owner, 2026-09-30: mild constipation, never logged once) ──
+console.log('Doctor report — ongoing side effects');
+{
+  const og = ongoingSymptoms([
+    { kind: 'constipation', severity: 1 },
+    { kind: 'made-up', severity: 2 },
+    { kind: 'Nausea', severity: 9 },
+    { kind: 'constipation', severity: 2 },
+    null,
+    { kind: 'gas' },
+  ]);
+  assert(og.length === 2, `unknown kinds and malformed rows are dropped (got ${og.length})`);
+  assert(og.find((o) => o.kind === 'constipation')?.severity === 2, 'one entry per kind, the later wins');
+  assert(og.find((o) => o.kind === 'nausea')?.severity === 3, 'severity clamps to 1-3');
+  assert(ongoingSymptoms(undefined).length === 0 && ongoingSymptoms('x').length === 0, 'nothing stored, nothing printed');
+
+  const rows = sideEffectRows([{ kind: 'constipation', severity: 1 }], new Map([['diarrhea', { n: 1, max: 2 }]]));
+  assert(rows[0].label === 'Constipation' && rows[0].value === 'ongoing · mild', `the ongoing side effect prints first as "ongoing · mild" (got ${rows[0]?.value})`);
+  assert(rows[1].label === 'Diarrhea' && rows[1].value === '1× · worst moderate', 'logged episodes follow');
+  const both = sideEffectRows([{ kind: 'constipation', severity: 1 }], new Map([['constipation', { n: 2, max: 2 }]]));
+  assert(both.length === 1 && both[0].value === 'ongoing · mild · 2× logged, worst moderate', 'ongoing and logged are one row, never two');
+  assert(sideEffectRows([], new Map()).length === 0, 'no rows means the "nothing logged" line');
+
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  assert(/ongoingSymptoms Json\?/.test(read('prisma/schema.prisma')), 'the profile has an additive, nullable ongoingSymptoms column');
+  for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
+    assert(/sideEffectRows\(ongoingSymptoms\(data\.profile\.ongoingSymptoms\), symptomAgg\)/.test(read(f)), `${f} prints ongoing side effects through sideEffectRows`);
+  }
+  const pipe = read('src/app/api/health/profile/route.ts');
+  assert(/ongoingSymptoms: true/.test(pipe) && /ongoingSymptoms\(b\.ongoingSymptoms\)/.test(pipe), 'the profile pipe stores and returns ongoing side effects, validated');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

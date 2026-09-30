@@ -133,6 +133,12 @@ model HealthProfile {
   // showed, and a lab value cannot carry "normal" (2026-09-11: echo + ECG
   // + 24 h Holter, reported normal). Additive, nullable.
   investigations Json?
+  // Side effects that are ONGOING rather than episodes — [{kind, severity}]
+  // with kind from the symptom list and severity 1–3. He has had mild
+  // constipation throughout and never logged a single episode (owner,
+  // 2026-09-30); the doctor report's side-effects section prints these
+  // above the logged episodes. Additive, nullable.
+  ongoingSymptoms Json?
   dosePlan      Json?
   targets       Json?
   reminders     Json?

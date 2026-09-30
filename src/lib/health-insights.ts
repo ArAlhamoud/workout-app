@@ -49,6 +49,57 @@ export const SYMPTOM_LABEL: Record<string, string> = {
   'appetite-suppression': 'Low appetite', fullness: 'Early fullness',
 };
 
+/** A side effect that is ongoing rather than an episode (profile field
+ *  `ongoingSymptoms`). Severity 1 mild, 2 moderate, 3 severe. */
+export interface OngoingSymptom {
+  kind: string;
+  severity: 1 | 2 | 3;
+}
+
+/**
+ * The stored ongoing side effects, validated: known symptom kinds only,
+ * severity clamped to 1–3, one entry per kind (the later wins). Anything
+ * malformed is dropped rather than printed on a medical document.
+ */
+export function ongoingSymptoms(raw: unknown): OngoingSymptom[] {
+  if (!Array.isArray(raw)) return [];
+  const byKind = new Map<string, OngoingSymptom>();
+  for (const r of raw) {
+    const kind = typeof (r as { kind?: unknown })?.kind === 'string' ? (r as { kind: string }).kind.trim().toLowerCase() : '';
+    const sev = Math.round(Number((r as { severity?: unknown })?.severity));
+    if (!(kind in SYMPTOM_LABEL) || !Number.isFinite(sev)) continue;
+    byKind.set(kind, { kind, severity: Math.min(3, Math.max(1, sev)) as 1 | 2 | 3 });
+  }
+  return [...byKind.values()];
+}
+
+/**
+ * The report's side-effects rows: ongoing ones first, then logged
+ * episodes by worst severity. A kind that is both ongoing and logged is
+ * ONE row (say each thing once).
+ */
+export function sideEffectRows(
+  ongoing: OngoingSymptom[],
+  logged: Map<string, { n: number; max: number }>,
+): Array<{ kind: string; label: string; value: string }> {
+  const WORD = ['none', 'mild', 'moderate', 'severe'];
+  const label = (k: string) => SYMPTOM_LABEL[k] ?? k.replace('-', ' ');
+  const rows = ongoing.map((o) => {
+    const l = logged.get(o.kind);
+    return {
+      kind: o.kind,
+      label: label(o.kind),
+      value: `ongoing · ${WORD[o.severity]}${l ? ` · ${l.n}× logged, worst ${WORD[l.max]}` : ''}`,
+    };
+  });
+  const seen = new Set(ongoing.map((o) => o.kind));
+  const episodes = [...logged.entries()]
+    .filter(([k]) => !seen.has(k))
+    .sort((a, b) => b[1].max - a[1].max)
+    .map(([k, v]) => ({ kind: k, label: label(k), value: `${v.n}× · worst ${WORD[v.max]}` }));
+  return [...rows, ...episodes];
+}
+
 export interface InjectionLite {
   at: Date | string;
   doseMg: number;
