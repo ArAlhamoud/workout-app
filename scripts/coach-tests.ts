@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
+import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
 import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, startableUntilFor, settledSet, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
@@ -122,6 +123,7 @@ import {
   bpSplitAroundAnchor,
   labRefLabel,
   reportLabs,
+  ledgerByDose,
 } from '../src/lib/health-insights';
 import {
   normalizeSampleType,
@@ -3471,7 +3473,12 @@ console.log('Doctor report — trend charts');
   }
   const pdfSrc = src('src/app/api/health/report-pdf/route.ts');
   assert(/y = top - H - 16;/.test(pdfSrc), 'the PDF leaves room under a chart for its date labels');
-  assert(/const section = \(title: string\) => \{[\s\S]{0,200}ensure\(64\)/.test(pdfSrc), 'a PDF section heading never sits alone at the foot of a page');
+  assert(/const section = \(title: string\) => \{[\s\S]{0,300}ensure\((5\d|6\d)\)/.test(pdfSrc), 'a PDF section heading needs room for its first rows before a page ends');
+  // Two pages: the written report, then every chart together.
+  const trendsAt = pdfSrc.indexOf("text('Trends'");
+  assert(trendsAt > 0 && pdfSrc.lastIndexOf('doc.addPage(A4)', trendsAt) > pdfSrc.indexOf("section('Current medications')"), 'the charts start on their own page after the written report');
+  const chartCalls = [...pdfSrc.matchAll(/\bchart\(/g)].map((m) => m.index ?? 0);
+  assert(chartCalls.every((i) => i < pdfSrc.indexOf("section('Weight')") || i > trendsAt), 'no chart is drawn inside the written sections');
   assert(src('src/components/health/ReportChart.tsx').includes('layoutChart') && src('src/app/api/health/report-pdf/route.ts').includes('layoutChart'), 'page and PDF lay out through the same layoutChart');
 }
 
@@ -3501,12 +3508,59 @@ console.log('Doctor report — labs limited to LDL and Lp(a)');
   ];
   const kept = reportLabs(rows);
   assert(kept.map((r) => r.test.toLowerCase()).every((t) => t === 'ldl' || t === 'lp(a)'), 'nothing but LDL and Lp(a) reaches the report');
-  assert(kept.length === 3, `every LDL and Lp(a) result is kept, old ones too (got ${kept.length})`);
-  assert(kept[0].date === '2025-01-10', 'oldest first, so the LDL trend reads left to right');
+  assert(kept.length === 2, `one row per test (got ${kept.length})`);
+  assert(kept.find((r) => r.test.toLowerCase() === 'ldl')?.date === '2026-08-20', 'the LATEST LDL prints, the older one does not (owner: remove the Jul 2022 LDL)');
+  assert(reportLabs([{ test: 'ldl', date: '2022-07-18' }, { test: 'ldl', date: '2026-08-20' }]).length === 1, 'an older LDL never prints beside the newer one');
   const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
     assert(/const labs = reportLabs\(data\.labs\)/.test(read(f)), `${f} filters labs through reportLabs, not the date range`);
   }
+}
+
+// ── PDF dose ledger folds consecutive doses at one strength (2026-09-30) ──
+console.log('Doctor report — dose ledger by level');
+{
+  const at = (s: string) => new Date(`${s}T19:00:00Z`);
+  const rows = ledgerByDose([
+    { n: 1, at: at('2026-08-25'), doseMg: 2.5, site: 'abdomen-right', symptoms: [] },
+    { n: 2, at: at('2026-09-01'), doseMg: 2.5, site: 'abdomen-left', symptoms: [] },
+    { n: 3, at: at('2026-09-08'), doseMg: 2.5, site: 'thigh-left', symptoms: [{ kind: 'diarrhea', maxSeverity: 2, count: 1 }] },
+    { n: 4, at: at('2026-09-15'), doseMg: 2.5, site: 'thigh-right', symptoms: [] },
+    { n: 5, at: at('2026-09-22'), doseMg: 5, site: 'abdomen-left', symptoms: [] },
+    { n: 6, at: at('2026-09-29'), doseMg: 5, site: 'abdomen-right', symptoms: [] },
+  ]);
+  assert(rows.length === 2 && rows[0].fromN === 1 && rows[0].toN === 4 && rows[1].fromN === 5 && rows[1].toN === 6, 'six doses fold to two lines, 2.5 mg x4 and 5 mg x2');
+  assert(rows[0].symptoms.length === 1 && rows[0].symptoms[0].n === 3, 'a side effect keeps the dose number it followed');
+  const back = ledgerByDose([
+    { n: 1, at: at('2026-08-25'), doseMg: 5, site: 'x', symptoms: [] },
+    { n: 2, at: at('2026-09-01'), doseMg: 2.5, site: 'x', symptoms: [] },
+    { n: 3, at: at('2026-09-08'), doseMg: 5, site: 'x', symptoms: [] },
+  ]);
+  assert(back.length === 3, 'a step down and back up stays visible, never merged');
+}
+
+// ── In-app PDF viewer: every page, zoomable, within Safari's canvas limits (owner, 2026-09-30) ──
+console.log('PDF viewer — pages, zoom, canvas budget');
+{
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  // A4 at 3x zoom on a 3x iPhone was ~16.3 M pixels a page; Safari blanks anything over ~16.7 M.
+  const w3 = 377 * 3, h3 = Math.round(w3 * 841.89 / 595.28);
+  const d3 = canvasDensity(w3, h3, 3);
+  assert(w3 * d3 * h3 * d3 <= MAX_CANVAS_PIXELS + 1, `a 3x page stays inside the pixel budget (got ${Math.round(w3 * d3 * h3 * d3)})`);
+  assert(d3 >= 2, `3x stays sharp, at least 2 device pixels per point (got ${d3.toFixed(2)})`);
+  assert(canvasDensity(377, 533, 3) === 3, 'fit-to-width uses the full retina density');
+  assert(canvasDensity(377, 533, 1) === 1, 'never below 1');
+  assert(ZOOMS[0] === 1 && ZOOMS[ZOOMS.length - 1] === 3, 'zoom runs fit to 3x');
+
+  const viewer = read('src/components/health/PdfShareButton.tsx');
+  assert((viewer.match(/<iframe/g) ?? []).length === 1 && /function OnePageFrame[\s\S]{0,900}<iframe/.test(viewer), 'the PDF is framed only in the fallback (WKWebView draws only page 1 in a frame)');
+  assert(/fallback=\{<OnePageFrame/.test(viewer), 'if pdf.js fails, the old one-page view is the fallback, never an empty box');
+  const pages = read('src/components/health/PdfPages.tsx');
+  assert(!/transform:/.test(pages) && !/scale\(/.test(pages.replace(/getViewport\(\{ scale/g, '')), 'zoom re-renders at a new width, never a CSS transform (rule 3: WKWebView repaint)');
+  assert(/pdfjs-dist\/legacy\/build\/pdf\.mjs/.test(pages) && /await import\(/.test(pages), 'pdf.js loads lazily, legacy build, only when the viewer opens');
+  assert(/lastScroll\.current/.test(pages) && /onScroll=/.test(pages), 'zoom keeps the reader in place from the last scroll event');
+  assert(/c\.width = 0;/.test(pages), 'a replaced page frees its canvas memory');
+  assert(/"pdfjs-dist": "\^4\./.test(read('package.json')), 'pdf.js stays on the 4.x line the legacy import path belongs to');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

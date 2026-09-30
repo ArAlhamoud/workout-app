@@ -5,9 +5,9 @@ import {
   bpAverage,
   bpSplitAroundAnchor,
   doseLedger,
+  ledgerByDose,
   labRefLabel,
   reportLabs,
-  siteLabel,
   treatmentClock,
   weightPace,
   weightSnapshot,
@@ -191,23 +191,25 @@ export async function GET(request: Request) {
   };
   const text = (t: string, x: number, size: number, f = font, color = INK) =>
     page.drawText(clean(t), { x, y, size, font: f, color });
+  // Compact rhythm so the written report fits page 1 and the charts get
+  // page 2 (owner, 2026-09-30: "two pages, one normal, one the graphs").
   const row = (label: string, value: string, dim = false) => {
-    ensure(16);
-    text(label, M, 10, font, DIM);
+    ensure(15);
+    text(label, M, 9.5, font, DIM);
     const v = clean(value);
-    const w = bold.widthOfTextAtSize(v, 10);
-    page.drawText(v, { x: A4[0] - M - w, y, size: 10, font: bold, color: dim ? DIM : INK });
-    y -= 15;
+    const w = bold.widthOfTextAtSize(v, 9.5);
+    page.drawText(v, { x: A4[0] - M - w, y, size: 9.5, font: bold, color: dim ? DIM : INK });
+    y -= 13.5;
   };
   const section = (title: string) => {
     // Room for the heading AND its first rows: a heading alone at the foot
     // of a page, its content on the next, reads as an empty section.
-    ensure(64);
-    y -= 8;
+    ensure(56);
+    y -= 6;
     page.drawLine({ start: { x: M, y: y + 4 }, end: { x: A4[0] - M, y: y + 4 }, thickness: 0.7, color: LINE });
-    y -= 12;
+    y -= 11;
     text(title.toUpperCase(), M, 8.5, bold, DIM);
-    y -= 15;
+    y -= 13;
   };
   const note = (t: string) => {
     ensure(14);
@@ -217,9 +219,8 @@ export async function GET(request: Request) {
   const fmtV = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
   /** One trend chart, drawn from the shared layout. Layout y runs down from
    *  the box top; pdf-lib y runs up, so every point is `top - p.y`. */
-  const chart = (spec: ChartSpec) => {
+  const chart = (spec: ChartSpec, H = 108) => {
     const W = A4[0] - 2 * M;
-    const H = 118;
     ensure(H + 22);
     y -= 4;
     const caption = `${spec.title} · ${spec.unit}`;
@@ -275,7 +276,6 @@ export async function GET(request: Request) {
     // Clear the date labels before the next line (a Dose 1 row once sat on them).
     y = top - H - 16;
   };
-  const tooFew = () => note('Not enough readings in this range for a trend yet.');
 
   // Header
   text('AR Health - Doctor Report', M, 18, bold);
@@ -298,8 +298,6 @@ export async function GET(request: Request) {
     row('Change', `${signedKg(snapshot.lostKg)} kg (${snapshot.pctLost}%)`);
     row('BMI', `${snapshot.startBmi} -> ${snapshot.bmi}`);
     if (pace) row('Current pace', `${pace.kgPerWeek > 0 ? '+' : ''}${pace.kgPerWeek} kg/week`);
-    if (charts.weight) chart(charts.weight);
-    else tooFew();
   } else {
     note('No weigh-ins logged.');
   }
@@ -308,17 +306,20 @@ export async function GET(request: Request) {
     section('Mounjaro (tirzepatide) - since dose 1');
     row('First dose', fmt(clock.anchor));
     row('Current dose', `${clock.lastDoseMg} mg weekly · treatment week ${clock.week}`);
-    if (charts.dose) chart(charts.dose);
+    // One line per dose LEVEL on page 1; the dose chart on page 2 shows
+    // the weekly steps. Injection sites stay on the web report's ledger.
     y -= 2;
-    for (const d of ledger) {
+    for (const g of ledgerByDose(ledger)) {
       ensure(24);
-      text(`Dose ${d.n} · ${fmt(d.at)} · ${d.doseMg} mg · ${siteLabel(d.site)}`, M, 9.5, bold);
-      y -= 12;
-      const sideEffects = d.symptoms.length
-        ? d.symptoms.slice(0, 3).map((sy) => `${SYMPTOM_LABEL[sy.kind] ?? sy.kind} (${SEVERITY_WORD[sy.maxSeverity]}, ${sy.count}x)`).join(', ')
+      const doses = g.fromN === g.toN ? `dose ${g.fromN}` : `doses ${g.fromN}-${g.toN}`;
+      const when = g.fromN === g.toN ? fmt(g.fromAt) : `${fmt(g.fromAt)} - ${fmt(g.toAt)}`;
+      text(`${g.doseMg} mg · ${doses} · ${when}`, M, 9.5, bold);
+      y -= 11.5;
+      const sideEffects = g.symptoms.length
+        ? g.symptoms.slice(0, 3).map((sy) => `${SYMPTOM_LABEL[sy.kind] ?? sy.kind} after dose ${sy.n} (${SEVERITY_WORD[sy.maxSeverity]}, ${sy.count}x)`).join(', ')
         : 'no side effects logged';
       text(sideEffects, M + 10, 8.5, font, DIM);
-      y -= 13;
+      y -= 12.5;
     }
   }
 
@@ -355,10 +356,6 @@ export async function GET(request: Request) {
   if (pulseAvg != null) row('Average pulse', `${pulseAvg} bpm`);
   if (bpSplit.before) row('Before treatment', `${bpSplit.before.systolic}/${bpSplit.before.diastolic} (${bpSplit.before.n} readings)`);
   if (bpSplit.since) row('Since treatment', `${bpSplit.since.systolic}/${bpSplit.since.diastolic} (${bpSplit.since.n} readings)`);
-  if (bp.length) {
-    if (charts.bp) chart(charts.bp);
-    else tooFew();
-  }
 
   section('CPAP');
   if (cpap.length) {
@@ -373,9 +370,6 @@ export async function GET(request: Request) {
     if (cpapDeepMin != null) {
       row('Deep sleep (device estimate)', `${cpapDeepMin} min/night - ${cpapDeep.length} nights`);
     }
-    if (charts.cpapHours) chart(charts.cpapHours);
-    else tooFew();
-    if (charts.cpapAhi) chart(charts.cpapAhi);
   } else {
     note('No CPAP nights logged in this range.');
   }
@@ -389,6 +383,23 @@ export async function GET(request: Request) {
   section('Current medications');
   if (!meds.length) note('-');
   for (const m of meds) row(m.name, `${m.doseLabel} · ${m.frequency}`);
+
+  // ── Page 2: every trend chart together (owner, 2026-09-30) ──
+  page = doc.addPage(A4);
+  y = A4[1] - M;
+  text('Trends', M, 14, bold);
+  y -= 16;
+  text(`${rangeLabel} · weight, blood pressure and CPAP follow the range; the dose runs since dose 1`, M, 8.5, font, DIM);
+  y -= 16;
+  const trend = (title: string, spec: ChartSpec | null) => {
+    if (spec) chart(spec);
+    else note(`${title}: not enough readings in this range for a trend yet.`);
+  };
+  trend('Weight', charts.weight);
+  trend('Mounjaro dose', charts.dose);
+  trend('Blood pressure', charts.bp);
+  trend('CPAP use', charts.cpapHours);
+  trend('AHI', charts.cpapAhi);
 
   // Footer on every page — a printed page separated from the stack must
   // still identify itself. Drawn last, when the page count is known.
