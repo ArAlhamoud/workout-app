@@ -8,6 +8,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
+import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
 import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, startableUntilFor, settledSet, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
@@ -3536,6 +3537,30 @@ console.log('Doctor report — dose ledger by level');
     { n: 3, at: at('2026-09-08'), doseMg: 5, site: 'x', symptoms: [] },
   ]);
   assert(back.length === 3, 'a step down and back up stays visible, never merged');
+}
+
+// ── In-app PDF viewer: every page, zoomable, within Safari's canvas limits (owner, 2026-09-30) ──
+console.log('PDF viewer — pages, zoom, canvas budget');
+{
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  // A4 at 3x zoom on a 3x iPhone was ~16.3 M pixels a page; Safari blanks anything over ~16.7 M.
+  const w3 = 377 * 3, h3 = Math.round(w3 * 841.89 / 595.28);
+  const d3 = canvasDensity(w3, h3, 3);
+  assert(w3 * d3 * h3 * d3 <= MAX_CANVAS_PIXELS + 1, `a 3x page stays inside the pixel budget (got ${Math.round(w3 * d3 * h3 * d3)})`);
+  assert(d3 >= 2, `3x stays sharp, at least 2 device pixels per point (got ${d3.toFixed(2)})`);
+  assert(canvasDensity(377, 533, 3) === 3, 'fit-to-width uses the full retina density');
+  assert(canvasDensity(377, 533, 1) === 1, 'never below 1');
+  assert(ZOOMS[0] === 1 && ZOOMS[ZOOMS.length - 1] === 3, 'zoom runs fit to 3x');
+
+  const viewer = read('src/components/health/PdfShareButton.tsx');
+  assert((viewer.match(/<iframe/g) ?? []).length === 1 && /function OnePageFrame[\s\S]{0,900}<iframe/.test(viewer), 'the PDF is framed only in the fallback (WKWebView draws only page 1 in a frame)');
+  assert(/fallback=\{<OnePageFrame/.test(viewer), 'if pdf.js fails, the old one-page view is the fallback, never an empty box');
+  const pages = read('src/components/health/PdfPages.tsx');
+  assert(!/transform:/.test(pages) && !/scale\(/.test(pages.replace(/getViewport\(\{ scale/g, '')), 'zoom re-renders at a new width, never a CSS transform (rule 3: WKWebView repaint)');
+  assert(/pdfjs-dist\/legacy\/build\/pdf\.mjs/.test(pages) && /await import\(/.test(pages), 'pdf.js loads lazily, legacy build, only when the viewer opens');
+  assert(/lastScroll\.current/.test(pages) && /onScroll=/.test(pages), 'zoom keeps the reader in place from the last scroll event');
+  assert(/c\.width = 0;/.test(pages), 'a replaced page frees its canvas memory');
+  assert(/"pdfjs-dist": "\^4\./.test(read('package.json')), 'pdf.js stays on the 4.x line the legacy import path belongs to');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

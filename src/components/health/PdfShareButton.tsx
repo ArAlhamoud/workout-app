@@ -8,19 +8,46 @@
 // plain download button instead.
 
 import { useEffect, useState } from 'react';
+import PdfPages from './PdfPages';
+import { ZOOMS } from '@/lib/pdf-view';
 
 const A4_PT = 595.28; // must match the route's page width
 
-/** Shrink-only: full size on tablets/desktop, fit-to-width on phones. */
+/** Shrink-only fit for the FALLBACK frame (see OnePageFrame). */
 function pdfScale(): number {
   if (typeof window === 'undefined') return 1;
   return Math.min(1, window.innerWidth / A4_PT);
 }
 
+/**
+ * The previous viewer, kept ONLY as the fallback if pdf.js cannot run on a
+ * device: WKWebView's PDF plugin in a frame draws page 1 only and cannot
+ * zoom, but it is what worked before, so a failure is never worse than
+ * that. No zoom API reaches the plugin; fit-to-width is done by geometry.
+ */
+function OnePageFrame({ url }: { url: string }) {
+  return (
+    <div className="h-full overflow-auto bg-white">
+      <iframe
+        src={url}
+        title="Doctor report PDF"
+        className="border-0 bg-white"
+        style={{
+          width: `${A4_PT}px`,
+          height: `${100 / pdfScale()}%`,
+          transform: `scale(${pdfScale()})`,
+          transformOrigin: 'top left',
+        }}
+      />
+    </div>
+  );
+}
+
 export default function PdfShareButton({ range }: { range: string }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ url: string; file: File } | null>(null);
+  const [preview, setPreview] = useState<{ url: string; file: File; bytes: ArrayBuffer } | null>(null);
+  const [zoomAt, setZoomAt] = useState(0);
 
   // The blob URL lives exactly as long as the viewer.
   useEffect(() => {
@@ -40,7 +67,8 @@ export default function PdfShareButton({ range }: { range: string }) {
       const file = new File([blob], `ar-health-report-${new Date().toISOString().slice(0, 10)}.pdf`, {
         type: 'application/pdf',
       });
-      setPreview({ url: URL.createObjectURL(blob), file });
+      setZoomAt(0);
+      setPreview({ url: URL.createObjectURL(blob), file, bytes: await blob.arrayBuffer() });
     } catch {
       setMsg('Could not build the PDF — try again.');
       setTimeout(() => setMsg(null), 2500);
@@ -104,22 +132,33 @@ export default function PdfShareButton({ range }: { range: string }) {
               Share
             </button>
           </div>
-          {/* WKWebView's PDF plugin renders the A4 page (595pt) at 100% and
-              clips the right column on a phone. No zoom API reaches the
-              plugin, so fit-to-width is done by geometry: lay the frame out
-              at true A4 width and scale it down to the viewport. */}
-          <div className="flex-1 overflow-auto bg-white">
-            <iframe
-              src={preview.url}
-              title="Doctor report PDF"
-              className="border-0 bg-white"
-              style={{
-                width: `${A4_PT}px`,
-                height: `${100 / pdfScale()}%`,
-                transform: `scale(${pdfScale()})`,
-                transformOrigin: 'top left',
-              }}
-            />
+          {/* Zoom steps: fit-to-width, then 1.5×, 2×, 3×. Buttons, not
+              pinch: the app disables page zoom (layout.tsx viewport). */}
+          <div className="flex items-center justify-center gap-2 border-b border-ink/10 bg-app-surface px-4 py-1.5">
+            <button
+              type="button"
+              aria-label="Zoom out"
+              onClick={() => setZoomAt((z) => Math.max(0, z - 1))}
+              disabled={zoomAt === 0}
+              className="min-h-[44px] min-w-[44px] rounded-card border-2 border-ink text-lg font-extrabold text-app-tx1 disabled:opacity-30"
+            >
+              −
+            </button>
+            <span className="w-16 text-center text-sm font-bold tabular-nums text-app-tx2">
+              {zoomAt === 0 ? 'Fit' : `${ZOOMS[zoomAt]}×`}
+            </span>
+            <button
+              type="button"
+              aria-label="Zoom in"
+              onClick={() => setZoomAt((z) => Math.min(ZOOMS.length - 1, z + 1))}
+              disabled={zoomAt === ZOOMS.length - 1}
+              className="min-h-[44px] min-w-[44px] rounded-card border-2 border-ink text-lg font-extrabold text-app-tx1 disabled:opacity-30"
+            >
+              +
+            </button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <PdfPages bytes={preview.bytes} zoom={ZOOMS[zoomAt]} fallback={<OnePageFrame url={preview.url} />} />
           </div>
         </div>
       )}
