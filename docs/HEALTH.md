@@ -201,6 +201,16 @@ logged yet, not that a plan was eaten. Do not pre-log a Friday.
 (owner, 2026-09-30).** Both stay stored on the profile and in the export;
 only the report page and the PDF stop showing them.
 
+**The pen and its storage are settled with his endocrinologist (owner,
+2026-09-30).** He doses from a 15 mg Mounjaro KwikPen by counting clicks
+(10 clicks = 2.5 mg, 20 = 5 mg); the endocrinologist confirmed this is
+correct. The same doctor keeps a pen in use past the leaflet's 30 days,
+from his own patients' results. Both are the doctor's decisions: do not
+re-raise the pen strength or the 30-day limit. The injection form still
+stamps the save moment, so a dose logged the next morning lands a day
+late (fixed twice by script, 22 and 29 Sep); a date field is offered,
+not built.
+
 **Ongoing side effects live on the profile, not as episodes (owner,
 2026-09-30).** He has had mild constipation throughout and never logged a
 single episode. `HealthProfile.ongoingSymptoms` holds [{kind, severity}]
