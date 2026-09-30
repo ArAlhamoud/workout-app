@@ -3,12 +3,16 @@ import Link from 'next/link';
 import BackLink from '@/components/BackLink';
 import PrintButton from '@/components/health/PrintButton';
 import PdfShareButton from '@/components/health/PdfShareButton';
+import ReportChart from '@/components/health/ReportChart';
+import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, weightChart } from '@/lib/report-charts';
 import { getHealthData } from '../../health-actions';
 import {
   afStats,
   bpAverage,
   bpSplitAroundAnchor,
   doseLedger,
+  labRefLabel,
+  reportLabs,
   siteLabel,
   treatmentClock,
   weightPace,
@@ -72,7 +76,7 @@ export default async function DoctorReportPage({
   const episodes = inRange(data.afEpisodes, (e) => e.startedAt);
   const bp = inRange(data.bpReadings, (r) => r.at);
   const cpap = inRange(data.cpapNights, (n) => n.night);
-  const labs = inRange(data.labs, (l) => l.date);
+  const labs = reportLabs(data.labs);
   const weights = data.bodyStats.filter((b) => b.weight != null);
   const weightsInRange = inRange(weights, (b) => b.date);
 
@@ -154,18 +158,26 @@ export default async function DoctorReportPage({
     symptomAgg.set(s.kind, cur);
   }
 
+  // Trend charts (owner, 2026-09-30). Weight, BP and CPAP follow the
+  // selected range like their sections; the dose runs since dose 1 like
+  // the Mounjaro section. null = too few points to call it a trend.
+  const charts = {
+    weight: weightChart(weightsInRange),
+    bp: bpChart(bp.map((r) => ({ at: r.at, systolic: r.systolic, diastolic: r.diastolic }))),
+    cpapHours: cpapHoursChart(cpap),
+    cpapAhi: cpapAhiChart(cpap),
+    dose: doseChart(ledger),
+  };
+  const tooFew = (
+    <p className="mt-1 text-xs text-app-tx3 print:text-gray-600">Not enough readings in this range for a trend yet.</p>
+  );
+
   const fmtMin = (m: number) =>
     m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`;
 
   const meds = data.meds.filter((m) => !m.stoppedOn);
   const conditions = ((data.profile.conditions as string[] | null) ?? []).filter(
     (c): c is string => typeof c === 'string',
-  );
-  const familyHistory = ((data.profile.familyHistory as string[] | null) ?? []).filter(
-    (c) => typeof c === 'string' && c.trim(),
-  );
-  const investigations = ((data.profile.investigations as string[] | null) ?? []).filter(
-    (c) => typeof c === 'string' && c.trim(),
   );
   const firstCpapNight = data.cpapNights.length
     ? [...data.cpapNights].sort((a, b) => new Date(a.night).getTime() - new Date(b.night).getTime())[0].night
@@ -245,16 +257,8 @@ export default async function DoctorReportPage({
               {conditions.join(' · ')}
             </p>
           )}
-          {familyHistory.length > 0 && (
-            <p className="pt-1 text-xs leading-relaxed text-app-tx2 print:text-gray-700">
-              <span className="font-semibold">Family history:</span> {familyHistory.join(' · ')}
-            </p>
-          )}
-          {investigations.length > 0 && (
-            <p className="pt-1 text-xs leading-relaxed text-app-tx2 print:text-gray-700">
-              <span className="font-semibold">Investigations:</span> {investigations.join(' · ')}
-            </p>
-          )}
+          {/* Family history and investigations are not printed (owner,
+              2026-09-30). They stay stored on the profile and in the export. */}
         </div>
 
         {/* The headline numbers */}
@@ -303,6 +307,7 @@ export default async function DoctorReportPage({
                   value={`${rangeDelta > 0 ? '+' : ''}${rangeDelta} kg · ${weightsInRange.length} weigh-ins`}
                 />
               )}
+              {charts.weight ? <ReportChart spec={charts.weight} /> : tooFew}
             </>
           ) : (
             <p className="text-sm text-app-tx3 print:text-gray-600">No weigh-ins logged.</p>
@@ -318,6 +323,7 @@ export default async function DoctorReportPage({
                 value={`${pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '−' : ''}${Math.abs(pace.kgPerWeek)} kg/week`}
               />
             )}
+            {charts.dose && <ReportChart spec={charts.dose} />}
             <div className="mt-1.5 space-y-1">
               {ledger.map((d) => (
                 <div key={d.n} className="text-sm tabular-nums">
@@ -408,6 +414,7 @@ export default async function DoctorReportPage({
               value={`${bpSplit.since.systolic}/${bpSplit.since.diastolic} · ${bpSplit.since.n} readings`}
             />
           )}
+          {bp.length > 0 && (charts.bp ? <ReportChart spec={charts.bp} /> : tooFew)}
         </Section>
 
         <Section title="CPAP">
@@ -430,6 +437,8 @@ export default async function DoctorReportPage({
                   value={`${cpapDeepMin} min/night · ${cpapDeep.length} nights`}
                 />
               )}
+              {charts.cpapHours ? <ReportChart spec={charts.cpapHours} /> : tooFew}
+              {charts.cpapAhi && <ReportChart spec={charts.cpapAhi} />}
             </>
           ) : (
             <p className="text-sm text-app-tx3 print:text-gray-600">No CPAP nights logged in this range.</p>
@@ -438,13 +447,13 @@ export default async function DoctorReportPage({
 
         <Section title="Laboratory">
           {labs.length === 0 ? (
-            <p className="text-sm text-app-tx3 print:text-gray-600">No labs in this range.</p>
+            <p className="text-sm text-app-tx3 print:text-gray-600">No LDL or Lp(a) result logged.</p>
           ) : (
             labs.map((l) => (
               <Row
                 key={l.id}
                 label={`${l.test.toUpperCase()} · ${fmt(l.date)}`}
-                value={`${l.value} ${l.unit}${l.refHigh != null ? ` (ref ≤ ${l.refHigh})` : ''}`}
+                value={`${l.value} ${l.unit}${labRefLabel(l) ? ` (${labRefLabel(l)})` : ''}`}
               />
             ))
           )}
