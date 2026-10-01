@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { checkIn, checkOut, closeForgotten, deleteVisit, nudgeVisit } from '@/app/gym-visit-actions';
+import { checkIn, checkOut, closeForgotten, deleteVisit, getGymVisitState, nudgeVisit, switchGym } from '@/app/gym-visit-actions';
 import { fmtVisit, visitMinutes, type VisitLite } from '@/lib/gym-visits';
 import { hapticSuccess } from '@/lib/native-feedback';
 
@@ -70,6 +70,25 @@ export default function GymCheckIn({
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
   }, [open]);
+
+  // The webview resumes the old page: re-read the visit when the app comes
+  // back, or a clock left running overnight checks out a 14-hour visit
+  // (adversary, 2026-10-01).
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState !== 'visible') return;
+      getGymVisitState()
+        .then((s) => {
+          setOpen(s.open);
+          setForgotten(s.forgotten);
+          setLast(s.last);
+          setNow(Date.now());
+        })
+        .catch(() => {});
+    };
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, []);
 
   const run = (fn: () => Promise<void>) =>
     start(async () => {
@@ -165,7 +184,7 @@ export default function GymCheckIn({
     const mins = Math.max(0, Math.floor((now - new Date(open.checkInAt).getTime()) / 60_000));
     return (
       <div>
-        <p className="section-label mb-3">At {GYM_NAME[open.gym] ?? open.gym}</p>
+        <p key={open.gym} className="section-label mb-3">At {GYM_NAME[open.gym] ?? open.gym}</p>
         <div className="card space-y-2 px-3 py-3">
           <div className="flex items-center justify-between gap-3">
             <span key={mins} className="font-mono text-2xl font-bold tabular-nums text-app-tx1">
@@ -182,6 +201,20 @@ export default function GymCheckIn({
             onMinus={() => nudge(open, 'checkInAt', -1, setOpen)}
             onPlus={() => nudge(open, 'checkInAt', 1, setOpen)}
           />
+          {/* A wrong-gym tap, fixable while the visit is open. */}
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              run(async () => {
+                const v = await switchGym(open.id, open.gym === 'work' ? 'bfit' : 'work');
+                if (v) setOpen(v);
+              })
+            }
+            className="min-h-[44px] w-full text-left font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3"
+          >
+            Wrong gym? Switch to {open.gym === 'work' ? 'B_Fit' : 'Alrajhi'}
+          </button>
         </div>
         {msg && <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-rpe-hard">{msg}</p>}
       </div>

@@ -129,3 +129,14 @@ export async function deleteVisit(id: string): Promise<void> {
   await prisma.gymVisit.deleteMany({ where: { id, checkOutAt: null } });
   refresh();
 }
+
+/** Fix a wrong-gym tap while the visit is still open. A closed visit keeps
+ *  its gym: by then the session that day may already be matched to it. */
+export async function switchGym(id: string, gym: string): Promise<VisitLite | null> {
+  if (!GYM_IDS.has(gym)) return null;
+  const g = gym;
+  await prisma.gymVisit.updateMany({ where: { id, checkOutAt: null }, data: { gym: g } });
+  const v = await prisma.gymVisit.findUnique({ where: { id } });
+  refresh();
+  return v && toLite(v);
+}

@@ -3667,6 +3667,49 @@ console.log('Gym visits — door to door, by workout length');
   assert(adjustedTime(long, 'checkOutAt', -5, at('2026-10-01', '20:00')) !== null, 'an over-long visit can be shortened');
   assert(adjustedTime(long, 'checkOutAt', 5, at('2026-10-01', '20:00')) === null, 'but never lengthened');
   assert(adjustedTime(long, 'checkInAt', 5, at('2026-10-01', '20:00')) !== null, 'moving its check-in later also shortens it');
+  // Adversary, 2026-10-01. F1: a lifting session with no length in its
+  // name (every Watch session, any renamed one) is a workout, not a swim.
+  const named = [
+    ...workouts,
+    W('2026-10-11', 'Day A — Watch · Oct 11', 50),
+    W('2026-10-13', 'Day B — Oct 13', null),
+  ];
+  const watch = classifyVisit(V('w', '2026-10-11', '18:00', '19:20'), named);
+  assert(watch.category === '45' && watch.liftMin === 50, `a Watch session takes its length from its timer (got ${watch.category}/${watch.liftMin})`);
+  assert(classifyVisit(V('x', '2026-10-13', '18:00', '19:20'), named).category === 'lift', 'a session with no length and no timer is still a workout, never "swim or walk"');
+  // F3: two visits one day — the session belongs to ONE visit, the longest.
+  const twice = gymTimeStats([
+    V('a', '2026-10-01', '18:00', '19:15'),
+    V('m', '2026-10-01', '08:00', '08:40'),
+    V('b', '2026-10-03', '18:00', '19:20'),
+  ], workouts);
+  const t45 = twice.find((r) => r.category === '45');
+  assert(t45?.visits === 2 && t45.avgVisitMin === 78, `a second visit that day does not claim the session (got ${t45?.visits} visits, ${t45?.avgVisitMin})`);
+  assert(twice.some((r) => r.category === 'none' && r.visits === 1), 'the morning visit with nothing logged is "nothing logged"');
+  // The split shows only when every visit in the row carries it, so the
+  // two lines always add up to the headline.
+  const partial = gymTimeStats([
+    V('a', '2026-10-01', '18:00', '19:15'),
+    V('k', '2026-10-15', '18:00', '19:00'),
+  ], [...workouts, W('2026-10-15', 'Day A 45m — Oct 15', 70)]);
+  const p45 = partial.find((r) => r.category === '45');
+  assert(p45?.avgVisitMin != null && p45.avgLiftMin === null && p45.avgOtherMin === null, 'a lift longer than its visit hides the split instead of mixing two sets of visits');
+  // F2: matching is grouped by day, not visits × workouts.
+  {
+    const manyW = Array.from({ length: 500 }, (_, i) => W(new Date(Date.UTC(2025, 0, 1) + i * 86_400_000).toISOString().slice(0, 10), 'Day A 45m', 47));
+    const manyV = Array.from({ length: 300 }, (_, i) => V(`v${i}`, new Date(Date.UTC(2025, 0, 1) + i * 86_400_000).toISOString().slice(0, 10), '18:00', '19:15'));
+    const t0 = Date.now();
+    gymTimeStats(manyV, manyW);
+    const ms = Date.now() - t0;
+    assert(ms < 1500, `300 visits × 500 sessions classify in under 1.5 s (took ${ms} ms)`);
+  }
+  // F5: a wrong-gym tap is fixable while the visit is open, and only then.
+  assert(/export async function switchGym[\s\S]*?updateMany\(\{ where: \{ id, checkOutAt: null \}, data: \{ gym: g \} \}\)/.test(actionsSrc), 'switching gym writes only the gym, only on an open visit');
+  assert(/GYM_IDS\.has\(gym\)/.test(actionsSrc.slice(actionsSrc.indexOf('switchGym'))), 'switching gym accepts only a known gym');
+  // F4: a page resumed from the background re-reads the visit, so a stale
+  // "At B_Fit" clock never checks out a 14-hour visit.
+  const cardSrc = read('src/components/GymCheckIn.tsx');
+  assert(/visibilitychange/.test(cardSrc) && /getGymVisitState\(\)/.test(cardSrc), 'the check-in card re-reads its state when the app comes back');
   // Backups: a hand-typed table that is in no snapshot is lost on restore.
   for (const f of ['scripts/export-data.js', 'src/lib/export-data.ts', 'scripts/restore-from-snapshot.js']) {
     assert(/gymVisit/.test(read(f)), `${f} carries gym visits`);

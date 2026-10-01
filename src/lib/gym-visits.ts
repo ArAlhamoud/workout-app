@@ -24,19 +24,20 @@ export const VISIT_MAX_MIN = 300;
 /** The step the time buttons move a check-in or check-out by. */
 export const ADJUST_STEP_MIN = 5;
 
-export type VisitCategory = '30' | '45' | '60' | 'rescue' | 'cardio' | 'none';
+export type VisitCategory = '30' | '45' | '60' | 'lift' | 'rescue' | 'cardio' | 'none';
 
 export const CATEGORY_LABEL: Record<VisitCategory, string> = {
   '30': '30 min workout',
   '45': '45 min workout',
   '60': '60 min workout',
+  lift: 'Workout, length unknown',
   rescue: 'Rescue session',
   cardio: 'Swim or walk only',
   none: 'Nothing logged',
 };
 
 /** Display order: the three workout lengths first, as he asked. */
-export const CATEGORY_ORDER: VisitCategory[] = ['30', '45', '60', 'rescue', 'cardio', 'none'];
+export const CATEGORY_ORDER: VisitCategory[] = ['30', '45', '60', 'lift', 'rescue', 'cardio', 'none'];
 
 export interface VisitLite {
   id: string;
@@ -66,35 +67,82 @@ export function isStale(v: VisitLite, now: Date = new Date()): boolean {
   return !v.checkOutAt && now.getTime() - t(v.checkInAt) > VISIT_STALE_MS;
 }
 
-/** Same activity day and the same building. Untagged history is B_Fit (rule 2). */
-function sameVisit(v: VisitLite, w: WorkoutLite): boolean {
-  const day = ownerActivityDayUtc(new Date(v.checkInAt)).getTime();
-  return t(w.date) === day && (w.gym ?? DEFAULT_GYM_ID) === v.gym;
-}
+/** Day + building key. Untagged history is B_Fit (rule 2). */
+const dayGymKey = (dayMs: number, gym: string | null) => `${dayMs}|${gym ?? DEFAULT_GYM_ID}`;
+const visitKey = (v: VisitLite) => dayGymKey(ownerActivityDayUtc(new Date(v.checkInAt)).getTime(), v.gym);
 
 const LENGTH = /\b(30|45|60)m\b/;
 
-/**
- * What the visit was for. A lifting session decides it by its template
- * length ("Day A 45m"); a rescue is its own row; swims and walks alone are
- * "cardio"; a visit with nothing logged is "none". The lifting minutes come
- * from the session's own timer.
- */
-export function classifyVisit(
-  v: VisitLite,
-  workouts: WorkoutLite[],
-): { category: VisitCategory; liftMin: number | null } {
-  const same = workouts.filter((w) => sameVisit(v, w));
-  const training = same.filter((w) => isTrainingSession(w));
-  const lift = training.find((w) => LENGTH.test(w.name)) ?? training[0];
-  const liftMin = lift?.duration ? Math.round(lift.duration / 60) : null;
-  if (lift) {
-    if (lift.name.startsWith('Rescue')) return { category: 'rescue', liftMin };
-    const m = lift.name.match(LENGTH);
-    if (m) return { category: m[1] as VisitCategory, liftMin };
+/** Swims and walks are never the lifting session, whatever rows they carry
+ *  (the same names isTrainingSession treats as cardio). */
+const CARDIO = /^(Rescue walk|Walk |Swim )/;
+const isLift = (w: WorkoutLite) => !CARDIO.test(w.name) && isTrainingSession(w);
+
+/** A session's length: its template name ("Day A 45m"), else its own timer
+ *  to the nearest of 30/45/60 (Watch and renamed sessions carry no length
+ *  in the name — adversary, 2026-10-01), else unknown. */
+function lengthOf(w: WorkoutLite): VisitCategory {
+  const m = w.name.match(LENGTH);
+  if (m) return m[1] as VisitCategory;
+  if (w.duration && w.duration > 0) {
+    const min = w.duration / 60;
+    return min < 37.5 ? '30' : min < 52.5 ? '45' : '60';
   }
-  if (same.length) return { category: 'cardio', liftMin: null };
-  return { category: 'none', liftMin: null };
+  return 'lift';
+}
+
+export interface VisitClass {
+  category: VisitCategory;
+  liftMin: number | null;
+}
+
+/**
+ * What each visit was for. A lifting session decides it by its length; a
+ * rescue is its own row; swims and walks alone are "cardio"; a visit with
+ * nothing logged is "none". On a day with two visits to one building, the
+ * lifting session belongs to ONE of them — the longest — so a morning swim
+ * never claims the evening's workout. Workouts are grouped by day once
+ * (not visits × workouts: that took 16 s on /stats at 250 × 400).
+ */
+export function classifyVisits(visits: VisitLite[], workouts: WorkoutLite[]): Map<string, VisitClass> {
+  const byKey = new Map<string, WorkoutLite[]>();
+  for (const w of workouts) {
+    const k = dayGymKey(t(w.date), w.gym);
+    const list = byKey.get(k);
+    if (list) list.push(w);
+    else byKey.set(k, [w]);
+  }
+  const visitsByKey = new Map<string, VisitLite[]>();
+  for (const v of visits) {
+    const k = visitKey(v);
+    const list = visitsByKey.get(k);
+    if (list) list.push(v);
+    else visitsByKey.set(k, [v]);
+  }
+  const out = new Map<string, VisitClass>();
+  for (const [k, vs] of visitsByKey) {
+    const same = byKey.get(k) ?? [];
+    const training = same.filter(isLift);
+    const lift = training.find((w) => !w.name.startsWith('Rescue')) ?? training[0];
+    const owner = lift
+      ? vs.reduce((best, v) => ((visitMinutes(v) ?? 0) > (visitMinutes(best) ?? 0) ? v : best), vs[0])
+      : null;
+    const others = same.some((w) => !isLift(w));
+    for (const v of vs) {
+      if (lift && v === owner) {
+        const liftMin = lift.duration ? Math.round(lift.duration / 60) : null;
+        out.set(v.id, { category: lift.name.startsWith('Rescue') ? 'rescue' : lengthOf(lift), liftMin });
+      } else {
+        out.set(v.id, { category: others ? 'cardio' : 'none', liftMin: null });
+      }
+    }
+  }
+  return out;
+}
+
+/** One visit on its own (no other visit that day to share the session with). */
+export function classifyVisit(v: VisitLite, workouts: WorkoutLite[]): VisitClass {
+  return classifyVisits([v], workouts).get(v.id)!;
 }
 
 export interface CategoryStats {
@@ -113,11 +161,15 @@ const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((s, x) => s + x,
 
 /** Averages per category over closed, believable visits. */
 export function gymTimeStats(visits: VisitLite[], workouts: WorkoutLite[]): CategoryStats[] {
-  const rows = new Map<VisitCategory, { visit: number[]; lift: number[]; other: number[] }>();
-  for (const v of visits) {
+  const believable = visits.filter((v) => {
     const mins = visitMinutes(v);
-    if (mins == null || mins < VISIT_MIN_MIN || mins > VISIT_MAX_MIN) continue;
-    const { category, liftMin } = classifyVisit(v, workouts);
+    return mins != null && mins >= VISIT_MIN_MIN && mins <= VISIT_MAX_MIN;
+  });
+  const classes = classifyVisits(believable, workouts);
+  const rows = new Map<VisitCategory, { visit: number[]; lift: number[]; other: number[] }>();
+  for (const v of believable) {
+    const mins = visitMinutes(v)!;
+    const { category, liftMin } = classes.get(v.id)!;
     const r = rows.get(category) ?? { visit: [], lift: [], other: [] };
     r.visit.push(mins);
     if (liftMin != null && liftMin <= mins) {
@@ -129,13 +181,17 @@ export function gymTimeStats(visits: VisitLite[], workouts: WorkoutLite[]): Cate
   return CATEGORY_ORDER.filter((c) => rows.has(c)).map((c) => {
     const r = rows.get(c)!;
     const enough = r.visit.length >= 2;
+    // The split only when EVERY visit in the row carries it: otherwise
+    // "lift + other" would average different visits than the headline
+    // and not add up to it (adversary, 2026-10-01).
+    const split = enough && r.lift.length === r.visit.length;
     return {
       category: c,
       label: CATEGORY_LABEL[c],
       visits: r.visit.length,
       avgVisitMin: enough ? avg(r.visit) : null,
-      avgLiftMin: enough ? avg(r.lift) : null,
-      avgOtherMin: enough ? avg(r.other) : null,
+      avgLiftMin: split ? avg(r.lift) : null,
+      avgOtherMin: split ? avg(r.other) : null,
     };
   });
 }
