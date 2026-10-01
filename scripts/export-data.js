@@ -58,6 +58,18 @@ async function main() {
     }
   }
 
+  // Gym visits (owner, 2026-10-01) — typed in by hand, not re-derivable.
+  // Only a MISSING table (P2021, schema not applied yet) is an empty list;
+  // any other read error degrades the snapshot so it refuses to commit a
+  // hollow copy over the git one (data-steward, 2026-10-01).
+  let gymVisits = [];
+  try {
+    gymVisits = await prisma.gymVisit.findMany({ orderBy: { checkInAt: 'asc' } });
+  } catch (e) {
+    if (e.code === 'P2021') console.warn('GymVisit table not created yet, exporting none');
+    else degraded.push(`gymVisit: ${e.message}`);
+  }
+
   // Apple Health samples — tolerate the table not existing yet (schema not applied).
   let healthSamplesTotal = 0;
   let latestWeightSample = null;
@@ -83,11 +95,13 @@ async function main() {
     totalExercises: exercises.length,
     totalHealthSamples: healthSamplesTotal,
     totalHolds: holds.length,
+    totalGymVisits: gymVisits.length,
     totalInjections: (health.injection ?? []).length,
     latestWeightSample,
     exercises,
     healthSamples,
     holds,
+    gymVisits,
     workouts,
     bodyStats: stats,
     health,
