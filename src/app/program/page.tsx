@@ -324,7 +324,7 @@ export default async function ProgramPage() {
                 : 'text-acc-teal [text-shadow:0_0_14px_rgba(45,212,191,0.55)]';
             const label = p.isToday
               ? 'Today'
-              : new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(p.date);
+              : new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(p.date);
             return (
               <div
                 key={p.date.toISOString()}

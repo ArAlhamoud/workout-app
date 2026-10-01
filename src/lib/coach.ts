@@ -803,7 +803,8 @@ export function sleepDebtHours(dailyHours: Array<number | null>): number | null 
 // The win condition of the cut: the scale drops, the machines don't.
 // Compares each exercise's top working weight in the last 3 weeks against
 // the 3 weeks before, per gym (stacks are not comparable across gyms).
-// Only exercises trained in BOTH windows can testify.
+// Only exercises trained in BOTH windows can testify, and only at full
+// load: sets lifted under a return ramp are left out of both windows.
 
 export interface StrengthHoldRow {
   name: string;
@@ -814,7 +815,7 @@ export interface StrengthHoldRow {
 }
 
 export function strengthHold(
-  sets: Array<{ name: string; gym: string; date: Date | string; weight: number }>,
+  sets: Array<{ name: string; gym: string; date: Date | string; weight: number; ramp?: boolean }>,
   now: Date = new Date(),
 ): StrengthHoldRow[] {
   const DAY = 86_400_000;
@@ -822,6 +823,10 @@ export function strengthHold(
   const tops = new Map<string, { recent: number; prior: number; name: string; gym: string }>();
   for (const s of sets) {
     if (!(s.weight > 0)) continue;
+    // A ramp-scaled set says what the protocol allowed, not what he can
+    // lift: two ramp weeks compared read as a gain, a ramp week after full
+    // load as a slide. Neither is strength, so neither testifies.
+    if (s.ramp) continue;
     const age = t - new Date(s.date).getTime();
     if (age < 0 || age > 42 * DAY) continue;
     const key = `${s.gym}::${s.name}`;

@@ -78,6 +78,7 @@ import {
   sanitizeWatchLogSets,
   recordedInHealth,
 } from '../src/lib/live-session';
+import { finishUpdates, liveDiff, liveSerial, ownLiveSets, resolveFinishSets, type FinishSet, type LiveSet } from '../src/lib/live-session';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
@@ -697,6 +698,38 @@ assert(pTwoDays.daysSinceLast === 2, 'daysSinceLast counts calendar days (2)');
 const pFiveDays = getDynamicPlan([log(local(2026, 7, 29), 'Day B 60m — Jul 29')], now);
 assert(pFiveDays.mode === 'train' && pFiveDays.day === 'A', '5 days since Day B → TRAIN Day A');
 assert(pFiveDays.daysSinceLast === 5, 'daysSinceLast counts calendar days (5)');
+
+// The plan's "today" is HIS activity day (04:00 Riyadh rollover), on any
+// server. On 2026-10-02 at 01:30 Riyadh the Train header said Friday while
+// the card said "done today" for Thursday's session and the Program strip
+// read "Today B ✓ · Fri": Vercel's UTC day rolled over at 03:00 Riyadh, a
+// third clock nobody chose. Instants are written with their offset so the
+// assertions mean the same thing on the Mac (Riyadh) and in CI (UTC).
+{
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const thuWatch = { date: new Date('2026-10-01T00:00:00.000Z'), name: 'Day B — Watch · Oct 1' };
+  const at = (hhmm: string) => new Date(`2026-10-02T${hhmm}:00+03:00`);
+  const p0130 = getDynamicPlan([thuWatch], at('01:30'));
+  assert(p0130.mode === 'done-today' && p0130.daysSinceLast === 0, 'Fri 01:30 Riyadh is still Thursday\'s activity day → done-today');
+  const p0330 = getDynamicPlan([thuWatch], at('03:30'));
+  assert(p0330.mode === 'done-today' && p0330.daysSinceLast === 0, 'Fri 03:30 Riyadh is STILL Thursday (the day rolls at 04:00, not at UTC midnight)');
+  const p0430 = getDynamicPlan([thuWatch], at('04:30'));
+  assert(p0430.mode === 'recover' && p0430.daysSinceLast === 1, 'Fri 04:30 Riyadh → a new day: recover');
+  const wed = { date: new Date('2026-09-30T00:00:00.000Z'), name: 'Day A 45m' };
+  assert(getDynamicPlan([wed], at('01:30')).daysSinceLast === 1, 'a Wednesday session is 1 day ago at Fri 01:30 (activity day Thursday), on any server');
+  const strip = projectPlan([thuWatch], at('01:30'), 3);
+  const wd = (d: Date) => new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(d);
+  assert(strip[0].mode === 'done-today' && wd(strip[1].date) === 'Fri' && wd(strip[2].date) === 'Sat', `the strip after "Today" at Fri 01:30 reads Fri, Sat (got ${wd(strip[1].date)}, ${wd(strip[2].date)})`);
+  assert(read('src/app/program/page.tsx').includes("weekday: 'short', timeZone: 'UTC'"), 'the Program strip prints the projected day keys in UTC, the zone they are built in');
+  assert(/ownerActivityDayUtc\(\)\.toLocaleDateString\('en-US', \{ weekday: 'long'/.test(read('src/app/train/page.tsx')), 'the Train header names the activity day the plan is judged by');
+  // The treatment clock counts HIS calendar days: a Tuesday-evening dose is
+  // 3 days ago in the small hours of Friday, not 2 (UTC had not turned yet).
+  const dose = [{ at: new Date('2026-09-29T20:00:00+03:00'), doseMg: 5, site: 'abdomen-right' }];
+  const tc = treatmentClock(dose as never, DEFAULT_DOSE_PLAN, at('01:30'));
+  assert(tc?.daysSinceLast === 3, `a Tue-evening dose is 3 days ago at Fri 01:30 Riyadh (got ${tc?.daysSinceLast})`);
+  const home = read('src/app/page.tsx');
+  assert(!/todayStart\.setHours/.test(home) && home.includes('ownerActivityDayUtc('), 'Home asks the owner\'s activity day what "today" is, never the server\'s midnight');
+}
 
 // Alternation survives a session logged without a Day letter.
 const pUnlettered = getDynamicPlan(
@@ -2405,7 +2438,7 @@ console.log('health-insights');
   assert(!stale.nausea, 'symptoms weeks after the last dose never count against that dose (7-day cap)');
 
   // AF days-since uses calendar days, same law as everything else.
-  const afCal = afStats([{ startedAt: '2026-09-08T22:00:00' }], new Date('2026-09-10T08:00:00'));
+  const afCal = afStats([{ startedAt: '2026-09-08T22:00:00+03:00' }], new Date('2026-09-10T08:00:00+03:00')); // his evening, his morning
   assert(afCal.daysSinceLast === 2, 'AF days-since is calendar days (late-evening episode → 2 days on the 10th)');
 
   // AF correlates: unanswered flags are excluded from the denominator.
@@ -2783,6 +2816,18 @@ console.log('health-insights');
   assert(holdRows[0].verdict === 'up' && holdRows[0].name === 'Chest press', 'ups lead the scoreboard');
   assert(holdRows.find((r) => r.name === 'Leg press')!.verdict === 'held', 'same top weight reads held');
   assert(holdRows.find((r) => r.name === 'Row')!.verdict === 'down', 'a slide is named a slide');
+  // A ramp-scaled set is not testimony about strength. Mid-return the card
+  // read "Back Extension 12.5 → 27.5 ▲" — the ramp itself, sold as a gain —
+  // and the first ramp week after a break would read every machine as a
+  // slide in ember (2026-10-02). Only full-load sets may testify.
+  const rampSet = (daysAgo: number, name: string, kg: number) => ({ ...set(daysAgo, name, 'bfit', kg), ramp: true });
+  const rampUp = strengthHold([rampSet(25, 'Back Extension', 12.5), rampSet(3, 'Back Extension', 27.5)], now);
+  assert(rampUp.length === 0, 'two ramp sessions compared read as nothing, never as a gain');
+  const rampDown = strengthHold([set(30, 'Leg press', 'bfit', 90), rampSet(4, 'Leg press', 55)], now);
+  assert(rampDown.length === 0, 'a ramp week after full load is never named a slide');
+  const mixed = strengthHold([set(30, 'Row', 'bfit', 60), rampSet(10, 'Row', 40), set(2, 'Row', 'bfit', 60)], now);
+  assert(mixed.length === 1 && mixed[0].verdict === 'held', 'full-load sets on both sides still testify around a ramp');
+  assert(/ramp: st\.allowedKg != null/.test(fs.readFileSync(path.join(__dirname, '..', 'src/app/stats/page.tsx'), 'utf8')), 'Stats marks ramp sets by their recorded allowance (rule 10), never re-derived');
 }
 
 // ── milestone crossings ──────────────────────────────────────
@@ -3342,6 +3387,117 @@ console.log('Tier 3 — progress compares to the last full-load row');
   assert(lastFullLoad([], null) === undefined, 'no history, no figure');
 }
 
+// ── Tier 2.7: warm-ups travel in the live row; the later EDIT wins ───────
+// Review 2026-10-02, two bugs on the handoff:
+//  1. The phone's push skipped warm-ups ("the wrist has no such set" — it
+//     has logged them since 2026-09-24), while the overlay put the Watch's
+//     `ex#w` key in the phone's snapshot. Every snapshot key missing from
+//     the push was "removed", so the phone tombstoned each warm-up the
+//     Watch logged and the finish dropped it from history; and a warm-up
+//     ticked on the phone never reached the row, so Continue asked for it
+//     again. The phone now removes only what it showed ticked itself.
+//  2. Phone ticks 20 kg unrated, the Watch copies it, the phone corrects to
+//     22.5 Hard, the Watch finishes with its stale copy — and the poster
+//     won: 20 kg, no rating, saved. Mirror: the phone finishes first and a
+//     rating the Watch adds afterwards was dropped ("first finisher's
+//     values"). A tick time cannot order two versions of ONE tick, so the
+//     row carries an edit stamp per set and the finish picks by it.
+console.log('Tier 2 — live session: warm-ups travel, the later edit wins');
+{
+  const at = (m: number) => new Date(Date.UTC(2026, 9, 2, 10, m)).toISOString();
+  const mk = (ex: string, n: number, extra: Partial<OverlaySet> = {}): OverlaySet => ({ exerciseId: ex, setNumber: n, reps: 10, weight: 40, done: false, notes: '', rpe: 0, completedAt: null, ...extra });
+  const nb = (id: string) => ({ exerciseId: id, sets: [] as OverlaySet[] });
+  const lv = (n: number, w: number, m: number, source: 'phone' | 'watch', extra: Partial<LiveSet> = {}): LiveSet => ({ exerciseId: 'lat', setNumber: n, reps: 10, weight: w, completedAt: at(m), source, ...extra });
+
+  // ── Bug 1: warm-ups ──
+  const watchWarm: LiveSet = { exerciseId: 'lat', setNumber: 0, reps: 10, weight: 15, isWarmup: true, completedAt: at(0), source: 'watch' };
+  const ov = overlayLiveSets([{ exerciseId: 'lat', sets: [mk('lat', 0, { isWarmup: true, weight: 15 }), mk('lat', 1)] }], [watchWarm], nb);
+  const snap = new Map(ov.applied.map((s) => [liveKey(s), liveSerial(s)]));
+  const d1 = liveDiff(ownLiveSets(ov.blocks, 'phone'), snap, new Set(), at(1));
+  assert(d1.updates.length === 0, `a Watch warm-up overlaid on the phone is neither pushed back nor tombstoned (got ${JSON.stringify(d1.updates)})`);
+  // The other direction: a warm-up ticked on the phone reaches the row under the Watch's key (set 0 + flag).
+  const ownWarm = ownLiveSets([{ exerciseId: 'lat', sets: [mk('lat', 1, { isWarmup: true, weight: 15, done: true, completedAt: at(0) }), mk('lat', 1, { done: true, completedAt: at(2) })] }], 'phone');
+  const pw = ownWarm.find((s) => s.isWarmup);
+  assert(ownWarm.length === 2 && !!pw && pw.setNumber === 0 && liveKey(pw) === 'lat#w', `a warm-up ticked on the phone travels as set 0 + isWarmup (got ${JSON.stringify(ownWarm.map((s) => liveKey(s)))})`);
+  const d2 = liveDiff(ownWarm, new Map(), new Set(), at(3));
+  const rowW = mergeLiveSets([], d2.updates.map((u) => sanitizeLiveUpdate(u, 'phone')!).filter(Boolean));
+  assert(visibleSets(rowW).some((s) => s.isWarmup && s.setNumber === 0 && s.weight === 15) && visibleSets(rowW).length === 2, 'the row holds the phone warm-up beside working set 1 — the wrist will not ask for it again');
+  // The phone never tombstones a set it did not itself remove: a key the
+  // overlay put in the snapshot BEFORE the blocks caught up (the updater
+  // runs eagerly, blocksRef only on render) is not "removed".
+  const raceSnap = new Map([[liveKey(lv(1, 40, 0, 'watch')), liveSerial(lv(1, 40, 0, 'watch'))]]);
+  const d3 = liveDiff([], raceSnap, new Set(), at(1));
+  assert(d3.updates.length === 0, 'a snapshot key this phone never showed ticked is not tombstoned');
+  // …but his own un-tick still is, stamped at the un-tick, warm-up included.
+  const tickedSet = new Set(['lat#1', 'lat#w']);
+  const d4 = liveDiff([], new Map([['lat#1', 'x'], ['lat#w', 'y']]), tickedSet, at(6));
+  const rm = d4.updates.filter((u) => 'remove' in u);
+  assert(rm.length === 2 && rm.every((u) => u.completedAt === at(6)) && rm.some((u) => u.isWarmup === true && u.setNumber === 0), 'a set un-ticked HERE is removed, stamped at the un-tick; the warm-up as set 0 + flag');
+  // A removal that came FROM the row is reported, so the form can forget the key instead of re-sending it later-stamped.
+  const tomb = mergeLiveSets([lv(1, 40, 0, 'watch')], [{ exerciseId: 'lat', setNumber: 1, remove: true, completedAt: at(5), source: 'watch' }]);
+  const ovT = overlayLiveSets([{ exerciseId: 'lat', sets: [mk('lat', 1, { done: true, completedAt: at(0) })] }], tomb, nb);
+  assert(ovT.unticked?.length === 1 && ovT.unticked[0] === 'lat#1', 'the overlay names the keys the other device un-ticked');
+
+  // ── Bug 2: the live row orders versions of one tick by edit stamp ──
+  const t0 = lv(1, 20, 0, 'phone');
+  const snapE = new Map([[liveKey(t0), liveSerial(t0)]]);
+  const corrected = lv(1, 22.5, 0, 'phone', { rpe: 3 });
+  const dE = liveDiff([corrected], snapE, new Set(['lat#1']), at(3));
+  assert(dE.updates.length === 1 && (dE.updates[0] as LiveSet).editedAt === at(3), 'a change to a set the row already holds is stamped as an edit');
+  assert((liveDiff([t0], new Map(), new Set(), at(1)).updates[0] as LiveSet).editedAt === undefined, 'a first tick carries no edit stamp — its tick time is its version');
+  const sE = sanitizeLiveUpdate(dE.updates[0], 'phone', new Date(at(3))) as LiveSet;
+  assert(sE.editedAt === at(3), 'the edit stamp passes the sanitizer');
+  assert((sanitizeLiveUpdate({ ...corrected, editedAt: 'junk' }, 'phone') as LiveSet).editedAt === undefined, 'a junk edit stamp is dropped, not fatal');
+  assert((sanitizeLiveUpdate({ ...corrected, editedAt: at(50) }, 'phone', new Date(at(4))) as LiveSet).editedAt === at(4), 'an edit stamp from the future is pinned to now');
+  const rowE = mergeLiveSets([t0], [sE], new Date(at(3)));
+  assert(rowE[0].weight === 22.5 && rowE[0].rpe === 3 && rowE[0].editedAt === at(3), 'the correction replaces the first version on the row');
+  // A stale copy of the same tick from the OTHER device is not an edit.
+  const rowStale = mergeLiveSets(rowE, [lv(1, 20, 0, 'watch')], new Date(at(8)));
+  assert(rowStale[0].weight === 22.5 && rowStale[0].rpe === 3 && rowStale[0].source === 'phone', `a stale copy posted to the row loses to the later edit (got ${rowStale[0].weight}/${rowStale[0].rpe})`);
+  // A device re-posting its OWN set changed (the wrist's rating) is an edit, stamped on arrival.
+  const rated = mergeLiveSets([lv(2, 40, 1, 'watch')], [lv(2, 40, 1, 'watch', { rpe: 2 })], new Date(at(4)));
+  assert(rated[0].rpe === 2 && rated[0].editedAt === at(4), 'the wrist rating its own set is an edit, stamped on arrival');
+  // An identical re-post changes nothing — not the owner, not the stamp.
+  const same = mergeLiveSets(rowE, [lv(1, 22.5, 0, 'watch', { rpe: 3 })], new Date(at(9)));
+  assert(same[0].source === 'phone' && same[0].editedAt === at(3), 'an identical re-post leaves the stored set alone');
+  // No rating never erases the other device's rating at the same load.
+  const keepR = mergeLiveSets([lv(3, 40, 2, 'watch', { rpe: 3 })], [lv(3, 40, 2, 'phone', { editedAt: at(5) })], new Date(at(5)));
+  assert(keepR[0].rpe === 3, 'an unrated copy from the other device does not erase a rating at the same weight × reps');
+
+  // ── Bug 2: the finish ──
+  // The demonstrated case, with a Watch build that stamps its sets and one that does not (build 13).
+  for (const stamp of [at(0), undefined]) {
+    const r = resolveFinishSets<FinishSet & { notes?: string }>([{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 20, completedAt: stamp, notes: 'n' }], rowE, 'watch');
+    assert(r.length === 1 && r[0].weight === 22.5 && r[0].rpe === 3 && r[0].notes === 'n', `the Watch's stale copy loses to the phone's later correction at finish (stamp ${stamp ? 'sent' : 'absent'}; got ${r[0]?.weight}/${r[0]?.rpe})`);
+  }
+  // The poster's own set: its copy is the newest there is (an un-pushed rating).
+  const own = resolveFinishSets([{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, rpe: 3, completedAt: at(1) }], rated, 'watch');
+  assert(own[0].rpe === 3, 'the finishing device wins on a set it wrote last itself');
+  // Same tick, never edited on the row, the poster changed it un-pushed: poster — but a rating is never lost.
+  const tie = resolveFinishSets<FinishSet>([{ exerciseId: 'lat', setNumber: 3, reps: 10, weight: 40, completedAt: at(2) }], [lv(3, 40, 2, 'phone', { rpe: 3 })], 'watch');
+  assert(tie[0].rpe === 3, 'an unrated copy never overwrites a rated one when weight and reps agree');
+  const reTick = resolveFinishSets([{ exerciseId: 'lat', setNumber: 1, reps: 8, weight: 25, completedAt: at(9) }], rowE, 'watch');
+  assert(reTick[0].weight === 25, 'a set the poster logged AFTER the row’s last edit wins');
+  assert(resolveFinishSets([{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 40, completedAt: at(0) }], tomb, 'phone').length === 0, 'tombstones still drop a posted set');
+  // Second finisher: the phone saved first; the Watch then rated its own set.
+  const savedU = [{ exerciseId: 'lat', setNumber: 2, isWarmup: false, reps: 10, weight: 40, rpe: null, completedAt: at(1) }];
+  const liveU = [lv(2, 40, 1, 'watch')];
+  const lateRating = [{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, rpe: 3, completedAt: at(1) }];
+  const up = finishUpdates(savedU, lateRating, liveU, 'watch');
+  assert(up.length === 1 && up[0].rpe === 3 && up[0].weight === 40, `a rating the Watch added after the phone finished reaches the saved set (got ${JSON.stringify(up)})`);
+  assert(up.every((x) => !('allowedKg' in x) && !('notes' in x)), 'the update carries the logged values only — the recorded prescription is never rewritten from a device copy');
+  assert(finishUpdates([{ ...savedU[0], rpe: 3 }], lateRating, liveU, 'watch').length === 0, 'a replay of the same finish updates nothing');
+  // The phone saved its correction; the Watch's stale copy must not undo it.
+  const savedC = [{ exerciseId: 'lat', setNumber: 1, isWarmup: false, reps: 10, weight: 22.5, rpe: 3, completedAt: at(0) }];
+  assert(finishUpdates(savedC, [{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 20, completedAt: at(0) }], rowE, 'watch').length === 0, 'a stale copy never rewrites the saved correction');
+  // …nor when the correction was saved inside the push debounce and the row never saw it.
+  assert(finishUpdates(savedC, [{ exerciseId: 'lat', setNumber: 1, reps: 10, weight: 20, rpe: 2, completedAt: at(0) }], [lv(1, 20, 0, 'watch')], 'watch').length === 0, 'a saved value the row never saw is the first finisher’s un-pushed edit — it stands');
+  // No row at all: only a missing rating is filled.
+  const noRow = finishUpdates(savedU, [{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, rpe: 2 }, { exerciseId: 'lat', setNumber: 9, reps: 10, weight: 40 }], null, 'watch');
+  assert(noRow.length === 1 && noRow[0].rpe === 2, 'with no live row a second finish fills a missing rating and nothing else');
+  assert(finishUpdates(savedU, [{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 45, rpe: 2 }], null, 'watch').length === 0, 'with no live row a different weight never overwrites the saved one');
+}
+
 // ── Week 4 of the ramp: one machine's 100% session must not null the cut for the others ──
 console.log('Ramp cut — week 4 (adversary, 2026-09-18)');
 {
@@ -3716,6 +3872,43 @@ console.log('Gym visits — door to door, by workout length');
   }
   assert(/healthProfile: \[[^\]]*'ongoingSymptoms'/.test(read('scripts/restore-from-snapshot.js')), 'restore treats ongoingSymptoms as a Json column (a null would crash the profile upsert)');
   assert(/'ongoingSymptoms'/.test(read('src/app/api/health/export/route.ts')), 'the health export carries ongoingSymptoms');
+}
+
+// ── Native bridge: Swift twins and the JS↔Swift method contract ──────────
+// native/HealthKitBridge/ is the source; ios/App/App/ holds the copies Xcode
+// compiles. A method the web calls that the Swift list lacks fails silently
+// on the phone, so both are held here, in plain text.
+console.log('Native bridge — Swift twins and plugin methods');
+{
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  for (const f of ['HealthKitBridgePlugin', 'RestActivityPlugin', 'CloudBackupPlugin', 'MainViewController']) {
+    assert(read(`native/HealthKitBridge/${f}.swift`) === read(`ios/App/App/${f}.swift`), `${f}.swift: the ios/App/App copy is byte-identical to native/`);
+  }
+  const swiftMethods = (f: string) => new Set([...read(`native/HealthKitBridge/${f}.swift`).matchAll(/CAPPluginMethod\(name: "([a-zA-Z]+)"/g)].map((m) => m[1]));
+  // The methods a TS file declares on its plugin interface(s) are the ones it calls.
+  const jsMethods = (f: string) => {
+    const out: string[] = [];
+    for (const m of read(f).matchAll(/interface \w+Plugin \{([\s\S]*?)\n\}/g)) {
+      for (const line of m[1].matchAll(/^  (\w+)\??(?:\(|: \()/gm)) out.push(line[1]);
+    }
+    return out;
+  };
+  const contract: [string, string[]][] = [
+    ['RestActivityPlugin', ['src/lib/native-live-activity.ts', 'src/lib/native-widgets.ts']],
+    ['CloudBackupPlugin', ['src/lib/native-cloud-backup.ts']],
+    ['HealthKitBridgePlugin', ['src/lib/native-health.ts']],
+  ];
+  for (const [plugin, files] of contract) {
+    const have = swiftMethods(plugin);
+    const called = files.flatMap(jsMethods);
+    assert(called.length > 0, `${plugin}: the JS side declares its methods`);
+    for (const name of called) assert(have.has(name), `${plugin}: JS calls ${name}, and Swift exports it`);
+  }
+  assert(swiftMethods('RestActivityPlugin').has('reloadWidgets') && /WidgetCenter\.shared\.reloadAllTimelines\(\)/.test(read('native/HealthKitBridge/RestActivityPlugin.swift')), 'the plugin can reload the widgets');
+  assert(/typeof plugin\?\.reloadWidgets !== 'function'/.test(read('src/lib/native-widgets.ts')), 'reloadWidgets is a no-op on a binary that predates it');
+  assert(/await createWorkout\(payload\);\s*\n\s*reloadWidgets\(\)/.test(read('src/components/WorkoutForm.tsx')), 'a saved workout reloads the verdict widget');
+  const restWidget = read('ios/App/WorkoutWidgets/RestActivityWidget.swift');
+  assert(/context\.isStale/.test(restWidget), 'the rest Live Activity draws a finished state when stale');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

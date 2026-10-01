@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { ownerActivityDayUtc } from '@/lib/health-insights';
 import { readChart } from '@/lib/chart';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -152,8 +153,8 @@ function EffortBalanceRow({ effort, rpeCap }: { effort: EffortDistribution; rpeC
 }
 
 function CalendarHeatmap({ workouts }: { workouts: { date: Date }[] }) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // His activity day, stored the way session dates are (UTC midnight).
+  const today = ownerActivityDayUtc();
   const todayStr = today.toISOString().split('T')[0];
 
   const startDay = new Date(today);
@@ -380,6 +381,8 @@ export default async function StatsPage() {
           gym: w.gym ?? 'bfit',
           date: w.date,
           weight: st.weight,
+          // The allowance is recorded only on a ramp-scaled set (rule 10).
+          ramp: st.allowedKg != null,
         })),
     ),
   );

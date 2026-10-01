@@ -337,11 +337,13 @@ export interface DynamicPlan {
   reason: string;
 }
 
-const dayStart = (d: Date | string): number => {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x.getTime();
-};
+// The day an instant belongs to, as the UTC-midnight ms of HIS activity
+// day (sessionDayKey: 04:00 Riyadh rollover; a bare-midnight row is its
+// own day). setHours(0) asked the SERVER what day it was, and Vercel's UTC
+// midnight is 03:00 Riyadh: on 2026-10-02 at 01:30 the Train header said
+// Friday beside "done today" for Thursday's session.
+const dayStart = (d: Date | string): number =>
+  Date.parse(`${sessionDayKey(new Date(d))}T00:00:00.000Z`);
 
 /**
  * Whole CALENDAR days between two instants: a session logged at 9 pm
@@ -457,9 +459,11 @@ export function projectPlan(sessions: LoggedSession[], now: Date = new Date(), d
   const out: PlanDay[] = [];
 
   for (let i = 0; i < days; i++) {
-    const at = new Date(now);
-    at.setDate(at.getDate() + i);
-    if (i > 0) at.setHours(12, 0, 0, 0); // midday keeps DST off the day count
+    // Later days are built from today's ACTIVITY day, at midday UTC so the
+    // key reads as that day in any zone. Counting from the wall clock
+    // skipped a day in the small hours: Fri 01:30 is still Thursday's
+    // activity day, and "tomorrow" came out as Saturday.
+    const at = i === 0 ? new Date(now) : new Date(dayStart(now) + i * 86_400_000 + 12 * 3_600_000);
     const plan = getDynamicPlan(simulated, at);
     out.push({
       date: at,

@@ -1,3 +1,4 @@
+import { ownerActivityDayUtc } from '@/lib/health-insights';
 import { readChart } from '@/lib/chart';
 import Link from 'next/link';
 import type { Metadata } from 'next';
@@ -35,7 +36,9 @@ const DAY_QUIET: Record<DayId, string> = {
   B: 'border border-acc-teal/35 bg-acc-teal-deep/15 text-acc-teal',
 };
 
-const CHIP_QUIET = 'border-app-border bg-ink/[0.04] text-app-tx2 hover:border-app-border-hi';
+// Opaque: the quiet card's outline letter sits behind the last chip, and a
+// tinted chip let it show through "60m" (simulator, 2026-10-02).
+const CHIP_QUIET = 'relative border-app-border bg-app-surface text-app-tx2 hover:border-app-border-hi';
 
 /* Quiet affordance for <details> summaries — full copy lives one tap away */
 const SUMMARY_CHIP =
@@ -243,7 +246,7 @@ export default async function TrainPage() {
       <header>
         <div className="volt-topline">
           <span>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}
+            {ownerActivityDayUtc().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', timeZone: 'UTC' })}
           </span>
           <span className="volt-live">
             {status.mode === 'return' ? `Return W${status.week}` : `Wk ${status.week} · ${currentPhase.phase}`}
