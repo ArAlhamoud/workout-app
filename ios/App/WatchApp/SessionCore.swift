@@ -118,6 +118,9 @@ enum SessionCore {
         }
         s.currentIndex += 1
         s.extraSetOffer = nil
+        // The machine's last set puts its rating strip up; remembered on the
+        // session so a kill during the strip comes back to it (restorePoint).
+        s.pendingRpe = slot.isLastOfExercise ? slot.exerciseId : nil
         retireWarmups(&s)
         return set
     }
@@ -125,6 +128,7 @@ enum SessionCore {
     /// One honest rating on OUR last working set of the machine — never a
     /// warm-up, never a set the phone logged. Returns the rated set.
     static func rate(_ s: inout ActiveSession, exerciseId: String, rpe: Int) -> LogSet? {
+        if s.pendingRpe == exerciseId { s.pendingRpe = nil }
         guard let i = s.logged.lastIndex(where: { $0.exerciseId == exerciseId && $0.origin != "phone" && !$0.isWarmup }) else { return nil }
         s.logged[i].rpe = rpe
         return s.logged[i]
@@ -145,6 +149,7 @@ enum SessionCore {
         s.currentIndex -= 1
         s.slots.insert(slot, at: s.currentIndex)
         s.extraSetOffer = nil
+        s.pendingRpe = nil
         reviveWarmups(&s)
         return set
     }
@@ -209,19 +214,64 @@ enum SessionCore {
     // MARK: - Phone ↔ wrist
 
     /// Phone-origin sets no longer on the row (un-ticked there) — or all of
-    /// them after a phone discard — leave `logged`.
+    /// them after a phone discard — leave `logged`, AND their slots go back
+    /// to the pending queue. The log used to go alone: the slot stayed in
+    /// the head as if done, so the card was never offered again and a
+    /// re-tick on the phone found no pending slot to land on (review
+    /// 2026-10). The slot returns among its machine's pending sets, in set
+    /// order, at their weight (the phone's number was un-ticked with the
+    /// set); with none pending it waits at the back of the queue — an
+    /// un-tick never changes the card of ANOTHER machine under his hand.
     static func dropPhoneSets(_ s: inout ActiveSession, all: Bool, keeping row: LiveSession? = nil) {
         let onRow = Set((row?.sets ?? []).map { "\($0.exerciseId)#\($0.setNumber)" })
+        let gone = s.logged.filter { $0.origin == "phone" && (all || !onRow.contains("\($0.exerciseId)#\($0.setNumber)")) }
+        guard !gone.isEmpty else { return }
         s.logged.removeAll { $0.origin == "phone" && (all || !onRow.contains("\($0.exerciseId)#\($0.setNumber)")) }
+        for set in gone {
+            guard let hi = s.slots[..<s.currentIndex].lastIndex(where: { $0.exerciseId == set.exerciseId && $0.setNumber == set.setNumber }) else { continue }
+            var slot = s.slots.remove(at: hi)
+            s.currentIndex -= 1
+            let tail = s.slots[s.currentIndex...]
+            if !slot.isWarmup, let sibling = tail.first(where: { $0.exerciseId == slot.exerciseId && !$0.isWarmup }) {
+                slot.weightKg = sibling.weightKg
+                slot.reps = sibling.reps
+            }
+            let at = tail.firstIndex(where: { $0.exerciseId == slot.exerciseId && $0.setNumber > slot.setNumber })
+                ?? tail.lastIndex(where: { $0.exerciseId == slot.exerciseId }).map { $0 + 1 }
+                ?? s.slots.count
+            s.slots.insert(slot, at: at)
+        }
+        reviveWarmups(&s)
     }
 
-    /// Sets the phone logged that this wrist has not seen: their slots move
-    /// to the head as logged. A machine the phone started loses its pending
-    /// warm-up (retireWarmups) — the wrist must not ask for one mid-machine.
+    /// The row's phone sets, on every read. One this wrist has not seen: its
+    /// slot moves to the head as logged. One it already copied: the copy
+    /// TRACKS the row — it was copied once and never looked at again, so a
+    /// phone correction (20 kg unrated → 22.5 Hard) never reached the wrist,
+    /// whose finish then posted the stale copy, and the server lets the
+    /// poster win (review 2026-10). A set logged on the wrist is the wrist's
+    /// and is never rewritten from the row; the wrist cannot edit a phone
+    /// set (no rating, no undo), so origin "phone" means untouched here.
+    /// A machine the phone started loses its pending warm-up (retireWarmups)
+    /// — the wrist must not ask for one mid-machine.
     static func merge(_ s: inout ActiveSession, row: LiveSession) {
         dropPhoneSets(&s, all: false, keeping: row)
+        let theirs = row.sets.filter { $0.source != "watch" }
+        for ls in theirs {
+            guard let i = s.logged.firstIndex(where: { $0.exerciseId == ls.exerciseId && $0.setNumber == ls.setNumber && $0.origin == "phone" }) else { continue }
+            let latest = LogSet(
+                exerciseId: ls.exerciseId, setNumber: ls.setNumber, reps: ls.reps, weight: ls.weight,
+                rpe: ls.rpe, isWarmup: s.logged[i].isWarmup, origin: "phone", completedAt: ls.completedAt
+            )
+            guard latest != s.logged[i] else { continue }
+            s.logged[i] = latest
+            if let h = s.slots[..<s.currentIndex].lastIndex(where: { $0.exerciseId == ls.exerciseId && $0.setNumber == ls.setNumber }) {
+                s.slots[h].weightKg = ls.weight
+                s.slots[h].reps = ls.reps
+            }
+        }
         let known = Set(s.logged.map { "\($0.exerciseId)#\($0.setNumber)" })
-        let fresh = row.sets.filter { $0.source != "watch" && !known.contains("\($0.exerciseId)#\($0.setNumber)") }
+        let fresh = theirs.filter { !known.contains("\($0.exerciseId)#\($0.setNumber)") }
         if !fresh.isEmpty {
             var head = Array(s.slots[..<s.currentIndex])
             var tail = Array(s.slots[s.currentIndex...])
@@ -331,6 +381,103 @@ enum SessionCore {
             return now < until
         }
         return true
+    }
+
+    /// What a cached plan may do for a start with no signal.
+    enum CacheVerdict: Equatable {
+        case ok
+        /// Past seven days or the server's startableUntil (planStartable).
+        case tooOld
+        /// Another day, another building, or not the server's queue.
+        case wrongPlan
+        /// Its day was already trained on this wrist: no longer the queue.
+        case trained
+    }
+
+    /// May this cached plan open the start that was asked for? A day he
+    /// names is served by any cached plan for that day and building. A start
+    /// with NO day (the Action Button, the big button as planned) means "the
+    /// server's queue", and only a plan fetched that way is one — the cache
+    /// used to hold whatever was fetched last, so after a session it was that
+    /// session's own explicit-day or Continue plan, and an offline Action
+    /// Button repeated the same day at pre-session weights (review 2026-10).
+    /// Nor is a queue plan still the queue once its day was trained here:
+    /// finished since the fetch (`trainedAt`), or still banked on this wrist
+    /// (`bankedDays`) where the server has not seen it.
+    static func cacheVerdict(_ c: CachedPlan, day: String?, gym: String?, bankedDays: [String], now: Date) -> CacheVerdict {
+        guard planStartable(c.plan, fetchedAt: c.fetchedAt, now: now) else { return .tooOld }
+        guard (c.gym ?? "bfit") == (gym ?? "bfit") else { return .wrongPlan }
+        if let day { return c.plan.day == day ? .ok : .wrongPlan }
+        guard c.queue == true else { return .wrongPlan }
+        if c.trainedAt != nil || bankedDays.contains(c.plan.day) { return .trained }
+        return .ok
+    }
+
+    /// A FRESH queue plan can be stale too: the server chose its day without
+    /// a session that is still banked on this wrist (the flush before a
+    /// start is bounded, and a 5xx keeps a payload banked with signal up).
+    static func queuePlanStale(day: String, bankedDays: [String]) -> Bool { bankedDays.contains(day) }
+
+    /// A session of `day` was finished here: a cached plan for that day is
+    /// spent as the queue. Another day's plan is untouched.
+    static func markTrained(_ c: CachedPlan, day: String, at: Date) -> CachedPlan {
+        guard c.plan.day == day else { return c }
+        var out = c
+        out.trainedAt = at
+        return out
+    }
+
+    /// The day the Start screen's big button asks the server for: the one he
+    /// deliberately picked, else NONE. It used to send the day the screen
+    /// was showing — a plan fetched once per process — as if it were today's
+    /// queue; the server obeyed an explicit day.
+    static func startDay(override: String?, shown: String) -> String? { override }
+
+    // MARK: - Outbox
+
+    /// A network path update: flush when there is a path and something is
+    /// banked. Every satisfied update counts, not only the first — Wi-Fi to
+    /// cellular is a second chance for a send that just failed.
+    static func flushOnPath(satisfied: Bool, banked: Int) -> Bool { satisfied && banked > 0 }
+
+    // MARK: - Build label
+
+    /// "build 13 · Sep 24": the bundle version and the day the BINARY was
+    /// built. The number alone read 13 from 2026-09-12 on, across many dev
+    /// installs of different code, so it could not tell two of them apart.
+    static func buildLabel(version: String?, builtAt: Date?, timeZone: TimeZone = .current) -> String {
+        let base = "build \(version ?? "?")"
+        guard let builtAt else { return base }
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = timeZone
+        df.dateFormat = "MMM d"
+        return "\(base) · \(df.string(from: builtAt))"
+    }
+
+    // MARK: - Relaunch
+
+    enum RestorePoint: Equatable {
+        case summary
+        case resting(until: Date)
+        case rating(exerciseId: String, exerciseName: String)
+        case active
+    }
+
+    /// Where a session read back from disk resumes. The unanswered rating
+    /// strip comes first — before the summary too, since the last machine's
+    /// strip stands between its last set and the summary — then the rest
+    /// still running, else the card. Only while there is still a set of ours
+    /// on that machine to rate.
+    static func restorePoint(_ s: ActiveSession, now: Date) -> RestorePoint {
+        if let id = s.pendingRpe,
+           s.logged.contains(where: { $0.exerciseId == id && $0.origin != "phone" && !$0.isWarmup && $0.rpe == nil }),
+           let name = s.slots.first(where: { $0.exerciseId == id })?.exerciseName {
+            return .rating(exerciseId: id, exerciseName: name)
+        }
+        if s.currentIndex >= s.slots.count { return .summary }
+        if let u = s.restUntil, u > now { return .resting(until: u) }
+        return .active
     }
 
     // MARK: - Machine position

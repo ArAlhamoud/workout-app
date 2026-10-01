@@ -134,6 +134,16 @@ struct CachedPlan: Codable {
     /// The building it was fetched for — a B_Fit plan must never start an
     /// Alrajhi session offline (rule 2). nil = before it was recorded: B_Fit.
     var gym: String? = nil
+    /// true = fetched with NO day asked: the server's queue chose it. Only
+    /// such a plan may open an offline Action Button start — an explicit-day
+    /// or Continue plan served there repeated the day just trained (review
+    /// 2026-10). nil = a cache from before this was recorded: not trusted
+    /// as the queue.
+    var queue: Bool? = nil
+    /// When a session of this plan's day was finished on this wrist after
+    /// the fetch. From then on the plan is that session's OWN plan — its day
+    /// is done and its weights are pre-session — never "what is queued".
+    var trainedAt: Date? = nil
 }
 
 struct ActiveSession: Codable, Equatable {
@@ -184,6 +194,11 @@ struct ActiveSession: Codable, Equatable {
     /// still carries the uuid (rule 11).
     var hkWorkoutUuid: String? = nil
     var hkEnded: Bool? = nil
+    /// The machine whose rating strip is up and unanswered. Saved so a kill
+    /// during the strip relaunches ON it: the phase lived only in memory,
+    /// the relaunch landed on the next card and that machine stayed unrated
+    /// for good (review 2026-10).
+    var pendingRpe: String? = nil
 }
 
 // MARK: - Live session (phone ↔ watch handoff, docs/WATCH.md "Live session")

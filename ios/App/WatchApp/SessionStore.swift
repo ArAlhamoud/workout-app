@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import SwiftUI
 import WatchKit
 
@@ -19,7 +20,7 @@ final class SessionStore: ObservableObject {
         case saved
         /// The server merged it into the workout the phone already saved.
         case merged
-        /// No signal: kept on the watch, sent on the next launch.
+        /// No signal: kept on the watch, sent when signal returns.
         case banked
         /// The server refused it: kept on the watch, never retried.
         case rejected
@@ -55,6 +56,12 @@ final class SessionStore: ObservableObject {
     private var launched = false
     private var isStarting = false
     private var finishing = false
+    /// Signal coming back is a reason to send what is banked (onPath).
+    private let pathMonitor = NWPathMonitor()
+    /// How long a start waits for the banked sessions to land before it
+    /// fetches the plan. A dead network answers at once; this bounds a slow
+    /// one, so the Action Button is never held up by an upload.
+    static let startFlushWait: TimeInterval = 4
 
     /// The session file loads HERE, synchronously, before anything else can
     /// run. It used to load in onLaunch (from .onAppear), so an Action Button
@@ -70,12 +77,16 @@ final class SessionStore: ObservableObject {
         rejectedCount = c.rejected
     }
 
-    /// Where a restored session resumes: its summary, the rest still running,
+    /// Where a restored session resumes (SessionCore.restorePoint): the
+    /// rating strip left unanswered, its summary, the rest still running,
     /// or the set card.
     private static func restoredPhase(_ s: ActiveSession) -> Phase {
-        if s.currentIndex >= s.slots.count { return .summary }
-        if let u = s.restUntil, u > Date() { return .resting(until: u) }
-        return .active
+        switch SessionCore.restorePoint(s, now: Date()) {
+        case .rating(let id, let name): return .rpePrompt(exerciseId: id, exerciseName: name)
+        case .summary: return .summary
+        case .resting(let until): return .resting(until: until)
+        case .active: return .active
+        }
     }
 
     // MARK: - Launch
@@ -97,22 +108,82 @@ final class SessionStore: ObservableObject {
             }
             if case .resting(let until) = phase { scheduleRestEnd(until: until) }
         }
+        // The outbox was flushed on launch, on a wrist raise and on Done
+        // only: a session banked in a dead-signal gym waited for the next
+        // time he opened the app, though the doc promised "on connectivity
+        // restore". The monitor runs only while the process does — watchOS
+        // suspends the app off-wrist; nothing here wakes it.
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let satisfied = path.status == .satisfied
+            Task { @MainActor in await self?.onPath(satisfied: satisfied) }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "watch.path-monitor"))
         Task {
             await flushOutbox()
-            await refreshPlan(day: nil, dur: nil)
+            await refreshPlan()
             await refreshLive()
         }
     }
 
-    func refreshPlan(day: String?, dur: Int?) async {
-        if let fresh = try? await API.fetchPlan(day: day, dur: dur) {
-            plan = fresh
-        }
+    /// The server's queue plan, for the Start screen and the offline cache.
+    /// It was fetched once per process, so a watch app left running showed —
+    /// and started — the day it saw at launch. Now: launch, every
+    /// foreground, and after a session reaches the server. Never during a
+    /// session (the screen is not up, and the session has its own plan).
+    func refreshPlan() async {
+        guard session == nil else { return }
+        guard let fresh = try? await API.fetchPlan(day: nil, dur: nil) else { return }
+        // A session that began during the fetch keeps the plan it started on.
+        guard session == nil else { return }
+        plan = fresh
     }
 
-    private func flushOutbox() async {
-        await Outbox.shared.flush()
+    /// Send what is banked. Returns how many sessions reached the server.
+    @discardableResult
+    private func flushOutbox() async -> Int {
+        let sent = await Outbox.shared.flush()
         refreshCounts()
+        return sent
+    }
+
+    /// The network path changed. With signal and something banked: send it,
+    /// then ask for the plan again — the queue just moved on.
+    private func onPath(satisfied: Bool) async {
+        guard SessionCore.flushOnPath(satisfied: satisfied, banked: Outbox.peekCounts().pending) else { return }
+        if await flushOutbox() > 0 { await refreshPlan() }
+    }
+
+    /// Every start sends the banked sessions FIRST and waits for them, so
+    /// the plan the server computes next includes them — it used to fetch
+    /// straight away and get the day just trained, at pre-session weights.
+    /// Bounded (startFlushWait): past it the flush carries on by itself and
+    /// the start goes ahead; SessionCore.queuePlanStale then refuses a queue
+    /// plan for a day that is still banked.
+    private func flushBeforeStart() async {
+        guard Outbox.peekCounts().pending > 0 else { return }
+        let gate = StartGate()
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            gate.cont = cont
+            Task { @MainActor in
+                await Outbox.shared.flush()
+                gate.open()
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(Self.startFlushWait))
+                gate.open()
+            }
+        }
+        refreshCounts()
+    }
+
+    /// Whichever comes first — the flush or the timeout — lets the start go on, once.
+    @MainActor
+    private final class StartGate {
+        var cont: CheckedContinuation<Void, Never>?
+        func open() {
+            cont?.resume()
+            cont = nil
+        }
     }
 
     private func refreshCounts() {
@@ -166,9 +237,12 @@ final class SessionStore: ObservableObject {
     }
 
     /// Back on the wrist: send what is banked first (signal may be back),
-    /// then learn what the phone did meanwhile.
+    /// then ask for the queue again (it may have moved since launch — a
+    /// session saved on the phone, a new day), then learn what the phone
+    /// did meanwhile.
     func onForeground() async {
         await flushOutbox()
+        await refreshPlan()
         await refreshLive()
     }
 
@@ -190,9 +264,10 @@ final class SessionStore: ObservableObject {
             guard let o = await deliver(payload) else { keepAfterFailedSave(); return }
             outcome = (o == .saved) ? .merged : o
         }
-        endSession()
+        endSession(trained: s.day)
         phase = .done(outcome)
         WKInterfaceDevice.current().play(.success)
+        Task { await refreshPlan() }
     }
 
     /// "Continue" on the Start screen: build the slots from the plan for the
@@ -205,8 +280,9 @@ final class SessionStore: ObservableObject {
         defer { isStarting = false }
         phase = .loading
         notice = nil
+        await flushBeforeStart()
         var p = try? await API.fetchPlan(day: row.day, dur: row.durationMin, gym: row.gym)
-        if p == nil { p = Store.startablePlan(day: row.day, gym: row.gym) }
+        if p == nil { p = Store.startable(day: row.day, gym: row.gym).plan }
         guard session == nil else { resumeExisting(); return }
         guard let p, !p.exercises.isEmpty else {
             phase = .idle
@@ -301,9 +377,11 @@ final class SessionStore: ObservableObject {
     /// and close the phone's row, splitting one workout into two. The live
     /// row and the plan are fetched together. An open WATCH row with no
     /// session on this wrist is a banked finish, never something to continue.
+    /// What is banked goes up first, so the plan fetched here includes it.
     func startFromButton() async {
         guard session == nil, !isStarting else { return }
         phase = .loading
+        await flushBeforeStart()
         async let live = API.fetchLive()
         async let fresh = try? API.fetchPlan(day: nil, dur: nil)
         let row = await live
@@ -330,16 +408,29 @@ final class SessionStore: ObservableObject {
         phase = .loading
         notice = nil
         var p = prefetched
-        if p == nil { p = try? await API.fetchPlan(day: day, dur: dur) }
         if p == nil {
+            await flushBeforeStart()
+            p = try? await API.fetchPlan(day: day, dur: dur)
+        }
+        if day == nil, let q = p, SessionCore.queuePlanStale(day: q.day, bankedDays: Outbox.bankedDays()) {
+            // Signal, but the banked session did not land (a slow upload, a
+            // 5xx): the server queued this day without it. Never repeat the
+            // day behind his back — a day he picks himself still starts.
+            p = nil
+            notice = "Day \(q.day) not uploaded yet — pick the day"
+        } else if p == nil {
             // Offline fallback — but NEVER from a cache old enough to span a
             // layoff, nor one for another day or building: a stale plan carries
             // pre-break weights with no ramp scaling (trainer review, blocking).
-            p = Store.startablePlan(day: day)
-            if p == nil, Store.loadPlanCache() != nil {
-                notice = "Plan too old — need signal once"
-            } else if p == nil {
-                notice = "No plan yet — need signal once"
+            // With no day asked, only the server's own queue plan, and not
+            // once its day was trained here (SessionCore.cacheVerdict).
+            let cached = Store.startable(day: day)
+            p = cached.plan
+            switch cached.why {
+            case .ok?: break
+            case .tooOld?: notice = "Plan too old — need signal once"
+            case .trained?: notice = "Day \(plan?.day ?? "") done — need signal for the next plan"
+            case .wrongPlan?, nil: notice = "No plan yet — need signal once"
             }
         }
         // A session that appeared during the await (a restore, a Continue)
@@ -468,7 +559,17 @@ final class SessionStore: ObservableObject {
         advanceAfterExercise()
     }
 
-    func skipRPE() { advanceAfterExercise() }
+    /// "skip": the strip is answered — it must not come back on a relaunch.
+    func skipRPE() {
+        clearPendingRpe()
+        advanceAfterExercise()
+    }
+
+    private func clearPendingRpe() {
+        guard var s = session, s.pendingRpe != nil else { return }
+        s.pendingRpe = nil
+        commit(s)
+    }
 
     private func advanceAfterExercise() {
         guard let s = session else { return }
@@ -646,6 +747,7 @@ final class SessionStore: ObservableObject {
     /// summary offers "Back to <machine>".
     func endEarly() {
         stopRest()
+        clearPendingRpe()
         if var s = session, s.restUntil != nil {
             s.restUntil = nil
             commit(s)
@@ -721,10 +823,17 @@ final class SessionStore: ObservableObject {
         WKInterfaceDevice.current().play(.failure)
     }
 
-    private func endSession() {
+    /// `trained`: the day just finished. Its cached plan is spent as the
+    /// queue from this moment (rule 9's spirit: the wrist does not guess the
+    /// next day, it only refuses to call the old one "queued"), and the
+    /// Start screen goes back to the queue plan — not the explicit-day or
+    /// Continue plan this session ran on.
+    private func endSession(trained day: String) {
         stopRest()
         Store.saveSession(nil)
         session = nil
+        Store.markPlanTrained(day: day)
+        plan = Store.loadPlanCache() ?? plan
         refreshCounts()
     }
 
@@ -740,9 +849,14 @@ final class SessionStore: ObservableObject {
         // belong in the payload; a session replaced meanwhile is not ours.
         guard let s = session, s.clientSaveId == s0.clientSaveId else { return }
         guard let outcome = await deliver(buildPayload(s, uuid: uuid)) else { keepAfterFailedSave(); return }
-        endSession()
+        endSession(trained: s.day)
         phase = .done(outcome)
         WKInterfaceDevice.current().play(outcome == .saved || outcome == .merged ? .success : .directionUp)
+        // The server has the session: its queue moved on, so ask again now —
+        // the plan was fetched once per process and the Start screen kept
+        // offering the day just trained. Banked: the path monitor's flush
+        // asks when it lands.
+        if outcome == .saved || outcome == .merged { Task { await refreshPlan() } }
     }
 
     /// Nothing worth keeping — no HKWorkout saved: abort() discards the
@@ -754,12 +868,13 @@ final class SessionStore: ObservableObject {
         if let id = session?.clientSaveId { Task { await API.closeLive(id: id) } }
         Store.saveSession(nil)
         session = nil
+        plan = Store.loadPlanCache() ?? plan
         phase = .idle
     }
 
     func reset() {
         phase = .idle
         notice = nil
-        Task { await flushOutbox() }
+        Task { if await flushOutbox() > 0 { await refreshPlan() } }
     }
 }

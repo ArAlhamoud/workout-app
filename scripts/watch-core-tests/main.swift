@@ -265,5 +265,147 @@ do {
     check((try? JSONDecoder().decode([LogPayload].self, from: Data(payload.utf8))) != nil, "a banked outbox from build 13 still decodes")
 }
 
+// ── Review 2026-10 ──────────────────────────────────────────────────────
+func phoneSet(_ id: String, _ n: Int, _ w: Double, reps: Int = 12, rpe: Int? = nil, at: String = "2026-09-24T17:05:00.000Z", source: String = "phone") -> LiveSet {
+    LiveSet(exerciseId: id, setNumber: n, reps: reps, weight: w, rpe: rpe, isWarmup: n == 0, completedAt: at, source: source)
+}
+func phoneRow(_ sets: [LiveSet]) -> LiveSession {
+    LiveSession(clientSaveId: "t", day: "A", durationMin: 45, gym: nil, source: "phone", startedAt: "2026-09-24T17:00:00.000Z",
+                updatedAt: "2026-09-24T17:10:00.000Z", closedAt: nil, workoutId: nil, sets: sets)
+}
+func twoMachines() -> ActiveSession {
+    session(plan([ex("lp", "Leg Press", order: 0, prefill: 36), ex("cp", "Chest Press", order: 1, prefill: 18)], n: 0))
+}
+
+print("Watch core — a phone correction reaches the wrist's copy (C)")
+do {
+    // He ticks 20 kg unrated on the phone, then corrects it to 22.5 Hard.
+    // The wrist copied the first version once and never looked again; its
+    // finish posted 20/unrated and the server lets the poster win.
+    var s = twoMachines()
+    SessionCore.merge(&s, row: phoneRow([phoneSet("lp", 1, 20)]))
+    SessionCore.merge(&s, row: phoneRow([phoneSet("lp", 1, 22.5, reps: 10, rpe: 3, at: "2026-09-24T17:06:00.000Z")]))
+    let copy = s.logged.first { $0.exerciseId == "lp" && $0.setNumber == 1 }
+    check(copy?.weight == 22.5 && copy?.reps == 10 && copy?.rpe == 3, "the phone's correction (20 → 22.5 Hard) replaces the wrist's stale copy")
+    check(copy?.completedAt == "2026-09-24T17:06:00.000Z" && copy?.origin == "phone", "it keeps the phone's time and stays the phone's set")
+    check(s.logged.filter { $0.exerciseId == "lp" && $0.setNumber == 1 }.count == 1, "still one LogSet for the key")
+    check(s.slots[..<s.currentIndex].first { $0.exerciseId == "lp" && $0.setNumber == 1 }?.weightKg == 22.5, "the logged slot shows the corrected weight too")
+    check(s.currentIndex == 1 && cur(s)?.setNumber == 2, "a correction moves nothing in the queue")
+    // A rating taken OFF on the phone is a correction too.
+    SessionCore.merge(&s, row: phoneRow([phoneSet("lp", 1, 22.5, reps: 10, rpe: nil, at: "2026-09-24T17:07:00.000Z")]))
+    check(s.logged.first?.rpe == nil, "a rating removed on the phone is removed here")
+    // The wrist's own sets are the wrist's, whatever the row says.
+    SessionCore.log(&s, now: t0)
+    _ = SessionCore.rate(&s, exerciseId: "lp", rpe: 2)
+    let mine = s.logged.last
+    SessionCore.merge(&s, row: phoneRow([phoneSet("lp", 1, 22.5, reps: 10), phoneSet("lp", 2, 99, rpe: 4), phoneSet("lp", 2, 98, source: "watch")]))
+    check(s.logged.first { $0.setNumber == 2 } == mine, "a set logged on the wrist is never rewritten from the row")
+}
+
+print("Watch core — un-ticked on the phone, offered again on the wrist (D)")
+do {
+    var s = twoMachines()
+    SessionCore.merge(&s, row: phoneRow([phoneSet("lp", 1, 36)]))
+    check(cur(s)?.setNumber == 2, "the phone's set 1 is logged; the wrist is on set 2")
+    SessionCore.merge(&s, row: phoneRow([]))
+    check(s.logged.isEmpty, "un-ticked on the phone: the copy leaves the log")
+    check(s.currentIndex == 0 && cur(s)?.exerciseId == "lp" && cur(s)?.setNumber == 1, "and its card is offered again (the slot stayed consumed: never asked for again)")
+    check(s.slots.filter { $0.exerciseId == "lp" }.map(\.setNumber) == [1, 2, 3], "back in its own place, no slot lost or doubled")
+    SessionCore.merge(&s, row: phoneRow([phoneSet("lp", 1, 37.5, at: "2026-09-24T17:08:00.000Z")]))
+    check(s.logged.count == 1 && s.logged.first?.weight == 37.5 && cur(s)?.setNumber == 2, "re-ticked on the phone: it shows as logged again")
+}
+do {
+    // The wrist finished the machine and moved on; the un-tick must not
+    // pull the card out from under his hand.
+    var s = twoMachines()
+    SessionCore.merge(&s, row: phoneRow([phoneSet("lp", 1, 36)]))
+    SessionCore.log(&s, now: t0)
+    SessionCore.log(&s, now: t0)
+    check(cur(s)?.exerciseId == "cp", "Leg Press done between the two devices")
+    SessionCore.merge(&s, row: phoneRow([]))
+    check(cur(s)?.exerciseId == "cp" && cur(s)?.setNumber == 1, "an un-tick on a finished machine leaves the current card alone")
+    check(s.slots.last?.exerciseId == "lp" && s.slots.last?.setNumber == 1, "its set waits at the back of the queue")
+    check(s.currentIndex == s.logged.count && s.logged.count == 2, "the head is exactly the logged sets")
+    // All sets logged, then the phone discards: its sets come back as cards.
+    var d = session(plan([ex("lp", "Leg Press", order: 0, sets: 2, prefill: 36)], n: 0))
+    SessionCore.merge(&d, row: phoneRow([phoneSet("lp", 1, 36)]))
+    SessionCore.log(&d, now: t0)
+    SessionCore.dropPhoneSets(&d, all: true)
+    check(d.logged.count == 1 && cur(d)?.setNumber == 1, "a phone discard gives its slots back as well")
+}
+
+print("Watch core — a kill during the rating strip (E)")
+do {
+    var s = session(plan([ex("lp", "Leg Press", order: 0, sets: 1, prefill: 36), ex("cp", "Chest Press", order: 1, sets: 1, prefill: 18)], n: 0))
+    check(SessionCore.restorePoint(s, now: t0) == .active, "a fresh session restores on its card")
+    SessionCore.log(&s, now: t0)
+    let disk = try? JSONDecoder().decode(ActiveSession.self, from: JSONEncoder().encode(s))
+    check(disk.map { SessionCore.restorePoint($0, now: t0) } == .rating(exerciseId: "lp", exerciseName: "Leg Press"),
+          "killed on the strip: the relaunch lands back on Leg Press's rating (it landed on the next card, unrated for good)")
+    _ = SessionCore.rate(&s, exerciseId: "lp", rpe: 2)
+    check(SessionCore.restorePoint(s, now: t0) == .active, "once rated, the strip is not asked again")
+    s.restUntil = t0.addingTimeInterval(60)
+    check(SessionCore.restorePoint(s, now: t0) == .resting(until: t0.addingTimeInterval(60)), "a running rest still restores as a rest")
+    s.restUntil = nil
+    SessionCore.log(&s, now: t0)
+    check(SessionCore.restorePoint(s, now: t0) == .rating(exerciseId: "cp", exerciseName: "Chest Press"), "the LAST machine's strip comes before the summary")
+    SessionCore.undoLast(&s)
+    check(SessionCore.restorePoint(s, now: t0) == .active, "an undo from the strip takes the prompt with it")
+    SessionCore.log(&s, now: t0)
+    s.pendingRpe = nil // "skip"
+    check(SessionCore.restorePoint(s, now: t0) == .summary, "skipped: the summary")
+    var w = session(plan([ex("lp", "Leg Press", order: 0, sets: 1, prefill: 36, warm: 17.5)]))
+    SessionCore.log(&w, now: t0)
+    check(w.pendingRpe == nil, "a warm-up never leaves a rating pending")
+}
+
+print("Watch core — which cached plan may start a session (B)")
+do {
+    let p = plan([ex("lp", "Leg Press", order: 0)])
+    func verdict(_ c: CachedPlan, day: String? = nil, gym: String? = nil, banked: [String] = [], now: Date = t0.addingTimeInterval(3600)) -> SessionCore.CacheVerdict {
+        SessionCore.cacheVerdict(c, day: day, gym: gym, bankedDays: banked, now: now)
+    }
+    let queue = CachedPlan(plan: p, fetchedAt: t0, gym: nil, queue: true)
+    let asked = CachedPlan(plan: p, fetchedAt: t0, gym: nil, queue: false)
+    let legacy = CachedPlan(plan: p, fetchedAt: t0, gym: nil)
+    check(verdict(queue) == .ok, "a queue-default plan opens an offline Action Button start")
+    check(verdict(asked) == .wrongPlan, "an explicit-day or Continue plan is never served as the queue")
+    check(verdict(legacy) == .wrongPlan, "a cache from before the flag is not trusted as the queue")
+    check(verdict(asked, day: "A") == .ok && verdict(queue, day: "A") == .ok && verdict(legacy, day: "A") == .ok, "any of them may open the day he explicitly asks for")
+    check(verdict(queue, day: "B") == .wrongPlan, "never another day")
+    check(verdict(queue, gym: "work") == .wrongPlan, "never another building (rule 2)")
+    check(verdict(queue, now: t0.addingTimeInterval(8 * 86400)) == .tooOld, "never past seven days")
+    let trained = SessionCore.markTrained(queue, day: "A", at: t0.addingTimeInterval(1800))
+    check(verdict(trained) == .trained, "after Day A is finished on this wrist its plan is no longer the queue (it repeated the day at pre-session weights)")
+    check(verdict(trained, day: "A") == .ok, "asked for by name it still opens")
+    check(SessionCore.markTrained(queue, day: "B", at: t0.addingTimeInterval(1800)).trainedAt == nil, "a Day B session does not spend a Day A plan")
+    check(verdict(queue, banked: ["A"]) == .trained, "a Day A session still waiting to upload spends it too")
+    check(verdict(queue, banked: ["B"]) == .ok, "a banked Day B does not")
+    let round = try? JSONDecoder().decode(CachedPlan.self, from: JSONEncoder().encode(trained))
+    check(round?.queue == true && round?.trainedAt == trained.trainedAt, "both marks survive the disk")
+    check(SessionCore.startDay(override: nil, shown: "A") == nil, "the big button sends NO day unless he picked one — the server's queue decides, not a stale screen")
+    check(SessionCore.startDay(override: "B", shown: "A") == "B", "a deliberate pick is sent as picked")
+}
+
+print("Watch core — banked sessions and the next start (A)")
+do {
+    check(SessionCore.queuePlanStale(day: "A", bankedDays: ["A"]), "a fresh queue plan for a day still banked here was computed without that session")
+    check(!SessionCore.queuePlanStale(day: "B", bankedDays: ["A"]) && !SessionCore.queuePlanStale(day: "A", bankedDays: []), "otherwise the server's queue stands")
+    check(SessionCore.flushOnPath(satisfied: true, banked: 1), "signal back with a session banked: flush (the doc promised it; no code did)")
+    check(!SessionCore.flushOnPath(satisfied: false, banked: 1) && !SessionCore.flushOnPath(satisfied: true, banked: 0), "no path or nothing banked: nothing to do")
+}
+
+print("Watch core — which build is on the wrist (F)")
+do {
+    var cal = Calendar(identifier: .gregorian)
+    let riyadh = TimeZone(identifier: "Asia/Riyadh")!
+    cal.timeZone = riyadh
+    let sep24 = cal.date(from: DateComponents(year: 2026, month: 9, day: 24, hour: 22))!
+    let oct2 = cal.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 1))!
+    check(SessionCore.buildLabel(version: "13", builtAt: sep24, timeZone: riyadh) == "build 13 · Sep 24", "the footer carries the day the binary was built")
+    check(SessionCore.buildLabel(version: "13", builtAt: oct2, timeZone: riyadh) != SessionCore.buildLabel(version: "13", builtAt: sep24, timeZone: riyadh), "two installs of build 13 with different code read differently")
+    check(SessionCore.buildLabel(version: "13", builtAt: nil) == "build 13" && SessionCore.buildLabel(version: nil, builtAt: nil) == "build ?", "no file date: the number alone")
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
