@@ -105,14 +105,19 @@ struct StartView: View {
                     // length are sent unless he picked them. The screen's
                     // own day went out as an explicit ask — stale by a
                     // session, the server still obeyed it.
-                    let d = SessionCore.startDay(override: dayOverride, shown: planDay)
+                    // A day the wrist offered by name (it could not confirm
+                    // the queue) is sent by name on this confirming tap.
+                    let d = SessionCore.startDay(override: dayOverride, offered: store.offeredDay)
                     let dur: Int? = durIndex == 0 ? nil : chosenDur
-                    Task { await store.start(day: d, dur: dur) }
+                    // With no day sent, what opens must be the day this
+                    // button reads; a queue that moved is shown, not opened.
+                    let promised = d == nil ? store.plan?.day : nil
+                    Task { await store.start(day: d, dur: dur, promised: promised) }
                 } label: {
                     VStack(spacing: 2) {
                         Text("Day \(chosenDay)")
                             .font(.system(size: 30, weight: .black, design: .rounded))
-                        Text("\(chosenDur) min\(dayOverride == nil ? " · planned" : "")")
+                        Text("\(chosenDur) min\(dayOverride != nil ? "" : store.offeredDay != nil ? " · saved plan" : " · planned")")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundStyle(.secondary)
                     }

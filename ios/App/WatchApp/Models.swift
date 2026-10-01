@@ -67,6 +67,12 @@ struct LogSet: Codable, Equatable {
     /// so a removal the phone recorded earlier never beats it — and a
     /// rating added later keeps this stamp, not the moment of the tap.
     var completedAt: String? = nil
+    /// When THIS wrist changed the set after its tick (the rating strip).
+    /// The server orders two versions of one tick by it; without it a wrist
+    /// rating given after a phone correction was dated by the tick and
+    /// judged the older of the two. nil = untouched since the tick — never
+    /// stamped on an unchanged set or on a copy of the phone's.
+    var editedAt: String? = nil
 }
 
 struct LogPayload: Codable, Equatable {
@@ -212,6 +218,8 @@ struct LiveSet: Codable, Equatable {
     var isWarmup: Bool?
     let completedAt: String
     let source: String
+    /// The row's edit stamp for this set (server-kept); nil = as ticked.
+    var editedAt: String? = nil
 }
 
 struct LiveSession: Codable, Equatable {
@@ -243,6 +251,8 @@ struct LiveUpdate: Codable, Equatable {
     var isWarmup: Bool?
     var completedAt: String?
     var remove: Bool?
+    /// Sent only for a set this wrist changed after its tick (LogSet.editedAt).
+    var editedAt: String? = nil
 }
 
 struct LivePost: Codable {

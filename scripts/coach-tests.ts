@@ -52,6 +52,7 @@ import {
   rampContract,
   parseDayLetter,
   projectPlan,
+  rampScaledDayKeys,
   queuedDay,
   recoveryActivity,
   warmupWeight,
@@ -78,7 +79,7 @@ import {
   sanitizeWatchLogSets,
   recordedInHealth,
 } from '../src/lib/live-session';
-import { finishUpdates, liveDiff, liveSerial, ownLiveSets, resolveFinishSets, type FinishSet, type LiveSet } from '../src/lib/live-session';
+import { dedupeByKey, finishUpdates, landedSerials, liveDiff, liveSerial, liveToAdopt, ownLiveSets, resolveFinishSets, validLiveSets, withEditStamps, type FinishSet, type LiveSet } from '../src/lib/live-session';
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
@@ -729,6 +730,20 @@ assert(pFiveDays.daysSinceLast === 5, 'daysSinceLast counts calendar days (5)');
   assert(tc?.daysSinceLast === 3, `a Tue-evening dose is 3 days ago at Fri 01:30 Riyadh (got ${tc?.daysSinceLast})`);
   const home = read('src/app/page.tsx');
   assert(!/todayStart\.setHours/.test(home) && home.includes('ownerActivityDayUtc('), 'Home asks the owner\'s activity day what "today" is, never the server\'s midnight');
+  // Status and plan share one clock: at 03:30 Riyadh the status floored a
+  // raw instant and said "21 days off → REBOOT" while the plan said 20.
+  const seam = new Date('2026-10-01T03:30:00+03:00');
+  const lastRow = new Date('2026-09-10T00:00:00.000Z');
+  const seamPlan = getDynamicPlan([{ date: lastRow, name: 'Day A 45m' }], seam);
+  const seamStatus = getTrainingStatus([lastRow], seam);
+  assert(seamPlan.daysSinceLast === 20 && seamStatus.mode !== 'return', `03:30 Riyadh on day 20: the plan says 20 and the status has not called a break (got ${seamPlan.daysSinceLast}, ${seamStatus.mode})`);
+  assert(getTrainingStatus([lastRow], new Date('2026-10-01T04:30:00+03:00')).mode === 'return', 'at 04:30 it is day 21: the return block opens');
+  for (const f of ['src/app/stats/page.tsx', 'src/app/program/page.tsx']) {
+    assert(read(f).includes('getMondayOfWeek(ownerActivityDayUtc())'), `${f} starts the week on his activity day`);
+  }
+  assert(/now - last\.at < 10_000/.test(read('src/components/DeepLinkHandler.tsx')), 'a cold-launch link re-sent on the ladder navigates once');
+  const widget = read('ios/App/WorkoutWidgets/VerdictWidget.swift');
+  assert(/activityDay\(savedAt\) == activityDay\(/.test(widget) && !/ageDays/.test(widget), 'the widget serves a cached verdict only inside the activity day it was fetched, always marked');
 }
 
 // Alternation survives a session logged without a Day letter.
@@ -2827,7 +2842,26 @@ console.log('health-insights');
   assert(rampDown.length === 0, 'a ramp week after full load is never named a slide');
   const mixed = strengthHold([set(30, 'Row', 'bfit', 60), rampSet(10, 'Row', 40), set(2, 'Row', 'bfit', 60)], now);
   assert(mixed.length === 1 && mixed[0].verdict === 'held', 'full-load sets on both sides still testify around a ramp');
-  assert(/ramp: st\.allowedKg != null/.test(fs.readFileSync(path.join(__dirname, '..', 'src/app/stats/page.tsx'), 'utf8')), 'Stats marks ramp sets by their recorded allowance (rule 10), never re-derived');
+  // His real September: Sep 1, 6, 12 and 17 are all return-block sessions
+  // (Jul 29 → Sep 1 is a 34-day layoff), saved BEFORE the allowance column
+  // existed, so every allowedKg is null. The card still read "Chest Press
+  // 12.5 → 27 ▲" and two ember slides for following the protocol (trainer,
+  // 2026-10-02). A session is ramp-scaled by the block it opened in.
+  {
+    const training = data.workouts.filter((w) => !/^(Swim|Walk|Rescue)/.test(w.name));
+    const rampDays = rampScaledDayKeys(training.map((w) => ({ date: new Date(w.date), name: w.name, gym: (w as { gym?: string | null }).gym ?? null, sets: [] })));
+    for (const d of ['2026-09-01', '2026-09-06', '2026-09-12']) assert(rampDays.has(d), `${d} opened inside the return ramp below full load`);
+    assert(!rampDays.has('2026-05-19') && !rampDays.has('2026-05-23'), 'May sessions at full load are not ramp-scaled');
+    const realSets = training.flatMap((w) => (w.sets as unknown as Array<{ weight: number; isWarmup?: boolean; exercise?: { name: string }; allowedKg?: number | null }>)
+      .filter((st) => !st.isWarmup && st.weight > 0)
+      .map((st) => ({ name: st.exercise?.name ?? '?', gym: (w as { gym?: string | null }).gym ?? 'bfit', date: new Date(w.date), weight: st.weight,
+        ramp: st.allowedKg != null || rampDays.has(new Date(w.date).toISOString().slice(0, 10)) })));
+    const oct2 = strengthHold(realSets, new Date('2026-10-02T02:00:00+03:00'));
+    assert(oct2.length === 0, `on 2026-10-02 both windows are ramp: the card has no rows (got ${oct2.length})`);
+  }
+  const statsSrc = fs.readFileSync(path.join(__dirname, '..', 'src/app/stats/page.tsx'), 'utf8');
+  assert(/ramp: st\.allowedKg != null \|\| rampDays\.has\(/.test(statsSrc), 'Stats marks a ramp set by its recorded allowance OR the block its session opened in');
+  assert(statsSrc.includes('Return ramp · strength compares again at full load'), 'mid-ramp the card says why it is quiet instead of vanishing');
 }
 
 // ── milestone crossings ──────────────────────────────────────
@@ -3495,7 +3529,118 @@ console.log('Tier 2 — live session: warm-ups travel, the later edit wins');
   // No row at all: only a missing rating is filled.
   const noRow = finishUpdates(savedU, [{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 40, rpe: 2 }, { exerciseId: 'lat', setNumber: 9, reps: 10, weight: 40 }], null, 'watch');
   assert(noRow.length === 1 && noRow[0].rpe === 2, 'with no live row a second finish fills a missing rating and nothing else');
-  assert(finishUpdates(savedU, [{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 45, rpe: 2 }], null, 'watch').length === 0, 'with no live row a different weight never overwrites the saved one');
+  // ── Blind review of the above (2026-10-02, second pass) ──
+  // 1. A rating describes the SET, a corrected load describes the stack:
+  //    the wrist rating its set after the phone corrected the weight was
+  //    dropped on every path, because the graft asked for equal loads.
+  //    Must hold for a Watch build that sends no edit stamp.
+  const w0 = mergeLiveSets([], [lv(4, 20, 1, 'watch')]);
+  const w1 = mergeLiveSets(w0, [lv(4, 22.5, 1, 'phone', { editedAt: at(3) })], new Date(at(3)));
+  const w2 = mergeLiveSets(w1, [lv(4, 20, 1, 'watch', { rpe: 3 })], new Date(at(5)));
+  assert(w2[0].weight === 22.5 && w2[0].rpe === 3 && w2[0].source === 'phone', `the wrist's rating lands on the phone's corrected load in the row (got ${w2[0].weight}/${w2[0].rpe})`);
+  const wf = resolveFinishSets<FinishSet>([{ exerciseId: 'lat', setNumber: 4, reps: 10, weight: 20, rpe: 3, completedAt: at(1) }], w1, 'watch');
+  assert(wf[0].weight === 22.5 && wf[0].rpe === 3, `…and at the Watch's finish (got ${wf[0].weight}/${wf[0].rpe})`);
+  const pf = resolveFinishSets<FinishSet>([{ exerciseId: 'lat', setNumber: 4, reps: 10, weight: 22.5, completedAt: at(1) }], w2, 'phone');
+  assert(pf[0].weight === 22.5 && pf[0].rpe === 3, '…and at the phone’s finish, which never saw the rating');
+  const uf = finishUpdates([{ exerciseId: 'lat', setNumber: 4, isWarmup: false, reps: 10, weight: 22.5, rpe: null, completedAt: at(1) }], [{ exerciseId: 'lat', setNumber: 4, reps: 10, weight: 20, rpe: 3, completedAt: at(1) }], w1, 'watch');
+  assert(uf.length === 1 && uf[0].weight === 22.5 && uf[0].rpe === 3, `…and when the phone had already finished (got ${JSON.stringify(uf)})`);
+  const nr = finishUpdates(savedU, [{ exerciseId: 'lat', setNumber: 2, reps: 10, weight: 45, rpe: 2 }], null, 'watch');
+  assert(nr.length === 1 && nr[0].weight === 40 && nr[0].rpe === 2, 'with no live row a different weight never overwrites the saved one — but its rating fills a missing one');
+  // The wrist cannot change a logged set's load without a new tick, so its
+  // same-tick post onto a version the phone wrote is a RATING, stamped or not.
+  const w3 = mergeLiveSets(mergeLiveSets(w1, [lv(4, 22.5, 1, 'phone', { rpe: 2, editedAt: at(4) })], new Date(at(4))), [lv(4, 20, 1, 'watch', { rpe: 4, editedAt: at(6) })], new Date(at(6)));
+  assert(w3[0].weight === 22.5 && w3[0].rpe === 4, `a stamped re-rating from the wrist changes the rating, never the phone's load (got ${w3[0].weight}/${w3[0].rpe})`);
+
+  // The Watch now stamps a rated set in the finish payload too. The stamp
+  // must reach the merge (it was dropped by the route's sanitizer) — and
+  // must carry the RATING only: a later-stamped wrist copy of a set whose
+  // load the phone corrected would otherwise bring the stale load back.
+  const wl = (editedAt: unknown) => sanitizeWatchLogSets([{ exerciseId: 'lat', setNumber: 4, reps: 10, weight: 20, rpe: 4, completedAt: at(1), editedAt }], new Date(at(9)))[0];
+  assert(wl(at(8)).editedAt === at(8), 'the Watch finish keeps a set’s edit stamp for the merge');
+  assert(wl('junk').editedAt === undefined && wl(at(50)).editedAt === at(9) && wl(at(0)).editedAt === at(1), 'a junk stamp is dropped, a future one pinned to now, one before the tick floored at it');
+  const phoneRated = mergeLiveSets(w1, [lv(4, 22.5, 1, 'phone', { rpe: 2, editedAt: at(4) })], new Date(at(4)));
+  const ws = resolveFinishSets([wl(at(8))], phoneRated, 'watch', new Date(at(9)));
+  assert(ws[0].weight === 22.5 && ws[0].rpe === 4, `a stamped wrist rating wins the rating at finish and leaves the phone's load (got ${ws[0].weight}/${ws[0].rpe})`);
+  const wu2 = finishUpdates([{ exerciseId: 'lat', setNumber: 4, isWarmup: false, reps: 10, weight: 22.5, rpe: 2, completedAt: at(1) }], [wl(at(8))], phoneRated, 'watch', new Date(at(9)));
+  assert(wu2.length === 1 && wu2[0].weight === 22.5 && wu2[0].rpe === 4, `…and after the phone finished first (got ${JSON.stringify(wu2)})`);
+  assert(!('editedAt' in (wu2[0] ?? {})), 'the edit stamp is never part of what is written to a saved set');
+
+  // 2. A phone correction that never reached the row (Save inside the push
+  //    debounce, an offline flush) was dated by its tick at the phone's own
+  //    finish and lost to the row. The save now carries the edit's stamp.
+  const edits = new Map<string, { ser: string; at: string }>();
+  const wRated = lv(5, 20, 1, 'watch', { rpe: 3 });
+  const snapW = new Map([[liveKey(wRated), liveSerial(wRated)]]);
+  const fixed = lv(5, 22.5, 1, 'phone', { rpe: 3 });
+  liveDiff([fixed], snapW, new Set(), at(6), edits);
+  liveDiff([fixed], snapW, new Set(), at(9), edits);
+  assert(edits.get('lat#5')?.at === at(6), 'an edit is dated when it was first seen, not at each retry of its push');
+  const stamped = withEditStamps<FinishSet>([{ exerciseId: 'lat', setNumber: 5, reps: 10, weight: 22.5, rpe: 3, completedAt: at(1) }, { exerciseId: 'lat', setNumber: 6, reps: 10, weight: 40, completedAt: at(2) }], edits);
+  assert(stamped[0].editedAt === at(6) && stamped[1].editedAt === undefined, 'the finish payload carries the edit stamp of a set changed after its tick, and only of that set');
+  const rowLater = [lv(5, 20, 1, 'watch', { rpe: 3, editedAt: at(4) })];
+  const pe = resolveFinishSets(stamped, rowLater, 'phone', new Date(at(7)));
+  assert(pe[0].weight === 22.5 && pe[0].rpe === 3, `the phone's un-pushed correction wins at its own finish (got ${pe[0].weight}/${pe[0].rpe})`);
+  const early = resolveFinishSets<FinishSet>([{ exerciseId: 'lat', setNumber: 5, reps: 10, weight: 22.5, completedAt: at(1), editedAt: at(0) }], [lv(5, 20, 1, 'watch')], 'phone', new Date(at(7)));
+  assert(early[0].weight === 22.5, 'an edit stamped before its own tick is dated at the tick — it cannot lose to the version it edited');
+
+  // 3. A phone whose clock runs behind: its correction of a Watch set was
+  //    older than the server's stamp, silently rejected, and recorded as
+  //    pushed. Live edits are dated by ARRIVAL; a stamp only says "edit".
+  const floor = sanitizeLiveUpdate({ ...fixed, completedAt: at(5), editedAt: at(2) }, 'phone', new Date(at(8))) as LiveSet;
+  assert(floor.editedAt === at(5), 'an edit cannot precede its tick: the stamp is floored at completedAt');
+  const behind = mergeLiveSets(rowLater.map((s) => ({ ...s, editedAt: at(10) })), [lv(5, 22.5, 1, 'phone', { rpe: 3, editedAt: at(3) })], new Date(at(11)));
+  assert(behind[0].weight === 22.5 && behind[0].editedAt === at(11), `an edit from a phone with a slow clock still lands, dated by arrival (got ${behind[0].weight} @ ${behind[0].editedAt})`);
+  const pushed = new Map([['lat#5', liveSerial(fixed)], ['lat#6', liveSerial(lv(6, 40, 2, 'phone'))], ['lat#7', liveSerial(lv(7, 40, 3, 'phone'))]]);
+  const landed = landedSerials(pushed, [...rowLater, lv(6, 40, 2, 'phone'), { ...lv(7, 0, 4, 'watch'), removed: true }]);
+  assert(landed.size === 1 && landed.has('lat#6'), `a push is recorded only when the row holds that version (got ${[...landed.keys()].join(',')})`);
+  // The phone adopts what the row holds that it did not write: the other
+  // device's versions, and a rating grafted onto its own corrected set.
+  const adopt = liveToAdopt(
+    [lv(4, 22.5, 1, 'phone', { rpe: 3 }), lv(6, 40, 2, 'phone'), lv(8, 30, 3, 'watch')],
+    new Map([['lat#4', liveSerial(lv(4, 22.5, 1, 'phone'))], ['lat#6', liveSerial(lv(6, 40, 2, 'phone', { rpe: 2 }))]]),
+    'phone',
+  );
+  assert(adopt.length === 2 && adopt.some((s) => s.setNumber === 4) && adopt.some((s) => s.setNumber === 8), `the phone adopts a rating the row gained on its own set, never an older copy of its own edit (got ${adopt.map((s) => s.setNumber).join(',')})`);
+
+  // 4. A malformed row must never make a save throw (data-steward).
+  const cleanRow = validLiveSets([null, 'x', 7, { exerciseId: 1, setNumber: 1 }, { exerciseId: 'lat', setNumber: 1, reps: 'x', weight: 1, completedAt: at(0), source: 'phone' }, { exerciseId: 'lat', setNumber: 1, reps: 10, weight: 20, completedAt: 'never', source: 'phone' }, lv(1, 20, 0, 'phone'), { exerciseId: 'lat', setNumber: 2, completedAt: at(1), removed: true, source: 'watch' }]);
+  assert(cleanRow.length === 2 && cleanRow[0].weight === 20 && cleanRow[1].removed === true && cleanRow[1].reps === 0, `junk elements of a stored row are dropped, tombstones kept (got ${cleanRow.length})`);
+  assert(validLiveSets('nope').length === 0 && validLiveSets(null).length === 0, 'a row that is not an array is no sets');
+  // 5. Two sets under one key in ONE payload hit the unique index on every
+  //    retry — but a set he ticked must never vanish at save (owner's rule;
+  //    the first fix collapsed them last-wins and dropped a real set). Two
+  //    blocks of one exercise: the later set takes the next free number.
+  //    Only a replay of ONE tick (same values, same instant) collapses.
+  const dd = dedupeByKey([
+    { exerciseId: 'lat', setNumber: 1, reps: 10, weight: 20, completedAt: at(1) },
+    { exerciseId: 'lat', setNumber: 2, reps: 10, weight: 20, completedAt: at(2) },
+    { exerciseId: 'lat', setNumber: 0, isWarmup: true, reps: 10, weight: 10, completedAt: at(0) },
+    { exerciseId: 'lat', setNumber: 1, reps: 9, weight: 22.5, completedAt: at(3) },
+    { exerciseId: 'lat', setNumber: 1, reps: 10, weight: 20, completedAt: at(1) },
+  ]);
+  assert(dd.length === 4 && dd.some((x) => x.setNumber === 1 && x.weight === 20) && dd.some((x) => x.setNumber === 3 && x.weight === 22.5), `a second set under one key is renumbered to the next free number, never dropped; a replay of one tick collapses (got ${JSON.stringify(dd.map((x) => [x.setNumber, x.weight]))})`);
+  assert(new Set(dd.map((x) => liveKey(x))).size === dd.length, 'every key in the result is unique — the unique index cannot throw');
+  // A warm-up is never renumbered into a working set: the first stands,
+  // a later one replaces its values only as the same tick, and a
+  // different one is reported, not dropped in silence.
+  const warned: unknown[] = [];
+  const realWarn = console.warn;
+  console.warn = (...a: unknown[]) => { warned.push(a); };
+  const dw = dedupeByKey([
+    { exerciseId: 'lat', setNumber: 0, isWarmup: true, reps: 10, weight: 10, completedAt: at(0) },
+    { exerciseId: 'lat', setNumber: 0, isWarmup: true, reps: 12, weight: 10, completedAt: at(0) },
+    { exerciseId: 'lat', setNumber: 0, isWarmup: true, reps: 10, weight: 15, completedAt: at(4) },
+  ]);
+  console.warn = realWarn;
+  assert(dw.length === 1 && dw[0].isWarmup === true && dw[0].reps === 12 && dw[0].weight === 10 && warned.length === 1, `one warm-up per machine: same tick updates it, a different one is kept out and logged (got ${JSON.stringify(dw)} / ${warned.length} warnings)`);
+  // 6. Deleting, on the phone, a set the Watch logged IS a removal (he
+  //    deleted a set he sees) — `ticked` means "shown ticked here",
+  //    whoever logged it. Wholesale rebuilds reset it in the form.
+  const seen = new Set<string>();
+  const snapO = new Map([['lat#8', liveSerial(lv(8, 30, 3, 'watch'))]]);
+  liveDiff([lv(8, 30, 3, 'phone')], snapO, seen, at(4));
+  const del = liveDiff([], snapO, seen, at(5));
+  assert(del.updates.length === 1 && 'remove' in del.updates[0], 'a Watch set shown ticked on the phone and then deleted there is removed');
 }
 
 // ── Week 4 of the ramp: one machine's 100% session must not null the cut for the others ──

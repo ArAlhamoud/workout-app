@@ -55,9 +55,18 @@ export default function DeepLinkHandler() {
     let handle: ListenerHandle | undefined;
     let cancelled = false;
 
+    // The native shell re-sends a cold-launch link on a short ladder (1 to
+    // 6.5 s) because the first send can beat this listener. Each rung was a
+    // router.push: tap another room within those seconds and the later
+    // rungs pulled him back. One link navigates once.
+    let last: { target: string; at: number } | null = null;
     const result = app.addListener('appUrlOpen', ({ url }) => {
       const target = routeForDeepLink(url);
-      if (target) router.push(target);
+      if (!target) return;
+      const now = Date.now();
+      if (last && last.target === target && now - last.at < 10_000) return;
+      last = { target, at: now };
+      router.push(target);
     });
 
     Promise.resolve(result).then((h) => {

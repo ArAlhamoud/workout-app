@@ -47,6 +47,10 @@ final class SessionStore: ObservableObject {
     /// A session in progress on the PHONE (docs/WATCH.md "Live session"),
     /// offered on the Start screen as "Continue". nil = nothing to continue.
     @Published var phoneLive: LiveSession?
+    /// A cached day the wrist could not confirm as the queue (a plan cached
+    /// by an older build, no signal). The Start screen offers it BY NAME:
+    /// the next tap on the big button asks for that day outright.
+    @Published var offeredDay: String?
 
     let workout = WorkoutManager()
     /// How recently an EMPTY phone row must have been touched for the Action
@@ -118,10 +122,18 @@ final class SessionStore: ObservableObject {
             Task { @MainActor in await self?.onPath(satisfied: satisfied) }
         }
         pathMonitor.start(queue: DispatchQueue(label: "watch.path-monitor"))
-        Task {
-            await flushOutbox()
-            await refreshPlan()
-            await refreshLive()
+        Task { await runForegroundSteps() }
+    }
+
+    /// Launch and wrist raise, in SessionCore.foregroundSteps' order: the
+    /// live row before the upload, the queue plan after it.
+    private func runForegroundSteps() async {
+        for step in SessionCore.foregroundSteps(sessionActive: session != nil) {
+            switch step {
+            case .live: await refreshLive()
+            case .flush: await flushOutbox()
+            case .plan: await refreshPlan()
+            }
         }
     }
 
@@ -136,6 +148,7 @@ final class SessionStore: ObservableObject {
         // A session that began during the fetch keeps the plan it started on.
         guard session == nil else { return }
         plan = fresh
+        offeredDay = nil
     }
 
     /// Send what is banked. Returns how many sessions reached the server.
@@ -236,14 +249,13 @@ final class SessionStore: ObservableObject {
         phoneLive = (row?.source == "phone" && row?.isClosed == false && !banked.contains(row?.clientSaveId ?? "")) ? row : nil
     }
 
-    /// Back on the wrist: send what is banked first (signal may be back),
-    /// then ask for the queue again (it may have moved since launch — a
-    /// session saved on the phone, a new day), then learn what the phone
-    /// did meanwhile.
+    /// Back on the wrist: learn what the phone did meanwhile FIRST — the
+    /// upload used to come first and, on a slow or captive network, held
+    /// the phone's sets back by up to 12 s a banked payload — then send
+    /// what is banked, then (idle only) ask for the queue again: it may
+    /// have moved since launch.
     func onForeground() async {
-        await flushOutbox()
-        await refreshPlan()
-        await refreshLive()
+        await runForegroundSteps()
     }
 
     /// The phone finished this session. Anything logged HERE that the phone
@@ -361,13 +373,7 @@ final class SessionStore: ObservableObject {
     }
 
     private func liveUpdate(_ set: LogSet) -> LiveUpdate {
-        // The set's OWN time — a rating re-posted later keeps it, so a phone
-        // removal made in between still wins (live-session.ts tombstones).
-        LiveUpdate(
-            exerciseId: set.exerciseId, setNumber: set.setNumber, reps: set.reps, weight: set.weight,
-            rpe: set.rpe, isWarmup: set.isWarmup,
-            completedAt: set.completedAt ?? ISO8601DateFormatter.fractional.string(from: Date()), remove: nil
-        )
+        SessionCore.liveUpdate(set, now: Date())
     }
 
     // MARK: - Start
@@ -383,7 +389,7 @@ final class SessionStore: ObservableObject {
         phase = .loading
         await flushBeforeStart()
         async let live = API.fetchLive()
-        async let fresh = try? API.fetchPlan(day: nil, dur: nil)
+        async let fresh = try? API.fetchPlanChecked(day: nil, dur: nil)
         let row = await live
         let p = await fresh
         // A phone session with sets in it, or an open logger touched in the
@@ -395,29 +401,52 @@ final class SessionStore: ObservableObject {
            !Outbox.bankedIds().contains(row.clientSaveId) {
             await continueLive(row)
         } else {
-            await start(day: nil, dur: nil, prefetched: p)
+            await start(day: nil, dur: nil, prefetched: p, fromButton: true)
         }
     }
 
     /// Start with whatever is best available: fresh plan if the network
     /// answers fast, cached plan otherwise.
-    func start(day: String?, dur: Int?, prefetched: Plan? = nil) async {
+    /// `promised`: the day the big button was showing when no day is asked
+    /// — what opens must be what it read. `fromButton`: the Action Button,
+    /// which starts with zero taps only on a training day.
+    func start(day: String?, dur: Int?, prefetched: (plan: Plan, banked: [String])? = nil, promised: String? = nil, fromButton: Bool = false) async {
         guard session == nil, !isStarting else { resumeExisting(); return }
         isStarting = true
         defer { isStarting = false }
         phase = .loading
         notice = nil
-        var p = prefetched
-        if p == nil {
+        var fetched = prefetched
+        if fetched == nil {
             await flushBeforeStart()
-            p = try? await API.fetchPlan(day: day, dur: dur)
+            fetched = try? await API.fetchPlanChecked(day: day, dur: dur)
         }
-        if day == nil, let q = p, SessionCore.queuePlanStale(day: q.day, bankedDays: Outbox.bankedDays()) {
-            // Signal, but the banked session did not land (a slow upload, a
-            // 5xx): the server queued this day without it. Never repeat the
-            // day behind his back — a day he picks himself still starts.
-            p = nil
-            notice = "Day \(q.day) not uploaded yet — pick the day"
+        var p = fetched?.plan
+        if let f = fetched, day == nil {
+            // A fresh queue plan is the server's word — three reasons not to
+            // open it straight away, none of them a block:
+            var held: String?
+            if SessionCore.queuePlanStale(day: f.plan.day, bankedBefore: f.banked, bankedAfter: Outbox.bankedDays()) {
+                // Signal, but today's banked session did not land (a slow
+                // upload, a 5xx): the server queued this day without it.
+                // Never repeat the day behind his back. The line states the
+                // fact — done today — and invites nothing (trainer review).
+                held = "Day \(f.plan.day) done today · not uploaded yet"
+            } else if fromButton, !SessionCore.buttonStarts(mode: f.plan.mode) {
+                // Recovery day, or already trained: the Start screen's own
+                // banner says it; the big button goes ahead in one tap.
+                held = ""
+            } else if !SessionCore.promiseKept(shown: promised, opened: f.plan.day) {
+                held = "Now Day \(f.plan.day) — tap to start"
+            }
+            if let held {
+                guard session == nil else { resumeExisting(); return }
+                plan = f.plan
+                offeredDay = nil
+                notice = held.isEmpty ? nil : held
+                phase = .idle
+                return
+            }
         } else if p == nil {
             // Offline fallback — but NEVER from a cache old enough to span a
             // layoff, nor one for another day or building: a stale plan carries
@@ -430,7 +459,18 @@ final class SessionStore: ObservableObject {
             case .ok?: break
             case .tooOld?: notice = "Plan too old — need signal once"
             case .trained?: notice = "Day \(plan?.day ?? "") done — need signal for the next plan"
-            case .wrongPlan?, nil: notice = "No plan yet — need signal once"
+            case .unconfirmed?:
+                // The old build's cache: a plan IS on the wrist, only not
+                // known to be the queue. Say so and offer it by name — it
+                // read "No plan yet" with a valid plan on disk.
+                if let d = Store.loadPlanCache()?.day {
+                    offeredDay = d
+                    notice = "No signal — tap again for Day \(d)"
+                } else {
+                    notice = "No plan yet — need signal once"
+                }
+            case .wrongPlan?, nil:
+                notice = day.map { "No Day \($0) plan yet — need signal once" } ?? "No plan yet — need signal once"
             }
         }
         // A session that appeared during the await (a restore, a Continue)
@@ -438,6 +478,7 @@ final class SessionStore: ObservableObject {
         guard session == nil else { resumeExisting(); return }
         guard let p, !p.exercises.isEmpty else { phase = .idle; return }
         plan = p
+        offeredDay = nil
         let slots = SessionCore.buildSlots(p)
         let s = ActiveSession(
             clientSaveId: UUID().uuidString, day: p.day, rpeCap: p.rpeCap,
@@ -548,7 +589,7 @@ final class SessionStore: ObservableObject {
     /// the '+1 set' offer for the rest that follows (trainer ruling 2).
     func setRPE(_ rpe: Int, exerciseId: String) {
         guard var s = session else { return }
-        let rated = SessionCore.rate(&s, exerciseId: exerciseId, rpe: rpe)
+        let rated = SessionCore.rate(&s, exerciseId: exerciseId, rpe: rpe, now: Date())
         if rated != nil, rpe < s.rpeCap,
            s.slots.contains(where: { $0.exerciseId == exerciseId && $0.extraSetAllowed == true }),
            !(s.extraSetsTaken ?? []).contains(exerciseId) {

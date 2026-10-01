@@ -370,7 +370,7 @@ do {
     let legacy = CachedPlan(plan: p, fetchedAt: t0, gym: nil)
     check(verdict(queue) == .ok, "a queue-default plan opens an offline Action Button start")
     check(verdict(asked) == .wrongPlan, "an explicit-day or Continue plan is never served as the queue")
-    check(verdict(legacy) == .wrongPlan, "a cache from before the flag is not trusted as the queue")
+    check(verdict(legacy) != .ok, "a cache from before the flag is not trusted as the queue")
     check(verdict(asked, day: "A") == .ok && verdict(queue, day: "A") == .ok && verdict(legacy, day: "A") == .ok, "any of them may open the day he explicitly asks for")
     check(verdict(queue, day: "B") == .wrongPlan, "never another day")
     check(verdict(queue, gym: "work") == .wrongPlan, "never another building (rule 2)")
@@ -383,14 +383,14 @@ do {
     check(verdict(queue, banked: ["B"]) == .ok, "a banked Day B does not")
     let round = try? JSONDecoder().decode(CachedPlan.self, from: JSONEncoder().encode(trained))
     check(round?.queue == true && round?.trainedAt == trained.trainedAt, "both marks survive the disk")
-    check(SessionCore.startDay(override: nil, shown: "A") == nil, "the big button sends NO day unless he picked one — the server's queue decides, not a stale screen")
-    check(SessionCore.startDay(override: "B", shown: "A") == "B", "a deliberate pick is sent as picked")
+    check(SessionCore.startDay(override: nil, offered: nil) == nil, "the big button sends NO day unless he picked one — the server's queue decides, not a stale screen")
+    check(SessionCore.startDay(override: "B", offered: "A") == "B", "a deliberate pick is sent as picked")
 }
 
 print("Watch core — banked sessions and the next start (A)")
 do {
-    check(SessionCore.queuePlanStale(day: "A", bankedDays: ["A"]), "a fresh queue plan for a day still banked here was computed without that session")
-    check(!SessionCore.queuePlanStale(day: "B", bankedDays: ["A"]) && !SessionCore.queuePlanStale(day: "A", bankedDays: []), "otherwise the server's queue stands")
+    check(SessionCore.queuePlanStale(day: "A", bankedBefore: ["A"], bankedAfter: ["A"]), "a fresh queue plan for a day still banked here was computed without that session")
+    check(!SessionCore.queuePlanStale(day: "B", bankedBefore: ["A"], bankedAfter: ["A"]) && !SessionCore.queuePlanStale(day: "A", bankedBefore: [], bankedAfter: []), "otherwise the server's queue stands")
     check(SessionCore.flushOnPath(satisfied: true, banked: 1), "signal back with a session banked: flush (the doc promised it; no code did)")
     check(!SessionCore.flushOnPath(satisfied: false, banked: 1) && !SessionCore.flushOnPath(satisfied: true, banked: 0), "no path or nothing banked: nothing to do")
 }
@@ -405,6 +405,97 @@ do {
     check(SessionCore.buildLabel(version: "13", builtAt: sep24, timeZone: riyadh) == "build 13 · Sep 24", "the footer carries the day the binary was built")
     check(SessionCore.buildLabel(version: "13", builtAt: oct2, timeZone: riyadh) != SessionCore.buildLabel(version: "13", builtAt: sep24, timeZone: riyadh), "two installs of build 13 with different code read differently")
     check(SessionCore.buildLabel(version: "13", builtAt: nil) == "build 13" && SessionCore.buildLabel(version: nil, builtAt: nil) == "build ?", "no file date: the number alone")
+}
+
+// ── Blind review of the 2026-10 fixes ───────────────────────────────────
+func iso(_ d: Date) -> String { ISO8601DateFormatter.fractional.string(from: d) }
+func banked(_ day: String, start: Date) -> LogPayload {
+    LogPayload(day: day, name: "n", startISO: ISO8601DateFormatter().string(from: start), localDay: "x", durationSec: 60, gym: "bfit",
+               healthWorkoutUuid: nil, clientSaveId: UUID().uuidString, sets: [])
+}
+
+print("Watch core — the wrist's own edits carry an edit stamp (R1)")
+do {
+    var s = session(plan([ex("lp", "Leg Press", order: 0, sets: 1, prefill: 36), ex("cp", "Chest Press", order: 1, prefill: 18)], n: 0))
+    SessionCore.merge(&s, row: phoneRow([phoneSet("cp", 1, 18)]))
+    let ticked = SessionCore.log(&s, now: t0)
+    check(ticked?.editedAt == nil && SessionCore.liveUpdate(ticked!, now: t0).editedAt == nil, "a set as ticked carries no edit stamp")
+    let later = t0.addingTimeInterval(90)
+    let rated = SessionCore.rate(&s, exerciseId: "lp", rpe: 3, now: later)
+    check(rated?.editedAt == iso(later) && rated?.completedAt == iso(t0), "a rating stamps the set edited NOW and keeps its tick time (dated by the tick, it lost to a phone correction made in between)")
+    check(rated.map { SessionCore.liveUpdate($0, now: later).editedAt } == iso(later), "the live update carries the stamp")
+    check(s.logged.first { $0.origin == "phone" }?.editedAt == nil, "a copy of the phone's set is never stamped")
+    let payload = LogPayload(day: "A", name: "n", startISO: "x", localDay: "x", durationSec: 1, gym: "bfit", healthWorkoutUuid: nil, clientSaveId: "c", sets: s.logged)
+    let json = (try? JSONSerialization.jsonObject(with: JSONEncoder().encode(payload))) as? [String: Any]
+    let sets = json?["sets"] as? [[String: Any]] ?? []
+    check(sets.filter { $0["editedAt"] != nil }.count == 1 && sets.first { $0["exerciseId"] as? String == "lp" }?["editedAt"] as? String == iso(later),
+          "the finish payload carries it for the rated set and for no other")
+}
+do {
+    // The phone corrects a set the WRIST logged; the wrist then rates it.
+    // Stamped "now", the wrist's version is the newest — so it must hold
+    // the phone's corrected weight, not its own stale one.
+    var s = session(plan([ex("lp", "Leg Press", order: 0, sets: 1, prefill: 20)], n: 0))
+    SessionCore.log(&s, now: t0)
+    var edited = phoneSet("lp", 1, 22.5, reps: 10, at: iso(t0))
+    edited.editedAt = iso(t0.addingTimeInterval(30))
+    SessionCore.merge(&s, row: phoneRow([edited]))
+    check(s.logged.first?.weight == 22.5 && s.logged.first?.reps == 10 && s.logged.first?.origin == nil, "a LATER phone edit of a wrist set is adopted — and the set stays the wrist's to rate")
+    let rated = SessionCore.rate(&s, exerciseId: "lp", rpe: 3, now: t0.addingTimeInterval(60))
+    check(rated?.weight == 22.5 && rated?.rpe == 3, "the rating then rides the corrected weight")
+    var stale = phoneSet("lp", 1, 20, at: iso(t0))
+    stale.editedAt = iso(t0.addingTimeInterval(30))
+    SessionCore.merge(&s, row: phoneRow([stale]))
+    check(s.logged.first?.weight == 22.5 && s.logged.first?.rpe == 3, "an OLDER row version never rewrites the wrist's newer one")
+}
+
+print("Watch core — two sessions in a row with no signal (R2, R3)")
+do {
+    let a = plan([ex("lp", "Leg Press", order: 0)])
+    let b = Plan(day: "B", mode: "train", focus: "Day B", durationMin: 45, loadPct: 85, rpeCap: 3, exercises: [ex("mr", "Mid Row", order: 0)], warmupFirstN: 2, startableUntil: nil)
+    check(SessionCore.companionDay(for: a, gym: nil) == "B" && SessionCore.companionDay(for: b, gym: nil) == "A", "a queue fetch also asks for the OTHER day's plan (after Day A banked offline, Day B had no plan to open)")
+    check(SessionCore.companionDay(for: a, gym: "work") == nil, "only for the building the wrist opens sessions in")
+    let now = t0.addingTimeInterval(3600)
+    let queueA = SessionCore.markTrained(CachedPlan(plan: a, fetchedAt: t0, gym: nil, queue: true), day: "A", at: t0.addingTimeInterval(1800))
+    let askedB = CachedPlan(plan: b, fetchedAt: t0, gym: nil, queue: false)
+    let list = SessionCore.upsertCached(SessionCore.upsertCached([], askedB), CachedPlan(plan: a, fetchedAt: t0, gym: "work", queue: false))
+    check(list.count == 2 && SessionCore.upsertCached(list, CachedPlan(plan: b, fetchedAt: now, gym: nil, queue: false)).count == 2, "the asked cache keeps one plan per day and building")
+    check(SessionCore.pickCached([queueA] + list, day: nil, gym: nil, bankedDays: ["A"], now: now).why == .trained, "Day A banked: the Action Button still does not guess the queue")
+    check(SessionCore.pickCached([queueA] + list, day: "B", gym: nil, bankedDays: ["A"], now: now).cached?.plan.day == "B", "but Day B, picked by name, opens from its cached plan")
+    check(SessionCore.pickCached([queueA] + list, day: "B", gym: nil, bankedDays: [], now: t0.addingTimeInterval(8 * 86400)).why == .tooOld, "its age is still bounded by the seven-day window")
+    // R3: the old build's cache on the first offline launch of this one.
+    let legacy = CachedPlan(plan: a, fetchedAt: t0, gym: nil)
+    let v = SessionCore.pickCached([legacy], day: nil, gym: nil, bankedDays: [], now: now)
+    check(v.cached == nil && v.why == .unconfirmed, "an old build's cached plan is still not the queue — but it is there, and the wrist says so (it said \"No plan yet\")")
+    check(SessionCore.pickCached([legacy], day: "A", gym: nil, bankedDays: [], now: now).cached != nil, "named, it opens")
+    check(SessionCore.startDay(override: nil, offered: "A") == "A", "the confirming tap on the offered day sends that day by name")
+    check(SessionCore.startDay(override: "B", offered: "A") == "B", "his own pick still outranks the offer")
+}
+
+print("Watch core — a plan computed before the banked session landed (R4, R9)")
+do {
+    check(SessionCore.queuePlanStale(day: "A", bankedBefore: ["A"], bankedAfter: []), "banked when the fetch began, landed before the check: the plan is still stale")
+    check(SessionCore.queuePlanStale(day: "A", bankedBefore: [], bankedAfter: ["A"]), "banked during the fetch counts too")
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(identifier: "Asia/Riyadh")!
+    func at(_ day: Int, _ hour: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour))! }
+    check(SessionCore.bankedToday([banked("A", start: at(2, 18))], now: at(2, 21)) == ["A"], "a session banked this evening blocks tonight's queue start")
+    check(SessionCore.bankedToday([banked("A", start: at(2, 23))], now: at(3, 3)) == ["A"], "03:00 is still the same activity day (04:00 Riyadh rollover)")
+    check(SessionCore.bankedToday([banked("A", start: at(2, 18))], now: at(3, 5)).isEmpty, "a session the server keeps refusing with 5xx must not block starts on later days")
+}
+
+print("Watch core — the wrist raise mid-session (R5)")
+do {
+    check(SessionCore.foregroundSteps(sessionActive: true) == [.live, .flush], "mid-session the phone's sets are read FIRST — never behind an upload that can take 12 s a payload")
+    check(SessionCore.foregroundSteps(sessionActive: false) == [.live, .flush, .plan], "idle: the Continue offer first, then the upload, then the queue it changes")
+}
+
+print("Watch core — the Action Button on a day the plan advises against (R6, R8)")
+do {
+    check(SessionCore.buttonStarts(mode: "train"), "a training day starts with zero taps")
+    check(!SessionCore.buttonStarts(mode: "recover") && !SessionCore.buttonStarts(mode: "done"), "a recovery day or a second session lands on the Start screen with the plan's advice — one tap to go ahead")
+    check(!SessionCore.promiseKept(shown: "A", opened: "B"), "the big button read Day A and the queue is now Day B: show it, do not open it")
+    check(SessionCore.promiseKept(shown: "A", opened: "A") && SessionCore.promiseKept(shown: nil, opened: "B"), "same day, or no day was on screen (the Action Button): start")
 }
 
 print("\n\(passed) passed, \(failed) failed")

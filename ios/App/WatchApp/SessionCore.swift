@@ -127,10 +127,14 @@ enum SessionCore {
 
     /// One honest rating on OUR last working set of the machine — never a
     /// warm-up, never a set the phone logged. Returns the rated set.
-    static func rate(_ s: inout ActiveSession, exerciseId: String, rpe: Int) -> LogSet? {
+    static func rate(_ s: inout ActiveSession, exerciseId: String, rpe: Int, now: Date = Date()) -> LogSet? {
         if s.pendingRpe == exerciseId { s.pendingRpe = nil }
         guard let i = s.logged.lastIndex(where: { $0.exerciseId == exerciseId && $0.origin != "phone" && !$0.isWarmup }) else { return nil }
         s.logged[i].rpe = rpe
+        // Edited NOW, ticked THEN: the server orders two versions of one
+        // tick by this stamp. Dated by the tick alone, a wrist rating given
+        // after a phone correction was judged the older version.
+        s.logged[i].editedAt = ISO8601DateFormatter.fractional.string(from: now)
         return s.logged[i]
     }
 
@@ -258,12 +262,32 @@ enum SessionCore {
         dropPhoneSets(&s, all: false, keeping: row)
         let theirs = row.sets.filter { $0.source != "watch" }
         for ls in theirs {
-            guard let i = s.logged.firstIndex(where: { $0.exerciseId == ls.exerciseId && $0.setNumber == ls.setNumber && $0.origin == "phone" }) else { continue }
-            let latest = LogSet(
-                exerciseId: ls.exerciseId, setNumber: ls.setNumber, reps: ls.reps, weight: ls.weight,
-                rpe: ls.rpe, isWarmup: s.logged[i].isWarmup, origin: "phone", completedAt: ls.completedAt
-            )
-            guard latest != s.logged[i] else { continue }
+            guard let i = s.logged.firstIndex(where: { $0.exerciseId == ls.exerciseId && $0.setNumber == ls.setNumber }) else { continue }
+            let mine = s.logged[i]
+            let latest: LogSet
+            if mine.origin == "phone" {
+                latest = LogSet(
+                    exerciseId: ls.exerciseId, setNumber: ls.setNumber, reps: ls.reps, weight: ls.weight,
+                    rpe: ls.rpe, isWarmup: mine.isWarmup, origin: "phone", completedAt: ls.completedAt
+                )
+            } else {
+                // A set the WRIST logged, which the phone has since edited
+                // (the row's version is the phone's and is the later one).
+                // Adopted, or the wrist's next rating — stamped "now" — would
+                // carry its own stale weight over the correction. It stays
+                // the wrist's to rate; like the server, no rating never
+                // erases a rating at the same weight × reps. An older or
+                // undated row version changes nothing.
+                guard let theirsAt = stamp(ls.editedAt ?? ls.completedAt),
+                      let mineAt = stamp(mine.editedAt ?? mine.completedAt), theirsAt > mineAt else { continue }
+                let sameLoad = ls.weight == mine.weight && ls.reps == mine.reps
+                latest = LogSet(
+                    exerciseId: mine.exerciseId, setNumber: mine.setNumber, reps: ls.reps, weight: ls.weight,
+                    rpe: ls.rpe ?? (sameLoad ? mine.rpe : nil), isWarmup: mine.isWarmup, origin: mine.origin,
+                    completedAt: ls.completedAt, editedAt: ls.editedAt
+                )
+            }
+            guard latest != mine else { continue }
             s.logged[i] = latest
             if let h = s.slots[..<s.currentIndex].lastIndex(where: { $0.exerciseId == ls.exerciseId && $0.setNumber == ls.setNumber }) {
                 s.slots[h].weightKg = ls.weight
@@ -290,6 +314,25 @@ enum SessionCore {
             s.currentIndex = head.count
         }
         retireWarmups(&s)
+    }
+
+    /// A server or wrist time stamp, with or without fractional seconds.
+    static func stamp(_ raw: String?) -> Date? {
+        guard let raw else { return nil }
+        return ISO8601DateFormatter.fractional.date(from: raw) ?? ISO8601DateFormatter().date(from: raw)
+    }
+
+    /// One logged set as a live-row update. completedAt is the set's OWN
+    /// time — a rating re-posted later keeps it, so a phone removal made in
+    /// between still wins (live-session.ts tombstones) — and editedAt rides
+    /// along only when this wrist changed the set after the tick.
+    static func liveUpdate(_ set: LogSet, now: Date) -> LiveUpdate {
+        LiveUpdate(
+            exerciseId: set.exerciseId, setNumber: set.setNumber, reps: set.reps, weight: set.weight,
+            rpe: set.rpe, isWarmup: set.isWarmup,
+            completedAt: set.completedAt ?? ISO8601DateFormatter.fractional.string(from: now), remove: nil,
+            editedAt: set.editedAt
+        )
     }
 
     // MARK: - The card's controls
@@ -392,6 +435,10 @@ enum SessionCore {
         case wrongPlan
         /// Its day was already trained on this wrist: no longer the queue.
         case trained
+        /// Cached by a build that did not record how it was fetched: maybe
+        /// the queue, maybe the last session's own plan. Never started as
+        /// the queue; offered BY NAME for one confirming tap.
+        case unconfirmed
     }
 
     /// May this cached plan open the start that was asked for? A day he
@@ -408,7 +455,7 @@ enum SessionCore {
         guard planStartable(c.plan, fetchedAt: c.fetchedAt, now: now) else { return .tooOld }
         guard (c.gym ?? "bfit") == (gym ?? "bfit") else { return .wrongPlan }
         if let day { return c.plan.day == day ? .ok : .wrongPlan }
-        guard c.queue == true else { return .wrongPlan }
+        guard c.queue == true else { return c.queue == nil ? .unconfirmed : .wrongPlan }
         if c.trainedAt != nil || bankedDays.contains(c.plan.day) { return .trained }
         return .ok
     }
@@ -416,7 +463,86 @@ enum SessionCore {
     /// A FRESH queue plan can be stale too: the server chose its day without
     /// a session that is still banked on this wrist (the flush before a
     /// start is bounded, and a 5xx keeps a payload banked with signal up).
-    static func queuePlanStale(day: String, bankedDays: [String]) -> Bool { bankedDays.contains(day) }
+    /// Banked when the fetch BEGAN counts as much as banked when it came
+    /// back: the flush keeps running past the start's 4 s wait, so the POST
+    /// can commit after the server computed the plan and before this check
+    /// — an empty outbox then proved nothing (blind review).
+    static func queuePlanStale(day: String, bankedBefore: [String], bankedAfter: [String]) -> Bool {
+        bankedBefore.contains(day) || bankedAfter.contains(day)
+    }
+
+    /// The owner's activity day: it rolls over at 04:00 Riyadh, so a session
+    /// after midnight belongs to the evening it started in.
+    static func activityDay(_ date: Date) -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = TimeZone(identifier: "Asia/Riyadh")
+        df.dateFormat = "yyyy-MM-dd"
+        return df.string(from: date.addingTimeInterval(-4 * 3600))
+    }
+
+    /// The days of the banked sessions that may still refuse a queue start:
+    /// today's only. A payload the server answers 5xx for stays banked for
+    /// good, and it refused every matching start for as long (blind
+    /// review). From the next activity day on, the server's queue stands.
+    static func bankedToday(_ payloads: [LogPayload], now: Date) -> [String] {
+        let today = activityDay(now)
+        return payloads.filter { stamp($0.startISO).map(activityDay) == today }.map(\.day)
+    }
+
+    /// The other day of the two-day program, to fetch and cache beside a
+    /// queue plan. Without it, two sessions in a row with no signal could
+    /// start NOTHING: Day A banked, its plan spent as the queue, and no plan
+    /// on the wrist for Day B (blind review). This is not the wrist choosing
+    /// the queue (rule 9) — it only keeps the server's plan for the day he
+    /// may pick by name. B_Fit only: the wrist opens no session elsewhere.
+    static func companionDay(for plan: Plan, gym: String?) -> String? {
+        guard (gym ?? "bfit") == "bfit" else { return nil }
+        switch plan.day {
+        case "A": return "B"
+        case "B": return "A"
+        default: return nil
+        }
+    }
+
+    /// The asked cache holds ONE plan per day and building, newest kept.
+    /// As a single slot, the companion fetch and a Continue evicted each other.
+    static func upsertCached(_ list: [CachedPlan], _ c: CachedPlan) -> [CachedPlan] {
+        list.filter { !($0.plan.day == c.plan.day && ($0.gym ?? "bfit") == (c.gym ?? "bfit")) } + [c]
+    }
+
+    /// The cached plan that may open this start, newest first — or the most
+    /// telling refusal: "already trained" over "cannot confirm the queue"
+    /// over "too old" over "not the plan asked for". `why` nil = nothing cached.
+    static func pickCached(_ cached: [CachedPlan], day: String?, gym: String?, bankedDays: [String], now: Date) -> (cached: CachedPlan?, why: CacheVerdict?) {
+        let sorted = cached.sorted { $0.fetchedAt > $1.fetchedAt }
+        let verdicts = sorted.map { cacheVerdict($0, day: day, gym: gym, bankedDays: bankedDays, now: now) }
+        if let i = verdicts.firstIndex(of: .ok) { return (sorted[i], .ok) }
+        return (nil, [.trained, .unconfirmed, .tooOld, .wrongPlan].first(where: verdicts.contains))
+    }
+
+    // MARK: - Start decisions
+
+    /// Does the Action Button start at once? Only on a training day. On a
+    /// recovery day, or with a session already done today, it used to start
+    /// anyway with no word — the plan's advice lived only on the Start
+    /// screen (trainer review). Now it lands there, advice showing, and one
+    /// tap goes ahead: advice, never a block.
+    static func buttonStarts(mode: String) -> Bool { mode == "train" }
+
+    /// The big button read "Day A"; did Day A open? When the queue moved
+    /// since the screen was drawn, the new day is SHOWN for a tap, never
+    /// opened under the old label. nil = no day was on screen.
+    static func promiseKept(shown: String?, opened: String) -> Bool { shown == nil || shown == opened }
+
+    /// A wrist raise or a launch, in order. The live row comes FIRST: the
+    /// outbox flush can wait 12 s per banked payload on a slow or captive
+    /// network, and the phone's sets sat behind it. The queue plan follows
+    /// the flush (which moves the queue) and is not fetched mid-session.
+    enum ForegroundStep: Equatable { case flush, plan, live }
+    static func foregroundSteps(sessionActive: Bool) -> [ForegroundStep] {
+        sessionActive ? [.live, .flush] : [.live, .flush, .plan]
+    }
 
     /// A session of `day` was finished here: a cached plan for that day is
     /// spent as the queue. Another day's plan is untouched.
@@ -428,10 +554,11 @@ enum SessionCore {
     }
 
     /// The day the Start screen's big button asks the server for: the one he
-    /// deliberately picked, else NONE. It used to send the day the screen
-    /// was showing — a plan fetched once per process — as if it were today's
-    /// queue; the server obeyed an explicit day.
-    static func startDay(override: String?, shown: String) -> String? { override }
+    /// deliberately picked, else the cached day the wrist OFFERED by name
+    /// after it could not confirm the queue, else NONE. It used to send the
+    /// day the screen was showing — a plan fetched once per process — as if
+    /// it were today's queue; the server obeyed an explicit day.
+    static func startDay(override: String?, offered: String?) -> String? { override ?? offered }
 
     // MARK: - Outbox
 

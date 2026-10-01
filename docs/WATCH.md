@@ -116,12 +116,30 @@ returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
   queue plan; a named-day, Continue or other-building plan goes to
   `plan-cache-asked.json`. A start with no day and no signal is served
   ONLY by a queue plan, and not once its day was trained on this wrist
-  (finished since the fetch, or still banked) — the one-file cache held
+  (finished since the fetch, or banked today) — the one-file cache held
   the last session's own plan and the offline Action Button repeated that
   day at pre-session weights. The wrist never guesses the next day
   (rule 9): it says "need signal for the next plan"; a day he picks by
   name still opens from any cached plan for that day
-  (`SessionCore.cacheVerdict`).
+  (`SessionCore.cacheVerdict` / `pickCached`).
+- Every successful queue fetch also fetches the OTHER day's plan into the
+  asked cache (one plan per day and building, `companionDay` — B_Fit
+  only, the wrist opens no session elsewhere). Without it two sessions in
+  a row with no signal could start nothing: Day A banked and spent, no
+  Day B plan on the wrist. Its age is bounded by the same 7-day /
+  `startableUntil` window.
+- A `plan-cache.json` written by a build before the `queue` flag is not
+  trusted as the queue, but it is not "no plan" either: the wrist says
+  "No signal — tap again for Day X" and the next tap on the big button
+  asks for that day by name ("saved plan" under the label).
+- The Action Button starts with zero taps only when the queue plan's
+  `mode` is `train`. On a recovery day or after a session it lands on the
+  Start screen, where the plan's own line shows ("Recovery day — walk
+  instead?" / "Already trained today") and the big button goes ahead in
+  one tap — advice, never a block (trainer review, 2026-10-02).
+- The big button opens the day it reads. When no day is sent and the
+  server's queue has moved since the screen was drawn, the wrist shows
+  "Now Day B — tap to start" instead of opening Day B under a Day A label.
 
 ### `POST /api/watch/log` — the finished session, one shot
 
@@ -203,9 +221,15 @@ later.
 - Every start (Action Button, big button, Continue) sends the outbox
   first and waits up to 4 s for it, so the plan the server computes
   includes the banked session; a dead network answers at once and the
-  offline start is unchanged. If the session is STILL banked when a queue
-  plan for its day arrives, the start is refused ("Day A not uploaded yet
-  — pick the day") rather than repeating the day behind his back.
+  offline start is unchanged. If a session from TODAY (activity day,
+  04:00 Riyadh rollover) was banked at any point while the queue plan for
+  its day was fetched — before the request or after it, the flush runs
+  alongside — the start is held with "Day A done today · not uploaded
+  yet" rather than repeating the day behind his back. An older banked
+  session (a payload the server keeps answering 5xx for) blocks nothing.
+- A wrist raise reads the live row FIRST, then flushes, then (idle only)
+  refetches the queue plan: the flush can take 12 s per banked payload on
+  a slow network and the phone's sets must not wait behind it.
 - A kill during the RPE strip relaunches on the strip
   (`ActiveSession.pendingRpe`); it used to land on the next card and
   leave that machine unrated.
@@ -269,13 +293,18 @@ logs; same key (exercise + TEMPLATE set number, warm-ups keyed apart as
 setNumber 0 — `sanitizeLiveUpdate` accepts 0 ONLY with `isWarmup: true`,
 and pins any warm-up to 0 whatever number it arrives with) → the LATER completion wins; keys the update never
 mentions are untouched. Two versions of the SAME tick (equal
-`completedAt` — a corrected weight, a rating) are ordered by `editedAt`,
-kept per set inside the row's JSON: the sender's stamp, else arrival time
-when a device re-posts its own set changed, else the tick time (the other
-device's copy is no newer than the tick) — and across devices an unrated
-copy never erases a rating at the same weight × reps (2026-10-02).
-Warm-ups travel both ways; the phone removes only keys it showed ticked
-itself (`liveDiff`). A row holds ≤ 200 keys and only sets whose
+`completedAt` — a corrected weight, a rating) are ordered by edit, kept
+per set as `editedAt` inside the row's JSON (2026-10-02): an edit — the
+sender says so with `editedAt`, or a device re-posts its own set changed —
+wins and is dated by ARRIVAL (device clocks disagree; a stamp before the
+tick is floored at it); an unstamped post from the other device is a copy
+of the tick and loses to a stored edit. The wrist cannot change a logged
+load without a new tick, so its same-tick post onto a version the phone
+wrote is a rating only. An unrated winner takes the other copy's rating
+at any load, and across devices no rating never erases one. Warm-ups
+travel both ways; the phone removes only keys it showed ticked itself
+(`liveDiff`), records a push only when the row holds that version, and
+adopts a rating the row gained on its own set (`liveToAdopt`). A row holds ≤ 200 keys and only sets whose
 exerciseId exists. The phone's save keeps the template numbers too —
 renumbering 1..n across a warm-up once dropped a Watch set and doubled a
 phone set. Gym and source are FIRST-writer-wins: the opening device
@@ -291,7 +320,13 @@ same id adds the sets the saved workout lacks and updates a saved key
 only when its version is the newer one (`finishUpdates` — a rating the
 wrist gave after the phone finished lands; `allowedKg` is never
 rewritten) — in one transaction — and returns `deduped`: a success, not
-an error.
+an error. The phone's finish carries `editedAt` on a set it changed
+after the tick, so a correction the row never saw still outranks the
+version it corrected. A malformed row never fails a save: its junk
+elements are dropped on read and, should the reconciliation still throw,
+the poster's own sets are saved as posted. Remaining undatable window: an
+edit that lands between the first finisher's read of the row and its
+close is kept only as a missing rating (filled by the second finish).
 
 Watch side: the Start screen shows **Continue Day X · N sets on the
 phone** when a phone-born row is open; `continueLive` builds the slots
@@ -303,8 +338,11 @@ row the phone finished: it first posts its own sets under the same id
 (the server adds what the workout lacks), then lands on Done.
 Phone-origin sets are marked and never rated on the wrist. The wrist's
 copy TRACKS the row on every read (2026-10-02): a phone correction
-replaces it, so the finish no longer posts a stale copy; a set logged on
-the wrist is never rewritten from the row. Un-ticked or discarded on the
+replaces it, so the finish no longer posts a stale copy. A set logged on
+the wrist changes only when the row holds a LATER phone edit of it (by
+`editedAt`, else the tick) — it stays the wrist's to rate. A wrist rating
+stamps the set `editedAt` = now, sent in the live update and in the
+finish payload; ticks and phone copies carry no stamp. Un-ticked or discarded on the
 phone, the copy leaves the log AND its slot returns to the pending queue
 (among its machine's pending sets, else at the back — never changing
 another machine's card), so the wrist offers it again and a re-tick shows

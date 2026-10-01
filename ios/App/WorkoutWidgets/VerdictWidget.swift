@@ -61,7 +61,7 @@ enum VerdictCache {
     private static let dataKey = "verdict.lastGood.json"
     private static let savedAtKey = "verdict.lastGood.savedAt"
     /// Past this the cached line says nothing true any more — back to a dash.
-    private static let maxAge: TimeInterval = 7 * 24 * 60 * 60
+    private static let maxAge: TimeInterval = 24 * 60 * 60
 
     static func save(_ data: Data, now: Date = Date()) {
         let defaults = UserDefaults.standard
@@ -69,17 +69,26 @@ enum VerdictCache {
         defaults.set(now.timeIntervalSince1970, forKey: savedAtKey)
     }
 
-    /// The cached verdict and its age in whole days — nil while it is under a
-    /// day old, because only an old verdict needs marking.
-    static func load(now: Date = Date()) -> (verdict: Verdict, ageDays: Int?)? {
+    /// The owner's activity day (04:00 Riyadh rollover = 01:00 UTC), as a
+    /// day number. The verdict changes when that day turns, so a verdict
+    /// cached on another day says nothing true: "done today" cached at
+    /// 23:00 was still showing at 09:00 (adversary, 2026-10-02).
+    private static func activityDay(_ t: TimeInterval) -> Int {
+        Int(((t - 3600) / 86_400).rounded(.down))
+    }
+
+    /// The cached verdict, only while it is from today's activity day.
+    static func load(now: Date = Date()) -> Verdict? {
         let defaults = UserDefaults.standard
         guard let data = defaults.data(forKey: dataKey),
               let verdict = try? JSONDecoder().decode(Verdict.self, from: data)
         else { return nil }
-        let age = now.timeIntervalSince1970 - defaults.double(forKey: savedAtKey)
-        guard age >= 0, age <= maxAge else { return nil }
-        let days = Int(age / (24 * 60 * 60))
-        return (verdict, days >= 1 ? days : nil)
+        let savedAt = defaults.double(forKey: savedAtKey)
+        let age = now.timeIntervalSince1970 - savedAt
+        guard age >= 0, age <= maxAge,
+              activityDay(savedAt) == activityDay(now.timeIntervalSince1970)
+        else { return nil }
+        return verdict
     }
 }
 
@@ -89,9 +98,9 @@ struct VerdictEntry: TimelineEntry {
     let date: Date
     /// nil = no data yet (nothing fetched and nothing cached, or stale) → dash.
     let verdict: Verdict?
-    /// Set only when `verdict` is the cached one AND it is a day or more old.
-    var ageDays: Int? = nil
-    /// The fetch behind this entry failed; retry sooner than the usual cycle.
+    /// The fetch behind this entry failed: `verdict` is the cached one and is
+    /// drawn dimmed, without its day count — a session saved since would
+    /// have changed it. Also retries sooner than the usual cycle.
     var fetchFailed: Bool = false
 }
 
@@ -127,9 +136,8 @@ struct VerdictProvider: TimelineProvider {
             // The server answered. A stale updatedISO from it is still a dash.
             return VerdictEntry(date: Date(), verdict: VerdictFetcher.isStale(verdict) ? nil : verdict)
         }
-        // Unreachable: the last good verdict, marked with its age once old.
-        let cached = VerdictCache.load()
-        return VerdictEntry(date: Date(), verdict: cached?.verdict, ageDays: cached?.ageDays, fetchFailed: true)
+        // Unreachable: today's last good verdict, drawn as unconfirmed.
+        return VerdictEntry(date: Date(), verdict: VerdictCache.load(), fetchFailed: true)
     }
 }
 
@@ -163,7 +171,7 @@ struct VerdictSmallView: View {
                         .foregroundStyle(Aurora.dayColor(v.dayLetter))
                     Spacer()
                     // An old cached verdict's day count is wrong by now.
-                    if entry.ageDays == nil, let days = v.daysSince {
+                    if !entry.fetchFailed, let days = v.daysSince {
                         VStack(alignment: .trailing, spacing: 0) {
                             Text("\(days)")
                                 .font(.system(size: 17, weight: .semibold, design: .rounded))
@@ -176,15 +184,15 @@ struct VerdictSmallView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                if let age = entry.ageDays {
-                    Text("\(age)d old")
+                if entry.fetchFailed {
+                    Text("offline")
                         .font(.system(size: 9, weight: .bold))
                         .textCase(.uppercase)
                         .foregroundStyle(Aurora.tx3)
                 }
                 Text(v.lead)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(entry.ageDays == nil ? .white : Aurora.tx2)
+                    .foregroundStyle(entry.fetchFailed ? Aurora.tx2 : .white)
                     .lineLimit(3)
                     .minimumScaleFactor(0.8)
             } else {
@@ -222,10 +230,10 @@ struct VerdictRectangularView: View {
                 HStack(spacing: 4) {
                     Text("DAY \(v.dayLetter ?? "–")")
                         .font(.system(size: 13, weight: .heavy, design: .rounded))
-                    if let age = entry.ageDays {
-                        // An old cached verdict: its own day count is wrong by
-                        // now, so the age replaces it.
-                        Text("· \(age)d old")
+                    if entry.fetchFailed {
+                        // A cached verdict: a session saved since would have
+                        // changed its day count, so the mark replaces it.
+                        Text("· offline")
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
                             .opacity(0.7)
                     } else if let days = v.daysSince {

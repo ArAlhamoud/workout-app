@@ -11,8 +11,10 @@ import {
   unionForFinish,
   type LiveSetUpdate,
   type LiveSource,
+  dedupeByKey,
   finishUpdates,
   resolveFinishSets,
+  setsMissingFrom,
   mergeCandidates,
   recordedInHealth,
 } from '@/lib/live-session';
@@ -207,10 +209,18 @@ export async function createWorkout(data: {
     completedAt?: string;
     /** Warm-up sets are logged but excluded from records/volume/plateaus. */
     isWarmup?: boolean;
+    /** ISO instant the phone changed the set AFTER its tick, when it did —
+     *  read by the live merge only (resolveFinishSets), never stored. */
+    editedAt?: string;
   }>;
   /** Which device is finishing — its own live sets are never re-added. */
   finishSource?: LiveSource;
 }) {
+  // One set per key: two under one key in a single payload hit the
+  // WorkoutSet unique index, and the outbox replays a save that can never
+  // land. A ticked set is never dropped for it — a second set under a
+  // taken key is renumbered, only a replay of one tick collapses.
+  data.sets = dedupeByKey(data.sets);
   if (data.clientSaveId) {
     // Any set must belong to a machine that exists, or the insert hits the
     // FK and the session becomes unsaveable under its id (steward).
@@ -248,7 +258,16 @@ export async function createWorkout(data: {
       const ok = await knownIds(data.sets);
       // Minus anything the other device un-ticked after it was logged: the
       // Watch re-posts everything it ever logged at finish (steward B1).
-      const missing = mergeCandidates(existing.sets, data.sets, liveForMerge?.sets).filter((s) => ok.has(s.exerciseId));
+      // A save never fails because of the live row (data-steward,
+      // 2026-10-02): if reconciling with it throws, fall back to the plain
+      // missing-by-key merge and change nothing already saved.
+      let candidates: typeof data.sets;
+      try {
+        candidates = mergeCandidates(existing.sets, data.sets, liveForMerge?.sets);
+      } catch {
+        candidates = setsMissingFrom(existing.sets, data.sets);
+      }
+      const missing = candidates.filter((s) => ok.has(s.exerciseId));
       if (missing.length) {
         // With the (workoutId, exerciseId, setNumber, isWarmup) unique index
         // two overlapping finishers cannot both insert the same set.
@@ -272,12 +291,15 @@ export async function createWorkout(data: {
       // Keys both halves hold: the later edit lands on the saved row. Logged
       // values only — allowedKg stays what the first save recorded from the
       // save-time memory (rule 10), never a device's copy.
-      const newer = finishUpdates(
-        existing.sets.map((s) => ({ ...s, completedAt: s.completedAt ? s.completedAt.toISOString() : null })),
-        data.sets,
-        liveForMerge?.sets,
-        data.finishSource,
-      );
+      let newer: ReturnType<typeof finishUpdates> = [];
+      try {
+        newer = finishUpdates(
+          existing.sets.map((s) => ({ ...s, completedAt: s.completedAt ? s.completedAt.toISOString() : null })),
+          data.sets,
+          liveForMerge?.sets,
+          data.finishSource,
+        );
+      } catch { /* the saved values stand */ }
       for (const u of newer) {
         await tx.workoutSet.updateMany({
           where: { workoutId: existing.id, exerciseId: u.exerciseId, setNumber: u.setNumber, isWarmup: u.isWarmup },
@@ -290,7 +312,9 @@ export async function createWorkout(data: {
         await tx.workout.updateMany({ where: { id: existing.id, healthSyncedAt: null }, data: { healthSyncedAt: new Date() } });
       }
       return { id: existing.id, merged: missing.length + newer.length };
-    });
+    // One update per changed key runs in sequence here; Prisma's 5 s
+    // default would roll the whole merge back on a slow connection.
+    }, { maxWait: 5_000, timeout: 15_000 });
     if (merged) {
       if (merged.merged) {
         revalidatePath('/workouts');
@@ -309,14 +333,23 @@ export async function createWorkout(data: {
     // it, and 20 kg unrated replaced 22.5 Hard (review, 2026-10-02).
     const live = await readLive(data.clientSaveId);
     if (live && live.sets.length) {
-      // A set the OTHER device un-ticked after this one logged it is gone
-      // for good — the Watch re-posts everything it ever logged at finish.
-      // Honoured whether or not the row is still open.
-      data.sets = resolveFinishSets(data.sets, live.sets, data.finishSource);
-      if (!live.closedAt) {
-        const union = unionForFinish(data.sets, live.sets, data.finishSource);
-        const ok = await knownIds(union);
-        data.sets = union.filter((s) => ok.has(s.exerciseId)) as typeof data.sets;
+      // A save never fails because of the live row (data-steward,
+      // 2026-10-02): if the reconciliation throws, the poster's own sets
+      // are saved as posted.
+      const own = data.sets;
+      try {
+        // A set the OTHER device un-ticked after this one logged it is gone
+        // for good — the Watch re-posts everything it ever logged at finish.
+        // Honoured whether or not the row is still open.
+        let next = resolveFinishSets(data.sets, live.sets, data.finishSource);
+        if (!live.closedAt) {
+          const union = unionForFinish(next, live.sets, data.finishSource);
+          const ok = await knownIds(union);
+          next = union.filter((s) => ok.has(s.exerciseId)) as typeof data.sets;
+        }
+        data.sets = dedupeByKey(next);
+      } catch {
+        data.sets = own;
       }
     }
   }
@@ -347,7 +380,8 @@ export async function createWorkout(data: {
       // if Health holds no strength workout over that window.
       healthSyncedAt: recordedInHealth({ healthWorkoutUuid: data.healthWorkoutUuid }) ? new Date() : null,
       sets: {
-        create: data.sets.map((s) => ({
+        // editedAt dated the version for the merge above; it is not a column.
+        create: data.sets.map(({ editedAt: _edit, ...s }) => ({
           ...s,
           completedAt: s.completedAt ? new Date(s.completedAt) : null,
           allowedKg: s.isWarmup ? null : allowed[s.exerciseId] ?? null,

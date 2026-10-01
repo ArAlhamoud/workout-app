@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, pushLiveSets } from '@/app/actions';
 import { activityDayStr } from '@/lib/health-insights';
-import { liveDiff, liveKey, liveSerial, overlayLiveSets, ownLiveSets, visibleSets, type LiveSession, type LiveSet } from '@/lib/live-session';
+import { landedSerials, liveDiff, liveKey, liveSerial, liveToAdopt, overlayLiveSets, ownLiveSets, visibleSets, withEditStamps, type LiveSession, type LiveSet } from '@/lib/live-session';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
 import {
@@ -445,11 +445,22 @@ export default function WorkoutForm({
   const liveEnabled = !healthWorkoutUuid && !rescueMode;
   /** key → serialised done-set as last pushed (or received) — the diff base. */
   const liveSnapRef = useRef<Map<string, string>>(new Map());
-  /** Keys a flush has seen ticked ON THIS PHONE — only these can be
-   *  removed by it. The snapshot alone also holds what the overlay
-   *  received, and "in the snapshot, not in my blocks" tombstoned every
-   *  warm-up the Watch logged (review, 2026-10-02; liveDiff). */
+  /** Keys a flush has seen ticked IN THIS PHONE'S BLOCKS, whoever logged
+   *  them — only these can be removed by it (deleting a Watch set he sees
+   *  here is his removal). The snapshot alone also holds what the overlay
+   *  received before the blocks caught up, and "in the snapshot, not in my
+   *  blocks" tombstoned every warm-up the Watch logged (review,
+   *  2026-10-02; liveDiff). Reset wherever the blocks are rebuilt
+   *  wholesale (resetLiveDiff) — a rebuild is not a removal. */
   const liveTickedRef = useRef<Set<string>>(new Set());
+  /** key → the set as changed after its tick, and when: the stamp a push
+   *  retries with and the finish payload carries (withEditStamps). */
+  const liveEditedRef = useRef<Map<string, { ser: string; at: string }>>(new Map());
+  const resetLiveDiff = () => {
+    liveSnapRef.current = new Map();
+    liveTickedRef.current = new Set();
+    liveEditedRef.current = new Map();
+  };
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
   const [autoTimer, setAutoTimer] = useState(true);
   const [prToast, setPrToast] = useState<string | null>(null);
@@ -568,6 +579,7 @@ export default function WorkoutForm({
       // Sync the ref too, or the gym-change effect reads the restore as a
       // switch and refetches weights over the draft's own numbers.
       if (draft.gym) { lastGymRef.current = draft.gym; setGym(draft.gym); }
+      resetLiveDiff(); // a restored draft replaces the blocks; nothing was un-ticked
       setBlocks(draft.blocks as ExerciseBlock[]);
       // …but THAT building's pins, steps, memory and records must come back
       // too: the page only ever sends B_Fit's, so a restored Alrajhi draft
@@ -622,6 +634,7 @@ export default function WorkoutForm({
         setRepRecordsState(repRecords);
         setSessionMemory(lastSession);
         startRef.current = Date.now();
+        resetLiveDiff();
         setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, plateauKgs, rescueMode, hisSteps));
         setDraftRestored(false);
         setDraftIsStale(false);
@@ -730,7 +743,7 @@ export default function WorkoutForm({
           gym,
           clientSaveId: row.clientSaveId,
           finishSource: 'phone' as const,
-          sets: own,
+          sets: stampEdits(own),
         };
         try {
           await createWorkout(payload);
@@ -786,6 +799,17 @@ export default function WorkoutForm({
     );
   }
 
+  /** The finish payload, each set changed after its tick carrying when.
+   *  One last diff first, so an edit still inside the 0.4 s push debounce
+   *  is dated too: without the stamp a correction the row never saw was
+   *  dated by its tick and lost to the row's version at this phone's own
+   *  finish (blind review, 2026-10-02). */
+  function stampEdits<T extends Parameters<typeof withEditStamps>[0][number]>(sets: T[]): T[] {
+    if (!liveEnabled) return sets;
+    liveDiff(ownLiveSets(blocksRef.current, 'phone'), liveSnapRef.current, liveTickedRef.current, new Date().toISOString(), liveEditedRef.current);
+    return withEditStamps(sets, liveEditedRef.current);
+  }
+
   /** Push every done-set change since the last push. Fire-and-forget: a
    *  failed push stays in the diff and rides the next change or poll. */
   const liveBusyRef = useRef(false);
@@ -794,7 +818,7 @@ export default function WorkoutForm({
     // Warm-ups included, under the Watch's key; removals only for what was
     // un-ticked here; a changed set stamped as an edit (all in liveDiff).
     const current = ownLiveSets(blocksRef.current, 'phone');
-    const { updates, serials } = liveDiff(current, liveSnapRef.current, liveTickedRef.current, new Date().toISOString());
+    const { updates, serials } = liveDiff(current, liveSnapRef.current, liveTickedRef.current, new Date().toISOString(), liveEditedRef.current);
     if (!updates.length) return;
     if (!saveIdRef.current) saveIdRef.current = newClientSaveId();
     // The session started at the first tick, not when the page was opened
@@ -815,7 +839,13 @@ export default function WorkoutForm({
       );
       if (row?.closedAt) { void liveClosedElsewhere(row); return; }
       if (row) {
-        for (const [k, v] of serials) liveSnapRef.current.set(k, v);
+        // Only what the row now HOLDS is pushed. A version the merge turned
+        // down stays in the diff; where the row holds the other device's
+        // version of that key instead (or a rating grafted onto ours), take
+        // it — recording every serial as landed left the two apart for good.
+        for (const [k, v] of landedSerials(serials, row.sets)) liveSnapRef.current.set(k, v);
+        const theirs = liveToAdopt(row.sets.filter((ls) => serials.has(liveKey(ls))), liveSnapRef.current, 'phone');
+        if (theirs.length) setBlocks((prev) => overlayLive(prev, theirs));
         for (const u of updates) {
           if ('remove' in u) { liveSnapRef.current.delete(liveKey(u)); liveTickedRef.current.delete(liveKey(u)); }
         }
@@ -834,7 +864,7 @@ export default function WorkoutForm({
         const row = await getLiveSession(saveIdRef.current);
         if (row?.closedAt) { void liveClosedElsewhere(row); return; }
         if (row) {
-          const fresh = row.sets.filter((ls) => ls.source !== 'phone' && liveSnapRef.current.get(liveKey(ls)) !== liveSerial(ls));
+          const fresh = liveToAdopt(row.sets, liveSnapRef.current, 'phone');
           if (fresh.length) {
             setBlocks((prev) => overlayLive(prev, fresh));
             setLiveNotice(`⌚ +${fresh.length} set${fresh.length === 1 ? '' : 's'}`);
@@ -1100,8 +1130,7 @@ export default function WorkoutForm({
     void durableRemove(DRAFT_KEY);
     // Binned here → the Watch must stop offering it as "Continue".
     if (saveIdRef.current && liveSnapRef.current.size) void closeLiveSession(saveIdRef.current).catch(() => {});
-    liveSnapRef.current = new Map();
-    liveTickedRef.current = new Set();
+    resetLiveDiff();
     liveDeadRef.current = false;
     setLiveNotice(null);
     setName(initialName);
@@ -1562,7 +1591,7 @@ export default function WorkoutForm({
       clientSaveId: saveIdRef.current,
       healthWorkoutUuid,
       finishSource: 'phone' as const,
-      sets: setsToSave,
+      sets: stampEdits(setsToSave),
     };
     // A restored multi-day draft carries an ancient startRef; without a clamp
     // the HR capture would bin DAYS of background heart rate onto one workout
@@ -1572,6 +1601,13 @@ export default function WorkoutForm({
       ? detectedDurationMin * 60
       : Math.floor((Date.now() - sessionStart) / 1000);
     const startISO = detectedStartISO ?? new Date(sessionStart).toISOString();
+    // One last push of the row before the finish reads it, so an edit made
+    // inside the debounce is on the row when the server reconciles. Online
+    // only and bounded: it never holds the save up, and a push that does
+    // not land is covered by the stamps the payload carries.
+    if (liveEnabled && typeof navigator !== 'undefined' && navigator.onLine !== false) {
+      await Promise.race([flushLive().catch(() => {}), new Promise((r) => setTimeout(r, 1500))]);
+    }
     try {
       const { id } = await createWorkout(payload);
       reloadWidgets(); // the Home-screen verdict must not keep saying "Train today"
