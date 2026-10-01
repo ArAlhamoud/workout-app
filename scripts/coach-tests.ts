@@ -3658,6 +3658,7 @@ console.log('Gym visits — door to door, by workout length');
   const actionsSrc = read('src/app/gym-visit-actions.ts');
   assert(/catch \{\s*return \{ open: null, forgotten: null, last: null \};/.test(actionsSrc), 'Train never fails if the table is missing');
   assert(!/checkOutAt: new Date\(\)/.test(actionsSrc.slice(actionsSrc.indexOf('closeForgotten'))), 'a forgotten visit is closed at the time he states, never guessed');
+  assert(/if \(field !== 'checkInAt' && field !== 'checkOutAt'\) return null;/.test(actionsSrc), 'the time-fix action can write only the two time fields');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -108,6 +108,10 @@ export async function nudgeVisit(
   field: 'checkInAt' | 'checkOutAt',
   direction: 1 | -1,
 ): Promise<VisitLite | null> {
+  // Server actions are callable with anything: only the two time fields,
+  // only one step either way, can ever be written here.
+  if (field !== 'checkInAt' && field !== 'checkOutAt') return null;
+  if (direction !== 1 && direction !== -1) return null;
   const v = await prisma.gymVisit.findUnique({ where: { id } });
   if (!v) return null;
   const next = adjustedTime(toLite(v), field, direction * ADJUST_STEP_MIN);
