@@ -65,6 +65,8 @@ export function pushWorkoutsToHealth(
 /** Windows written since the page loaded, in case Health's own query has
  *  not caught up with a save that just returned. */
 const writtenThisLoad: Array<{ startISO: string; endISO: string; activityType?: string }> = [];
+/** Windows whose save failed or timed out this page load: possibly written. */
+const maybeThisLoad: Array<{ startISO: string; endISO: string; activityType?: string }> = [];
 
 async function pushOnce(candidates: HealthPushCandidate[], bridge: HealthPushBridge): Promise<HealthPushOutcome> {
   const { queryWorkouts, queryWorkoutStats, saveWorkout } = bridge;
@@ -102,6 +104,10 @@ async function pushOnce(candidates: HealthPushCandidate[], bridge: HealthPushBri
       out.alreadyIds.push(c.id);
       continue;
     }
+    if (coveredByExisting({ start, end }, maybeThisLoad)) {
+      out.errors.push('save: an earlier save of this session is still unconfirmed');
+      continue;
+    }
     try {
       // No energy value, on purpose. Energy READ out of Health for this window
       // and written back as a new workout double-counts a session the Watch
@@ -114,6 +120,13 @@ async function pushOnce(candidates: HealthPushCandidate[], bridge: HealthPushBri
       writtenThisLoad.push(written);
     } catch (e) {
       out.errors.push(`save: ${why(e)}`);
+      // Outcome UNKNOWN, not "not written": the bridge gives up after 20 s
+      // while HealthKit may still finish the save. Treat the window as
+      // taken for the rest of this page load, or the caller queued behind
+      // this one writes it again (adversary probe, 2026-10-02) — taken, but
+      // NOT "already in Health": that stamp needs proof (rule 11), so the
+      // row stays unmarked and a later load asks Health itself.
+      maybeThisLoad.push({ startISO: c.start, endISO, activityType: 'traditionalStrengthTraining' });
     }
   }
   return out;

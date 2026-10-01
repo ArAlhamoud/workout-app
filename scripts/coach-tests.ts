@@ -4088,7 +4088,30 @@ console.log('Native bridge — Swift twins and plugin methods');
     assert(writes === 1, `two pushes at once write the session to Health ONCE (wrote ${writes})`);
     assert(outs.length === 2 && outs[0].savedIds.length + outs[1].savedIds.length === 1 && outs[0].alreadyIds.length + outs[1].alreadyIds.length === 1, 'the second push finds it already there and marks it, never writes');
   })());
-  assert(/let syncsRunning/.test(src('src/components/HealthAutoPilot.tsx')), 'runSyncs cannot run twice at once (its throttle stamp is read asynchronously)');
+  assert(!/ownerDayKey|ownerTodayUtc/.test(src('src/app/nav-actions.ts')), 'the Rooms glances count the diet day on the activity-day clock, like the Diet page');
+  const pilot = src('src/components/HealthAutoPilot.tsx');
+  assert(/syncsStartedAt && Date\.now\(\) - syncsStartedAt < SYNC_GUARD_MS/.test(pilot) && !/let syncsRunning/.test(pilot), 'runSyncs cannot run twice at once, and a run that never settles releases the guard after 10 min');
+  // A save that TIMES OUT may still land: the bridge gives up after 20 s,
+  // HealthKit does not. The push queued behind it must not write again.
+  {
+    const late: W[] = [];
+    let lateWrites = 0;
+    const slow = {
+      queryWorkouts: async () => [...late],
+      queryWorkoutStats: async () => ({ avgHr: null, maxHr: null, activeKcal: null }),
+      saveWorkout: (w: { startISO: string; endISO: string }) => new Promise<void>((_, reject) => {
+        setTimeout(() => { lateWrites++; late.push({ startISO: w.startISO, endISO: w.endISO, activityType: 'traditionalStrengthTraining' }); }, 40);
+        setTimeout(() => reject(new Error('Workout save timed out')), 10);
+      }),
+    };
+    const c2 = [{ id: 'w2', name: 'Day A', start: '2026-09-17T18:00:00.000Z', durationMin: 51 }];
+    pendingAsync.push((async () => {
+      const [a, b] = await Promise.all([pushWorkoutsToHealth(c2, slow as never), pushWorkoutsToHealth(c2, slow as never)]);
+      await new Promise((r) => setTimeout(r, 80));
+      assert(lateWrites === 1, `a timed-out save is treated as possibly written: the queued push does not write it again (wrote ${lateWrites})`);
+      assert(a.errors.length === 1 && b.savedIds.length === 0 && b.alreadyIds.length === 0 && b.errors.length === 1, 'neither push claims the session is in Health without proof: the row stays unmarked for a later load');
+    })());
+  }
   for (const f of ['scripts/ios-deploy.sh', 'scripts/testflight-upload.sh']) {
     assert(/check-server-url\.sh/.test(src(f)), `${f} refuses to build a shell that points anywhere but the live site`);
   }

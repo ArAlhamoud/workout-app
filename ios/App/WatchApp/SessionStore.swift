@@ -242,7 +242,13 @@ final class SessionStore: ObservableObject {
             phoneLive = nil
             return
         }
-        let row = await API.fetchLive()
+        let lookup = await API.fetchLiveChecked()
+        let row = lookup.live
+        if lookup.known, liveUnchecked {
+            // The row has been read after all: the hold's line is no longer true.
+            liveUnchecked = false
+            if notice == Self.liveUncheckedNotice { notice = nil }
+        }
         // A row whose finish is banked here is OUR finished session, not the
         // phone's work in progress (review F5).
         let banked = Outbox.bankedIds()
@@ -390,31 +396,47 @@ final class SessionStore: ObservableObject {
         await flushBeforeStart()
         async let live = API.fetchLiveChecked()
         async let fresh = try? API.fetchPlanChecked(day: nil, dur: nil)
-        let lookup = await live
-        let row = lookup.live
+        var lookup = await live
         let p = await fresh
+        // One more try before giving up on the phone's row: a single slow
+        // answer must not cost him a tap, and a hold is only honest when
+        // the row really could not be read.
+        if !lookup.known, p != nil { lookup = await API.fetchLiveChecked() }
         if !SessionCore.buttonMayOpenNew(liveKnown: lookup.known, planFresh: p != nil) {
-            // The Start screen, one tap from starting: his tap is the
-            // decision the wrist could not make for him.
+            // The Start screen. His tap is the decision the wrist could not
+            // make for him — and that tap looks for the phone's row once
+            // more before it opens anything (start, liveUnchecked).
             guard session == nil else { resumeExisting(); return }
             if let p { plan = p.plan }
             offeredDay = nil
-            notice = "Couldn't check the phone — tap to start"
+            liveUnchecked = true
+            notice = Self.liveUncheckedNotice
             phase = .idle
             return
         }
-        // A phone session with sets in it, or an open logger touched in the
-        // last half hour (warm-ups and page opens push nothing) — never a row
-        // left open hours ago when the page was merely visited (review F3),
-        // and never our own banked finish (F5).
-        if let row, row.source == "phone", !row.isClosed,
-           !row.sets.isEmpty || Date().timeIntervalSince(row.updatedDate) < Self.liveFreshWindow,
-           !Outbox.bankedIds().contains(row.clientSaveId) {
+        liveUnchecked = false
+        if let row = phoneRowToContinue(lookup.live) {
             await continueLive(row)
         } else {
             await start(day: nil, dur: nil, prefetched: p, fromButton: true)
         }
     }
+
+    /// The phone's session, when it is one to continue: sets in it, or an
+    /// open logger touched in the last half hour (warm-ups and page opens
+    /// push nothing) — never a row left open hours ago when the page was
+    /// merely visited (review F3), and never our own banked finish (F5).
+    private func phoneRowToContinue(_ row: LiveSession?) -> LiveSession? {
+        guard let row, row.source == "phone", !row.isClosed,
+              !row.sets.isEmpty || Date().timeIntervalSince(row.updatedDate) < Self.liveFreshWindow,
+              !Outbox.bankedIds().contains(row.clientSaveId) else { return nil }
+        return row
+    }
+
+    /// The Action Button could not read the phone's row (the plan came back,
+    /// the lookup did not). Until it is read, a start checks once more.
+    private var liveUnchecked = false
+    private static let liveUncheckedNotice = "Phone not checked · tap to start anyway"
 
     /// Start with whatever is best available: fresh plan if the network
     /// answers fast, cached plan otherwise.
@@ -423,6 +445,18 @@ final class SessionStore: ObservableObject {
     /// which starts with zero taps only on a training day.
     func start(day: String?, dur: Int?, prefetched: (plan: Plan, banked: [String])? = nil, promised: String? = nil, fromButton: Bool = false) async {
         guard session == nil, !isStarting else { resumeExisting(); return }
+        if liveUnchecked {
+            // The hold's tap. Opening a new id would close the phone's open
+            // row, so look for it once more; still unreadable, his tap stands.
+            liveUnchecked = false
+            phase = .loading
+            if let row = phoneRowToContinue(await API.fetchLiveChecked().live) {
+                notice = nil
+                await continueLive(row)
+                return
+            }
+            guard session == nil, !isStarting else { resumeExisting(); return }
+        }
         isStarting = true
         defer { isStarting = false }
         phase = .loading

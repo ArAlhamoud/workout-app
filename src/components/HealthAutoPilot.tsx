@@ -203,16 +203,22 @@ async function runGapGuard(): Promise<void> {
 
 /** The heavier, throttled half: weight, recovery metrics, workout push. */
 // The throttle stamp below is read asynchronously, so two near-simultaneous
-// calls could both pass it before either wrote it. One run at a time.
-let syncsRunning = false;
+// calls could both pass it before either wrote it. One run at a time — but
+// the guard expires: a server action orphaned by a navigation never settles
+// (Next drops a queued action behind a discarded one), and a bare boolean
+// would then silence the autopilot for the life of the webview, which iOS
+// keeps for days.
+const SYNC_GUARD_MS = 10 * 60_000;
+let syncsStartedAt = 0;
 
 async function runSyncs(): Promise<void> {
-  if (syncsRunning) return;
-  syncsRunning = true;
+  if (syncsStartedAt && Date.now() - syncsStartedAt < SYNC_GUARD_MS) return;
+  const mine = Date.now();
+  syncsStartedAt = mine;
   try {
     await runSyncsOnce();
   } finally {
-    syncsRunning = false;
+    if (syncsStartedAt === mine) syncsStartedAt = 0;
   }
 }
 
