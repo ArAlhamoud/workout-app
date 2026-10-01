@@ -40,8 +40,8 @@ has to go Mac to Mac.
 
 ## 1b. The clean route
 
-1. **Xcode 26.6** from the App Store. Newer probably works, but 26.6 is the
-   version proven. Then run:
+1. **Xcode 27** from the App Store (27.0 is proven on the Mac mini,
+   2026-10-02, with the iOS 27 and watchOS 27 runtimes). Then run:
    - `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
    - `sudo xcodebuild -license accept`
    - `xcodebuild -runFirstLaunch`
@@ -56,7 +56,9 @@ has to go Mac to Mac.
    `workflow` scope, because `.github/workflows` changes often.
 4. Run `git config --global user.name`, then `git config --global user.email`.
    These are unset on the old Mac, so its commits read
-   `AR <ar@MacBook-Air-3.local>`.
+   `AR <ar@MacBook-Air-3.local>`. The Mac mini uses `ArAlhamoud` and
+   `87267024+ArAlhamoud@users.noreply.github.com`, the address GitHub's
+   web commits already use.
 5. Clone to exactly `/Users/ar/Desktop/Ar Workout`, using
    `https://github.com/ArAlhamoud/workout-app.git`. Keep the path free of
    apostrophes, which once broke `next build`.
@@ -78,6 +80,11 @@ has to go Mac to Mac.
 - **`.env`:** none exists. DATABASE_URL and the sync token live in Vercel
   and the GitHub Actions secrets.
 - **Vercel or Neon CLIs:** not needed. A push to `main` deploys.
+- **npm's install-script prompt:** npm 11 skips dependency install
+  scripts (prisma, @prisma/engines, @prisma/client, unrs-resolver,
+  fsevents) and warns about it after `npm ci`. Ignore the warning.
+  `npm test` runs `prisma generate` itself, and tests and builds pass
+  without the scripts. Do not add `allowScripts` to `package.json`.
 - **CocoaPods:** not needed. Capacitor comes through SwiftPM from
   `node_modules`, so run `npm ci` before the first Xcode build.
 - **A distribution certificate:** not needed. It is cloud-managed through
