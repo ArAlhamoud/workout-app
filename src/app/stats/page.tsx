@@ -3,6 +3,8 @@ import { readChart } from '@/lib/chart';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getActiveHold, getAllHolds, getBodyStats, getDailyHealthValues, getWorkouts } from '../actions';
+import { getGymVisits } from '../gym-visit-actions';
+import { fmtVisit, gymTimeStats } from '@/lib/gym-visits';
 import HoldControl from '@/components/HoldControl';
 import BodyStatForm from '@/components/BodyStatForm';
 import NativeHealthCard from '@/components/NativeHealthCard';
@@ -336,14 +338,17 @@ function MuscleVolumeChart({ workouts }: { workouts: { sets: { weight: number; r
 }
 
 export default async function StatsPage() {
-  const [stats, workouts, holds, activeHold, chart, profileStart] = await Promise.all([
+  const [stats, workouts, holds, activeHold, chart, profileStart, gymVisits] = await Promise.all([
     getBodyStats(),
     getWorkouts(),
     getAllHolds(),
     getActiveHold(),
     readChart(),
     prisma.healthProfile.findUnique({ where: { id: 'profile' }, select: { startWeightKg: true } }).catch(() => null),
+    getGymVisits(),
   ]);
+  // Door-to-door gym time by workout length (owner, 2026-10-01).
+  const gymTime = gymTimeStats(gymVisits, workouts);
   // The chart's effort ceiling: AF / antiarrhythmic / hypertension hold the
   // cap at Hard after the ramp exits (trainer, 2026-09-18).
   const effortCap = effortCeiling(chart.conditions, chart.medications);
@@ -689,6 +694,34 @@ export default async function StatsPage() {
           <p className="section-label">Consistency · 12 weeks</p>
         </div>
         <CalendarHeatmap workouts={workouts} />
+      </div>
+
+      {/* Gym time — door to door, by workout length (owner, 2026-10-01).
+          One number per row; the split and the count are the second line. */}
+      <div className="card-lg p-4">
+        <p className="section-label mb-3">Gym time · door to door</p>
+        {gymTime.length === 0 ? (
+          <p className="text-xs text-app-tx3">No visits yet · check in from Train.</p>
+        ) : (
+          <div className="divide-y divide-app-border">
+            {gymTime.map((r) => (
+              <div key={r.category} className="flex items-baseline justify-between gap-3 py-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-app-tx1">{r.label}</p>
+                  <p className="font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-app-tx3">
+                    {r.avgLiftMin != null && r.avgOtherMin != null
+                      ? `lift ${fmtVisit(r.avgLiftMin)} · other ${fmtVisit(r.avgOtherMin)} · `
+                      : ''}
+                    {r.visits} visit{r.visits === 1 ? '' : 's'}
+                  </p>
+                </div>
+                <span className="font-round text-lg font-bold tabular-nums text-app-tx1">
+                  {r.avgVisitMin != null ? fmtVisit(r.avgVisitMin) : '—'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Week volume comparison */}

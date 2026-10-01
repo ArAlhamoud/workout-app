@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
+import { adjustedTime, classifyVisit, fmtVisit, gymTimeStats, isStale } from '../src/lib/gym-visits';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
 import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, startableUntilFor, settledSet, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
@@ -3595,6 +3596,68 @@ console.log('Doctor report — ongoing side effects');
   }
   const pipe = read('src/app/api/health/profile/route.ts');
   assert(/ongoingSymptoms: true/.test(pipe) && /ongoingSymptoms\(b\.ongoingSymptoms\)/.test(pipe), 'the profile pipe stores and returns ongoing side effects, validated');
+}
+
+// ── Gym check-in / check-out (owner, 2026-10-01) ──
+console.log('Gym visits — door to door, by workout length');
+{
+  // Riyadh is UTC+3: 18:00 local = 15:00Z. Workouts carry the activity day at 00:00Z.
+  const at = (d: string, hm: string) => new Date(`${d}T${hm}:00+03:00`);
+  const day = (d: string) => new Date(`${d}T00:00:00.000Z`);
+  const W = (d: string, name: string, durMin: number | null, gym: string | null = 'bfit') => ({
+    name, date: day(d), gym, duration: durMin == null ? null : durMin * 60,
+    sets: Array.from({ length: 8 }, () => ({ rpe: 1, isWarmup: false })),
+  });
+  const workouts = [
+    W('2026-10-01', 'Day B 45m — Oct 1', 47),
+    W('2026-10-03', 'Day A 45m — Oct 3', 49, null),
+    W('2026-10-05', 'Day B 30m — Oct 5', 31),
+    W('2026-10-07', 'Swim 20m — Oct 7', 20),
+    W('2026-10-09', 'Day A 60m — Oct 9', 62, 'work'),
+  ];
+  const V = (id: string, d: string, inHm: string, outHm: string | null, gym = 'bfit') => ({
+    id, gym, checkInAt: at(d, inHm).toISOString(), checkOutAt: outHm ? at(d, outHm).toISOString() : null,
+  });
+
+  const c1 = classifyVisit(V('a', '2026-10-01', '18:00', '19:15'), workouts);
+  assert(c1.category === '45' && c1.liftMin === 47, `a visit takes its length from the session that day (got ${c1.category}/${c1.liftMin})`);
+  assert(classifyVisit(V('b', '2026-10-03', '18:00', '19:20'), workouts).category === '45', 'untagged session history is B_Fit (rule 2)');
+  assert(classifyVisit(V('c', '2026-10-09', '18:00', '19:30'), workouts).category === 'none', 'a session at Alrajhi does not explain a visit to B_Fit');
+  assert(classifyVisit(V('d', '2026-10-09', '18:00', '19:30', 'work'), workouts).category === '60', 'the same session explains the Alrajhi visit');
+  assert(classifyVisit(V('e', '2026-10-07', '18:00', '18:45'), workouts).category === 'cardio', 'a swim-only visit is its own row');
+  assert(classifyVisit(V('f', '2026-10-02', '00:30', '01:40'), workouts).category === '45', 'a visit past midnight belongs to the evening it started (04:00 rollover)');
+
+  const stats = gymTimeStats([
+    V('a', '2026-10-01', '18:00', '19:15'),
+    V('b', '2026-10-03', '18:00', '19:20'),
+    V('g', '2026-10-05', '18:00', '18:55'),
+    V('h', '2026-10-06', '18:00', null),
+    V('i', '2026-10-08', '18:00', '18:02'),
+  ], workouts);
+  const r45 = stats.find((r) => r.category === '45');
+  assert(r45?.visits === 2 && r45.avgVisitMin === 78, `45-minute workouts average 78 min door to door (got ${r45?.avgVisitMin})`);
+  assert(r45?.avgLiftMin === 48 && r45.avgOtherMin === 30, `split: 48 lifting, 30 everything else (got ${r45?.avgLiftMin}/${r45?.avgOtherMin})`);
+  const r30 = stats.find((r) => r.category === '30');
+  assert(r30?.visits === 1 && r30.avgVisitMin === null, 'one visit is a count, not an average');
+  assert(stats[0].category === '30' && stats[1].category === '45', 'rows read 30, 45, 60 in order');
+  assert(!stats.some((r) => r.category === 'none' && r.visits > 0), 'an open visit and a 2-minute mis-tap stay out of the averages');
+
+  const open = V('o', '2026-10-01', '18:00', null);
+  assert(isStale(open, at('2026-10-02', '00:30')) && !isStale(open, at('2026-10-01', '22:00')), 'open past 6 hours is "forgot to check out"');
+  const now = at('2026-10-01', '19:00');
+  assert(adjustedTime(open, 'checkInAt', -5, now)?.toISOString() === at('2026-10-01', '17:55').toISOString(), 'check-in moves back 5 minutes');
+  assert(adjustedTime(open, 'checkInAt', 5, at('2026-10-01', '18:03')) === null, 'check-in never moves past now');
+  assert(adjustedTime(open, 'checkOutAt', 5, now) === null, 'an open visit has no check-out to move');
+  const closed = V('p', '2026-10-01', '18:00', '18:05');
+  assert(adjustedTime(closed, 'checkOutAt', -5, now) === null, 'check-out never moves to or before check-in');
+  assert(adjustedTime(closed, 'checkInAt', 5, now) === null, 'check-in never moves to or after check-out');
+  assert(fmtVisit(78) === '1 h 18' && fmtVisit(48) === '48 min' && fmtVisit(60) === '1 h', 'times read as "1 h 18" and "48 min"');
+
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  assert(/model GymVisit \{/.test(read('prisma/schema.prisma')), 'gym visits have their own additive table');
+  const actionsSrc = read('src/app/gym-visit-actions.ts');
+  assert(/catch \{\s*return \{ open: null, forgotten: null, last: null \};/.test(actionsSrc), 'Train never fails if the table is missing');
+  assert(!/checkOutAt: new Date\(\)/.test(actionsSrc.slice(actionsSrc.indexOf('closeForgotten'))), 'a forgotten visit is closed at the time he states, never guessed');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

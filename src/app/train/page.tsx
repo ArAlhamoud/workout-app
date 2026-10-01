@@ -13,6 +13,8 @@ import { planExercises, prescriptionInputs } from '@/lib/prescription';
 import CoachCard from '@/components/CoachCard';
 import VoltLetter from '@/components/VoltLetter';
 import CardioQuickLog from '@/components/CardioQuickLog';
+import GymCheckIn from '@/components/GymCheckIn';
+import { getGymVisitState } from '../gym-visit-actions';
 import { formatRelative, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -178,7 +180,7 @@ function DayCard({ day, variant, doneWhen }: { day: DayId; variant: DayVariant; 
 export const metadata: Metadata = { title: 'Train' };
 
 export default async function TrainPage() {
-  const [workouts, exercises, chart] = await Promise.all([getWorkouts(), getExercises(), readChart()]);
+  const [workouts, exercises, chart, gymVisit] = await Promise.all([getWorkouts(), getExercises(), readChart(), getGymVisitState()]);
   const chartCapsEffort = effortCeiling(chart.conditions, chart.medications) < 4;
 
   // What his own log says to do today: train (alternating A/B), recover the
@@ -341,6 +343,14 @@ export default async function TrainPage() {
           ⚠ Fatigue · &gt;50% hard+ over 14d — go lighter today
         </p>
       )}
+
+      {/* ── Gym visit — check in on arrival, out on leaving (owner,
+          2026-10-01). Above the directive: it is the first tap at the gym. */}
+      <GymCheckIn
+        initialOpen={gymVisit.open}
+        initialForgotten={gymVisit.forgotten}
+        initialLast={gymVisit.last}
+      />
 
       {/* ── The directive ───────────────────────────────── */}
       <div>

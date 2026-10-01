@@ -382,3 +382,19 @@ model LiveSession {
 
   @@index([closedAt])
 }
+
+// A gym visit, door to door (owner, 2026-10-01): check in on arrival,
+// check out on leaving — changing, shower and swim included. Two manual
+// taps, both editable in 5-minute steps. The workout a visit belongs to is
+// matched at READ time by activity day + gym (src/lib/gym-visits.ts), so
+// correcting either row never leaves a stale link. Additive table.
+model GymVisit {
+  id         String    @id @default(cuid())
+  gym        String    @default("bfit")
+  checkInAt  DateTime
+  checkOutAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([checkInAt])
+}
