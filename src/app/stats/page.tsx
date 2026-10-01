@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { ownerActivityDayUtc } from '@/lib/health-insights';
 import { readChart } from '@/lib/chart';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -15,7 +16,7 @@ import { bodyweightMilestones, effortDistribution, momentumBank, strengthHold, w
 import { holdWeekKeys, lifetimeStats, weekStreak } from '@/lib/streak';
 import { sleepDebtHours } from '@/lib/coach';
 import { lastMonthRecap, yearRecap } from '@/lib/recap';
-import { cleanRampSessionDates, getTrainingStatus, isTrainingSession, effortCeiling } from '@/lib/program';
+import { cleanRampSessionDates, getTrainingStatus, rampScaledDayKeys, isTrainingSession, effortCeiling } from '@/lib/program';
 import { epley1RM, formatDateShort, getMondayOfWeek, kgCompact, RPE_LABELS } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
@@ -152,8 +153,8 @@ function EffortBalanceRow({ effort, rpeCap }: { effort: EffortDistribution; rpeC
 }
 
 function CalendarHeatmap({ workouts }: { workouts: { date: Date }[] }) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // His activity day, stored the way session dates are (UTC midnight).
+  const today = ownerActivityDayUtc();
   const todayStr = today.toISOString().split('T')[0];
 
   const startDay = new Date(today);
@@ -371,6 +372,7 @@ export default async function StatsPage() {
 
   // The real scoreboard of the cut: strength held while the scale drops.
   // Per gym (stacks never compare across gyms), working sets only.
+  const rampDays = rampScaledDayKeys(workouts.filter(isTrainingSession));
   const holdRows = strengthHold(
     workouts.flatMap((w) =>
       w.sets
@@ -380,6 +382,9 @@ export default async function StatsPage() {
           gym: w.gym ?? 'bfit',
           date: w.date,
           weight: st.weight,
+          // The allowance is recorded only on a ramp-scaled set (rule 10);
+          // rows older than that column are judged by the block they opened in.
+          ramp: st.allowedKg != null || rampDays.has(new Date(w.date).toISOString().slice(0, 10)),
         })),
     ),
   );
@@ -407,7 +412,7 @@ export default async function StatsPage() {
     .slice(0, 6);
 
   // Monday-start weeks
-  const thisWeekStart = getMondayOfWeek(new Date());
+  const thisWeekStart = getMondayOfWeek(ownerActivityDayUtc());
   const lastWeekStart = new Date(thisWeekStart);
   lastWeekStart.setDate(thisWeekStart.getDate() - 7);
 
@@ -606,6 +611,12 @@ export default async function StatsPage() {
 
 
       {/* Strength held while losing — the win condition of the cut */}
+      {holdRows.length === 0 && status.mode === 'return' && (
+        <div className="card-lg p-4">
+          <p className="section-label mb-1.5">Strength</p>
+          <p className="text-sm text-app-tx2">Return ramp · strength compares again at full load</p>
+        </div>
+      )}
       {holdRows.length > 0 && (
         <div className="card-lg p-4">
           <p className="section-label mb-1.5">Strength · 3 wk vs prior</p>

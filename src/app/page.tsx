@@ -26,6 +26,7 @@ import {
   DEFAULT_ROTATION,
   SYMPTOM_LABEL,
   type DosePlanStep,
+  ownerActivityDayUtc,
 } from '@/lib/health-insights';
 import BodyMap, { type BodyData } from '@/components/health/BodyMap';
 import { slimProgress } from '@/lib/body-figure';
@@ -66,9 +67,12 @@ export default async function HomePage() {
   const lastNight = data.cpapNights[0] ?? null;
   const latestLdl = data.labs.find((l) => l.test === 'ldl') ?? null;
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todaySymptoms = data.symptoms.filter((s) => new Date(s.at) >= todayStart);
+  // "Today" is the owner's activity day (04:00 Riyadh rollover), never the
+  // server's midnight. Sessions are stored at the day's UTC midnight; a
+  // symptom is an instant, so its day starts at 04:00 Riyadh = 01:00Z.
+  const todayStart = ownerActivityDayUtc();
+  const todayOpens = new Date(todayStart.getTime() + 3_600_000);
+  const todaySymptoms = data.symptoms.filter((s) => new Date(s.at) >= todayOpens);
   const severe = severeSymptomFlag(
     data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity })),
   );

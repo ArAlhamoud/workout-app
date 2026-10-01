@@ -4,6 +4,7 @@ import {
   isLiveFresh,
   liveGymFor,
   mergeLiveSets,
+  validLiveSets,
   visibleSets,
   type LiveSession,
   type LiveSet,
@@ -42,7 +43,8 @@ function toSession(r: Row): LiveSession {
     updatedAt: r.updatedAt.toISOString(),
     closedAt: r.closedAt ? r.closedAt.toISOString() : null,
     workoutId: r.workoutId,
-    sets: Array.isArray(r.sets) ? (r.sets as unknown as LiveSet[]) : [],
+    // Validated, never cast: a save must not fail on a malformed row.
+    sets: validLiveSets(r.sets),
   };
 }
 

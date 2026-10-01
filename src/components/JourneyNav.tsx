@@ -8,6 +8,7 @@ import prisma from '@/lib/prisma';
 import { getDynamicPlan, queuedDay, isTrainingSession } from '@/lib/program';
 import {
   treatmentClock,
+  ownerActivityDayUtc,
   DEFAULT_DOSE_PLAN,
   type DosePlanStep,
 } from '@/lib/health-insights';
@@ -38,8 +39,8 @@ export default async function JourneyNav() {
     );
     // Judged rows only: a mis-tap must not flip the nav's day (adversary).
     const trainPlan = getDynamicPlan(workouts.filter(isTrainingSession).map((w) => ({ date: w.date, name: w.name })));
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // His activity day (04:00 Riyadh), the clock the plan itself uses.
+    const todayStart = ownerActivityDayUtc();
     const trainedToday = workouts.some(
       (w) => !w.name.startsWith('Rescue walk') && new Date(w.date) >= todayStart,
     );

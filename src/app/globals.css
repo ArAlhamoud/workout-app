@@ -76,6 +76,20 @@ body {
   background: var(--app-bg);
 }
 
+/* The status-bar strip, in the ground colour of whichever domain is up.
+   Above the page (the logger's sticky header is z-10), below the nav,
+   sheets and full-screen overlays (z-50 and up). */
+.status-cover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  z-index: 40;
+  pointer-events: none;
+  background: var(--app-bg);
+}
+
 /* ── Reusable component utilities ──────────────────────────── */
 @layer components {
   .card {

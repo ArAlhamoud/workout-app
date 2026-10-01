@@ -17,6 +17,15 @@ export interface LiveSet {
   isWarmup?: boolean;
   /** ISO instant the set was logged on its device. */
   completedAt: string;
+  /**
+   * ISO instant this VERSION of the set is from, when it was changed after
+   * the tick (a corrected weight, a rating). Lives in the row's JSON only.
+   * The tick time cannot order two versions of one tick: a copy the Watch
+   * took before the phone's correction carries the same completedAt as
+   * the correction (review, 2026-10-02). Absent = never edited; the tick
+   * time is the version.
+   */
+  editedAt?: string;
   source: LiveSource;
   /**
    * A TOMBSTONE: this key was un-ticked at `completedAt` by `source`. Kept
@@ -67,6 +76,22 @@ export const LIVE_MAX_SETS = 200;
  * one was offline — the later tick is the truth). `remove` deletes the
  * key; stored keys the update never mentions are untouched, so each
  * device can send only what changed. Output is ordered by completion.
+ *
+ * Two versions of the SAME tick (equal completedAt), review 2026-10-02:
+ *  - An EDIT — the sender says so with `editedAt`, or a device re-posts its
+ *    own set changed — wins, and is dated by ARRIVAL, never by the sender's
+ *    clock: a phone running behind the Watch had its correction of a Watch
+ *    set judged older than the server's own stamp and silently refused.
+ *  - A post from the other device with no edit stamp is a copy of the tick:
+ *    it loses to a stored edit, so a stale copy cannot undo a correction.
+ *  - The wrist cannot change a logged set's load without a new tick, so
+ *    its same-tick post onto a version the phone wrote is a RATING: the
+ *    stored load stays. A stamped one replaces the rating; an unstamped
+ *    one (Watch builds to date) fills a missing rating.
+ *  - A rating describes the set, a corrected load describes the stack: an
+ *    unrated winner takes the loser's rating whatever the loads, and
+ *    across devices no rating never erases one.
+ * Identical content changes nothing, owner and stamp included.
  */
 export function mergeLiveSets(stored: LiveSet[], incoming: LiveSetUpdate[], now: Date = new Date()): LiveSet[] {
   const map = new Map<string, LiveSet>();
@@ -87,6 +112,29 @@ export function mergeLiveSets(stored: LiveSet[], incoming: LiveSetUpdate[], now:
     }
     const set = u as LiveSet;
     if (prev && Date.parse(prev.completedAt) > Date.parse(set.completedAt)) continue;
+    if (prev && !prev.removed && Date.parse(prev.completedAt) === Date.parse(set.completedAt)) {
+      const sameRating = (prev.rpe || 0) === (set.rpe || 0);
+      if (sameLoad(prev, set) && sameRating) continue;
+      const own = set.source === prev.source;
+      const isEdit = own || set.editedAt !== undefined;
+      const prevAt = versionAt(prev);
+      if (!own && set.source === 'watch') {
+        if (rated(set.rpe) && set.rpe !== prev.rpe && (isEdit || !rated(prev.rpe))) map.set(key, { ...prev, rpe: set.rpe });
+        continue;
+      }
+      if (!isEdit && prevAt > Date.parse(set.completedAt)) {
+        // A copy of the tick, older than the stored edit — but a rating it
+        // holds is a fact the stored version had not been given yet.
+        if (!rated(prev.rpe) && rated(set.rpe)) map.set(key, { ...prev, rpe: set.rpe });
+        continue;
+      }
+      const next: LiveSet = { ...set, rpe: !own && !rated(set.rpe) ? prev.rpe : set.rpe };
+      if (isEdit) next.editedAt = new Date(Math.max(now.getTime(), prevAt)).toISOString();
+      else delete next.editedAt;
+      if (next.rpe === undefined) delete next.rpe;
+      map.set(key, next);
+      continue;
+    }
     map.set(key, set);
   }
   return [...map.values()]
@@ -207,6 +255,22 @@ export function setsMissingFrom<T extends { exerciseId: string; setNumber: numbe
   return posted.filter((s) => !have.has(liveKey(s)));
 }
 
+/**
+ * A sender's edit stamp, made usable — one rule for the live row, the
+ * Watch's finish and the phone's: junk is dropped (the version is then
+ * dated by its tick), a clock running ahead is pinned to now (a future
+ * stamp would outrank every later edit), and an edit cannot precede its
+ * own tick.
+ */
+export function cleanEditStamp(raw: unknown, completedAt: string | null | undefined, now: Date): string | undefined {
+  if (typeof raw !== 'string') return undefined;
+  const ed = Date.parse(raw);
+  if (Number.isNaN(ed)) return undefined;
+  const tick = completedAt ? Date.parse(completedAt) : NaN;
+  const at = Math.min(ed, now.getTime());
+  return new Date(Number.isFinite(tick) ? Math.max(at, tick) : at).toISOString();
+}
+
 /** Bounds shared with the logger and the Watch route; junk is dropped, not fatal. */
 export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date = new Date()): LiveSetUpdate | null {
   const r = raw as Partial<LiveSet> & { remove?: boolean };
@@ -232,6 +296,7 @@ export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date =
   if (!Number.isFinite(r.weight) || (r.weight as number) < 0 || (r.weight as number) > 500) return null;
   const at = typeof r.completedAt === 'string' ? new Date(r.completedAt) : now;
   const completedAt = Number.isNaN(at.getTime()) ? now.toISOString() : at.toISOString();
+  const editedAt = cleanEditStamp(r.editedAt, completedAt, now);
   return {
     exerciseId: r.exerciseId,
     setNumber,
@@ -240,6 +305,8 @@ export function sanitizeLiveUpdate(raw: unknown, source: LiveSource, now: Date =
     rpe: Number.isFinite(r.rpe) && (r.rpe as number) >= 1 && (r.rpe as number) <= 4 ? Math.round(r.rpe as number) : undefined,
     isWarmup,
     completedAt,
+    // The sender's edit stamp, when it sent a usable one (cleanEditStamp).
+    ...(editedAt ? { editedAt } : {}),
     source,
   };
 }
@@ -269,11 +336,14 @@ export interface WatchLogSet {
   isWarmup: boolean;
   /** ISO instant the set was logged on the wrist, when the client sent one. */
   completedAt?: string;
+  /** ISO instant the wrist rated/changed the set after logging it — for
+   *  the finish merge only (versionAt); never a WorkoutSet column. */
+  editedAt?: string;
 }
 
 type RawWatchSet = {
   exerciseId?: unknown; setNumber?: unknown; reps?: unknown; weight?: unknown;
-  rpe?: unknown; isWarmup?: unknown; completedAt?: unknown;
+  rpe?: unknown; isWarmup?: unknown; completedAt?: unknown; editedAt?: unknown;
 };
 
 /**
@@ -293,7 +363,7 @@ type RawWatchSet = {
  *    head of the Watch outbox that held up every later session. Duplicates
  *    now collapse, last one wins.
  */
-export function sanitizeWatchLogSets(raw: unknown): WatchLogSet[] {
+export function sanitizeWatchLogSets(raw: unknown, now: Date = new Date()): WatchLogSet[] {
   if (!Array.isArray(raw)) return [];
   const byKey = new Map<string, WatchLogSet>();
   let position = 0;
@@ -317,6 +387,10 @@ export function sanitizeWatchLogSets(raw: unknown): WatchLogSet[] {
       isWarmup,
       completedAt: at && !Number.isNaN(at.getTime()) ? at.toISOString() : undefined,
     };
+    // The wrist's edit stamp was dropped here, so a rating it gave after
+    // the phone had rated the set was dated by the tick and lost.
+    const editedAt = cleanEditStamp(item.editedAt, set.completedAt, now);
+    if (editedAt) set.editedAt = editedAt;
     const key = liveKey(set);
     byKey.delete(key);
     byKey.set(key, set);
@@ -349,15 +423,18 @@ export interface OverlayBlock {
 /**
  * Lay live sets over the blocks: tick, fill, extend. A set this device
  * ticked LATER than the live copy keeps its own values and is not in
- * `applied`. A machine the blocks lack gets a block from `newBlock`.
+ * `applied`. `unticked` names the keys the OTHER device removed and this
+ * overlay un-ticked: the caller forgets them, so its next push does not
+ * send a removal of its own, later-stamped, for a set it never removed. A machine the blocks lack gets a block from `newBlock`.
  */
 export function overlayLiveSets<B extends OverlayBlock>(
   blocks: B[],
   sets: LiveSet[],
   newBlock: (exerciseId: string) => B,
-): { blocks: B[]; applied: LiveSet[] } {
+): { blocks: B[]; applied: LiveSet[]; unticked: string[] } {
   const next = blocks.map((b) => ({ ...b, sets: [...b.sets] }));
   const applied: LiveSet[] = [];
+  const unticked: string[] = [];
   for (const ls of sets) {
     let bi = next.findIndex((b) => b.exerciseId === ls.exerciseId);
     if (ls.removed) {
@@ -370,6 +447,7 @@ export function overlayLiveSets<B extends OverlayBlock>(
       const cur = b0.sets[ri];
       if (cur.done && (!cur.completedAt || Date.parse(cur.completedAt) < Date.parse(ls.completedAt))) {
         b0.sets[ri] = { ...cur, done: false, completedAt: null };
+        unticked.push(liveKey(ls));
       }
       continue;
     }
@@ -415,5 +493,363 @@ export function overlayLiveSets<B extends OverlayBlock>(
     };
     applied.push(ls);
   }
-  return { blocks: next, applied };
+  return { blocks: next, applied, unticked };
+}
+
+// ── The phone logger's push: what this device has ticked, and the diff ──
+// Pure so both directions of the warm-up bug are assertions (review,
+// 2026-10-02) instead of two loops inside a 2,600-line component.
+
+/** A done set as last pushed (or received) — the diff base. The edit stamp
+ *  is deliberately not part of it: it dates a version, it is not content. */
+export const liveSerial = (x: { reps: number; weight: number; rpe?: number | null; completedAt?: string | null }) =>
+  JSON.stringify([x.reps, x.weight, x.rpe || 0, x.completedAt ?? null]);
+
+/**
+ * Every set ticked on this device, as the live row holds it. Warm-ups
+ * travel like any set, under the key the Watch uses — set 0 with the flag.
+ * They were skipped here ("the wrist has no such set"; it has logged them
+ * since 2026-09-24), so a warm-up ticked on the phone never reached the row
+ * and Continue on the wrist asked for it again — and, worse, the Watch's own
+ * warm-up, overlaid into the phone's snapshot, was missing from every push
+ * and got "removed" (see liveDiff).
+ *
+ * The SET's exercise, never the block's. A swap leaves already-done sets on
+ * the exercise they were performed on, so the two diverge — and stamping
+ * the block's id here pushed a 60 kg Chest Press set to the live row
+ * labelled Pec Fly. A Watch finish then wrote it as a 60 kg Pec Fly PR,
+ * unbeatable and unrepairable (no per-set editor). Same class as the
+ * cross-gym PR bug, laundered through exerciseId instead of gym.
+ */
+export function ownLiveSets(blocks: OverlayBlock[], source: LiveSource): LiveSet[] {
+  const out: LiveSet[] = [];
+  for (const b of blocks) {
+    for (const st of b.sets) {
+      if (!st.done || !st.completedAt) continue;
+      const isWarmup = st.isWarmup === true;
+      out.push({
+        exerciseId: st.exerciseId ?? b.exerciseId, setNumber: isWarmup ? 0 : st.setNumber,
+        reps: st.reps, weight: st.weight, rpe: st.rpe || undefined,
+        isWarmup, completedAt: st.completedAt, source,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * What to push: every set whose content differs from the snapshot, and a
+ * removal for every key this device UN-TICKED. "Not in my blocks" is not
+ * an un-tick: the old loop removed every snapshot key missing from the
+ * push, and the snapshot also holds what the overlay received — so the
+ * Watch's warm-up (never in the push) was tombstoned on the next flush and
+ * the finish dropped it from history, and a Watch set whose overlay had
+ * reached the snapshot but not yet the rendered blocks could go the same
+ * way. A removal now needs the key in `ticked` — keys an earlier diff saw
+ * ticked in THIS device's blocks, whoever logged them: deleting on the
+ * phone a set the Watch logged is his removal of a set he sees, and it
+ * tombstones. What must never read as a removal is a wholesale rebuild of
+ * the blocks — the caller resets `ticked` and the snapshot there. This
+ * call adds the current keys. The caller forgets a key
+ * (snapshot and ticked) once its removal is acknowledged, or when the
+ * removal came from the row (overlayLiveSets `unticked`).
+ *
+ * A changed set the row already holds carries `editedAt` = now: the tick
+ * time cannot order two versions of one tick (see mergeLiveSets). Removals
+ * are stamped here too — a tombstone stamped on arrival (0.4 s debounce +
+ * gym LTE) beat his own re-tick a second later (adversary pass 4).
+ */
+export function liveDiff(
+  current: LiveSet[],
+  snapshot: Map<string, string>,
+  ticked: Set<string>,
+  nowISO: string,
+  edited?: Map<string, { ser: string; at: string }>,
+): { updates: LiveSetUpdate[]; serials: Map<string, string> } {
+  const updates: LiveSetUpdate[] = [];
+  const serials = new Map<string, string>();
+  const have = new Set<string>();
+  for (const set of current) {
+    const key = liveKey(set);
+    have.add(key);
+    const ser = liveSerial(set);
+    const known = snapshot.get(key);
+    if (known === ser) continue;
+    if (known === undefined) updates.push(set);
+    else {
+      // Dated when the edit was first SEEN — a retry of its push, or the
+      // finish that carries it instead (withEditStamps), keeps that time.
+      const e = edited?.get(key);
+      const at = e && e.ser === ser ? e.at : nowISO;
+      edited?.set(key, { ser, at });
+      updates.push({ ...set, editedAt: at });
+    }
+    serials.set(key, ser);
+  }
+  for (const key of snapshot.keys()) {
+    if (have.has(key) || !ticked.has(key)) continue;
+    const cut = key.lastIndexOf('#');
+    const n = key.slice(cut + 1);
+    // Warm-ups travel as set 0 with the flag — `Number('w')` was NaN and
+    // the sanitizer dropped the removal, so a Watch warm-up came back.
+    const isWarmup = n === 'w';
+    updates.push({ exerciseId: key.slice(0, cut), setNumber: isWarmup ? 0 : Number(n), isWarmup, remove: true, completedAt: nowISO });
+  }
+  for (const key of have) ticked.add(key);
+  return { updates, serials };
+}
+
+// ── The finish: per key, the most recently edited version ──────────────
+// Review 2026-10-02. The phone ticked set 1 at 20 kg unrated, the Watch
+// copied it, the phone corrected it to 22.5 Hard; the Watch finished and
+// "the poster's own copy wins" saved 20 kg with no rating. And when the
+// phone finished first, "keys already saved keep the first finisher's
+// values" dropped a rating the Watch added afterwards.
+
+/** One set of a finishing device's payload. */
+export type FinishSet = {
+  exerciseId: string; setNumber: number; reps: number; weight: number;
+  rpe?: number | null; isWarmup?: boolean; completedAt?: string | null;
+  /** When the poster changed the set after its tick (withEditStamps). */
+  editedAt?: string | null;
+};
+
+/** The instant a version is known to be from: its edit, else its tick —
+ *  and never before the tick (a clock that jumped cannot make an edit
+ *  older than the set it edits). */
+const versionAt = (s: { editedAt?: string | null; completedAt?: string | null }): number => {
+  const e = s.editedAt ? Date.parse(s.editedAt) : NaN;
+  const t = s.completedAt ? Date.parse(s.completedAt) : NaN;
+  if (!Number.isFinite(e)) return t;
+  return Number.isFinite(t) ? Math.max(e, t) : e;
+};
+const sameLoad = (a: { reps: number; weight: number }, b: { reps: number; weight: number }) => a.reps === b.reps && a.weight === b.weight;
+const rated = (r: number | null | undefined): r is number => typeof r === 'number' && r > 0;
+
+/**
+ * One key at the finish: the poster's copy against the live row's.
+ *  - The poster wrote the row's version itself → its copy is the newest
+ *    there is (it may hold a rating that never got pushed).
+ *  - The OTHER device wrote it last → the later version wins. A posted set
+ *    is dated by its tick, so a copy of a tick the other device has since
+ *    edited is older than the edit; one with no stamp at all (Watch build
+ *    13) is a copy by definition. Same instant → the poster (the row never
+ *    changed after the tick, so a difference is the poster's own edit).
+ *    The phone's payload dates a set it changed after the tick
+ *    (`editedAt`, pinned to now if its clock runs ahead), so a correction
+ *    that never reached the row still outranks the version it corrected.
+ *  - Whoever wins, an unrated winner takes the other copy's rating — at
+ *    ANY load: the rating describes the set, a corrected weight describes
+ *    the stack. Gated on equal loads, the wrist's rating of a set whose
+ *    weight the phone had corrected was dropped on every finish path.
+ * Fields the row does not carry (notes) stay the poster's.
+ */
+function pickFinishVersion<T extends FinishSet>(raw: T, live: LiveSet | undefined, posterSource: LiveSource | undefined, now: Date): T {
+  if (!live || live.removed) return raw;
+  const stamp = cleanEditStamp(raw.editedAt, raw.completedAt, now);
+  const posted: T = raw.editedAt == null ? raw : { ...raw, editedAt: stamp };
+  let out = posted;
+  if (!(posterSource && live.source === posterSource)) {
+    const p = versionAt(posted);
+    const l = versionAt(live);
+    const liveWins = Number.isFinite(p) ? Number.isFinite(l) && l > p : !!posterSource;
+    if (liveWins) out = { ...posted, reps: live.reps, weight: live.weight, rpe: live.rpe, completedAt: live.completedAt };
+    // The wrist cannot change a logged set's load without a new tick
+    // (mergeLiveSets): its newer version of a tick the phone wrote is a
+    // RATING. Taken whole, a stamped wrist rating would bring back the
+    // load the phone had corrected.
+    else if (posterSource === 'watch' && (!posted.completedAt || Date.parse(posted.completedAt) === Date.parse(live.completedAt))) {
+      out = { ...posted, reps: live.reps, weight: live.weight, rpe: rated(posted.rpe) ? posted.rpe : live.rpe };
+    }
+  }
+  if (!rated(out.rpe)) {
+    const r = rated(posted.rpe) ? posted.rpe : live.rpe;
+    if (rated(r)) out = { ...out, rpe: r };
+  }
+  return out;
+}
+
+/**
+ * The first finisher's own sets, reconciled with the live row: minus what
+ * the other device removed (dropRemovedSets), and each remaining key in
+ * its most recently edited version. The union of sets the poster never saw
+ * is still unionForFinish's job.
+ */
+export function resolveFinishSets<T extends FinishSet>(posted: T[], live: LiveSet[], posterSource?: LiveSource, now: Date = new Date()): T[] {
+  const byKey = new Map<string, LiveSet>();
+  for (const s of live) byKey.set(liveKey(s), s);
+  return dropRemovedSets(posted, live).map((s) => pickFinishVersion(s, byKey.get(liveKey(s)), posterSource, now));
+}
+
+/**
+ * The second finisher against keys the workout ALREADY holds: the saved
+ * sets that must take its values. Only logged values come back — reps,
+ * weight, rating, tick time; the recorded prescription (allowedKg, rule 10)
+ * was written from the save-time memory and no device copy rewrites it.
+ *  - Saved equals the row's version → the first finisher added nothing of
+ *    its own to this key, so the usual pick applies (the wrist's late
+ *    rating of its own set lands; its stale copy of a phone set does not).
+ *  - Saved differs from the row, or the row lacks the key → the first
+ *    finisher saved an edit that never reached the row (Save inside the
+ *    0.4 s push debounce). It cannot be dated, so it stands; only a
+ *    missing rating is filled — at any load, as in pickFinishVersion.
+ * A replay of either finish resolves to what is saved and returns nothing.
+ */
+export function finishUpdates(
+  saved: Array<FinishSet>,
+  posted: FinishSet[],
+  live: LiveSet[] | null | undefined,
+  posterSource?: LiveSource,
+  now: Date = new Date(),
+): Array<{ exerciseId: string; setNumber: number; isWarmup: boolean; reps: number; weight: number; rpe: number | null; completedAt: string | null }> {
+  const rows = live ?? [];
+  const liveBy = new Map<string, LiveSet>();
+  for (const s of rows) liveBy.set(liveKey(s), s);
+  const savedBy = new Map<string, FinishSet>();
+  for (const s of saved) savedBy.set(liveKey(s), s);
+  const out: ReturnType<typeof finishUpdates> = [];
+  for (const p of dropRemovedSets(posted, rows)) {
+    const key = liveKey(p);
+    const sv = savedBy.get(key);
+    if (!sv) continue;
+    const lv = liveBy.get(key);
+    const rowIsSaved = !!lv && !lv.removed && sameLoad(lv, sv) && (lv.rpe || 0) === (sv.rpe || 0);
+    let next: FinishSet = sv;
+    if (rowIsSaved) next = pickFinishVersion(p, lv, posterSource, now);
+    else if (!rated(sv.rpe) && rated(p.rpe)) next = { ...sv, rpe: p.rpe };
+    if (sameLoad(next, sv) && (next.rpe || 0) === (sv.rpe || 0)) continue;
+    out.push({
+      exerciseId: sv.exerciseId, setNumber: sv.setNumber, isWarmup: sv.isWarmup === true,
+      reps: next.reps, weight: next.weight, rpe: rated(next.rpe) ? next.rpe : null,
+      completedAt: next.completedAt ?? sv.completedAt ?? null,
+    });
+  }
+  return out;
+}
+
+/**
+ * The payload's sets with the stamp of each one changed after its tick —
+ * `edited` is what liveDiff recorded, matched by content so a set changed
+ * back again carries nothing stale. Without it a correction that never
+ * reached the row (Save inside the 0.4 s push debounce, a flush that failed
+ * offline) was dated by its tick at the phone's OWN finish, and the row's
+ * later-stamped version of the set replaced it (blind review, 2026-10-02).
+ */
+export function withEditStamps<T extends FinishSet>(sets: T[], edited: Map<string, { ser: string; at: string }>): T[] {
+  return sets.map((s) => {
+    const e = edited.get(liveKey(s));
+    return e && e.ser === liveSerial(s) ? { ...s, editedAt: e.at } : s;
+  });
+}
+
+/**
+ * Which pushed versions the returned row actually holds. The flush used to
+ * record every pushed serial as landed whenever a row came back; a version
+ * the merge turned down was then never sent again and never noticed.
+ */
+export function landedSerials(serials: Map<string, string>, rowSets: LiveSet[]): Map<string, string> {
+  const held = new Map<string, string>();
+  for (const s of rowSets) if (!s.removed) held.set(liveKey(s), liveSerial(s));
+  const out = new Map<string, string>();
+  for (const [k, v] of serials) if (held.get(k) === v) out.set(k, v);
+  return out;
+}
+
+/**
+ * Row entries this device should lay over its blocks: anything the OTHER
+ * device wrote that differs from the snapshot (tombstones included), and a
+ * set of its OWN whose row version differs only by a rating — the wrist
+ * rated a set whose load this phone had corrected, the merge kept the
+ * phone's load and grafted the rating, and the row entry is still "phone".
+ */
+export function liveToAdopt(rowSets: LiveSet[], snapshot: Map<string, string>, own: LiveSource): LiveSet[] {
+  return rowSets.filter((ls) => {
+    const known = snapshot.get(liveKey(ls));
+    if (ls.source !== own) return known !== liveSerial(ls);
+    if (ls.removed || !rated(ls.rpe) || known === undefined || known === liveSerial(ls)) return false;
+    try {
+      const k = JSON.parse(known) as unknown[];
+      return k[0] === ls.reps && k[1] === ls.weight && k[3] === ls.completedAt;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * A stored row's JSON as sets, element by element. The column is free-form
+ * JSON and the cast used to be unchecked: one null element threw inside the
+ * finish merge, and a set lacking reps/weight/completedAt was copied into
+ * the Workout insert — a save failing because of the live row
+ * (data-steward, 2026-10-02). Junk is dropped; a tombstone needs only its
+ * key and time.
+ */
+export function validLiveSets(raw: unknown): LiveSet[] {
+  if (!Array.isArray(raw)) return [];
+  const out: LiveSet[] = [];
+  for (const item of raw as unknown[]) {
+    if (!item || typeof item !== 'object') continue;
+    const r = item as Partial<LiveSet>;
+    if (typeof r.exerciseId !== 'string' || !r.exerciseId) continue;
+    if (typeof r.setNumber !== 'number' || !Number.isFinite(r.setNumber)) continue;
+    if (typeof r.completedAt !== 'string' || Number.isNaN(Date.parse(r.completedAt))) continue;
+    const base = {
+      exerciseId: r.exerciseId, setNumber: r.setNumber, isWarmup: r.isWarmup === true,
+      completedAt: r.completedAt, source: r.source === 'watch' ? ('watch' as const) : ('phone' as const),
+    };
+    if (r.removed === true) { out.push({ ...base, reps: 0, weight: 0, removed: true }); continue; }
+    if (typeof r.reps !== 'number' || !Number.isFinite(r.reps) || typeof r.weight !== 'number' || !Number.isFinite(r.weight)) continue;
+    out.push({
+      ...base, reps: r.reps, weight: r.weight,
+      ...(rated(r.rpe) ? { rpe: r.rpe } : {}),
+      ...(typeof r.editedAt === 'string' && !Number.isNaN(Date.parse(r.editedAt)) ? { editedAt: r.editedAt } : {}),
+    });
+  }
+  return out;
+}
+
+/**
+ * One set per key, and no ticked set lost. Two sets under one key in a
+ * single payload hit the WorkoutSet unique index on every retry (the wedge
+ * sanitizeWatchLogSets closed for the Watch) — but collapsing them
+ * last-wins, the first fix, dropped a set the owner had ticked: two blocks
+ * of one exercise on the phone each hold a "set 1" (owner, 2026-10-02: a
+ * ticked set must never vanish at save).
+ *  - Same key AND same reps, weight, rating and instant: a replay of one
+ *    tick. Collapsed.
+ *  - A different working set under a taken key: renumbered to the next
+ *    free number for that exercise, so both are saved. Deterministic, so
+ *    an outbox replay of the payload lands on the same keys.
+ *  - A second warm-up is never turned into a working set (half-load rows
+ *    would read as real work). The first stands; one from the SAME tick
+ *    replaces its values; a different one is left out and logged.
+ */
+export function dedupeByKey<T extends { exerciseId: string; setNumber: number; isWarmup?: boolean; reps?: number; weight?: number; rpe?: number | null; completedAt?: string | null }>(sets: T[]): T[] {
+  const used = new Map<string, Set<number>>();
+  for (const s of sets) {
+    if (s.isWarmup) continue;
+    if (!used.has(s.exerciseId)) used.set(s.exerciseId, new Set());
+    used.get(s.exerciseId)!.add(s.setNumber);
+  }
+  const tick = (s: T) => s.completedAt ?? null;
+  const same = (a: T, b: T) => a.reps === b.reps && a.weight === b.weight && (a.rpe || 0) === (b.rpe || 0) && tick(a) === tick(b);
+  const byKey = new Map<string, T>();
+  for (const s of sets) {
+    const key = liveKey(s);
+    const first = byKey.get(key);
+    if (!first) { byKey.set(key, s); continue; }
+    if (same(first, s)) continue;
+    if (s.isWarmup) {
+      if (tick(first) !== null && tick(first) === tick(s)) byKey.set(key, s);
+      else console.warn(`createWorkout: a second warm-up for ${s.exerciseId} (${s.weight} × ${s.reps}) was not saved — one warm-up per machine`);
+      continue;
+    }
+    const taken = used.get(s.exerciseId)!;
+    let n = s.setNumber + 1;
+    while (taken.has(n)) n++;
+    taken.add(n);
+    const moved = { ...s, setNumber: n };
+    byKey.set(liveKey(moved), moved);
+  }
+  return [...byKey.values()];
 }

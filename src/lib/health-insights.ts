@@ -132,11 +132,11 @@ const time = (d: Date | string) => new Date(d).getTime();
 /** CALENDAR days, not elapsed 24h blocks — an evening dose on the 8th is
  *  2 days back on the morning of the 10th (the same rule the dynamic plan
  *  learned the hard way). */
-const calendarDays = (later: Date, earlier: Date | string): number => {
-  const a = new Date(later); a.setHours(12, 0, 0, 0);
-  const b = new Date(earlier); b.setHours(12, 0, 0, 0);
-  return Math.round((a.getTime() - b.getTime()) / DAY_MS);
-};
+// HIS calendar days (ownerDayKey), not the server's: setHours(12) on
+// Vercel counted UTC days, so a Tuesday-evening dose read "2 days since"
+// until 03:00 on Friday.
+const calendarDays = (later: Date, earlier: Date | string): number =>
+  Math.round((Date.parse(ownerDayKey(later)) - Date.parse(ownerDayKey(new Date(earlier)))) / DAY_MS);
 
 /**
  * Null before the first injection is logged — the app shows "log your

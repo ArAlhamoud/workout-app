@@ -337,11 +337,13 @@ export interface DynamicPlan {
   reason: string;
 }
 
-const dayStart = (d: Date | string): number => {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x.getTime();
-};
+// The day an instant belongs to, as the UTC-midnight ms of HIS activity
+// day (sessionDayKey: 04:00 Riyadh rollover; a bare-midnight row is its
+// own day). setHours(0) asked the SERVER what day it was, and Vercel's UTC
+// midnight is 03:00 Riyadh: on 2026-10-02 at 01:30 the Train header said
+// Friday beside "done today" for Thursday's session.
+const dayStart = (d: Date | string): number =>
+  Date.parse(`${sessionDayKey(new Date(d))}T00:00:00.000Z`);
 
 /**
  * Whole CALENDAR days between two instants: a session logged at 9 pm
@@ -457,9 +459,11 @@ export function projectPlan(sessions: LoggedSession[], now: Date = new Date(), d
   const out: PlanDay[] = [];
 
   for (let i = 0; i < days; i++) {
-    const at = new Date(now);
-    at.setDate(at.getDate() + i);
-    if (i > 0) at.setHours(12, 0, 0, 0); // midday keeps DST off the day count
+    // Later days are built from today's ACTIVITY day, at midday UTC so the
+    // key reads as that day in any zone. Counting from the wall clock
+    // skipped a day in the small hours: Fri 01:30 is still Thursday's
+    // activity day, and "tomorrow" came out as Saturday.
+    const at = i === 0 ? new Date(now) : new Date(dayStart(now) + i * 86_400_000 + 12 * 3_600_000);
     const plan = getDynamicPlan(simulated, at);
     out.push({
       date: at,
@@ -663,12 +667,41 @@ export function cleanRampSessionDates(sessions: RampSession[]): Date[] {
   return rampSessionVerdicts(sessions).filter((v) => v.clean).map((v) => v.date);
 }
 
+/**
+ * The days (YYYY-MM-DD) whose session OPENED inside a return week below
+ * full load, judged the way the logger judged it that morning: from the
+ * sessions before it. The Stats strength card needs this for history saved
+ * before `allowedKg` existed — every September set carries null, and the
+ * card compared ramp week 1 with ramp week 3 as if it were strength.
+ * A label for a comparison, never a prescription (rule 10 stands: the
+ * allowance itself is recorded at save time and not rebuilt here).
+ */
+export function rampScaledDayKeys(sessions: RampSession[]): Set<string> {
+  const key = (d: Date | string) => new Date(d).toISOString().slice(0, 10);
+  const asc = [...sessions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  const out = new Set<string>();
+  for (const s of asc) {
+    const k = key(s.date);
+    const earlier = asc.filter((e) => key(e.date) < k);
+    if (!earlier.length) continue;
+    const st = getTrainingStatus(earlier.map((e) => new Date(e.date)), new Date(s.date), cleanRampSessionDates(earlier));
+    if (st.mode === 'return' && st.returnWeek.loadPct < 100) out.add(k);
+  }
+  return out;
+}
+
 export function getTrainingStatus(
   dates: Date[],
   now: Date = new Date(),
   cleanDates: Date[] = [],
 ): TrainingStatus {
   if (!dates.length) return { mode: 'fresh', week: 1 };
+
+  // Days are counted on the same clock as the plan (dayStart): a raw `now`
+  // floored against bare-midnight rows turned the day at 03:00 Riyadh, so
+  // for an hour the status said "21 days off, REBOOT" beside a plan line
+  // saying 20 (adversary, 2026-10-02).
+  now = new Date(dayStart(now));
 
   // ONE session per activity day (trainer F3, 2026-09-24). Training rows sit
   // at UTC midnight of their activity day, so two rows on one day — a split

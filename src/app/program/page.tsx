@@ -1,3 +1,4 @@
+import { ownerActivityDayUtc } from '@/lib/health-insights';
 import { readChart } from '@/lib/chart';
 import Link from 'next/link';
 import type { Metadata } from 'next';
@@ -143,7 +144,7 @@ export default async function ProgramPage() {
   // Where the lifter actually is this week
   const trainingOnly = workouts.filter(isTrainingSession);
   const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
-  const weekStart = getMondayOfWeek(new Date());
+  const weekStart = getMondayOfWeek(ownerActivityDayUtc());
   // TRAINING sessions only (trainer veto in program.ts: a rescue walk must
   // never count as a ramp session). Unfiltered, two walks "spent" the ramp
   // week's budget and the strip told a man who had done zero training that
@@ -324,7 +325,7 @@ export default async function ProgramPage() {
                 : 'text-acc-teal [text-shadow:0_0_14px_rgba(45,212,191,0.55)]';
             const label = p.isToday
               ? 'Today'
-              : new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(p.date);
+              : new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(p.date);
             return (
               <div
                 key={p.date.toISOString()}

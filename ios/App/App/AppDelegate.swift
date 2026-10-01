@@ -10,7 +10,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     /// Set when the app is launched cold by a Home-screen quick action. iOS
     /// delivers it in launchOptions and does NOT call performActionFor in that
     /// case, so it is held here until the webview exists to receive it.
-    private var pendingShortcutURL: URL?
+    fileprivate var pendingShortcutURL: URL?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         requestNotificationAuthorization()
@@ -52,7 +52,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     /// rung misses, the app has simply opened on Home.
     private static let shortcutDeliveryDelays: [TimeInterval] = [1.0, 2.2, 4.0, 6.5]
 
-    private func deliverPendingShortcut() {
+    fileprivate func deliverPendingShortcut() {
         guard let url = pendingShortcutURL else { return }
         pendingShortcutURL = nil
         for delay in Self.shortcutDeliveryDelays {
@@ -113,4 +113,62 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+}
+
+// MARK: - Scene life cycle
+//
+// The iOS 27 SDK (Xcode 27) traps at launch on an app without the UIScene
+// life cycle: "UIScene life cycle is required for apps built with this SDK".
+// Under scenes UIKit stops calling the AppDelegate's open-URL, quick-action,
+// user-activity and did-become-active methods, so each one is forwarded from
+// here into the same paths the AppDelegate already uses. The storyboard is
+// loaded by the scene manifest in Info.plist.
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+
+    var window: UIWindow?
+
+    private var appDelegate: AppDelegate? { UIApplication.shared.delegate as? AppDelegate }
+
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
+        // Plugins still reach the window through the app delegate.
+        appDelegate?.window = window
+
+        // Cold launch by quick action or by URL (widget, Live Activity): the
+        // webview does not exist yet, so both ride the delayed ladder.
+        if let item = connectionOptions.shortcutItem {
+            appDelegate?.pendingShortcutURL = URL(string: item.type)
+        } else if let url = connectionOptions.urlContexts.first?.url {
+            appDelegate?.pendingShortcutURL = url
+        } else if let link = connectionOptions.userActivities.compactMap({ $0.webpageURL }).first {
+            // A universal link forwarded here would reach no listener: the
+            // plugins are not created until the view controller loads.
+            appDelegate?.pendingShortcutURL = link
+        }
+    }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        appDelegate?.deliverPendingShortcut()
+    }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts {
+            _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, open: context.url, options: [:])
+        }
+    }
+
+    func windowScene(
+        _ windowScene: UIWindowScene,
+        performActionFor shortcutItem: UIApplicationShortcutItem,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        guard let url = URL(string: shortcutItem.type) else {
+            completionHandler(false)
+            return
+        }
+        completionHandler(ApplicationDelegateProxy.shared.application(UIApplication.shared, open: url, options: [:]))
+    }
+
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: userActivity, restorationHandler: { _ in })
+    }
 }

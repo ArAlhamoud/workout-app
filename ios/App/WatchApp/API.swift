@@ -20,17 +20,36 @@ enum API {
     /// building's own. A session continued from the phone asks for the
     /// phone's gym; one started here is B_Fit.
     static func fetchPlan(day: String?, dur: Int?, gym: String? = nil) async throws -> Plan {
+        try await fetchPlanChecked(day: day, dur: dur, gym: gym).plan
+    }
+
+    /// The plan, and the days banked on this wrist at any point WHILE it was
+    /// fetched — read before the request and again after it, because the
+    /// flush runs alongside: a session that lands mid-fetch leaves an empty
+    /// outbox behind a plan the server computed without it
+    /// (SessionCore.queuePlanStale).
+    static func fetchPlanChecked(day: String?, dur: Int?, gym: String? = nil) async throws -> (plan: Plan, banked: [String]) {
         var comps = URLComponents(url: baseURL.appendingPathComponent("/api/watch/plan"), resolvingAgainstBaseURL: false)!
         var items: [URLQueryItem] = []
         if let day { items.append(URLQueryItem(name: "day", value: day)) }
         if let dur { items.append(URLQueryItem(name: "dur", value: String(dur))) }
         if let gym { items.append(URLQueryItem(name: "gym", value: gym)) }
         if !items.isEmpty { comps.queryItems = items }
+        let before = Outbox.bankedDays()
         let (data, resp) = try await session.data(from: comps.url!)
         guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         let plan = try JSONDecoder().decode(Plan.self, from: data)
-        Store.savePlanCache(plan, gym: gym)
-        return plan
+        let banked = before + Outbox.bankedDays()
+        // `queue`: no day was asked, so the server's queue chose this one —
+        // the only kind of plan an offline Action Button may start from.
+        Store.savePlanCache(plan, gym: gym, queue: day == nil, banked: banked)
+        // Beside every queue plan, the other day's — so a day he picks by
+        // name has a plan to open with no signal (SessionCore.companionDay).
+        // Not awaited: a start never waits for it.
+        if day == nil, let other = SessionCore.companionDay(for: plan, gym: gym) {
+            Task { _ = try? await fetchPlan(day: other, dur: nil) }
+        }
+        return (plan, banked)
     }
 
     // MARK: Live session
@@ -115,7 +134,10 @@ enum API {
 /// awaits and wrote it back, erasing a session banked meanwhile.
 actor Outbox {
     static let shared = Outbox()
-    private var flushing = false
+    /// The flush in progress. A second caller WAITS for it instead of
+    /// returning at once with "nothing sent": a start that flushes before
+    /// fetching the plan must not race past a flush the path monitor began.
+    private var running: Task<Int, Never>?
 
     /// Bank a payload. false = the disk write failed: the caller must keep the
     /// session file, because nothing else holds these sets.
@@ -140,9 +162,15 @@ actor Outbox {
     /// so one bad payload never holds every later session hostage.
     @discardableResult
     func flush() async -> Int {
-        guard !flushing else { return 0 }
-        flushing = true
-        defer { flushing = false }
+        if let running { return await running.value }
+        let task = Task { await self.sendAll() }
+        running = task
+        let sent = await task.value
+        running = nil
+        return sent
+    }
+
+    private func sendAll() async -> Int {
         var sent = 0
         var tried = Set<String>()
         while let next = Store.loadOutbox().first(where: { !tried.contains($0.clientSaveId) }) {
@@ -173,6 +201,14 @@ actor Outbox {
     nonisolated static func bankedIds() -> Set<String> {
         Set((Store.loadOutbox() + Store.loadRejected()).map(\.clientSaveId))
     }
+
+    /// The days of TODAY's sessions still waiting to upload: the server
+    /// chose its queue without them (SessionCore.cacheVerdict /
+    /// queuePlanStale). An older banked session no longer counts
+    /// (SessionCore.bankedToday).
+    nonisolated static func bankedDays() -> [String] {
+        SessionCore.bankedToday(Store.loadOutbox(), now: Date())
+    }
 }
 
 /// Tiny disk layer: plan cache, outbox, in-flight session. All JSON files in
@@ -182,7 +218,14 @@ enum Store {
     private static var dir: URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
+    /// The server's QUEUE plan for B_Fit (fetched with no day): what the
+    /// Start screen shows and what an offline Action Button starts from.
     private static var planURL: URL { dir.appendingPathComponent("plan-cache.json") }
+    /// The plans fetched for a NAMED day, a Continue, or another building —
+    /// one per day and building. Kept apart: in the one file it replaced the
+    /// queue plan, and the next offline start with no day opened it as if
+    /// it were queued.
+    private static var askedPlanURL: URL { dir.appendingPathComponent("plan-cache-asked.json") }
     private static var outboxURL: URL { dir.appendingPathComponent("outbox.json") }
     private static var sessionURL: URL { dir.appendingPathComponent("active-session.json") }
     private static var rejectedURL: URL { dir.appendingPathComponent("outbox-rejected.json") }
@@ -200,23 +243,52 @@ enum Store {
     /// ramp scaling must be consulted (trainer review, blocking).
     static let planStartWindow: TimeInterval = 7 * 86400
 
-    static func savePlanCache(_ plan: Plan, gym: String? = nil) {
-        let cached = CachedPlan(plan: plan, fetchedAt: Date(), gym: gym)
-        if let d = try? JSONEncoder().encode(cached) { write(d, to: planURL) }
+    static func savePlanCache(_ plan: Plan, gym: String? = nil, queue: Bool, banked: [String]) {
+        let now = Date()
+        // A queue plan fetched while a session of its day was banked here
+        // is spent on arrival: the server chose the day without it.
+        let spent = queue && banked.contains(plan.day)
+        let cached = CachedPlan(plan: plan, fetchedAt: now, gym: gym, queue: queue, trainedAt: spent ? now : nil)
+        if queue && (gym ?? "bfit") == "bfit" {
+            if let d = try? JSONEncoder().encode(cached) { write(d, to: planURL) }
+        } else {
+            saveAsked(SessionCore.upsertCached(loadAsked(), cached))
+        }
     }
-    static func loadPlanCache() -> Plan? { loadCachedPlan()?.plan }
-    static func loadCachedPlan() -> CachedPlan? {
+    static func loadPlanCache() -> Plan? { loadQueueCache()?.plan }
+    private static func loadQueueCache() -> CachedPlan? {
         guard let d = try? Data(contentsOf: planURL) else { return nil }
         return try? JSONDecoder().decode(CachedPlan.self, from: d)
     }
-    /// Nil when offline AND the cache is too old to trust for a session — or
-    /// when it is the wrong day or the wrong building: a cached Day A B_Fit
-    /// plan must never open an asked-for Day B, or an Alrajhi session.
-    static func startablePlan(day: String? = nil, gym: String? = nil) -> Plan? {
-        guard let c = loadCachedPlan(), SessionCore.planStartable(c.plan, fetchedAt: c.fetchedAt, now: Date()) else { return nil }
-        if let day, c.plan.day != day { return nil }
-        guard (c.gym ?? "bfit") == (gym ?? "bfit") else { return nil }
-        return c.plan
+    private static func loadAsked() -> [CachedPlan] {
+        guard let d = try? Data(contentsOf: askedPlanURL) else { return [] }
+        return (try? JSONDecoder().decode([CachedPlan].self, from: d)) ?? []
+    }
+    private static func saveAsked(_ list: [CachedPlan]) {
+        if let d = try? JSONEncoder().encode(list) { write(d, to: askedPlanURL) }
+    }
+
+    /// The cached plan that may open this start with no signal — or why
+    /// none may (SessionCore.pickCached: too old to trust across a layoff,
+    /// the wrong day or building, not the server's queue, a queue no build
+    /// recorded, or a day already trained on this wrist).
+    static func startable(day: String? = nil, gym: String? = nil) -> (plan: Plan?, why: SessionCore.CacheVerdict?) {
+        let all = (loadQueueCache().map { [$0] } ?? []) + loadAsked()
+        let pick = SessionCore.pickCached(all, day: day, gym: gym, bankedDays: Outbox.bankedDays(), now: Date())
+        return (pick.cached?.plan, pick.why)
+    }
+
+    /// A session of `day` was finished on this wrist: a cached plan for that
+    /// day is no longer the queue (SessionCore.markTrained). The next
+    /// successful fetch replaces the plan and the mark with it.
+    static func markPlanTrained(day: String) {
+        let now = Date()
+        if let c = loadQueueCache(), c.trainedAt == nil,
+           let d = try? JSONEncoder().encode(SessionCore.markTrained(c, day: day, at: now)) {
+            write(d, to: planURL)
+        }
+        let asked = loadAsked()
+        if !asked.isEmpty { saveAsked(asked.map { $0.trainedAt == nil ? SessionCore.markTrained($0, day: day, at: now) : $0 }) }
     }
 
     @discardableResult

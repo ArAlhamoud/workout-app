@@ -58,6 +58,14 @@ struct StartView: View {
     }
     private var otherDay: String { chosenDay == "A" ? "B" : "A" }
 
+    /// "build 13 · Sep 24" — the date is the executable's own file date,
+    /// read once: it changes with every compile, whatever the number says.
+    private static let buildLabel: String = {
+        let built = Bundle.main.executableURL
+            .flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.modificationDate] as? Date }
+        return SessionCore.buildLabel(version: Bundle.main.infoDictionary?["CFBundleVersion"] as? String, builtAt: built)
+    }()
+
     var body: some View {
         ScrollView {
             VStack(spacing: 8) {
@@ -93,13 +101,23 @@ struct StartView: View {
                     .tint(.green)
                 }
                 Button {
-                    let d = chosenDay, dur = chosenDur
-                    Task { await store.start(day: d, dur: dur) }
+                    // "planned" means the SERVER's queue: no day and no
+                    // length are sent unless he picked them. The screen's
+                    // own day went out as an explicit ask — stale by a
+                    // session, the server still obeyed it.
+                    // A day the wrist offered by name (it could not confirm
+                    // the queue) is sent by name on this confirming tap.
+                    let d = SessionCore.startDay(override: dayOverride, offered: store.offeredDay)
+                    let dur: Int? = durIndex == 0 ? nil : chosenDur
+                    // With no day sent, what opens must be the day this
+                    // button reads; a queue that moved is shown, not opened.
+                    let promised = d == nil ? store.plan?.day : nil
+                    Task { await store.start(day: d, dur: dur, promised: promised) }
                 } label: {
                     VStack(spacing: 2) {
                         Text("Day \(chosenDay)")
                             .font(.system(size: 30, weight: .black, design: .rounded))
-                        Text("\(chosenDur) min\(dayOverride == nil ? " · planned" : "")")
+                        Text("\(chosenDur) min\(dayOverride != nil ? "" : store.offeredDay != nil ? " · saved plan" : " · planned")")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
@@ -144,7 +162,10 @@ struct StartView: View {
                 // was no way to tell from the wrist whether the new build had
                 // installed at all. CFBundleVersion is the TestFlight number:
                 // the export renumbers it (manageAppVersionAndBuildNumber).
-                Text("build \(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?")")
+                // The number alone read 13 from 2026-09-12 on, through many
+                // dev installs of different code — so the day the binary
+                // was built rides beside it.
+                Text(Self.buildLabel)
                     .font(.system(size: 9, design: .rounded))
                     .foregroundStyle(.secondary)
             }

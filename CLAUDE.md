@@ -123,6 +123,37 @@ Each of these broke something real. Do not relearn them.
     weigh-in overwrite was an edit that matched the first identical
     query in the file.
 
+12. **One day clock: the owner's activity day, never the server's.**
+    A day turns at 04:00 Riyadh (`ownerActivityDayUtc`, `sessionDayKey`);
+    session rows sit at that day's UTC midnight. `setHours(0)` on Vercel
+    asks UTC, whose midnight is 03:00 Riyadh: on 2026-10-02 at 01:30 the
+    Train header said Friday beside "done today" for Thursday's session,
+    and for an hour each night the ramp status and the plan disagreed by
+    a day. Any server-side "today", "days since" or week start goes
+    through those helpers. Write test instants with their offset
+    (`+03:00`) so they mean the same on the Mac and in CI, and run the
+    suite under `TZ=UTC` as well as locally.
+
+13. **Two devices, one set: the newest EDIT wins, and a rating is not a
+    load.** A finish used to save whichever device posted, so a stale
+    wrist copy overwrote a phone correction and a wrist rating died with
+    it. Each set in the live row carries `editedAt` (JSON only, never a
+    column); the row merge and both finish paths pick per key by it
+    (`live-session.ts`: `mergeLiveSets`, `resolveFinishSets`,
+    `finishUpdates`), an unrated winner takes the other copy's rating at
+    any load, and a save never fails or drops a ticked set because of
+    the live row. Two blind passes on this path found three more ways to
+    lose a correction, all in the fix. Review every change to it.
+
+14. **An app built with the iOS 27 SDK must have a scene.** Xcode 27
+    builds trapped at launch until `SceneDelegate` (in `AppDelegate.swift`)
+    and the scene manifest existed. Under scenes UIKit no longer calls the
+    AppDelegate's open-URL, quick-action, user-activity or
+    did-become-active methods: anything new that arrives from outside the
+    app must be forwarded from the SceneDelegate, and cold-launch links
+    wait for the webview (the delivery ladder; `DeepLinkHandler` navigates
+    once per link).
+
 ## The coach layer is deliberately dormant
 
 Waves 3–4 built an AI coach (brief, chat, coach-written gap

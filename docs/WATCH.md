@@ -108,6 +108,38 @@ returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
 - `rpeCap` < 4 during a ramp, OR while the chart caps effort (AF / antiarrhythmic / hypertension — the plan sends the min of both, 2026-09-18): grey out RPE buttons above the cap. Do not label it "Ramp target" when `loadPct` is 100 — it is the chart's ceiling, not a ramp.
 - Fetch the plan when the session starts; **cache the last plan on the
   watch** so a dead-signal gym still opens with yesterday's numbers.
+  The queue plan (no `day`) is also refetched on launch, on every
+  foreground and after a finish reaches the server — never during a
+  session. "Planned" on the Start screen means the SERVER's queue: the big
+  button sends no `day` (and no `dur`) unless he picked one.
+- Two cache files (2026-10-02): `plan-cache.json` holds only the B_Fit
+  queue plan; a named-day, Continue or other-building plan goes to
+  `plan-cache-asked.json`. A start with no day and no signal is served
+  ONLY by a queue plan, and not once its day was trained on this wrist
+  (finished since the fetch, or banked today) — the one-file cache held
+  the last session's own plan and the offline Action Button repeated that
+  day at pre-session weights. The wrist never guesses the next day
+  (rule 9): it says "need signal for the next plan"; a day he picks by
+  name still opens from any cached plan for that day
+  (`SessionCore.cacheVerdict` / `pickCached`).
+- Every successful queue fetch also fetches the OTHER day's plan into the
+  asked cache (one plan per day and building, `companionDay` — B_Fit
+  only, the wrist opens no session elsewhere). Without it two sessions in
+  a row with no signal could start nothing: Day A banked and spent, no
+  Day B plan on the wrist. Its age is bounded by the same 7-day /
+  `startableUntil` window.
+- A `plan-cache.json` written by a build before the `queue` flag is not
+  trusted as the queue, but it is not "no plan" either: the wrist says
+  "No signal — tap again for Day X" and the next tap on the big button
+  asks for that day by name ("saved plan" under the label).
+- The Action Button starts with zero taps only when the queue plan's
+  `mode` is `train`. On a recovery day or after a session it lands on the
+  Start screen, where the plan's own line shows ("Recovery day — walk
+  instead?" / "Already trained today") and the big button goes ahead in
+  one tap — advice, never a block (trainer review, 2026-10-02).
+- The big button opens the day it reads. When no day is sent and the
+  server's queue has moved since the screen was drawn, the wrist shows
+  "Now Day B — tap to start" instead of opening Day B under a Day A label.
 
 ### `POST /api/watch/log` — the finished session, one shot
 
@@ -180,8 +212,27 @@ later.
 - Every logged set is appended to local storage immediately; the app
   process dying mid-session loses nothing.
 - The finished-session payload goes into a small on-watch outbox; flush
-  on finish, on next launch, and on connectivity restore. Same
-  `clientSaveId` across every retry.
+  on finish, on launch, on every foreground, on Done, when the network
+  path comes back (`NWPathMonitor`, added 2026-10-02 — until then this
+  line promised it and no code did), and BEFORE every start. The path
+  monitor runs only while the app process does; watchOS suspends the app
+  off-wrist and nothing wakes it, so a banked session can still wait for
+  the next wrist raise. Same `clientSaveId` across every retry.
+- Every start (Action Button, big button, Continue) sends the outbox
+  first and waits up to 4 s for it, so the plan the server computes
+  includes the banked session; a dead network answers at once and the
+  offline start is unchanged. If a session from TODAY (activity day,
+  04:00 Riyadh rollover) was banked at any point while the queue plan for
+  its day was fetched — before the request or after it, the flush runs
+  alongside — the start is held with "Day A done today · not uploaded
+  yet" rather than repeating the day behind his back. An older banked
+  session (a payload the server keeps answering 5xx for) blocks nothing.
+- A wrist raise reads the live row FIRST, then flushes, then (idle only)
+  refetches the queue plan: the flush can take 12 s per banked payload on
+  a slow network and the phone's sets must not wait behind it.
+- A kill during the RPE strip relaunches on the strip
+  (`ActiveSession.pendingRpe`); it used to land on the next card and
+  leave that machine unrated.
 - The plan cache serves stale-but-usable numbers when offline.
 
 ## HealthKit on the watch
@@ -231,8 +282,8 @@ Contract (`/api/live`, no auth — single user):
   that row whatever its state (closed rows say `closedAt` + `workoutId`).
 - `POST /api/live` `{ clientSaveId, source: 'phone'|'watch', day?,
   durationMin?, gym?, startedAt?, sets: [ {exerciseId, setNumber, reps,
-  weight, rpe?, isWarmup?, completedAt} | {exerciseId, setNumber,
-  remove: true} ] }` → `{ live }` merged. Opening a new id closes every
+  weight, rpe?, isWarmup?, completedAt, editedAt?} | {exerciseId,
+  setNumber, remove: true} ] }` → `{ live }` merged. Opening a new id closes every
   other open row (one session at a time). A closed id writes nothing and
   answers with the closed row — stop.
 - `POST /api/live/close` `{ clientSaveId }` — discarded on a device.
@@ -241,16 +292,41 @@ Merge rule (`src/lib/live-session.ts`, tested): a device owns what it
 logs; same key (exercise + TEMPLATE set number, warm-ups keyed apart as
 setNumber 0 — `sanitizeLiveUpdate` accepts 0 ONLY with `isWarmup: true`,
 and pins any warm-up to 0 whatever number it arrives with) → the LATER completion wins; keys the update never
-mentions are untouched; a row holds ≤ 200 keys and only sets whose
+mentions are untouched. Two versions of the SAME tick (equal
+`completedAt` — a corrected weight, a rating) are ordered by edit, kept
+per set as `editedAt` inside the row's JSON (2026-10-02): an edit — the
+sender says so with `editedAt`, or a device re-posts its own set changed —
+wins and is dated by ARRIVAL (device clocks disagree; a stamp before the
+tick is floored at it); an unstamped post from the other device is a copy
+of the tick and loses to a stored edit. The wrist cannot change a logged
+load without a new tick, so its same-tick post onto a version the phone
+wrote is a rating only. An unrated winner takes the other copy's rating
+at any load, and across devices no rating never erases one. Warm-ups
+travel both ways; the phone removes only keys it showed ticked itself
+(`liveDiff`), records a push only when the row holds that version, and
+adopts a rating the row gained on its own set (`liveToAdopt`). A row holds ≤ 200 keys and only sets whose
 exerciseId exists. The phone's save keeps the template numbers too —
 renumbering 1..n across a warm-up once dropped a Watch set and doubled a
 phone set. Gym and source are FIRST-writer-wins: the opening device
 tagged the building (rule 2); the Watch sends no gym. On finish,
 `createWorkout` unions any live set from the OTHER device the poster
-never saw (poster wins ties; its own live sets are never re-added, so a
-failed un-tick stays un-ticked) and closes the row; a second finish
-under the same id adds the sets the saved workout lacks — in one
-transaction — and returns `deduped`: a success, not an error.
+never saw (its own live sets are never re-added, so a failed un-tick
+stays un-ticked) and closes the row. A key BOTH hold is saved in its most
+recently edited version (`resolveFinishSets`): the poster's when it wrote
+the row's version itself or logged later, the row's when the other device
+edited after the poster's copy was taken (the Watch's stale 20 kg must
+not replace the phone's corrected 22.5 Hard). A second finish under the
+same id adds the sets the saved workout lacks and updates a saved key
+only when its version is the newer one (`finishUpdates` — a rating the
+wrist gave after the phone finished lands; `allowedKg` is never
+rewritten) — in one transaction — and returns `deduped`: a success, not
+an error. The phone's finish carries `editedAt` on a set it changed
+after the tick, so a correction the row never saw still outranks the
+version it corrected. A malformed row never fails a save: its junk
+elements are dropped on read and, should the reconciliation still throw,
+the poster's own sets are saved as posted. Remaining undatable window: an
+edit that lands between the first finisher's read of the row and its
+close is kept only as a missing rating (filled by the second finish).
 
 Watch side: the Start screen shows **Continue Day X · N sets on the
 phone** when a phone-born row is open; `continueLive` builds the slots
@@ -260,8 +336,17 @@ phone's start (owner's call — the phone half has no HR curve). Every
 `logCurrentSet`/RPE posts its set; `refreshLive` on wrist-raise notices a
 row the phone finished: it first posts its own sets under the same id
 (the server adds what the workout lacks), then lands on Done.
-Phone-origin sets are marked, never rated on the wrist, and dropped if
-the phone un-ticks or discards them. Phone side: the logger applies a
+Phone-origin sets are marked and never rated on the wrist. The wrist's
+copy TRACKS the row on every read (2026-10-02): a phone correction
+replaces it, so the finish no longer posts a stale copy. A set logged on
+the wrist changes only when the row holds a LATER phone edit of it (by
+`editedAt`, else the tick) — it stays the wrist's to rate. A wrist rating
+stamps the set `editedAt` = now, sent in the live update and in the
+finish payload; ticks and phone copies carry no stamp. Un-ticked or discarded on the
+phone, the copy leaves the log AND its slot returns to the pending queue
+(among its machine's pending sets, else at the back — never changing
+another machine's card), so the wrist offers it again and a re-tick shows
+as logged. Phone side: the logger applies a
 live row on open (draft precedence: same id → overlay; a draft with ANY
 ticked set wins; else live wins and the draft's date/start/gym reset),
 pushes a debounced diff of ticked sets (started-at = first tick), polls
@@ -454,7 +539,13 @@ actually sees mid-ramp are /8 and /9.
 TestFlight install, because `scripts/ExportOptions.plist` sets
 `manageAppVersionAndBuildNumber` and the export renumbers the whole
 bundle, Watch app included. A local sim/dev build shows the project's
-own number (currently 2), which is expected. Added because "the fix did
+own number (`CURRENT_PROJECT_VERSION`), which does not move between dev
+installs — it read 13 from 2026-09-12 on across many code changes — so
+the footer also carries the day the binary was built, read at runtime
+from the executable's file date: `build 13 · Sep 24`
+(`SessionCore.buildLabel`). Two dev installs built on the SAME day still
+read alike, and whether a device install keeps the Mac's file date has
+not been checked on the wrist. Added because "the fix did
 not reach my watch" was unanswerable from the wrist: the Mac could not
 reach the watch (`ddiServicesAvailable: false`), and the phone was
 locked.

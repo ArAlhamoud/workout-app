@@ -15,6 +15,8 @@ export const dynamic = 'force-dynamic';
  *                     startedAt?, sets?: [set | {exerciseId,setNumber,remove}] }
  *                   → { live } — the merged row. A closed id answers with
  *                     closedAt set and writes nothing.
+ * A set may carry `editedAt` (ISO) when it was changed after its tick; the
+ * merge dates the version itself when it does not (mergeLiveSets).
  */
 export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get('id') ?? undefined;
