@@ -11,7 +11,8 @@ import {
   unionForFinish,
   type LiveSetUpdate,
   type LiveSource,
-  dropRemovedSets,
+  finishUpdates,
+  resolveFinishSets,
   mergeCandidates,
   recordedInHealth,
 } from '@/lib/live-session';
@@ -220,10 +221,13 @@ export async function createWorkout(data: {
     };
     // The other half of a handed-off session: the Watch finished first and
     // the phone (or the reverse) posts the same save id. Sets it logged
-    // that the saved workout lacks are added; keys already saved keep the
-    // first finisher's values. A plain outbox replay adds nothing. Read
-    // and insert in ONE transaction so two overlapping replays cannot both
-    // add the same set (steward).
+    // that the saved workout lacks are added. A key already saved takes
+    // the second finisher's values only when its version is the more
+    // recently edited one (finishUpdates) — "keeps the first finisher's
+    // values" dropped a rating the Watch gave after the phone had finished
+    // (review, 2026-10-02). A plain outbox replay adds and changes nothing.
+    // Read and write in ONE transaction so two overlapping replays cannot
+    // both add the same set (steward).
     // Everything that queries runs BEFORE the transaction opens: the live
     // row (read regardless of closedAt — the first finisher closed it) and
     // the ramp allowances (up to seven round-trips on the global client,
@@ -238,7 +242,7 @@ export async function createWorkout(data: {
     const merged = await prisma.$transaction(async (tx) => {
       const existing = await tx.workout.findUnique({
         where: { clientSaveId: data.clientSaveId },
-        select: { id: true, gym: true, sets: { select: { exerciseId: true, setNumber: true, isWarmup: true } } },
+        select: { id: true, gym: true, sets: { select: { exerciseId: true, setNumber: true, isWarmup: true, reps: true, weight: true, rpe: true, completedAt: true } } },
       });
       if (!existing) return null;
       const ok = await knownIds(data.sets);
@@ -265,12 +269,27 @@ export async function createWorkout(data: {
           })),
         });
       }
+      // Keys both halves hold: the later edit lands on the saved row. Logged
+      // values only — allowedKg stays what the first save recorded from the
+      // save-time memory (rule 10), never a device's copy.
+      const newer = finishUpdates(
+        existing.sets.map((s) => ({ ...s, completedAt: s.completedAt ? s.completedAt.toISOString() : null })),
+        data.sets,
+        liveForMerge?.sets,
+        data.finishSource,
+      );
+      for (const u of newer) {
+        await tx.workoutSet.updateMany({
+          where: { workoutId: existing.id, exerciseId: u.exerciseId, setNumber: u.setNumber, isWarmup: u.isWarmup },
+          data: { reps: u.reps, weight: u.weight, rpe: u.rpe, completedAt: u.completedAt ? new Date(u.completedAt) : null },
+        });
+      }
       // An HKWorkout uuid came with this save — proof the workout is in Apple
       // Health: mark it, so the phone's write-through never adds a copy.
       if (recordedInHealth({ healthWorkoutUuid: data.healthWorkoutUuid })) {
         await tx.workout.updateMany({ where: { id: existing.id, healthSyncedAt: null }, data: { healthSyncedAt: new Date() } });
       }
-      return { id: existing.id, merged: missing.length };
+      return { id: existing.id, merged: missing.length + newer.length };
     });
     if (merged) {
       if (merged.merged) {
@@ -282,15 +301,18 @@ export async function createWorkout(data: {
       return { id: merged.id, deduped: true, merged: merged.merged };
     }
     // Finishing a handed-off session: union in any set the OTHER device
-    // logged to the live row that this device never saw. Poster wins ties;
-    // the poster's own live sets are never re-added (an un-tick whose
-    // remove never reached the server must stay un-ticked).
+    // logged to the live row that this device never saw. The poster's own
+    // live sets are never re-added (an un-tick whose remove never reached
+    // the server must stay un-ticked). A key BOTH hold is saved in its most
+    // recently edited version, not the poster's by default: the Watch
+    // finished with its copy of a phone set from before the phone corrected
+    // it, and 20 kg unrated replaced 22.5 Hard (review, 2026-10-02).
     const live = await readLive(data.clientSaveId);
     if (live && live.sets.length) {
       // A set the OTHER device un-ticked after this one logged it is gone
       // for good — the Watch re-posts everything it ever logged at finish.
       // Honoured whether or not the row is still open.
-      data.sets = dropRemovedSets(data.sets, live.sets) as typeof data.sets;
+      data.sets = resolveFinishSets(data.sets, live.sets, data.finishSource);
       if (!live.closedAt) {
         const union = unionForFinish(data.sets, live.sets, data.finishSource);
         const ok = await knownIds(union);

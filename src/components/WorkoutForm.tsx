@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, pushLiveSets } from '@/app/actions';
 import { activityDayStr } from '@/lib/health-insights';
-import { liveKey, overlayLiveSets, visibleSets, type LiveSession, type LiveSet, type LiveSetUpdate } from '@/lib/live-session';
+import { liveDiff, liveKey, liveSerial, overlayLiveSets, ownLiveSets, visibleSets, type LiveSession, type LiveSet } from '@/lib/live-session';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
 import {
@@ -22,6 +22,7 @@ import { prescribeWarmup, prescribeWorking, rampTargetKg, settledSet, untickedWa
 import { gymSwap, gymWeightNote } from '@/lib/gym-equipment';
 import { hapticTap, hapticSuccess, keepScreenAwake } from '@/lib/native-feedback';
 import { endRestActivity } from '@/lib/native-live-activity';
+import { reloadWidgets } from '@/lib/native-widgets';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { enqueueSave, enqueueSaveIfAbsent, newClientSaveId } from '@/lib/outbox';
 import { armGapGuard, clearComeback, rearmGapGuardFromServer } from '@/lib/gap-guard';
@@ -444,9 +445,12 @@ export default function WorkoutForm({
   const liveEnabled = !healthWorkoutUuid && !rescueMode;
   /** key → serialised done-set as last pushed (or received) — the diff base. */
   const liveSnapRef = useRef<Map<string, string>>(new Map());
+  /** Keys a flush has seen ticked ON THIS PHONE — only these can be
+   *  removed by it. The snapshot alone also holds what the overlay
+   *  received, and "in the snapshot, not in my blocks" tombstoned every
+   *  warm-up the Watch logged (review, 2026-10-02; liveDiff). */
+  const liveTickedRef = useRef<Set<string>>(new Set());
   const [liveNotice, setLiveNotice] = useState<string | null>(null);
-  const liveSerial = (x: { reps: number; weight: number; rpe?: number; completedAt?: string | null }) =>
-    JSON.stringify([x.reps, x.weight, x.rpe || 0, x.completedAt ?? null]);
   const [autoTimer, setAutoTimer] = useState(true);
   const [prToast, setPrToast] = useState<string | null>(null);
   const [mood, setMood] = useState('');
@@ -670,7 +674,7 @@ export default function WorkoutForm({
   /** Lay live sets over the blocks (pure logic in live-session.ts); the
    *  applied keys join the snapshot so they are not pushed straight back. */
   function overlayLive(prev: ExerciseBlock[], sets: LiveSet[]): ExerciseBlock[] {
-    const { blocks: next, applied } = overlayLiveSets(prev, sets, (exerciseId) => ({
+    const { blocks: next, applied, unticked } = overlayLiveSets(prev, sets, (exerciseId) => ({
       uid: Math.random().toString(36).slice(2),
       exerciseId,
       showCues: false,
@@ -679,6 +683,13 @@ export default function WorkoutForm({
     }));
     for (const ls of applied) {
       liveSnapRef.current.set(liveKey(ls), liveSerial({ reps: ls.reps, weight: ls.weight, rpe: ls.rpe, completedAt: ls.completedAt }));
+    }
+    // Un-ticked by the OTHER device: forget the key, or the next flush
+    // sends a removal of our own — later-stamped, for a set this phone
+    // never removed, able to beat a re-tick made on the wrist in between.
+    for (const key of unticked) {
+      liveSnapRef.current.delete(key);
+      liveTickedRef.current.delete(key);
     }
     // Machines the Watch already started count as started: warm-ups no
     // longer due go, as they would after two ticks here (round 3, DT-3).
@@ -780,50 +791,15 @@ export default function WorkoutForm({
   const liveBusyRef = useRef(false);
   async function flushLive() {
     if (!liveEnabled || liveBusyRef.current || liveDeadRef.current) return;
-    const current = new Map<string, LiveSetUpdate>();
-    for (const b of blocksRef.current) {
-      for (const st of b.sets) {
-        // Warm-ups count for nothing and the wrist has no such set.
-        if (!st.done || !st.completedAt || st.isWarmup) continue;
-        // The SET's exercise, never the block's. A swap leaves already-done
-        // sets on the exercise they were performed on, so the two diverge —
-        // and stamping the block's id here pushed a 60 kg Chest Press set to
-        // the live row labelled Pec Fly. A Watch finish then wrote it as a
-        // 60 kg Pec Fly PR, unbeatable and unrepairable (no per-set editor).
-        // Same class as the cross-gym PR bug, laundered through exerciseId
-        // instead of gym.
-        const exerciseId = st.exerciseId ?? b.exerciseId;
-        const key = liveKey({ exerciseId, setNumber: st.setNumber });
-        current.set(key, {
-          exerciseId, setNumber: st.setNumber, reps: st.reps, weight: st.weight,
-          rpe: st.rpe || undefined, isWarmup: false, completedAt: st.completedAt, source: 'phone',
-        });
-      }
-    }
-    const updates: LiveSetUpdate[] = [];
-    const serials = new Map<string, string>();
-    for (const [key, u] of current) {
-      const set = u as LiveSet;
-      const ser = liveSerial({ reps: set.reps, weight: set.weight, rpe: set.rpe, completedAt: set.completedAt });
-      if (liveSnapRef.current.get(key) !== ser) { updates.push(u); serials.set(key, ser); }
-    }
-    for (const key of liveSnapRef.current.keys()) {
-      if (!current.has(key)) {
-        const [exerciseId, n] = key.split('#');
-        // Stamped HERE, at the un-tick: a tombstone stamped on arrival
-        // (0.4 s debounce + gym LTE) beat his own re-tick a second later
-        // and dropped the set from history (adversary pass 4). Warm-ups
-        // travel as set 0 with the flag — `Number('w')` was NaN and the
-        // sanitizer dropped the removal, so a Watch warm-up came back.
-        const isWarmup = n === 'w';
-        updates.push({ exerciseId, setNumber: isWarmup ? 0 : Number(n), isWarmup, remove: true, completedAt: new Date().toISOString() });
-      }
-    }
+    // Warm-ups included, under the Watch's key; removals only for what was
+    // un-ticked here; a changed set stamped as an edit (all in liveDiff).
+    const current = ownLiveSets(blocksRef.current, 'phone');
+    const { updates, serials } = liveDiff(current, liveSnapRef.current, liveTickedRef.current, new Date().toISOString());
     if (!updates.length) return;
     if (!saveIdRef.current) saveIdRef.current = newClientSaveId();
     // The session started at the first tick, not when the page was opened
     // (a logger left open since breakfast must not read as a stale row).
-    const firstTick = Math.min(...[...current.values()].map((u) => Date.parse((u as LiveSet).completedAt)));
+    const firstTick = Math.min(...current.map((u) => Date.parse(u.completedAt)));
     const startedAt = Number.isFinite(firstTick) ? Math.min(firstTick, Date.now()) : startRef.current;
     liveBusyRef.current = true;
     try {
@@ -840,7 +816,9 @@ export default function WorkoutForm({
       if (row?.closedAt) { void liveClosedElsewhere(row); return; }
       if (row) {
         for (const [k, v] of serials) liveSnapRef.current.set(k, v);
-        for (const u of updates) if ('remove' in u) liveSnapRef.current.delete(liveKey(u));
+        for (const u of updates) {
+          if ('remove' in u) { liveSnapRef.current.delete(liveKey(u)); liveTickedRef.current.delete(liveKey(u)); }
+        }
       }
     } catch { /* offline: the diff stays pending */ } finally {
       liveBusyRef.current = false;
@@ -1123,6 +1101,7 @@ export default function WorkoutForm({
     // Binned here → the Watch must stop offering it as "Continue".
     if (saveIdRef.current && liveSnapRef.current.size) void closeLiveSession(saveIdRef.current).catch(() => {});
     liveSnapRef.current = new Map();
+    liveTickedRef.current = new Set();
     liveDeadRef.current = false;
     setLiveNotice(null);
     setName(initialName);
@@ -1595,6 +1574,7 @@ export default function WorkoutForm({
     const startISO = detectedStartISO ?? new Date(sessionStart).toISOString();
     try {
       const { id } = await createWorkout(payload);
+      reloadWidgets(); // the Home-screen verdict must not keep saying "Train today"
       // deduped is a SUCCESS now: the same save id already landed (the
       // Watch finished the handed-off session, or the outbox replayed) and
       // the server merged any set this form had that the workout lacked.

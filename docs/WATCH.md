@@ -108,6 +108,20 @@ returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
 - `rpeCap` < 4 during a ramp, OR while the chart caps effort (AF / antiarrhythmic / hypertension — the plan sends the min of both, 2026-09-18): grey out RPE buttons above the cap. Do not label it "Ramp target" when `loadPct` is 100 — it is the chart's ceiling, not a ramp.
 - Fetch the plan when the session starts; **cache the last plan on the
   watch** so a dead-signal gym still opens with yesterday's numbers.
+  The queue plan (no `day`) is also refetched on launch, on every
+  foreground and after a finish reaches the server — never during a
+  session. "Planned" on the Start screen means the SERVER's queue: the big
+  button sends no `day` (and no `dur`) unless he picked one.
+- Two cache files (2026-10-02): `plan-cache.json` holds only the B_Fit
+  queue plan; a named-day, Continue or other-building plan goes to
+  `plan-cache-asked.json`. A start with no day and no signal is served
+  ONLY by a queue plan, and not once its day was trained on this wrist
+  (finished since the fetch, or still banked) — the one-file cache held
+  the last session's own plan and the offline Action Button repeated that
+  day at pre-session weights. The wrist never guesses the next day
+  (rule 9): it says "need signal for the next plan"; a day he picks by
+  name still opens from any cached plan for that day
+  (`SessionCore.cacheVerdict`).
 
 ### `POST /api/watch/log` — the finished session, one shot
 
@@ -180,8 +194,21 @@ later.
 - Every logged set is appended to local storage immediately; the app
   process dying mid-session loses nothing.
 - The finished-session payload goes into a small on-watch outbox; flush
-  on finish, on next launch, and on connectivity restore. Same
-  `clientSaveId` across every retry.
+  on finish, on launch, on every foreground, on Done, when the network
+  path comes back (`NWPathMonitor`, added 2026-10-02 — until then this
+  line promised it and no code did), and BEFORE every start. The path
+  monitor runs only while the app process does; watchOS suspends the app
+  off-wrist and nothing wakes it, so a banked session can still wait for
+  the next wrist raise. Same `clientSaveId` across every retry.
+- Every start (Action Button, big button, Continue) sends the outbox
+  first and waits up to 4 s for it, so the plan the server computes
+  includes the banked session; a dead network answers at once and the
+  offline start is unchanged. If the session is STILL banked when a queue
+  plan for its day arrives, the start is refused ("Day A not uploaded yet
+  — pick the day") rather than repeating the day behind his back.
+- A kill during the RPE strip relaunches on the strip
+  (`ActiveSession.pendingRpe`); it used to land on the next card and
+  leave that machine unrated.
 - The plan cache serves stale-but-usable numbers when offline.
 
 ## HealthKit on the watch
@@ -231,8 +258,8 @@ Contract (`/api/live`, no auth — single user):
   that row whatever its state (closed rows say `closedAt` + `workoutId`).
 - `POST /api/live` `{ clientSaveId, source: 'phone'|'watch', day?,
   durationMin?, gym?, startedAt?, sets: [ {exerciseId, setNumber, reps,
-  weight, rpe?, isWarmup?, completedAt} | {exerciseId, setNumber,
-  remove: true} ] }` → `{ live }` merged. Opening a new id closes every
+  weight, rpe?, isWarmup?, completedAt, editedAt?} | {exerciseId,
+  setNumber, remove: true} ] }` → `{ live }` merged. Opening a new id closes every
   other open row (one session at a time). A closed id writes nothing and
   answers with the closed row — stop.
 - `POST /api/live/close` `{ clientSaveId }` — discarded on a device.
@@ -241,16 +268,30 @@ Merge rule (`src/lib/live-session.ts`, tested): a device owns what it
 logs; same key (exercise + TEMPLATE set number, warm-ups keyed apart as
 setNumber 0 — `sanitizeLiveUpdate` accepts 0 ONLY with `isWarmup: true`,
 and pins any warm-up to 0 whatever number it arrives with) → the LATER completion wins; keys the update never
-mentions are untouched; a row holds ≤ 200 keys and only sets whose
+mentions are untouched. Two versions of the SAME tick (equal
+`completedAt` — a corrected weight, a rating) are ordered by `editedAt`,
+kept per set inside the row's JSON: the sender's stamp, else arrival time
+when a device re-posts its own set changed, else the tick time (the other
+device's copy is no newer than the tick) — and across devices an unrated
+copy never erases a rating at the same weight × reps (2026-10-02).
+Warm-ups travel both ways; the phone removes only keys it showed ticked
+itself (`liveDiff`). A row holds ≤ 200 keys and only sets whose
 exerciseId exists. The phone's save keeps the template numbers too —
 renumbering 1..n across a warm-up once dropped a Watch set and doubled a
 phone set. Gym and source are FIRST-writer-wins: the opening device
 tagged the building (rule 2); the Watch sends no gym. On finish,
 `createWorkout` unions any live set from the OTHER device the poster
-never saw (poster wins ties; its own live sets are never re-added, so a
-failed un-tick stays un-ticked) and closes the row; a second finish
-under the same id adds the sets the saved workout lacks — in one
-transaction — and returns `deduped`: a success, not an error.
+never saw (its own live sets are never re-added, so a failed un-tick
+stays un-ticked) and closes the row. A key BOTH hold is saved in its most
+recently edited version (`resolveFinishSets`): the poster's when it wrote
+the row's version itself or logged later, the row's when the other device
+edited after the poster's copy was taken (the Watch's stale 20 kg must
+not replace the phone's corrected 22.5 Hard). A second finish under the
+same id adds the sets the saved workout lacks and updates a saved key
+only when its version is the newer one (`finishUpdates` — a rating the
+wrist gave after the phone finished lands; `allowedKg` is never
+rewritten) — in one transaction — and returns `deduped`: a success, not
+an error.
 
 Watch side: the Start screen shows **Continue Day X · N sets on the
 phone** when a phone-born row is open; `continueLive` builds the slots
@@ -260,8 +301,14 @@ phone's start (owner's call — the phone half has no HR curve). Every
 `logCurrentSet`/RPE posts its set; `refreshLive` on wrist-raise notices a
 row the phone finished: it first posts its own sets under the same id
 (the server adds what the workout lacks), then lands on Done.
-Phone-origin sets are marked, never rated on the wrist, and dropped if
-the phone un-ticks or discards them. Phone side: the logger applies a
+Phone-origin sets are marked and never rated on the wrist. The wrist's
+copy TRACKS the row on every read (2026-10-02): a phone correction
+replaces it, so the finish no longer posts a stale copy; a set logged on
+the wrist is never rewritten from the row. Un-ticked or discarded on the
+phone, the copy leaves the log AND its slot returns to the pending queue
+(among its machine's pending sets, else at the back — never changing
+another machine's card), so the wrist offers it again and a re-tick shows
+as logged. Phone side: the logger applies a
 live row on open (draft precedence: same id → overlay; a draft with ANY
 ticked set wins; else live wins and the draft's date/start/gym reset),
 pushes a debounced diff of ticked sets (started-at = first tick), polls
@@ -454,7 +501,13 @@ actually sees mid-ramp are /8 and /9.
 TestFlight install, because `scripts/ExportOptions.plist` sets
 `manageAppVersionAndBuildNumber` and the export renumbers the whole
 bundle, Watch app included. A local sim/dev build shows the project's
-own number (currently 2), which is expected. Added because "the fix did
+own number (`CURRENT_PROJECT_VERSION`), which does not move between dev
+installs — it read 13 from 2026-09-12 on across many code changes — so
+the footer also carries the day the binary was built, read at runtime
+from the executable's file date: `build 13 · Sep 24`
+(`SessionCore.buildLabel`). Two dev installs built on the SAME day still
+read alike, and whether a device install keeps the Mac's file date has
+not been checked on the wrist. Added because "the fix did
 not reach my watch" was unanswerable from the wrist: the Mac could not
 reach the watch (`ddiServicesAvailable: false`), and the phone was
 locked.
