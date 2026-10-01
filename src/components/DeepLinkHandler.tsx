@@ -23,6 +23,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { isNativeApp } from '@/lib/native-health';
+import { reloadWidgets } from '@/lib/native-widgets';
 import { routeForDeepLink } from '@/lib/deep-links';
 
 interface UrlOpenEvent {
@@ -69,6 +70,18 @@ export default function DeepLinkHandler() {
       handle?.remove();
     };
   }, [router]);
+
+  // The Home-screen verdict widget: reload it whenever the app comes to the
+  // front (a Watch-finished session changes the verdict with no save here).
+  // No-op off the phone and on a binary that predates the plugin method.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') reloadWidgets();
+    };
+    onVisible();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   return null;
 }
