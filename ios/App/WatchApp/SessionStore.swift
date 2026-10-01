@@ -388,10 +388,21 @@ final class SessionStore: ObservableObject {
         guard session == nil, !isStarting else { return }
         phase = .loading
         await flushBeforeStart()
-        async let live = API.fetchLive()
+        async let live = API.fetchLiveChecked()
         async let fresh = try? API.fetchPlanChecked(day: nil, dur: nil)
-        let row = await live
+        let lookup = await live
+        let row = lookup.live
         let p = await fresh
+        if !SessionCore.buttonMayOpenNew(liveKnown: lookup.known, planFresh: p != nil) {
+            // The Start screen, one tap from starting: his tap is the
+            // decision the wrist could not make for him.
+            guard session == nil else { resumeExisting(); return }
+            if let p { plan = p.plan }
+            offeredDay = nil
+            notice = "Couldn't check the phone — tap to start"
+            phase = .idle
+            return
+        }
         // A phone session with sets in it, or an open logger touched in the
         // last half hour (warm-ups and page opens push nothing) — never a row
         // left open hours ago when the page was merely visited (review F3),

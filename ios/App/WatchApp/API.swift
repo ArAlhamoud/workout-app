@@ -57,12 +57,19 @@ enum API {
     /// The open session on the server (either device), or with an id that
     /// row whatever its state. nil = nothing live, or no signal.
     static func fetchLive(id: String? = nil) async -> LiveSession? {
+        await fetchLiveChecked(id: id).live
+    }
+
+    /// The same read, saying whether the server ANSWERED. "Nothing live"
+    /// and "no answer" both came back nil, and the Action Button took a
+    /// failed read for an empty row and opened a second session.
+    static func fetchLiveChecked(id: String? = nil) async -> (live: LiveSession?, known: Bool) {
         var comps = URLComponents(url: baseURL.appendingPathComponent("/api/live"), resolvingAgainstBaseURL: false)!
         if let id { comps.queryItems = [URLQueryItem(name: "id", value: id)] }
         guard let (data, resp) = try? await session.data(from: comps.url!),
               (resp as? HTTPURLResponse)?.statusCode == 200,
-              let env = try? JSONDecoder().decode(LiveEnvelope.self, from: data) else { return nil }
-        return env.live
+              let env = try? JSONDecoder().decode(LiveEnvelope.self, from: data) else { return (nil, false) }
+        return (env.live, true)
     }
 
     /// Push logged sets (or the bare row, with no sets, when a session

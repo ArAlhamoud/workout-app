@@ -36,6 +36,9 @@ BUNDLE_ID="com.aralhamoud.workout"
 DERIVED="$ROOT/ios/App/.derived"
 APP="$DERIVED/Build/Products/Debug-iphoneos/App.app"
 
+# Never install a shell that loads a preview or localhost.
+bash "$ROOT/scripts/check-server-url.sh"
+
 echo "==> Syncing native sources into the Xcode target"
 for f in HealthKitBridgePlugin RestActivityPlugin CloudBackupPlugin MainViewController; do
   cp "$ROOT/native/HealthKitBridge/$f.swift" "$ROOT/ios/App/App/$f.swift"

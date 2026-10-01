@@ -530,6 +530,13 @@ enum SessionCore {
     /// tap goes ahead: advice, never a block.
     static func buttonStarts(mode: String) -> Bool { mode == "train" }
 
+    /// May the Action Button open a NEW session? Not when the plan came
+    /// back but the live lookup did not: signal is there, the phone may hold
+    /// an open session, and a new id's opening post would close it — two
+    /// partial workouts for one visit. With no signal at all nothing can be
+    /// closed, and the offline start is the point of the wrist.
+    static func buttonMayOpenNew(liveKnown: Bool, planFresh: Bool) -> Bool { liveKnown || !planFresh }
+
     /// The big button read "Day A"; did Day A open? When the queue moved
     /// since the screen was drawn, the new day is SHOWN for a tap, never
     /// opened under the old label. nil = no day was on screen.

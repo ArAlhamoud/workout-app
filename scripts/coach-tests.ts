@@ -7,6 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { pushWorkoutsToHealth } from '../src/lib/health-push';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
 import { adjustedTime, classifyVisit, fmtVisit, gymTimeStats, isStale } from '../src/lib/gym-visits';
@@ -151,6 +152,7 @@ interface HistoryFile {
 const historyPath = path.join(__dirname, '..', 'data', 'workout-history.json');
 const data = JSON.parse(fs.readFileSync(historyPath, 'utf8')) as HistoryFile;
 
+const pendingAsync: Promise<void>[] = [];
 let passed = 0;
 let failed = 0;
 function assert(cond: boolean, label: string): void {
@@ -4056,5 +4058,45 @@ console.log('Native bridge — Swift twins and plugin methods');
   assert(/context\.isStale/.test(restWidget), 'the rest Live Activity draws a finished state when stale');
 }
 
+// ── One Health push at a time (rule 11) ──────────────────────
+// The autopilot and "Sync now" each ran check-then-write with no lock:
+// both could read Health before either wrote, and the same session went
+// in twice — a write the app can never undo (review, 2026-10-02).
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  type W = { startISO: string; endISO: string; activityType?: string };
+  const store: W[] = [];
+  let writes = 0;
+  const tick = () => new Promise<void>((r) => setTimeout(r, 5));
+  const bridge = {
+    queryWorkouts: async () => { const seen = [...store]; await tick(); return seen; },
+    queryWorkoutStats: async () => ({ avgHr: null, maxHr: null, activeKcal: null }),
+    saveWorkout: async (w: { startISO: string; endISO: string; name: string }) => {
+      await tick();
+      writes++;
+      store.push({ startISO: w.startISO, endISO: w.endISO, activityType: 'traditionalStrengthTraining' });
+    },
+  };
+  const cand = [{ id: 'w1', name: 'Day B', start: '2026-10-01T18:00:00.000Z', durationMin: 57 }];
+  let outs: Awaited<ReturnType<typeof pushWorkoutsToHealth>>[] = [];
+  let doneAt = 0;
+  void Promise.all([pushWorkoutsToHealth(cand, bridge as never), pushWorkoutsToHealth(cand, bridge as never)]).then((o) => { outs = o; doneAt = Date.now(); });
+  const until = Date.now() + 2000;
+  // The suite is synchronous; spin the loop until both pushes settle.
+  pendingAsync.push((async () => {
+    while (!doneAt && Date.now() < until) await tick();
+    assert(writes === 1, `two pushes at once write the session to Health ONCE (wrote ${writes})`);
+    assert(outs.length === 2 && outs[0].savedIds.length + outs[1].savedIds.length === 1 && outs[0].alreadyIds.length + outs[1].alreadyIds.length === 1, 'the second push finds it already there and marks it, never writes');
+  })());
+  assert(/let syncsRunning/.test(src('src/components/HealthAutoPilot.tsx')), 'runSyncs cannot run twice at once (its throttle stamp is read asynchronously)');
+  for (const f of ['scripts/ios-deploy.sh', 'scripts/testflight-upload.sh']) {
+    assert(/check-server-url\.sh/.test(src(f)), `${f} refuses to build a shell that points anywhere but the live site`);
+  }
+  const guard = src('scripts/check-server-url.sh');
+  assert(/workout-app-gamma-rouge\.vercel\.app/.test(guard) && /exit 1/.test(guard), 'the guard names the live site and fails the build otherwise');
+}
+
+Promise.all(pendingAsync).then(() => {
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
+});

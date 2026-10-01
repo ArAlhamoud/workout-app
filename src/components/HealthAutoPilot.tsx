@@ -202,7 +202,21 @@ async function runGapGuard(): Promise<void> {
 }
 
 /** The heavier, throttled half: weight, recovery metrics, workout push. */
+// The throttle stamp below is read asynchronously, so two near-simultaneous
+// calls could both pass it before either wrote it. One run at a time.
+let syncsRunning = false;
+
 async function runSyncs(): Promise<void> {
+  if (syncsRunning) return;
+  syncsRunning = true;
+  try {
+    await runSyncsOnce();
+  } finally {
+    syncsRunning = false;
+  }
+}
+
+async function runSyncsOnce(): Promise<void> {
   const last = Number(await durableGet(AUTOPILOT_STAMP_KEY));
   if (Number.isFinite(last) && Date.now() - last < SYNC_THROTTLE_MIN * 60_000) return;
   // Stamp before running, not after: two rapid opens must not double-run.
