@@ -157,13 +157,18 @@ export function adjustedTime(
   if (field === 'checkOutAt' && outMs == null) return null;
   const next = (field === 'checkInAt' ? inMs : outMs!) + deltaMin * MIN;
   if (next > now.getTime()) return null;
+  // A move may not create an over-long visit, but one that SHORTENS an
+  // already over-long visit is always allowed, or a visit closed hours
+  // late could never be fixed (data-steward, 2026-10-01).
   if (field === 'checkInAt') {
     const end = outMs ?? now.getTime();
     if (next >= end) return null;
-    if (end - next > VISIT_MAX_MIN * MIN) return null;
+    const before = end - inMs;
+    if (end - next > VISIT_MAX_MIN * MIN && end - next >= before) return null;
   } else {
     if (next < inMs + MIN) return null;
-    if (next - inMs > VISIT_MAX_MIN * MIN) return null;
+    const before = outMs! - inMs;
+    if (next - inMs > VISIT_MAX_MIN * MIN && next - inMs >= before) return null;
   }
   return new Date(next);
 }

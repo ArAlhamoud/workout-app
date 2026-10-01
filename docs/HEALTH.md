@@ -256,7 +256,10 @@ half-restored. Exercises, workouts, sets, body stats and samples still
 write row by row before it.
 
 Not in the snapshot by design: `CoachNote`, `CoachLadderCopy` (dormant
-coach) and `LiveSession` (ephemeral). Everything else is. The daily
+coach) and `LiveSession` (ephemeral). Everything else is, including
+`GymVisit` (2026-10-01): a new table goes into scripts/export-data.js,
+src/lib/export-data.ts and scripts/restore-from-snapshot.js in the same
+change, and the suite checks all three. The daily
 `sync-data` action is the real backup; the iCloud copy is the same
 payload with no landing check.
 

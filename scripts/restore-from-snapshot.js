@@ -53,6 +53,8 @@ async function main() {
   const bodyStats = snap.bodyStats ?? [];
   const healthSamples = snap.healthSamples ?? [];
   const holds = snap.holds ?? [];
+  // Gym visits (2026-10-01); absent in older snapshots.
+  const gymVisits = snap.gymVisits ?? [];
   const sets = workouts.flatMap((w) => w.sets ?? []);
 
   console.log(`snapshot   ${FILE}`);
@@ -93,6 +95,9 @@ async function main() {
   // AF or nutrition. Absence has to be louder than a clean bill of health,
   // because the treatment record is the one thing here that cannot be
   // re-derived from anything else.
+  if (snap.totalGymVisits !== undefined && gymVisits.length !== snap.totalGymVisits) {
+    problems.push(`header says ${snap.totalGymVisits} gym visits, snapshot holds ${gymVisits.length}`);
+  }
   if (!snap.health) {
     problems.push(
       'snapshot carries NO health section (injections, labs, BP, CPAP, AF, nutrition, medications) — ' +
@@ -148,7 +153,7 @@ async function main() {
     // both are non-null in every snapshot so far, so the restore worked by
     // luck — the day either is cleared, the profile upsert dies AFTER the
     // workouts and samples are already written (data-steward).
-    healthProfile: ['milestonesKg', 'conditions', 'familyHistory', 'investigations', 'dosePlan', 'targets', 'reminders'],
+    healthProfile: ['milestonesKg', 'conditions', 'familyHistory', 'investigations', 'ongoingSymptoms', 'dosePlan', 'targets', 'reminders'],
     symptomLog: ['context'],
     nutritionLog: ['flags'],
     coachNote: ['directives', 'proposal'],
@@ -225,6 +230,12 @@ async function main() {
     await prisma.hold.upsert({ where: { id: h.id }, update: h, create: h });
   }
   if (holds.length) console.log(`  holds       ${holds.length}`);
+
+  // Gym visits: no foreign keys, upsert by id, so a repeat restore is a no-op.
+  for (const g of gymVisits) {
+    await prisma.gymVisit.upsert({ where: { id: g.id }, update: g, create: g });
+  }
+  if (gymVisits.length) console.log(`  gym visits  ${gymVisits.length}`);
 
   // Health wave tables (absent in pre-health snapshots). CpapNight and
   // NutritionLog upsert by their UNIQUE natural key (night/day), not id —

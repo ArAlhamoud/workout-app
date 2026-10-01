@@ -3659,6 +3659,20 @@ console.log('Gym visits — door to door, by workout length');
   assert(/catch \{\s*return \{ open: null, forgotten: null, last: null \};/.test(actionsSrc), 'Train never fails if the table is missing');
   assert(!/checkOutAt: new Date\(\)/.test(actionsSrc.slice(actionsSrc.indexOf('closeForgotten'))), 'a forgotten visit is closed at the time he states, never guessed');
   assert(/if \(field !== 'checkInAt' && field !== 'checkOutAt'\) return null;/.test(actionsSrc), 'the time-fix action can write only the two time fields');
+  assert(/deleteMany\(\{ where: \{ id, checkOutAt: null \} \}\)/.test(actionsSrc), 'Discard deletes only an open visit, never one closed on another device');
+  assert(/if \(isStale\(toLite\(v\)\)\) return toLite\(v\);/.test(actionsSrc), 'checking out past 6 h records no guessed time');
+  assert(/out\.getTime\(\) > Date\.now\(\)/.test(actionsSrc), 'a stated stay never puts the check-out in the future');
+  // A visit closed hours late can still be fixed: shortening is always allowed.
+  const long = V('q', '2026-10-01', '10:00', '17:00');
+  assert(adjustedTime(long, 'checkOutAt', -5, at('2026-10-01', '20:00')) !== null, 'an over-long visit can be shortened');
+  assert(adjustedTime(long, 'checkOutAt', 5, at('2026-10-01', '20:00')) === null, 'but never lengthened');
+  assert(adjustedTime(long, 'checkInAt', 5, at('2026-10-01', '20:00')) !== null, 'moving its check-in later also shortens it');
+  // Backups: a hand-typed table that is in no snapshot is lost on restore.
+  for (const f of ['scripts/export-data.js', 'src/lib/export-data.ts', 'scripts/restore-from-snapshot.js']) {
+    assert(/gymVisit/.test(read(f)), `${f} carries gym visits`);
+  }
+  assert(/healthProfile: \[[^\]]*'ongoingSymptoms'/.test(read('scripts/restore-from-snapshot.js')), 'restore treats ongoingSymptoms as a Json column (a null would crash the profile upsert)');
+  assert(/'ongoingSymptoms'/.test(read('src/app/api/health/export/route.ts')), 'the health export carries ongoingSymptoms');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

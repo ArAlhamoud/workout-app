@@ -77,6 +77,9 @@ export async function checkOut(id: string): Promise<VisitLite | null> {
   const v = await prisma.gymVisit.findUnique({ where: { id } });
   if (!v) return null;
   if (v.checkOutAt) return toLite(v);
+  // A visit open past 6 h gets no "now": the card switches to "how long
+  // were you there?" (data-steward: checking out late recorded a guess).
+  if (isStale(toLite(v))) return toLite(v);
   const now = new Date();
   const out = new Date(Math.max(now.getTime(), v.checkInAt.getTime() + 60_000));
   const done = await prisma.gymVisit.update({ where: { id }, data: { checkOutAt: out } });
@@ -93,10 +96,9 @@ export async function closeForgotten(id: string, minutes: number): Promise<Visit
   if (!v || v.checkOutAt) return v ? toLite(v) : null;
   const m = Math.round(minutes);
   if (!Number.isFinite(m) || m < 5 || m > 300) return toLite(v);
-  const done = await prisma.gymVisit.update({
-    where: { id },
-    data: { checkOutAt: new Date(v.checkInAt.getTime() + m * 60_000) },
-  });
+  const out = new Date(v.checkInAt.getTime() + m * 60_000);
+  if (out.getTime() > Date.now()) return toLite(v); // never a check-out in the future
+  const done = await prisma.gymVisit.update({ where: { id }, data: { checkOutAt: out } });
   refresh();
   return toLite(done);
 }
@@ -121,7 +123,9 @@ export async function nudgeVisit(
   return toLite(done);
 }
 
+/** Discard an OPEN visit only. A visit closed on another device in the
+ *  meantime is a real record and stays (data-steward, 2026-10-01). */
 export async function deleteVisit(id: string): Promise<void> {
-  await prisma.gymVisit.deleteMany({ where: { id } });
+  await prisma.gymVisit.deleteMany({ where: { id, checkOutAt: null } });
   refresh();
 }

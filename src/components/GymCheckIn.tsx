@@ -94,6 +94,11 @@ export default function GymCheckIn({
       if (!open) return;
       const v = await checkOut(open.id);
       setOpen(null);
+      // Refused because the visit is past 6 h: ask how long, never guess.
+      if (v && !v.checkOutAt) {
+        setForgotten(v);
+        return;
+      }
       if (v) setLast(v);
       hapticSuccess();
     });

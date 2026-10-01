@@ -169,6 +169,7 @@ export async function GET(request: Request) {
     'conditions',
     'familyHistory',
     'investigations',
+    'ongoingSymptoms',
     'dosePlan',
     'targets',
     'reminders',
