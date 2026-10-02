@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { durableRemove } from '@/lib/native-store';
+import { activityDayStr } from '@/lib/health-insights';
+import { draftDisposable, draftHome } from '@/lib/logger-draft';
 import { closeLiveSession, getLiveSession } from '@/app/actions';
 
 const DRAFT_KEY = 'workout-draft';
@@ -26,11 +28,12 @@ export default function WorkoutDraftBanner() {
       if (pathname !== '/') return;
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
-      const draft = JSON.parse(raw) as { name?: string; savedAt?: number; blocks?: Array<{ sets?: Array<{ done?: boolean }> }> };
+      const draft = JSON.parse(raw) as { name?: string; day?: string | null; dur?: number | null; savedAt?: number; blocks?: Array<{ sets?: Array<{ done?: boolean }> }> };
       const ticked = Array.isArray(draft.blocks) && draft.blocks.some((b) => b.sets?.some((s) => s.done));
       const fresh = Date.now() - (draft.savedAt ?? 0) < 4 * 60 * 60 * 1000;
-      const m = draft.name?.match(/^Day ([AB]) (\d+)m/);
-      if (ticked && fresh && m) router.replace(`/workouts/new?day=${m[1]}&dur=${m[2]}`);
+      // The draft's own day and length (fields; the name for older drafts).
+      const home = draftHome(draft);
+      if (ticked && fresh && home) router.replace(`/workouts/new?day=${home.day}&dur=${home.dur}`);
     } catch { /* storage unavailable — the pill still shows */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -58,10 +61,20 @@ export default function WorkoutDraftBanner() {
       if (!raw) { setDraftName(null); return; }
       const draft = JSON.parse(raw);
       const age = Date.now() - (draft.savedAt ?? 0);
-      if (age < 24 * 60 * 60 * 1000 && Array.isArray(draft.blocks) && draft.blocks.length > 0) {
+      // The purge used to clear localStorage only: the native Preferences
+      // copy survived, the logger fell back to it, and a draft he had only
+      // looked at came back days later with its old date, weights and save
+      // id (2026-10-02). Rubbish — nothing ticked, from an earlier activity
+      // day — goes from BOTH stores. A draft with a ticked set is never
+      // purged here: that is an interrupted session, the logger restores it
+      // with a prompt, and discarding it is his tap; past 24 h it just has
+      // no pill.
+      if (draftDisposable(draft, activityDayStr(), (d) => activityDayStr(d))) {
+        void durableRemove(DRAFT_KEY);
+        setDraftName(null);
+      } else if (age < 24 * 60 * 60 * 1000) {
         setDraftName(draft.name || 'Workout');
       } else {
-        localStorage.removeItem(DRAFT_KEY);
         setDraftName(null);
       }
     } catch {

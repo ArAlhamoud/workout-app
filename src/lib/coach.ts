@@ -33,6 +33,8 @@ export interface CoachSet {
 
 export interface CoachWorkout {
   date: Date | string;
+  /** Read only to keep a Rescue row out of the weekly report's plateaus. */
+  name?: string | null;
   sets: CoachSet[];
 }
 
@@ -538,8 +540,13 @@ export function weeklyReport(
   // Plateaus
   const namesById = new Map<string, string>();
   for (const w of workouts) for (const s of w.sets) namesById.set(s.exerciseId, s.exercise.name);
+  const machineRows = workouts.filter((w) => !(w.name ?? '').startsWith('Rescue'));
   const plateaus = [...namesById]
-    .map(([id, name]) => ({ name, result: detectPlateau(workouts, id) }))
+    // Never over a Rescue row (60% by construction): it broke the streak
+    // here while the logger — which leaves rescues out of every machine
+    // read — still opened the machine at its deload weight, so Stats said
+    // "no longer stuck" beside a deload (trainer, 2026-10-02).
+    .map(([id, name]) => ({ name, result: detectPlateau(machineRows, id) }))
     .filter((p) => p.result.plateaued);
   for (const p of plateaus.slice(0, 3)) {
     focus.push(`${p.name} stuck at ${p.result.weight} kg for ${p.result.sessions} sessions — ${p.result.suggestion}.`);

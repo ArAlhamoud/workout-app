@@ -27,6 +27,7 @@ import {
   SYMPTOM_LABEL,
   type DosePlanStep,
   ownerActivityDayUtc,
+  nextDoseCaption,
 } from '@/lib/health-insights';
 import BodyMap, { type BodyData } from '@/components/health/BodyMap';
 import { slimProgress } from '@/lib/body-figure';
@@ -108,13 +109,7 @@ export default async function HomePage() {
     st.state === 'done' ? 'done' : st.state === 'next' ? 'here' : st.kind === 'checkpoint' ? 'gate' : 'future',
   );
   const nextDoseNumber = data.injectionCount + 1;
-  const roadCaption = !clock
-    ? 'First dose · today'
-    : clock.planExhausted
-      ? 'Plan complete — doctor review'
-      : clock.daysSinceLast >= 7 || clock.overdue
-        ? `Dose ${nextDoseNumber} · today`
-        : `Dose ${nextDoseNumber} · ${clock.nextDue.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Riyadh' })}`;
+  const roadCaption = !clock ? 'First dose · today' : nextDoseCaption(clock, nextDoseNumber);
   const roadCaptionDim =
     day.dosesUntilCheckpoint != null && day.dosesUntilCheckpoint > 0
       ? `· ${day.dosesUntilCheckpoint} to the doctor`

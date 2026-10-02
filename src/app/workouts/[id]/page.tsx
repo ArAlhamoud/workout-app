@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import prisma from '@/lib/prisma';
 import { getPreviousSameDayWorkout, getWorkout } from '../../actions';
-import { DAY_A, DAY_B, calendarDaysBetween, getTrainingStatus, isTrainingSession } from '@/lib/program';
+import { DAY_A, DAY_B, calendarDaysBetween, getTrainingStatus, isTrainingSession, rescueDatesOf } from '@/lib/program';
 
 // Timed holds (plank) log seconds in the reps column — render them as such.
 const TIMED_NAMES = new Set(
@@ -35,7 +35,8 @@ export default async function WorkoutDetailPage({
     getWorkout(params.id),
     prisma.workout.findMany({
       where: { NOT: { name: { startsWith: 'Rescue walk' } } },
-      select: { date: true },
+      // name: a rescue keeps the chain but never closes the ramp (rescueDatesOf).
+      select: { date: true, name: true },
     }),
   ]);
   if (!workout) notFound();
@@ -82,7 +83,7 @@ export default async function WorkoutDetailPage({
   // on a return-ramp day it says "Easy — add 5 kg" to deliberately deloaded
   // lifts, directly under the comeback card (trainer). Hidden while ramping —
   // the logger's pre-scaled prefill is the only voice then.
-  const inReturnRamp = getTrainingStatus(allDates.map((w) => w.date)).mode === 'return';
+  const inReturnRamp = getTrainingStatus(allDates.map((w) => w.date), new Date(), [], rescueDatesOf(allDates)).mode === 'return';
 
   const exerciseOrder: string[] = [];
   const exerciseMap = new Map<string, typeof workout.sets>();

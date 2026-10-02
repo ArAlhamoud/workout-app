@@ -1,7 +1,8 @@
 'use server';
 
 import { combineIncrement, learnPinIncrements } from '@/lib/coach';
-import { foldExerciseMemory, prescriptionInputs, PRESCRIPTION_WINDOW, type ExerciseMemory } from '@/lib/prescription';
+import { foldExerciseMemory, isRescueName, prescriptionInputs, PRESCRIPTION_WINDOW, type ExerciseMemory } from '@/lib/prescription';
+import { datedName, ownerOf, plainSaveId, routeLiveSets, routeSets, SAVE_ID_FAMILY, setKey, sittingSeconds, type SaveIdState } from '@/lib/logger-draft';
 import { offGridWeights, parsePinKg, stepPlausible } from '@/lib/pins';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
@@ -9,6 +10,7 @@ import { redirect } from 'next/navigation';
 import {
   sanitizeLiveUpdate,
   unionForFinish,
+  type LiveSession,
   type LiveSetUpdate,
   type LiveSource,
   dedupeByKey,
@@ -18,7 +20,8 @@ import {
   mergeCandidates,
   recordedInHealth,
 } from '@/lib/live-session';
-import { ownerActivityDayUtc } from '@/lib/health-insights';
+import { ownerActivityDayUtc, ownerDayKey } from '@/lib/health-insights';
+import { manualWeightPlan, ownerDayWindow } from '@/lib/health-entry';
 import { readChart } from '@/lib/chart';
 import { computeReadiness } from '@/lib/health-metrics';
 import { closeLive, readLive, upsertLive } from '@/lib/live-store';
@@ -109,7 +112,9 @@ export async function getMachinePins(): Promise<Record<string, { kg: number; sou
     getWorkouts(),
     prisma.exercise.findMany({ select: { id: true, pinIncrement: true } }),
   ]);
-  const home = workouts.filter((w) => isTrainingSession(w) && (!w.gym || w.gym === DEFAULT_GYM_ID));
+  // Never a rescue row: 60% by construction, it is no evidence of a stack's
+  // step — the same rows prescriptionInputs learns from (2026-10-02).
+  const home = workouts.filter((w) => isTrainingSession(w) && !isRescueName(w.name) && (!w.gym || w.gym === DEFAULT_GYM_ID));
   const learned = learnPinIncrements(home as never);
   const out: Record<string, { kg: number; source: 'yours' | 'learned' | 'fallback' }> = {};
   for (const e of exercises) {
@@ -192,6 +197,12 @@ export async function createWorkout(data: {
    */
   healthWorkoutUuid?: string;
   /**
+   * He set the date himself (the date field edited, a back-fill): the
+   * session is ONE workout on that date, never split by when its sets were
+   * ticked and never re-dated (routeSets rule 1).
+   */
+  dateSetByHand?: boolean;
+  /**
    * Client-generated idempotency key, set by the offline outbox. A save that
    * timed out client-side but actually landed must not become a second
    * workout when the outbox replays it — the replay finds this key and gets
@@ -215,12 +226,121 @@ export async function createWorkout(data: {
   }>;
   /** Which device is finishing — its own live sets are never re-added. */
   finishSource?: LiveSource;
-}) {
+}): Promise<{ id: string; deduped?: boolean; merged?: number }> {
   // One set per key: two under one key in a single payload hit the
   // WorkoutSet unique index, and the outbox replays a save that can never
   // land. A ticked set is never dropped for it — a second set under a
   // taken key is renumbered, only a replay of one tick collapses.
   data.sets = dedupeByKey(data.sets);
+  if (data.clientSaveId) {
+    // One save id, one session (2026-10-02) — routeSets has the incidents
+    // and the rule. Read every workout saved under the posted id OR derived
+    // from it first: the derived id is resolved by lookup, so two finishers
+    // of a session that crosses 04:00 land in ONE workout whichever posts
+    // first, and a replay goes where the first attempt went.
+    const root = data.clientSaveId;
+    // Only an id a client generates is a root: never one with `~` (a derived
+    // id is ours), `%` or `_` (the family lookup below is a prefix match on
+    // this text, and LIKE reads those as wildcards). Such an id is saved as
+    // posted, unrouted.
+    if (!plainSaveId(root)) return saveSitting(data);
+    const familyRows = await prisma.workout.findMany({
+      where: { OR: [{ clientSaveId: root }, { clientSaveId: { startsWith: `${root}~` } }] },
+      // A fixed order: a tie between two family workouts must break the
+      // same way on every read (routeSets sorts again, by id).
+      orderBy: { clientSaveId: 'asc' },
+      select: {
+        clientSaveId: true, date: true, createdAt: true,
+        sets: { select: { exerciseId: true, setNumber: true, isWarmup: true, completedAt: true } },
+      },
+    });
+    // …and filtered here to exactly the id and id~YYYY-MM-DD, whatever the
+    // database made of the prefix (steward, 2026-10-02).
+    const family = familyRows.filter((w) => w.clientSaveId === root || (w.clientSaveId?.startsWith(root) === true && SAVE_ID_FAMILY.test(w.clientSaveId.slice(root.length))));
+    const known = family.map((w) => ({
+      saveId: w.clientSaveId as string,
+      ...ownerOf(w, activityDayKey),
+      sets: w.sets.map((x) => ({ key: setKey(x), at: x.completedAt ? x.completedAt.getTime() : null })),
+    }));
+    const payloadDay = /^\d{4}-\d{2}-\d{2}/.test(data.date) ? data.date.slice(0, 10) : activityDayKey(new Date());
+    // A detected session's date is its HealthKit day, a back-fill's is the
+    // day he typed: both are his, never the ticks'.
+    const routes = routeSets(root, known, { day: payloadDay, dateByHand: data.dateSetByHand === true || Boolean(data.healthWorkoutUuid) }, data.sets, activityDayKey);
+    // The plain path — one route, the posted id, nothing re-dated — is the
+    // ordinary save, byte for byte what it was before the router.
+    if (routes.length && !(routes.length === 1 && routes[0].saveId === root && routes[0].day == null)) {
+      const stampsOf = (sets: Array<{ completedAt?: string }>) =>
+        sets.map((x) => (x.completedAt ? Date.parse(x.completedAt) : NaN)).filter((t) => Number.isFinite(t));
+      const lastOf = (sets: Array<{ completedAt?: string }>) => Math.max(Number.NEGATIVE_INFINITY, ...stampsOf(sets));
+      // Oldest sitting first; the one being finished NOW is saved last and
+      // is the workout the caller is sent to.
+      const ordered = [...routes].sort((x, y) => lastOf(x.sets) - lastOf(y.sets));
+      // The live row is filed under the POSTED id. Each sitting reconciles
+      // with the row's sets of that same sitting — the other device's ticks
+      // are unioned in and its un-ticks honoured exactly as in a plain save
+      // (routeLiveSets: an un-tick goes to the sitting HOLDING the set). The
+      // first version created the re-homed workout without reading the row
+      // at all, then closed it: the Watch's sets on a continued session were
+      // dropped (adversary, 2026-10-02).
+      const liveRow = await readLive(root);
+      const { byRoute: liveByRoute, orphans: liveOrphans } = routeLiveSets(routes, liveRow?.sets ?? [], known);
+      // Rule 10: the allowance is what the logger SHOWED. Computed once,
+      // before any sitting is committed, from a snapshot without the whole
+      // family — the older sitting, saved first, must not become history
+      // for the newer one's allowance (steward, 2026-10-02).
+      const allowedOnce = await rampAllowances(data.sets, data.gym, data.name, root, true);
+      let made: { id: string; deduped?: boolean; merged?: number } | null = null;
+      for (const [i, r] of ordered.entries()) {
+        const last = i === ordered.length - 1;
+        made = await saveSitting(
+          {
+            ...data,
+            clientSaveId: r.saveId,
+            sets: r.sets,
+            // A NEW workout for another day is dated the day it was lifted
+            // and named for it. The payload's notes and HK identity belong
+            // to the sitting being finished now.
+            date: r.day ?? data.date,
+            name: r.day ? datedName(data.name, r.day) : data.name,
+            notes: last ? data.notes : undefined,
+            // In THIS path the payload's duration is the whole draft's
+            // elapsed time (the phone clamps it to 3 h): every route takes
+            // the span of its own session, the payload's only when it has
+            // fewer than two stamps to measure.
+            duration: sittingSeconds(r.sets) ?? data.duration,
+            healthWorkoutUuid: last ? data.healthWorkoutUuid : undefined,
+          },
+          { live: liveRow ? { ...liveRow, sets: liveByRoute.get(r.saveId) ?? [] } : null, close: false, allowed: allowedOnce },
+        );
+      }
+      if (made) {
+        // The row must stop offering "Continue" on the Watch, and point at
+        // the workout of the session just finished — unless it still holds
+        // a tick no sitting took and no workout has: then it stays open,
+        // and the device that logged it finishes it.
+        if (!liveOrphans.length) await closeLive(root, made.id);
+        return made;
+      }
+    }
+  }
+  return saveSitting(data);
+}
+
+/**
+ * One sitting, saved under one id: merged into the workout that already
+ * holds the id (the other half of a handed-off session, or an outbox
+ * replay), or created. createWorkout routes to it; `via` is set only when
+ * a payload was split or re-homed — the live row then comes from the
+ * POSTED id, already narrowed to this sitting, and the router closes it.
+ */
+async function saveSitting(
+  data: Parameters<typeof createWorkout>[0],
+  via?: { live: LiveSession | null; close: boolean; allowed: Record<string, number | null> },
+): Promise<{ id: string; deduped?: boolean; merged?: number }> {
+  const liveOf = async () => (via ? via.live : readLive(data.clientSaveId));
+  const closeOwn = async (workoutId: string) => {
+    if (data.clientSaveId && (!via || via.close)) await closeLive(data.clientSaveId, workoutId);
+  };
   if (data.clientSaveId) {
     // Any set must belong to a machine that exists, or the insert hits the
     // FK and the session becomes unsaveable under its id (steward).
@@ -247,8 +367,8 @@ export async function createWorkout(data: {
       where: { clientSaveId: data.clientSaveId },
       select: { gym: true },
     });
-    const liveForMerge = priorRow ? await readLive(data.clientSaveId) : null;
-    const allowedForMerge = priorRow ? await rampAllowances(data.sets, priorRow.gym, data.name, data.clientSaveId) : {};
+    const liveForMerge = priorRow ? await liveOf() : null;
+    const allowedForMerge = !priorRow ? {} : via ? via.allowed : await rampAllowances(data.sets, priorRow.gym, data.name, data.clientSaveId);
     const merged = await prisma.$transaction(async (tx) => {
       const existing = await tx.workout.findUnique({
         where: { clientSaveId: data.clientSaveId },
@@ -321,7 +441,7 @@ export async function createWorkout(data: {
         revalidatePath(`/workouts/${merged.id}`);
         revalidatePath('/');
       }
-      await closeLive(data.clientSaveId, merged.id);
+      await closeOwn(merged.id);
       return { id: merged.id, deduped: true, merged: merged.merged };
     }
     // Finishing a handed-off session: union in any set the OTHER device
@@ -331,7 +451,7 @@ export async function createWorkout(data: {
     // recently edited version, not the poster's by default: the Watch
     // finished with its copy of a phone set from before the phone corrected
     // it, and 20 kg unrated replaced 22.5 Hard (review, 2026-10-02).
-    const live = await readLive(data.clientSaveId);
+    const live = await liveOf();
     if (live && live.sets.length) {
       // A save never fails because of the live row (data-steward,
       // 2026-10-02): if the reconciliation throws, the poster's own sets
@@ -365,7 +485,7 @@ export async function createWorkout(data: {
   }
   // The ramp's allowance is recorded on each set NOW, from the same memory
   // and pin map the prefill used — never reconstructed later.
-  const allowed = await rampAllowances(data.sets, data.gym, data.name);
+  const allowed = via ? via.allowed : await rampAllowances(data.sets, data.gym, data.name);
   const workout = await prisma.workout.create({
     data: {
       name: data.name,
@@ -389,10 +509,41 @@ export async function createWorkout(data: {
       },
     },
   });
-  if (data.clientSaveId) await closeLive(data.clientSaveId, workout.id);
+  await closeOwn(workout.id);
   revalidatePath('/workouts');
   revalidatePath('/');
   return { id: workout.id };
+}
+
+/** The activity day (04:00 Riyadh) an instant belongs to, as YYYY-MM-DD. */
+function activityDayKey(d: Date): string {
+  return ownerActivityDayUtc(d).toISOString().slice(0, 10);
+}
+
+/**
+ * Who owns a save id — read-only, for the logger's draft restore. A draft
+ * carries its save id across days; before it posts anything under it the
+ * phone must know whether a workout was already saved under that id (and on
+ * which activity days its sets were lifted) or its live row was closed.
+ * The decision itself is pure: draftSaveIdFate (logger-draft.ts).
+ */
+export async function getSaveIdOwner(clientSaveId: string): Promise<SaveIdState> {
+  const [workout, live] = await Promise.all([
+    prisma.workout.findUnique({
+      where: { clientSaveId },
+      select: { date: true, sets: { select: { exerciseId: true, setNumber: true, isWarmup: true, reps: true, weight: true, rpe: true, completedAt: true } } },
+    }),
+    readLive(clientSaveId),
+  ]);
+  return {
+    owner: workout
+      ? {
+          ...ownerOf(workout, activityDayKey),
+          sets: workout.sets.map((s) => ({ exerciseId: s.exerciseId, setNumber: s.setNumber, isWarmup: s.isWarmup, reps: s.reps, weight: s.weight, rpe: s.rpe })),
+        }
+      : null,
+    liveClosed: Boolean(live?.closedAt),
+  };
 }
 
 export async function deleteWorkout(id: string) {
@@ -446,7 +597,7 @@ export async function getLoggerMemory(
  *  cut-off, and the ONE pin map (judged rows of this gym + manual overrides)
  *  — read through prescriptionInputs, the same code and the same window the
  *  phone page and the Watch plan prescribe from (A3). */
-async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: string) {
+async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: string, excludeFamily = false) {
   const [allRows, exercises] = await Promise.all([
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
@@ -458,7 +609,11 @@ async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: 
   // The workout being merged into is NOT history for its own allowance:
   // the first half must not step the ramp or become its own machine's
   // memory (adversary pass 4).
-  const rows = excludeClientSaveId ? allRows.filter((w) => w.clientSaveId !== excludeClientSaveId) : allRows;
+  // excludeFamily: a split save — every workout under the id or derived
+  // from it is left out, so no sitting is history for another's allowance.
+  const rows = excludeClientSaveId
+    ? allRows.filter((w) => w.clientSaveId !== excludeClientSaveId && !(excludeFamily && w.clientSaveId?.startsWith(`${excludeClientSaveId}~`)))
+    : allRows;
   const inputs = prescriptionInputs(rows, exercises, gym);
   return { status: inputs.status, cut: inputs.cut, pinFor: inputs.pinFor, inputs, exercises };
 }
@@ -474,6 +629,7 @@ async function rampAllowances(
   gym: string | null | undefined,
   name: string,
   excludeClientSaveId?: string,
+  excludeFamily = false,
 ): Promise<Record<string, number | null>> {
   const out: Record<string, number | null> = {};
   if (name.startsWith('Rescue')) return out;
@@ -482,7 +638,7 @@ async function rampAllowances(
   // yet applied, a cold Neon, a transient error — the workout still lands
   // (steward, 2026-09-18).
   try {
-    const { status, cut, pinFor, inputs } = await rampSnapshot(gym ?? DEFAULT_GYM_ID, excludeClientSaveId);
+    const { status, cut, pinFor, inputs } = await rampSnapshot(gym ?? DEFAULT_GYM_ID, excludeClientSaveId, excludeFamily);
     if (status.mode !== 'return' || status.returnWeek.loadPct >= 100) return out;
     const ids = [...new Set(sets.filter((s) => !s.isWarmup).map((s) => s.exerciseId))];
     const memory = await getLoggerMemory(ids, gym ?? DEFAULT_GYM_ID, cut);
@@ -520,16 +676,21 @@ export async function getLastSessionForExercises(
       isWarmup: false,
       workout: {
         ...(gym ? gymScope(gym) : {}),
-        // Ramp base: strictly before the first scaled session, and never a
-        // rescue session — those are 60% by construction.
-        ...(before ? { date: { lt: before }, NOT: { name: { startsWith: 'Rescue' } } } : {}),
+        // NEVER a rescue session — 60% by construction — cut or no cut. The
+        // exclusion used to ride the cut, and the cut is set only while the
+        // rescue is the newest row: two sessions later its 2 × 25 was plain
+        // memory and Day B opened Lat Pulldown and Mid Row at 25, not 40, on
+        // the phone, /train and the Watch (2026-10-02).
+        NOT: { name: { startsWith: 'Rescue' } },
+        // Ramp base: strictly before the first scaled session.
+        ...(before ? { date: { lt: before } } : {}),
       },
     },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
     select: {
       exerciseId: true, setNumber: true, weight: true, reps: true, rpe: true,
       exercise: { select: { name: true } },
-      workout: { select: { id: true, date: true, duration: true } },
+      workout: { select: { id: true, date: true, duration: true, name: true } },
     },
     take: Math.min(2000, exerciseIds.length * 40),
   });
@@ -578,7 +739,9 @@ export async function getExerciseHistory(exerciseId: string, gym: string = DEFAU
   // false PR badge on the progress chart — the exact cross-gym corruption
   // getPersonalRecords already guards against. Warm-ups never chart.
   const sets = await prisma.workoutSet.findMany({
-    where: { exerciseId, isWarmup: false, workout: gymScope(gym) },
+    // Never a rescue's 60% weight as a session top (isRescueName): the
+    // chart would dip, and "latest" would read a rescue (trainer, 2026-10-02).
+    where: { exerciseId, isWarmup: false, workout: { ...gymScope(gym), NOT: { name: { startsWith: 'Rescue' } } } },
     orderBy: { workout: { date: 'asc' } },
     select: {
       weight: true,
@@ -628,14 +791,41 @@ export async function getBodyStats() {
 }
 
 export async function addBodyStat(data: { weight?: number; waist?: number; arms?: number; date: string }) {
-  await prisma.bodyStat.create({
-    data: {
-      date: new Date(data.date),
-      weight: data.weight ?? null,
-      waist: data.waist ?? null,
-      arms: data.arms ?? null,
-    },
+  const date = new Date(data.date);
+  if (Number.isNaN(date.getTime())) throw new Error('Bad date');
+  // Weight is ONE store and a manual weight wins its day. Typed AFTER the
+  // scale synced, it used to sit beside the imported row and lose to the
+  // scale's later timestamp in every reader (2026-10-02). So it takes the
+  // imported row over instead — one row per day, nothing for a reader to
+  // choose between (manualWeightPlan). A second manual weight corrects the
+  // same row. The day is HIS day (Riyadh), the key the import uses too.
+  const { start, end } = ownerDayWindow(ownerDayKey(date));
+  const dayRows = await prisma.bodyStat.findMany({
+    where: { date: { gte: start, lt: end } },
+    select: { id: true, date: true, source: true, weight: true },
   });
+  const plan = manualWeightPlan(dayRows, { weight: data.weight ?? null });
+  if (plan.kind !== 'create') {
+    await prisma.bodyStat.update({
+      where: { id: plan.id },
+      data: {
+        weight: data.weight,
+        source: 'manual',
+        // Only what he typed: a blank waist never erases one already there.
+        ...(data.waist != null ? { waist: data.waist } : {}),
+        ...(data.arms != null ? { arms: data.arms } : {}),
+      },
+    });
+  } else {
+    await prisma.bodyStat.create({
+      data: {
+        date,
+        weight: data.weight ?? null,
+        waist: data.waist ?? null,
+        arms: data.arms ?? null,
+      },
+    });
+  }
   revalidatePath('/stats');
 }
 
@@ -772,7 +962,8 @@ export async function getRecentExerciseSessions(
   limit = 3,
 ): Promise<Array<{ date: string; topWeight: number; reps: number; rpe: number | null }>> {
   const sets = await prisma.workoutSet.findMany({
-    where: { exerciseId, isWarmup: false, weight: { gt: 0 }, workout: gymScope(gym) },
+    // The drawer shows what the prescription reads: never a rescue row.
+    where: { exerciseId, isWarmup: false, weight: { gt: 0 }, workout: { ...gymScope(gym), NOT: { name: { startsWith: 'Rescue' } } } },
     orderBy: { workout: { date: 'desc' } },
     select: { weight: true, reps: true, rpe: true, workout: { select: { date: true } } },
     take: 60,

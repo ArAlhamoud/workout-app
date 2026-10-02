@@ -7,6 +7,8 @@ import {
   parseHealthPayload,
   type ParsedSample,
 } from '@/lib/health';
+import { BP_IMPORT_NOTE, BP_SAME_READING_MS, bpImportTwin, ownerDayWindow, weightImportPlan } from '@/lib/health-entry';
+import { ownerDayKey } from '@/lib/health-insights';
 
 const HEALTH_SOURCE = 'apple-health';
 
@@ -16,28 +18,35 @@ function dayRange(key: string): { start: Date; end: Date } {
 }
 
 async function upsertBodyStats(weightSamples: ParsedSample[]): Promise<number> {
-  // One BodyStat per calendar day; keep the latest sample of each day.
+  // One BodyStat per calendar day — HIS day (Riyadh), the same key the
+  // manual entry uses, not the UTC day: a 01:00 weigh-in belongs to the
+  // date he sees (2026-10-02). Keep the latest sample of each day.
   const latestByDay = new Map<string, ParsedSample>();
   for (const sample of weightSamples) {
-    const key = dayKey(sample.date);
+    const key = ownerDayKey(sample.date);
     const existing = latestByDay.get(key);
     if (!existing || sample.date > existing.date) latestByDay.set(key, sample);
   }
 
   let upserted = 0;
   for (const [key, sample] of latestByDay) {
-    const { start, end } = dayRange(key);
-    const existing = await prisma.bodyStat.findFirst({
+    const { start, end } = ownerDayWindow(key);
+    // The WHOLE day, not its first row: a waist-only manual entry sorted
+    // first and shut the scale out of that day for good (2026-10-02). Only a
+    // manual WEIGHT blocks the import — weightImportPlan decides.
+    const dayRows = await prisma.bodyStat.findMany({
       // Exactly this day. A wider lookup once matched YESTERDAY's row and
       // overwrote its weigh-in with today's (third review, 2026-09-24).
       where: { date: { gte: start, lt: end } },
       orderBy: { date: 'asc' },
+      select: { id: true, date: true, source: true, weight: true },
     });
-    if (existing) {
-      // Never overwrite a manually logged entry for that day.
-      if (existing.source === 'manual') continue;
+    const plan = weightImportPlan(dayRows);
+    // Never overwrite a manually logged weight for that day.
+    if (plan.kind === 'skip') continue;
+    if (plan.kind === 'update') {
       await prisma.bodyStat.update({
-        where: { id: existing.id },
+        where: { id: plan.id },
         data: { weight: sample.value, date: sample.date },
       });
     } else {
@@ -92,7 +101,8 @@ async function enrichWorkouts(samples: ParsedSample[]): Promise<number> {
  * per monitor reading) into BpReading rows. Idempotent across the rolling
  * sync window: any existing reading within a minute of a pair's timestamp —
  * imported earlier, or logged by hand for the same measurement — wins, and
- * the pair is skipped (though a heart-rate sample can still fill its missing
+ * so does a reading he typed with the same numbers within five minutes; the
+ * pair is skipped (though a heart-rate sample can still fill its missing
  * pulse). The monitor writes its pulse as a separate heartRate sample at the
  * same instant; the nearest one within two minutes rides along as `pulse`.
  * Imports are marked by `notes` so provenance stays visible without a schema
@@ -116,42 +126,54 @@ async function importBpReadings(samples: ParsedSample[]): Promise<number> {
     return best && best.value > 20 && best.value < 250 ? Math.round(best.value) : null;
   };
 
-  const DEDUPE_MS = 60_000;
+  // Five minutes either side, with the values: a reading he typed two
+  // minutes after measuring is the same measurement as the cuff's copy
+  // (bpImportTwin; 2026-10-02 — time alone, ±60 s, made a twin of it).
   const times = pairs.map((p) => p.at.getTime());
-  const existing = await prisma.bpReading.findMany({
-    where: {
-      at: {
-        gte: new Date(Math.min(...times) - DEDUPE_MS),
-        lte: new Date(Math.max(...times) + DEDUPE_MS),
+  const existing = (
+    await prisma.bpReading.findMany({
+      where: {
+        at: {
+          gte: new Date(Math.min(...times) - BP_SAME_READING_MS),
+          lte: new Date(Math.max(...times) + BP_SAME_READING_MS),
+        },
       },
-    },
-    select: { id: true, at: true, pulse: true },
-  });
-  const taken = existing.map((r) => r.at.getTime());
+      select: { id: true, at: true, systolic: true, diastolic: true, pulse: true, notes: true },
+    })
+  ).map((r) => ({ ...r, at: r.at.getTime() }));
+  const claimed = new Set<string>();
 
   let created = 0;
   for (const pair of pairs) {
     const t = pair.at.getTime();
-    const twin = existing.find((e) => Math.abs(e.at.getTime() - t) <= DEDUPE_MS);
-    if (twin) {
-      // Only fill nulls — never clobber a pulse someone logged.
+    const twinId = bpImportTwin({ at: t, systolic: pair.systolic, diastolic: pair.diastolic }, existing, claimed);
+    if (twinId) {
+      claimed.add(twinId);
+      const twin = existing.find((e) => e.id === twinId)!;
+      // The row keeps its own time and numbers — a typed row's moment is at
+      // most five minutes off and is his; rewriting it buys nothing. Only
+      // fill nulls — never clobber a pulse someone logged.
       const pulse = twin.pulse === null ? pulseNear(t) : null;
       if (pulse !== null) {
         await prisma.bpReading.update({ where: { id: twin.id }, data: { pulse } });
+        twin.pulse = pulse;
       }
       continue;
     }
-    if (taken.some((e) => Math.abs(e - t) <= DEDUPE_MS)) continue;
-    await prisma.bpReading.create({
+    const pulse = pulseNear(t);
+    const row = await prisma.bpReading.create({
       data: {
         at: pair.at,
         systolic: pair.systolic,
         diastolic: pair.diastolic,
-        pulse: pulseNear(t),
-        notes: 'Apple Health',
+        pulse,
+        notes: BP_IMPORT_NOTE,
       },
+      select: { id: true },
     });
-    taken.push(t); // two pairs in one batch can't both land on the same minute
+    // Two pairs in one batch can't both land on the same minute.
+    existing.push({ id: row.id, at: t, systolic: pair.systolic, diastolic: pair.diastolic, pulse, notes: BP_IMPORT_NOTE });
+    claimed.add(row.id);
     created++;
   }
   return created;

@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { homeVerdict } from '@/lib/coach';
-import { calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay, rampContract } from '@/lib/program';
+import { calendarDaysBetween, cleanRampSessionDates, getDynamicPlan, getTrainingStatus, isTrainingSession, queuedDay, rampContract, rescueDatesOf } from '@/lib/program';
 import { holdWeekKeys, weekStreak } from '@/lib/streak';
 
 export const runtime = 'nodejs';
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
   ]);
 
   const trainingOnly = workouts.filter(isTrainingSession);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly));
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), now, cleanRampSessionDates(trainingOnly), rescueDatesOf(trainingOnly));
 
   // The Comeback Contract's payoff line — computed by the SAME gates that
   // pay it (spacing + day floor), PROJECTED to the rung's fire time (day 2

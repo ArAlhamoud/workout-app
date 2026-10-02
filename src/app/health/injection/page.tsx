@@ -68,7 +68,7 @@ export default async function InjectionDayPage() {
         <div className="grid grid-cols-3 gap-3 text-center">
           <div>
             <div className="metric-value text-app-tx1">
-              {plannedStep?.mg != null ? `${plannedStep.mg}` : clock ? '—' : '2.5'}
+              {plannedStep?.mg != null ? `${plannedStep.mg}` : '—'}
               <span className="ml-0.5 text-xs text-app-tx3">mg</span>
             </div>
             <div className="metric-label mt-0.5">planned dose</div>

@@ -5,10 +5,12 @@
 // The app is a tracker, not a diagnostic tool — nothing in this file
 // interprets; it stores, seeds, and reads.
 
+import { healthPushable } from '@/lib/logger-draft';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
-import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, ownerTodayUtc, weightPace } from '@/lib/health-insights';
+import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, ownerTodayUtc, weightPace, injectionTimeOk } from '@/lib/health-insights';
 import { importHealthSamples } from '@/lib/health-import';
+import { checkInDayTotals, stackMacros } from '@/lib/health-entry';
 import { detectUnloggedWorkouts } from '@/lib/health-detect';
 import { storeHrSeries } from '@/lib/health-hr';
 import { PUSH_DELAY_MS, planHealthPush } from '@/lib/health';
@@ -132,6 +134,8 @@ export async function logInjection(data: {
     throw new Error('Dose out of range');
   }
   if (!(SITES as readonly string[]).includes(data.site)) throw new Error('Unknown site');
+  // A time he entered: the dose was taken THEN, not when he got to the form.
+  if (data.at != null && !injectionTimeOk(data.at)) throw new Error('Injection time out of range');
   const injection = await prisma.injection.create({
     data: {
       doseMg: data.doseMg,
@@ -390,7 +394,9 @@ export async function logNutrition(data: {
  * Add a meal ON TOP of a day's existing numbers — the subscription screen
  * logs breakfast+lunch+snack as the baseline, and dinner (his own) stacks
  * onto it. Read-then-upsert (single user, races negligible); totals stay
- * inside the same bounds as logNutrition.
+ * inside the same bounds as logNutrition. Only the fields he typed are
+ * touched (stackMacros, shared with the fuel pipe): this used to write all
+ * four, so a protein-only meal stored kcal 0 on the day (2026-10-02).
  */
 export async function addNutrition(data: {
   day: string;
@@ -401,25 +407,38 @@ export async function addNutrition(data: {
 }) {
   const day = new Date(`${data.day}T00:00:00.000Z`);
   if (Number.isNaN(day.getTime())) throw new Error('Bad day');
-  const add = (v: number | undefined, max: number) =>
-    v != null && Number.isFinite(v) && v > 0 && v <= max ? Math.round(v) : 0;
-  const inc = {
-    kcal: add(data.kcal, 8000),
-    proteinG: add(data.proteinG, 400),
-    carbsG: add(data.carbsG, 900),
-    fatG: add(data.fatG, 400),
-  };
-  if (!inc.kcal && !inc.proteinG && !inc.carbsG && !inc.fatG) return;
+  const typed = { kcal: data.kcal, proteinG: data.proteinG, carbsG: data.carbsG, fatG: data.fatG };
+  if (!Object.keys(stackMacros(null, typed)).length) return;
   const existing = await prisma.nutritionLog.findUnique({ where: { day } });
-  const cap = (v: number, max: number) => Math.min(v, max);
-  const patch = {
-    kcal: cap((existing?.kcal ?? 0) + inc.kcal, 8000),
-    proteinG: cap((existing?.proteinG ?? 0) + inc.proteinG, 400),
-    carbsG: cap((existing?.carbsG ?? 0) + inc.carbsG, 900),
-    fatG: cap((existing?.fatG ?? 0) + inc.fatG, 400),
-  };
+  const patch = stackMacros(existing, typed);
   await prisma.nutritionLog.upsert({ where: { day }, update: patch, create: { day, ...patch } as never });
   revalidateHealth();
+}
+
+/**
+ * The Home check-in's protein / water: figures for the DAY. Protein only
+ * ever raises what the day holds (checkInDayTotals) — the row is usually the
+ * pre-logged delivery plan, and a plain set let a late 67 replace a planned
+ * 133 (2026-10-02); water is a plain set. Returns what it left standing so
+ * the screen can say so and offer `replace` — his figure, set on his tap.
+ */
+export async function logCheckInNutrition(data: { day: string; proteinG?: number; waterMl?: number; replace?: boolean }) {
+  const day = new Date(`${data.day}T00:00:00.000Z`);
+  if (Number.isNaN(day.getTime())) throw new Error('Bad day');
+  const existing = await prisma.nutritionLog.findUnique({ where: { day }, select: { proteinG: true, waterMl: true } });
+  const { patch, kept, rejected } = checkInDayTotals(
+    existing,
+    { proteinG: data.proteinG, waterMl: data.waterMl },
+    { replace: data.replace === true },
+  );
+  // A mistyped figure is refused whole, so the screen says "not saved" and
+  // keeps both fields — never a silent drop under "noted".
+  if (rejected.length) throw new Error('Entry out of range');
+  if (Object.keys(patch).length) {
+    await prisma.nutritionLog.upsert({ where: { day }, update: patch, create: { day, ...patch } as never });
+    revalidateHealth();
+  }
+  return { saved: Object.keys(patch), kept };
 }
 
 /** Merge fuel targets into profile.targets without clobbering the other
@@ -585,7 +604,7 @@ export async function getWorkoutsToPush() {
     },
     orderBy: { date: 'desc' },
     take: PUSH_BATCH,
-    select: { id: true, name: true, date: true, duration: true, createdAt: true, sets: { select: { completedAt: true } } },
+    select: { id: true, name: true, date: true, duration: true, createdAt: true, sets: { select: { completedAt: true, isWarmup: true } } },
   });
 
   return planHealthPush(
@@ -597,6 +616,10 @@ export async function getWorkoutsToPush() {
       createdAt: w.createdAt,
       setTimes: w.sets.map((st) => st.completedAt).filter((d): d is Date => d != null),
       setCount: w.sets.length,
+      // A stray-tick row (fewer than three working sets) is never written
+      // to Apple Health — it cannot be undone (rule 11, 2026-10-02). A real
+      // short session still is (healthPushable).
+      session: healthPushable(w.sets),
     })),
     new Date(),
   ).map((p) => ({

@@ -320,6 +320,9 @@ export interface HealthPushRow extends HealthPushInput {
   id: string;
   name: string;
   setCount: number;
+  /** false: a stray-tick row (fewer than three working sets) — never
+   *  written to Apple Health. Absent = not judged. */
+  session?: boolean;
 }
 
 /**
@@ -333,6 +336,9 @@ export function planHealthPush(rows: HealthPushRow[], now: Date = new Date()): A
   const out: Array<{ id: string; name: string; start: Date; end: Date; durationMin: number }> = [];
   for (const r of rows) {
     if (r.setCount < 1) continue;
+    // A stray-tick row (the caller's call: fewer than three working sets):
+    // never written — Health cannot be undone (rule 11).
+    if (r.session === false) continue;
     if (now.getTime() - r.createdAt.getTime() < PUSH_DELAY_MS) continue;
     const win = healthPushWindow(r);
     if (!win) continue;

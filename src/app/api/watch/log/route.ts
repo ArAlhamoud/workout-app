@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { ownerActivityDayUtc } from '@/lib/health-insights';
 import prisma from '@/lib/prisma';
 import { createWorkout } from '@/app/actions';
+import { plainSaveId } from '@/lib/logger-draft';
 import { readLive } from '@/lib/live-store';
 import { sanitizeWatchLogSets } from '@/lib/live-session';
 
@@ -84,6 +85,11 @@ export async function POST(request: Request) {
   // A handed-off session keeps the building the OPENING device tagged
   // (rule 2): the wrist has no gym toggle, so the live row outranks its
   // default.
+  // No real client generates an id with `~` (a derived id is the server's),
+  // `%` or `_` (LIKE wildcards in the save router's family lookup).
+  if (typeof b.clientSaveId === 'string' && b.clientSaveId && !plainSaveId(b.clientSaveId.slice(0, 64))) {
+    return NextResponse.json({ error: 'Bad clientSaveId' }, { status: 400 });
+  }
   const live = typeof b.clientSaveId === 'string' ? await readLive(b.clientSaveId.slice(0, 64)) : null;
   const gym = live?.gym === 'work' || live?.gym === 'bfit' ? live.gym : b.gym === 'work' || b.gym === 'bfit' ? b.gym : undefined;
   const result = await createWorkout({

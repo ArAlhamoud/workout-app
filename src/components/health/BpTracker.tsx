@@ -44,16 +44,21 @@ export default function BpTracker({ readings }: { readings: BpRow[] }) {
   const [msg, setMsg] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
-  const run = async (fn: () => Promise<unknown>, done: string) => {
-    if (busy) return;
+  // Resolves true only when the save landed: the caller clears the inputs on
+  // that, and a failed save keeps what he typed (it used to wipe them —
+  // run() swallows the error, so a bare .then() always ran; 2026-10-02).
+  const run = async (fn: () => Promise<unknown>, done: string): Promise<boolean> => {
+    if (busy) return false;
     setBusy(true);
     try {
       await fn();
       hapticSuccess();
       setMsg(done);
       router.refresh();
+      return true;
     } catch {
       setMsg('Could not save.');
+      return false;
     } finally {
       setBusy(false);
       setTimeout(() => setMsg(''), 2000);
@@ -110,7 +115,7 @@ export default function BpTracker({ readings }: { readings: BpRow[] }) {
                   context: context ?? undefined,
                 }),
               'Reading saved',
-            ).then(() => { setSys(''); setDia(''); setPulse(''); })
+            ).then((ok) => { if (ok) { setSys(''); setDia(''); setPulse(''); } })
           }
         >
           Save reading

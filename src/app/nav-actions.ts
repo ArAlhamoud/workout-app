@@ -47,11 +47,11 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
       '/exercises': `${exerciseCount}`,
       '/health/plan': latestDose ? `${latestDose.doseMg} mg weekly` : 'set the plan',
       '/health/report': latestLab
-        ? `labs ${latestLab.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+        ? `labs ${latestLab.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`
         : 'no labs yet',
       '/health/bp': latestBp ? `last ${latestBp.systolic}/${latestBp.diastolic}` : 'no reading yet',
       '/health/injection': latestInjection
-        ? `last ${latestInjection.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+        ? `last ${latestInjection.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`
         : 'first dose ahead',
       '/health/diet': (() => {
         // Nutrition days sit at UTC midnight of the owner's ACTIVITY day

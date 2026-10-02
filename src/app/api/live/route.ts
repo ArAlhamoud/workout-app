@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { plainSaveId } from '@/lib/logger-draft';
 import { forClient, readLive, upsertLive } from '@/lib/live-store';
 import { sanitizeLiveUpdate, type LiveSetUpdate } from '@/lib/live-session';
 
@@ -37,6 +38,11 @@ export async function POST(request: Request) {
   };
   if (typeof b.clientSaveId !== 'string' || !b.clientSaveId || b.clientSaveId.length > 64) {
     return NextResponse.json({ error: 'clientSaveId required' }, { status: 400 });
+  }
+  // No real client generates an id with `~` (a derived id is the server's),
+  // `%` or `_` (LIKE wildcards in the save router's family lookup).
+  if (!plainSaveId(b.clientSaveId)) {
+    return NextResponse.json({ error: 'Bad clientSaveId' }, { status: 400 });
   }
   const source = b.source === 'watch' ? 'watch' : 'phone';
   if (b.startedAt && (Number.isNaN(Date.parse(b.startedAt)) || Date.parse(b.startedAt) > Date.now() + 10 * 60_000)) {

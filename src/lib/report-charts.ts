@@ -71,8 +71,13 @@ export interface PlottedChart {
   series: PlottedSeries[];
 }
 
-/** Fewest points that make a line a trend rather than a moment. */
-export const MIN_TREND_POINTS = 3;
+/**
+ * Fewest points that make a chart. HEALTH.md law 5: "a chart from 3 points
+ * is a lie with axes" — so four. This was 3, and the dose chart drew from
+ * 2 (audit, 2026-10-02): the code now obeys the law as written, for every
+ * chart on the report, the dose step included.
+ */
+export const MIN_TREND_POINTS = 4;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -248,12 +253,13 @@ export function cpapAhiChart(rows: Array<{ night: Date | string; ahi: number | n
 }
 
 /** Weekly dose as a step: it holds between injections and runs on to
- *  today. Two injections already show a schedule. */
+ *  today. Held to the same minimum as every chart — the dose ledger above
+ *  it already lists each injection in words. */
 export function doseChart(
   ledger: Array<{ at: Date | string; doseMg: number }>,
   now: Date = new Date(),
 ): ChartSpec | null {
-  if (ledger.length < 2) return null;
+  if (ledger.length < MIN_TREND_POINTS) return null;
   return {
     key: 'dose',
     title: 'Mounjaro dose',

@@ -39,16 +39,21 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
   // stacks a meal on top (dinner, his own side of the day).
   const [mode, setMode] = useState<'set' | 'add'>('add');
 
-  const run = async (fn: () => Promise<unknown>, done: string) => {
-    if (busy) return;
+  // Resolves true only when the save landed: the caller clears the inputs on
+  // that, and a failed save keeps what he typed (it used to wipe them —
+  // run() swallows the error, so a bare .then() always ran; 2026-10-02).
+  const run = async (fn: () => Promise<unknown>, done: string): Promise<boolean> => {
+    if (busy) return false;
     setBusy(true);
     try {
       await fn();
       hapticSuccess();
       setMsg(done);
       router.refresh();
+      return true;
     } catch {
       setMsg('Could not save.');
+      return false;
     } finally {
       setBusy(false);
       setTimeout(() => setMsg(''), 2000);
@@ -99,7 +104,7 @@ export default function FuelTracker({ targets }: { targets: FuelTargets }) {
                   fatG: fat ? Number(fat) : undefined,
                 }),
               mode === 'add' ? 'Added' : 'Day saved',
-            ).then(() => { setKcal(''); setProtein(''); setCarbs(''); setFat(''); })
+            ).then((ok) => { if (ok) { setKcal(''); setProtein(''); setCarbs(''); setFat(''); } })
           }
         >
           {mode === 'add' ? 'Add to today' : 'Save today'}

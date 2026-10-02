@@ -684,16 +684,32 @@ export function rampScaledDayKeys(sessions: RampSession[]): Set<string> {
     const k = key(s.date);
     const earlier = asc.filter((e) => key(e.date) < k);
     if (!earlier.length) continue;
-    const st = getTrainingStatus(earlier.map((e) => new Date(e.date)), new Date(s.date), cleanRampSessionDates(earlier));
+    const st = getTrainingStatus(earlier.map((e) => new Date(e.date)), new Date(s.date), cleanRampSessionDates(earlier), rescueDatesOf(earlier));
     if (st.mode === 'return' && st.returnWeek.loadPct < 100) out.add(k);
   }
   return out;
 }
 
+/** The dates of the rescue sessions among these rows — getTrainingStatus's
+ *  fourth argument. */
+export function rescueDatesOf(rows: Array<{ date: Date | string; name?: string | null }>): Date[] {
+  return rows.filter((r) => (r.name ?? '').startsWith('Rescue')).map((r) => new Date(r.date));
+}
+
+/**
+ * `rescueDates`: the dates among `dates` that were 15-minute rescue
+ * sessions. Trainer ruling (2026-10-02): a rescue keeps the chain, the
+ * recovery day and the 21-day clock — it stays in `dates` and is read for
+ * days-since-last and for where the block starts — but it does NOT count
+ * toward the sessions that END the ramp. Simulated: a rescue counted as
+ * ramp session 8, Day A never got a RESTORE session and opened with no
+ * effort cap. A day that also holds a real session counts as before.
+ */
 export function getTrainingStatus(
   dates: Date[],
   now: Date = new Date(),
   cleanDates: Date[] = [],
+  rescueDates: Date[] = [],
 ): TrainingStatus {
   if (!dates.length) return { mode: 'fresh', week: 1 };
 
@@ -710,11 +726,24 @@ export function getTrainingStatus(
   // session early (85% -> 100%). Training twice in a day is the pattern the
   // program forbids anyway, so nothing real is lost.
   const byDay = new Map<string, Date>();
+  const rowsOn = new Map<string, number>();
   for (const d of dates) {
     const at = new Date(d);
     const key = at.toISOString().slice(0, 10);
     if (!byDay.has(key)) byDay.set(key, at);
+    rowsOn.set(key, (rowsOn.get(key) ?? 0) + 1);
   }
+  // A day whose every row was a rescue: in the chain, not in the count.
+  const rescuesOn = new Map<string, number>();
+  for (const d of rescueDates) {
+    const key = new Date(d).toISOString().slice(0, 10);
+    rescuesOn.set(key, (rescuesOn.get(key) ?? 0) + 1);
+  }
+  const rescueOnly = (d: Date) => {
+    const key = d.toISOString().slice(0, 10);
+    const n = rescuesOn.get(key) ?? 0;
+    return n > 0 && n >= (rowsOn.get(key) ?? 0);
+  };
   const desc = [...byDay.values()].sort((a, b) => b.getTime() - a.getTime());
   const daysBetween = (a: Date, b: Date) => Math.floor((a.getTime() - b.getTime()) / 86400000);
 
@@ -731,13 +760,13 @@ export function getTrainingStatus(
   // Walk back to the start of the current unbroken training block,
   // counting the sessions inside it as we go.
   let blockStart = desc[0];
-  let sessionsInBlock = 1;
+  let sessionsInBlock = rescueOnly(desc[0]) ? 0 : 1;
   let daysOff = 0;
   for (let i = 0; i < desc.length - 1; i++) {
     const gap = daysBetween(desc[i], desc[i + 1]);
     if (gap >= BREAK_THRESHOLD_DAYS) { daysOff = gap; break; }
     blockStart = desc[i + 1];
-    sessionsInBlock++;
+    if (!rescueOnly(desc[i + 1])) sessionsInBlock++;
   }
 
   const weeksElapsed = Math.floor(daysBetween(now, blockStart) / 7);
@@ -759,7 +788,7 @@ export function getTrainingStatus(
     //     fastest disciplined comeback reaches 100% in ~2.5 weeks, never 8 days.
     const cleanTs = cleanDates
       .map((d) => new Date(d).getTime())
-      .filter((t) => t >= blockStart.getTime() && t <= now.getTime())
+      .filter((t) => t >= blockStart.getTime() && t <= now.getTime() && !rescueOnly(new Date(t)))
       .sort((a, b) => a - b);
     let cleanSpacedInBlock = 0;
     let lastCounted = Number.NEGATIVE_INFINITY;
@@ -921,7 +950,9 @@ export function rampBaseBefore(
     const s = asc[i];
     const before = asc.slice(0, i).map((x) => x.date);
     const cleanBefore = cleanDates.filter((d) => new Date(d).getTime() < s.date.getTime());
-    const at = getTrainingStatus(before, s.date, cleanBefore);
+    // Same count as the status the prescription reads (rescueDatesOf), or
+    // the cut and the status disagree about where the ramp ended.
+    const at = getTrainingStatus(before, s.date, cleanBefore, rescueDatesOf(asc.slice(0, i)));
     const scaled = s.name.startsWith('Rescue') || (at.mode === 'return' && at.returnWeek.loadPct < 100);
     // A RESTORE-week (100%) session is full-load for the machines it
     // touched, but it must not end the walk: the other day's machines are

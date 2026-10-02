@@ -38,8 +38,10 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
    report omits is absent, never zero.
 5. **Guards over charts.** Below honest thresholds (4 weigh-ins for a
    projection, 5 answered episodes for an AF correlate, 3 readings for a
-   BP average, 3 logs for a dose comparison) the answer is "not enough
-   data yet" — a chart from 3 points is a lie with axes.
+   BP average, 3 logs for a dose comparison, 4 points for a chart) the
+   answer is "not enough data yet" — a chart from 3 points is a lie with
+   axes. Every chart on the doctor report, the dose step included, needs
+   4 (`MIN_TREND_POINTS`; it was 3, and 2 for the dose, until 2026-10-02).
 6. **Ten-second logging.** Segmented controls, tri-state flags
    (yes/no/skip — an unanswered flag never enters a denominator),
    last-value defaults, one row per CPAP night (upsert).
@@ -68,8 +70,12 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
 - BP auto-import: the home monitor syncs to Apple Health; HealthAutoPilot
   reads both halves (`bloodPressureSystolic/Diastolic`, 30-day rolling
   window) and `/api/health/import` pairs them (`pairBpSamples`, ±60 s),
-  drops implausible pairs with the manual logger's bounds, and skips any
-  minute that already holds a reading — manual entries always win.
+  drops implausible pairs with the manual logger's bounds, and skips a pair
+  that is already stored: an imported row within a minute, or a reading he
+  TYPED with the same systolic/diastolic within five minutes (`bpImportTwin`,
+  2026-10-02 — measured 08:00, typed 08:02 used to make two rows). The typed
+  row keeps its own time; only a blank pulse is filled. One typed row
+  answers for one cuff reading, and is never matched on time alone.
   Imported rows carry `notes: 'Apple Health'`. Requires the bridge
   deployed with the BP types (Mac: `npm run ios:deploy`, then re-grant
   Health access; reinstall if iOS shows no new permission sheet).
@@ -138,6 +144,25 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   addNutrition / {add:true} rows. Future delivery days may be pre-logged
   as planned baseline; re-posting corrects.
 - Daily check-in: body → heart → extras. ~5 seconds.
+  Protein and water there are figures for the DAY, filed under the 04:00
+  activity day. Protein only raises what the day holds (the row is usually
+  the pre-logged plan); a lower figure is kept out, said, and offered back
+  as "Use 67 g instead". Water is a plain set. Each answer saves on its own
+  and a failed save is said — never "noted" (`checkInDayTotals`, `saveEach`).
+- A manual weight owns its day (2026-10-02). The day is HIS calendar day
+  (Riyadh) for the scale import and the manual entry alike
+  (`ownerDayWindow`). Only a manual WEIGHT blocks the import — a waist-only
+  entry does not. Typed after the scale synced, it takes the imported row
+  over; a later manual weight corrects that same row. One weight row per day
+  (`weightImportPlan`, `manualWeightPlan`).
+- "Add a meal" sums only the fields typed (`stackMacros`, shared with the
+  fuel pipe); a blank macro stays blank, never 0.
+- A doctor-review slot preselects no dose in the injection form, and every
+  screen names that slot "Doctor review" (law 2: a checkpoint prescribes
+  nothing).
+- The injection form carries its time: "Taken: Now / Earlier". An earlier
+  time is accepted from the last 14 days, never the future
+  (`injectionTimeOk`).
 
 ## Pipe limits (2026-09-18)
 
@@ -206,10 +231,10 @@ only the report page and the PDF stop showing them.
 (10 clicks = 2.5 mg, 20 = 5 mg); the endocrinologist confirmed this is
 correct. The same doctor keeps a pen in use past the leaflet's 30 days,
 from his own patients' results. Both are the doctor's decisions: do not
-re-raise the pen strength or the 30-day limit. The injection form still
-stamps the save moment, so a dose logged the next morning lands a day
-late (fixed twice by script, 22 and 29 Sep); a date field is offered,
-not built.
+re-raise the pen strength or the 30-day limit. The injection form used to stamp
+the save moment, so a dose logged the next morning landed a day late
+(fixed twice by script, 22 and 29 Sep); it now carries "Taken: Now /
+Earlier" (2026-10-02).
 
 **Ongoing side effects live on the profile, not as episodes (owner,
 2026-09-30).** He has had mild constipation throughout and never logged a

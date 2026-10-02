@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getHealthData } from '../health-actions';
+import { weighInLabel } from '@/lib/health-format';
 import {
   journeyDay,
   journeyStations,
@@ -35,6 +36,13 @@ export default async function JourneyPage() {
     data.bodyStats,
   );
 
+  // The newest weigh-in — the same row weightSnapshot calls "current" —
+  // for its DATE: the header said "125 kg today" for a weigh-in from 27 Sep
+  // (2026-10-02).
+  const latestWeighIn = data.bodyStats
+    .filter((b) => b.weight != null)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+
   const dotFor = (state: string, kind: string) =>
     state === 'done'
       ? 'bg-acc-teal-deep'
@@ -55,7 +63,8 @@ export default async function JourneyPage() {
         </h1>
         {snapshot && (
           <p className="mt-1 text-sm text-app-tx2">
-            {snapshot.startKg} kg at the start · {snapshot.currentKg} kg today · the road runs
+            {snapshot.startKg} kg at the start ·{' '}
+            {latestWeighIn ? weighInLabel(snapshot.currentKg, latestWeighIn.date) : `${snapshot.currentKg} kg`} · the road runs
             to {profile.goalWeightKg} kg
           </p>
         )}
