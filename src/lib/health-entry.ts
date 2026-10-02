@@ -130,7 +130,12 @@ const ms = (d: Date | string) => new Date(d).getTime();
  */
 export function weightImportPlan(dayRows: DayWeightRow[]): WeightImportPlan {
   if (dayRows.some(isManualWeight)) return { kind: 'skip' };
-  const imported = dayRows.find((r) => r.source !== 'manual');
+  // The LATEST imported row, as manualWeightPlan picks: rows written under
+  // the old UTC-day key can sit two to one of his days, and updating the
+  // first turned an early weigh-in into a copy of the later one (2026-10-02).
+  const imported = dayRows
+    .filter((r) => r.source !== 'manual')
+    .sort((a, b) => ms(b.date) - ms(a.date))[0];
   return imported ? { kind: 'update', id: imported.id } : { kind: 'create' };
 }
 

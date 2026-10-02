@@ -2,7 +2,7 @@
 
 import { combineIncrement, learnPinIncrements } from '@/lib/coach';
 import { foldExerciseMemory, isRescueName, prescriptionInputs, PRESCRIPTION_WINDOW, type ExerciseMemory } from '@/lib/prescription';
-import { datedName, ownerOf, routeSets, sittingSeconds, type SaveIdState } from '@/lib/logger-draft';
+import { datedName, ownerOf, plainSaveId, routeLiveSets, routeSets, SAVE_ID_FAMILY, setKey, sittingSeconds, type SaveIdState } from '@/lib/logger-draft';
 import { offGridWeights, parsePinKg, stepPlausible } from '@/lib/pins';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
@@ -197,6 +197,12 @@ export async function createWorkout(data: {
    */
   healthWorkoutUuid?: string;
   /**
+   * He set the date himself (the date field edited, a back-fill): the
+   * session is ONE workout on that date, never split by when its sets were
+   * ticked and never re-dated (routeSets rule 1).
+   */
+  dateSetByHand?: boolean;
+  /**
    * Client-generated idempotency key, set by the offline outbox. A save that
    * timed out client-side but actually landed must not become a second
    * workout when the outbox replays it — the replay finds this key and gets
@@ -233,13 +239,33 @@ export async function createWorkout(data: {
     // of a session that crosses 04:00 land in ONE workout whichever posts
     // first, and a replay goes where the first attempt went.
     const root = data.clientSaveId;
-    const family = await prisma.workout.findMany({
+    // Only an id a client generates is a root: never one with `~` (a derived
+    // id is ours), `%` or `_` (the family lookup below is a prefix match on
+    // this text, and LIKE reads those as wildcards). Such an id is saved as
+    // posted, unrouted.
+    if (!plainSaveId(root)) return saveSitting(data);
+    const familyRows = await prisma.workout.findMany({
       where: { OR: [{ clientSaveId: root }, { clientSaveId: { startsWith: `${root}~` } }] },
-      select: { clientSaveId: true, date: true, sets: { select: { completedAt: true } } },
+      // A fixed order: a tie between two family workouts must break the
+      // same way on every read (routeSets sorts again, by id).
+      orderBy: { clientSaveId: 'asc' },
+      select: {
+        clientSaveId: true, date: true, createdAt: true,
+        sets: { select: { exerciseId: true, setNumber: true, isWarmup: true, completedAt: true } },
+      },
     });
-    const known = family.map((w) => ({ saveId: w.clientSaveId as string, ...ownerOf(w, activityDayKey) }));
+    // …and filtered here to exactly the id and id~YYYY-MM-DD, whatever the
+    // database made of the prefix (steward, 2026-10-02).
+    const family = familyRows.filter((w) => w.clientSaveId === root || (w.clientSaveId?.startsWith(root) === true && SAVE_ID_FAMILY.test(w.clientSaveId.slice(root.length))));
+    const known = family.map((w) => ({
+      saveId: w.clientSaveId as string,
+      ...ownerOf(w, activityDayKey),
+      sets: w.sets.map((x) => ({ key: setKey(x), at: x.completedAt ? x.completedAt.getTime() : null })),
+    }));
     const payloadDay = /^\d{4}-\d{2}-\d{2}/.test(data.date) ? data.date.slice(0, 10) : activityDayKey(new Date());
-    const routes = routeSets(root, known, payloadDay, data.sets, activityDayKey);
+    // A detected session's date is its HealthKit day, a back-fill's is the
+    // day he typed: both are his, never the ticks'.
+    const routes = routeSets(root, known, { day: payloadDay, dateByHand: data.dateSetByHand === true || Boolean(data.healthWorkoutUuid) }, data.sets, activityDayKey);
     if (routes.length && !(routes.length === 1 && routes[0].saveId === root)) {
       const stampsOf = (sets: Array<{ completedAt?: string }>) =>
         sets.map((x) => (x.completedAt ? Date.parse(x.completedAt) : NaN)).filter((t) => Number.isFinite(t));
@@ -249,20 +275,18 @@ export async function createWorkout(data: {
       const ordered = [...routes].sort((x, y) => lastOf(x.sets) - lastOf(y.sets));
       // The live row is filed under the POSTED id. Each sitting reconciles
       // with the row's sets of that same sitting — the other device's ticks
-      // are unioned in and its un-ticks honoured exactly as in a plain save.
-      // The first version created the re-homed workout without reading the
-      // row at all, then closed it: the Watch's sets on a continued session
-      // were dropped (adversary, 2026-10-02).
+      // are unioned in and its un-ticks honoured exactly as in a plain save
+      // (routeLiveSets: an un-tick goes to the sitting HOLDING the set). The
+      // first version created the re-homed workout without reading the row
+      // at all, then closed it: the Watch's sets on a continued session were
+      // dropped (adversary, 2026-10-02).
       const liveRow = await readLive(root);
-      const liveRoutes = liveRow
-        ? routeSets(
-            root,
-            [...known, ...routes.map((r) => ({ saveId: r.saveId, day: r.day ?? known.find((k) => k.saveId === r.saveId)?.day ?? payloadDay, stamps: stampsOf(r.sets) }))],
-            payloadDay,
-            liveRow.sets,
-            activityDayKey,
-          )
-        : [];
+      const { byRoute: liveByRoute, orphans: liveOrphans } = routeLiveSets(routes, liveRow?.sets ?? [], known);
+      // Rule 10: the allowance is what the logger SHOWED. Computed once,
+      // before any sitting is committed, from a snapshot without the whole
+      // family — the older sitting, saved first, must not become history
+      // for the newer one's allowance (steward, 2026-10-02).
+      const allowedOnce = await rampAllowances(data.sets, data.gym, data.name, root, true);
       let made: { id: string; deduped?: boolean; merged?: number } | null = null;
       for (const [i, r] of ordered.entries()) {
         const last = i === ordered.length - 1;
@@ -272,22 +296,24 @@ export async function createWorkout(data: {
             clientSaveId: r.saveId,
             sets: r.sets,
             // A NEW workout for another day is dated the day it was lifted
-            // and named for it; its length is its own sets' (steward): the
-            // payload's duration and notes belong to the sitting being
-            // finished now.
+            // and named for it. The payload's duration (the HealthKit one
+            // included), notes and HK identity belong to the sitting being
+            // finished now; an OLDER sitting takes the span of its own sets.
             date: r.day ?? data.date,
             name: r.day ? datedName(data.name, r.day) : data.name,
             notes: last ? data.notes : undefined,
-            duration: sittingSeconds(r.sets) ?? (last ? data.duration : undefined),
+            duration: last ? data.duration ?? sittingSeconds(r.sets) ?? undefined : sittingSeconds(r.sets) ?? undefined,
             healthWorkoutUuid: last ? data.healthWorkoutUuid : undefined,
           },
-          { live: liveRow ? { ...liveRow, sets: liveRoutes.find((x) => x.saveId === r.saveId)?.sets ?? [] } : null, close: false },
+          { live: liveRow ? { ...liveRow, sets: liveByRoute.get(r.saveId) ?? [] } : null, close: false, allowed: allowedOnce },
         );
       }
       if (made) {
         // The row must stop offering "Continue" on the Watch, and point at
-        // the workout of the session just finished.
-        await closeLive(root, made.id);
+        // the workout of the session just finished — unless it still holds
+        // a tick no sitting took and no workout has: then it stays open,
+        // and the device that logged it finishes it.
+        if (!liveOrphans.length) await closeLive(root, made.id);
         return made;
       }
     }
@@ -304,7 +330,7 @@ export async function createWorkout(data: {
  */
 async function saveSitting(
   data: Parameters<typeof createWorkout>[0],
-  via?: { live: LiveSession | null; close: boolean },
+  via?: { live: LiveSession | null; close: boolean; allowed: Record<string, number | null> },
 ): Promise<{ id: string; deduped?: boolean; merged?: number }> {
   const liveOf = async () => (via ? via.live : readLive(data.clientSaveId));
   const closeOwn = async (workoutId: string) => {
@@ -337,7 +363,7 @@ async function saveSitting(
       select: { gym: true },
     });
     const liveForMerge = priorRow ? await liveOf() : null;
-    const allowedForMerge = priorRow ? await rampAllowances(data.sets, priorRow.gym, data.name, data.clientSaveId) : {};
+    const allowedForMerge = !priorRow ? {} : via ? via.allowed : await rampAllowances(data.sets, priorRow.gym, data.name, data.clientSaveId);
     const merged = await prisma.$transaction(async (tx) => {
       const existing = await tx.workout.findUnique({
         where: { clientSaveId: data.clientSaveId },
@@ -454,7 +480,7 @@ async function saveSitting(
   }
   // The ramp's allowance is recorded on each set NOW, from the same memory
   // and pin map the prefill used — never reconstructed later.
-  const allowed = await rampAllowances(data.sets, data.gym, data.name);
+  const allowed = via ? via.allowed : await rampAllowances(data.sets, data.gym, data.name);
   const workout = await prisma.workout.create({
     data: {
       name: data.name,
@@ -566,7 +592,7 @@ export async function getLoggerMemory(
  *  cut-off, and the ONE pin map (judged rows of this gym + manual overrides)
  *  — read through prescriptionInputs, the same code and the same window the
  *  phone page and the Watch plan prescribe from (A3). */
-async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: string) {
+async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: string, excludeFamily = false) {
   const [allRows, exercises] = await Promise.all([
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
@@ -578,7 +604,11 @@ async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: 
   // The workout being merged into is NOT history for its own allowance:
   // the first half must not step the ramp or become its own machine's
   // memory (adversary pass 4).
-  const rows = excludeClientSaveId ? allRows.filter((w) => w.clientSaveId !== excludeClientSaveId) : allRows;
+  // excludeFamily: a split save — every workout under the id or derived
+  // from it is left out, so no sitting is history for another's allowance.
+  const rows = excludeClientSaveId
+    ? allRows.filter((w) => w.clientSaveId !== excludeClientSaveId && !(excludeFamily && w.clientSaveId?.startsWith(`${excludeClientSaveId}~`)))
+    : allRows;
   const inputs = prescriptionInputs(rows, exercises, gym);
   return { status: inputs.status, cut: inputs.cut, pinFor: inputs.pinFor, inputs, exercises };
 }
@@ -594,6 +624,7 @@ async function rampAllowances(
   gym: string | null | undefined,
   name: string,
   excludeClientSaveId?: string,
+  excludeFamily = false,
 ): Promise<Record<string, number | null>> {
   const out: Record<string, number | null> = {};
   if (name.startsWith('Rescue')) return out;
@@ -602,7 +633,7 @@ async function rampAllowances(
   // yet applied, a cold Neon, a transient error — the workout still lands
   // (steward, 2026-09-18).
   try {
-    const { status, cut, pinFor, inputs } = await rampSnapshot(gym ?? DEFAULT_GYM_ID, excludeClientSaveId);
+    const { status, cut, pinFor, inputs } = await rampSnapshot(gym ?? DEFAULT_GYM_ID, excludeClientSaveId, excludeFamily);
     if (status.mode !== 'return' || status.returnWeek.loadPct >= 100) return out;
     const ids = [...new Set(sets.filter((s) => !s.isWarmup).map((s) => s.exerciseId))];
     const memory = await getLoggerMemory(ids, gym ?? DEFAULT_GYM_ID, cut);

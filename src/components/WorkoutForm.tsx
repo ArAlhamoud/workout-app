@@ -400,6 +400,12 @@ export default function WorkoutForm({
 }) {
   const router = useRouter();
   const today = activityDayStr();
+  /** The date is HIS: he edited the field, or the form was opened for a
+   *  detected session / a given day. Sent with the save so the server never
+   *  splits or re-dates the session by when its sets were ticked — a
+   *  back-fill dated last Tuesday and ticked across two evenings became two
+   *  workouts on other dates (adversary, 2026-10-02). Rides the draft. */
+  const dateByHandRef = useRef(Boolean(initialDate || healthWorkoutUuid));
   /** The activity day this form was opened on — what its date defaulted to. */
   const openedDayRef = useRef(today);
   const [name, setName] = useState(initialName);
@@ -645,7 +651,7 @@ export default function WorkoutForm({
     type Draft = {
       name?: string; date?: string; notes?: string; gym?: string;
       blocks?: unknown; startTime?: number; savedAt?: number; saveId?: string;
-      day?: string | null; dur?: number | null;
+      day?: string | null; dur?: number | null; dateByHand?: boolean;
     };
     let cancelled = false;
     const dayOf = (d: Date) => activityDayStr(d);
@@ -692,6 +698,7 @@ export default function WorkoutForm({
       const next = relaid ? stripDueWarmups(mergeDraftIntoPlan(stored, freshBlocks(), away ? undefined : relay)) : stored;
       setName(plan.refit ? renameForDuration(draft.name ?? initialName, durationMin) : draft.name ?? initialName);
       setDate(draft.date ?? today);
+      dateByHandRef.current = draft.dateByHand === true;
       setNotes(draft.notes ?? '');
       // Sync the ref too, or the gym-change effect reads the restore as a
       // switch and refetches weights over the draft's own numbers.
@@ -971,6 +978,7 @@ export default function WorkoutForm({
           gym,
           clientSaveId: row.clientSaveId,
           finishSource: 'phone' as const,
+          dateSetByHand: dateByHandRef.current,
           sets: stampEdits(own),
         };
         try {
@@ -1189,7 +1197,7 @@ export default function WorkoutForm({
     })) return;
     // day/dur as FIELDS: parsed from the name, a renamed draft ("Push day")
     // belonged to no day or length and a chosen 30 never re-fitted it.
-    pendingDraftRef.current = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current, saveId: saveIdRef.current, day: dayAccent ?? null, dur: durationMin ?? null };
+    pendingDraftRef.current = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current, saveId: saveIdRef.current, day: dayAccent ?? null, dur: durationMin ?? null, dateByHand: dateByHandRef.current };
     const t = setTimeout(() => {
       const draft = pendingDraftRef.current;
       pendingDraftRef.current = null;
@@ -1530,6 +1538,7 @@ export default function WorkoutForm({
     setLiveNotice(null);
     setName(initialName);
     setDate(today);
+    dateByHandRef.current = false;
     // Everything below is reset to the home gym's own props, so the tag's
     // numbers ARE on screen: no refetch to wait on (or to fail).
     lastGymRef.current = DEFAULT_GYM_ID;
@@ -2012,6 +2021,7 @@ export default function WorkoutForm({
       clientSaveId: saveIdRef.current,
       healthWorkoutUuid,
       finishSource: 'phone' as const,
+      dateSetByHand: dateByHandRef.current,
       sets: stampEdits(setsToSave),
     };
     // A restored multi-day draft carries an ancient startRef; without a clamp
@@ -2233,7 +2243,7 @@ export default function WorkoutForm({
             <input
               type="date"
               value={date}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={(e) => { dateByHandRef.current = true; setDate(e.target.value); }}
               className={inputCls}
             />
             <input

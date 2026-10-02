@@ -154,6 +154,27 @@ Each of these broke something real. Do not relearn them.
     wait for the webview (the delivery ladder; `DeepLinkHandler` navigates
     once per link).
 
+15. **A save is routed by sitting, and a split is the exception.**
+    A logger he only looked at restored days later with its old date,
+    old weights and old save id; finished, it saved today's session
+    under last week's date, or into an already-saved workout, or nowhere
+    (audit, 2026-10-02). `createWorkout` now routes every payload through
+    `routeSets` (`src/lib/logger-draft.ts`, the rule is the comment on
+    it): a date he set by hand is never split; a tick already held by a
+    workout of the same save-id family goes back to it; a later sitting
+    becomes its own workout (`<id>~<day>`) only when it is a session of
+    its own on another activity day. An ordinary one-sitting save must
+    store exactly what it always did. An untouched draft is never
+    written; a stale started draft keeps its done sets and reprices the
+    rest. Three blind passes on this path each found new ways to lose,
+    duplicate or misdate a set, all in fixes. Review every change to it.
+
+16. **A rescue session is not training evidence.** It keeps the chain,
+    the recovery day and the 21-day clock, and nothing else: never
+    weight memory, pins, plateaus, records, or a session that ends the
+    ramp (`isRescueName`, `rescueDatesOf`; the suite fails on a
+    `getTrainingStatus` call without it).
+
 ## The coach layer is deliberately dormant
 
 Waves 3–4 built an AI coach (brief, chat, coach-written gap

@@ -6,6 +6,8 @@
 // scripts/coach-tests.ts runs every one of them, and the server reads the
 // same session-day rule the phone does (createWorkout).
 
+import { isTrainingSession } from './program';
+
 /** What the restore reads of a stored draft. */
 export interface DraftLike {
   name?: string;
@@ -323,9 +325,24 @@ export interface SaveIdOwner {
 /** A workout saved under the posted id or one derived from it. */
 export interface SavedSitting extends SaveIdOwner {
   saveId: string;
+  /** Its sets, by key and tick — a posted copy of one goes back to it. */
+  sets?: Array<{ key: string; at: number | null }>;
 }
 
-type Stamped = { completedAt?: string | Date | null };
+/** The payload's date and whether he set it himself (a back-fill, a
+ *  detected session, an edited date field). */
+export interface PayloadDate {
+  day: string;
+  dateByHand?: boolean;
+}
+
+type Stamped = {
+  completedAt?: string | Date | null;
+  exerciseId?: string;
+  setNumber?: number;
+  isWarmup?: boolean;
+  rpe?: number | null;
+};
 
 const stampMs = (v: string | Date | null | undefined): number | null => {
   if (!v) return null;
@@ -333,16 +350,49 @@ const stampMs = (v: string | Date | null | undefined): number | null => {
   return Number.isFinite(t) ? t : null;
 };
 
+/** One set's identity inside a workout — the live row's key. */
+export const setKey = (s: { exerciseId?: string; setNumber?: number; isWarmup?: boolean }): string =>
+  `${s.exerciseId ?? ''}:${s.isWarmup ? 0 : s.setNumber ?? 0}:${s.isWarmup ? 'w' : 's'}`;
+
+/** A save id a real client generates: no `~` (ours, for a derived id), no
+ *  `%` or `_` (LIKE wildcards — the family lookup is a prefix match on
+ *  client-supplied text). */
+export const plainSaveId = (id: string): boolean => id.length > 0 && !/[~%_]/.test(id);
+/** What follows the posted id in a derived one: `~YYYY-MM-DD`, nothing else. */
+export const SAVE_ID_FAMILY = /^~\d{4}-\d{2}-\d{2}$/;
+
+/** A split-off sitting must hold at least this many working sets. */
+export const SPLIT_MIN_WORKING_SETS = 4;
+
+/**
+ * Is this sitting a SESSION of its own — the only thing that may be split
+ * off a payload into its own workout? The app's evidence bar
+ * (isTrainingSession, on its own sets and its own length) AND four working
+ * sets: two rated ticks pass the bar, and two machines he forgot and ticked
+ * the next morning are not a second session (the plan read done-today and
+ * the ramp stepped; adversary, 2026-10-02).
+ */
+export function sessionOfItsOwn(sets: Stamped[]): boolean {
+  const working = sets.filter((s) => !s.isWarmup);
+  if (working.length < SPLIT_MIN_WORKING_SETS) return false;
+  return isTrainingSession({ name: 'Day', duration: sittingSeconds(sets), sets: sets.map((s) => ({ rpe: s.rpe ?? null, isWarmup: s.isWarmup === true })) });
+}
+
 /** A phone save is dated a bare activity day at UTC midnight; some Watch
  *  and imported rows carry a real instant. Either way: one day. */
 export function ownerOf(
-  workout: { date: Date; sets: Array<{ completedAt: Date | string | null }> },
+  workout: { date: Date; createdAt?: Date | null; sets: Array<{ completedAt: Date | string | null }> },
   dayOf: (d: Date) => string,
 ): SaveIdOwner {
   const bare = workout.date.getTime() % 86_400_000 === 0;
+  const stamps = workout.sets.map((s) => stampMs(s.completedAt)).filter((t): t is number => t != null).sort((a, b) => a - b);
+  // No stamped set (an old Watch build, a pre-upgrade persisted session):
+  // the workout stands at the moment it was saved, or the phone's half of
+  // a handoff across 04:00 is "another day" and splits one session.
+  const savedAt = stamps.length ? null : stampMs(workout.createdAt ?? null);
   return {
     day: bare ? workout.date.toISOString().slice(0, 10) : dayOf(workout.date),
-    stamps: workout.sets.map((s) => stampMs(s.completedAt)).filter((t): t is number => t != null).sort((a, b) => a - b),
+    stamps: savedAt != null ? [savedAt] : stamps,
   };
 }
 
@@ -409,58 +459,134 @@ const gapBetween = (a: number[], b: number[]): number => {
  * three days later saved both days under the old date: the plan read "4
  * days since Day B" the morning after he trained (trainer, same day).
  *
- * `known` is the workout saved under the posted id and every one derived
- * from it. Each sitting of the payload goes, in this order, to
- *   1. the known workout holding a set within the grace of one of its own
- *      (the other finisher's copy of the same sitting — whichever device
- *      posted first, and whatever day its first set fell on);
- *   2. the known workout dated the sitting's day;
- *   3. the posted id itself, when nothing is saved under it yet and this
- *      is the payload's own sitting (the one on the payload's date, else
- *      its earliest) — it keeps the payload's date, so a session he
- *      back-dated stays back-dated;
- *   4. a NEW workout under the derived id, dated the day it was lifted.
- * Sets with no stamp go by the payload's date the same way: under a stale
- * id they are no longer merged into the old workout by default (steward).
+ * But a split is the EXCEPTION. The first router cut every payload at
+ * every gap: a machine he forgot and ticked the next morning became a
+ * second workout dated today (and, rated, a session — done-today, a ramp
+ * step); a back-fill ticked across two evenings became two; a warm-up
+ * ticked at 02:00 became a one-set row (adversary's probe, same day).
  *
- * Replay-stable: rules 2–4 read only the payload and each workout's date,
- * and a workout only ever receives sets of sittings routed to it, which no
- * other sitting is within the grace of — so nothing a merge wrote can
- * change where the same payload goes next time. `deduped` stays a success
- * for the SAME sitting (rule 8).
+ * THE RULE, in order. `known` is the workout saved under the posted id and
+ * every one derived from it.
+ *   1. A date he set by hand: ONE workout, never split, never re-dated —
+ *      the posted id, or (that id being another session's) a new one on
+ *      the date he set.
+ *   2. A posted set whose tick a known workout already holds (same key,
+ *      same moment) goes back to that workout. A second finisher's copies
+ *      can never land in two.
+ *   3. The rest is cut into sittings (sittingsOf). A sitting within the
+ *      grace of a known workout's sets, else one dated the sitting's day,
+ *      goes to that workout — the nearest; ties by id order.
+ *   4. Of the sittings still unplaced, the MAIN one is the sitting on the
+ *      payload's date. With none on that date and nothing saved under the
+ *      id, the date was not the ticks' (a back-fill): everything is one
+ *      workout on the payload's date. With the id already another
+ *      session's, the main sitting is the largest, saved under a derived
+ *      id on its own day.
+ *   5. Any other unplaced sitting FOLDS into main — unless it is a session
+ *      of its own (sessionOfItsOwn) on another activity day: only then is
+ *      it a new workout, under the derived id, dated the day it was lifted.
+ *   6. Sets with no stamp go by the payload's date.
+ *
+ * Replay-stable: once saved, every set is found again by rule 2, and
+ * rules 3–5 read only the payload and each workout's date. `deduped`
+ * stays a success for the SAME sitting (rule 8).
  */
 export function routeSets<T extends Stamped>(
   rootId: string,
   known: SavedSitting[],
-  payloadDay: string,
+  payload: string | PayloadDate,
   sets: T[],
   dayOf: (d: Date) => string,
 ): SetRoute<T>[] {
-  const { sittings, unstamped } = sittingsOf(sets, dayOf);
-  const rootSaved = known.some((k) => k.saveId === rootId);
-  const own = rootSaved ? null : sittings.find((s) => s.day === payloadDay) ?? (unstamped.length ? null : sittings[0] ?? null);
+  const payloadDay = typeof payload === 'string' ? payload : payload.day;
+  const byHand = typeof payload !== 'string' && payload.dateByHand === true;
+  // The posted id first, then the derived ones in id order: whatever order
+  // the database returned them in, a tie breaks the same way.
+  const fam = [...known].sort((a, b) => (a.saveId === rootId ? -1 : b.saveId === rootId ? 1 : a.saveId < b.saveId ? -1 : a.saveId > b.saveId ? 1 : 0));
+  const root = fam.find((k) => k.saveId === rootId) ?? null;
   const out: SetRoute<T>[] = [];
   const put = (saveId: string, day: string | null, add: T[]) => {
+    if (!add.length) return;
     const r = out.find((x) => x.saveId === saveId);
     if (r) r.sets.push(...add);
     else out.push({ saveId, day, sets: [...add] });
   };
-  for (const s of sittings) {
-    const near = known
-      .map((k) => ({ k, gap: gapBetween(k.stamps, s.stamps) }))
-      .filter((x) => x.gap <= SAME_SESSION_GRACE_MS)
-      .sort((a, b) => a.gap - b.gap)[0]?.k;
-    const dated = known.find((k) => k.day === s.day);
-    if (near) put(near.saveId, null, s.sets);
-    else if (dated) put(dated.saveId, null, s.sets);
-    else if (s === own) put(rootId, null, s.sets);
-    else put(rehomedSaveId(rootId, s.day), s.day, s.sets);
+  const holds = (k: SavedSitting, s: Stamped): boolean => {
+    const t = stampMs(s.completedAt);
+    if (t == null || !k.sets) return false;
+    const key = setKey(s);
+    return k.sets.some((x) => x.key === key && x.at != null && Math.abs(x.at - t) <= 1000);
+  };
+  const nearestOf = (stamps: number[]): SavedSitting | null => {
+    let best: { k: SavedSitting; gap: number } | null = null;
+    for (const k of fam) {
+      const gap = gapBetween(k.stamps, stamps);
+      if (gap <= SAME_SESSION_GRACE_MS && (!best || gap < best.gap)) best = { k, gap };
+    }
+    return best ? best.k : null;
+  };
+  /** A derived id, or the workout already saved on that day. */
+  const onDay = (day: string): { saveId: string; day: string | null } => {
+    const dated = fam.find((k) => k.day === day && k !== root);
+    return dated ? { saveId: dated.saveId, day: null } : { saveId: rehomedSaveId(rootId, day), day };
+  };
+
+  // 1 — his date.
+  if (byHand) {
+    // …into the family workout that already holds one of its ticks, or
+    // stands within the grace of them, or is dated that day (the other
+    // finisher's copy of this session); else the posted id; else — the id
+    // being another session's — a new workout on the date he set.
+    const stamps = sets.map((x) => stampMs(x.completedAt)).filter((t): t is number => t != null);
+    const theirs = fam.find((k) => sets.some((x) => holds(k, x))) ?? nearestOf(stamps) ?? fam.find((k) => k.day === payloadDay) ?? null;
+    const to = theirs ? { saveId: theirs.saveId, day: null } : root ? onDay(payloadDay) : { saveId: rootId, day: null };
+    put(to.saveId, to.day, sets);
+    return out;
   }
+
+  // 2 — ticks already saved.
+  const rest: T[] = [];
+  for (const x of sets) {
+    const holder = fam.find((k) => holds(k, x));
+    if (holder) put(holder.saveId, null, [x]);
+    else rest.push(x);
+  }
+
+  // 3 — sittings a known workout claims.
+  const { sittings, unstamped } = sittingsOf(rest, dayOf);
+  const free: typeof sittings = [];
+  for (const s of sittings) {
+    const k = nearestOf(s.stamps) ?? fam.find((x) => x.day === s.day) ?? null;
+    if (k) put(k.saveId, null, s.sets);
+    else free.push(s);
+  }
+
+  // 4, 5 — the main sitting, and what folds into it.
+  let loose: { saveId: string; day: string | null } | null = null;
+  if (free.length) {
+    const dated = free.find((s) => s.day === payloadDay);
+    if (!root && !dated) {
+      loose = { saveId: rootId, day: null };
+      for (const s of free) put(rootId, null, s.sets);
+    } else {
+      const working = (s: (typeof free)[number]) => s.sets.filter((x) => !x.isWarmup).length;
+      const main = dated ?? free.reduce((m, s) => (working(s) > working(m) || (working(s) === working(m) && s.stamps[0] > m.stamps[0]) ? s : m));
+      const mainTo = root ? onDay(main.day) : { saveId: rootId, day: null };
+      if (main.day === payloadDay) loose = mainTo;
+      put(mainTo.saveId, mainTo.day, main.sets);
+      for (const s of free) {
+        if (s === main) continue;
+        const to = s.day !== main.day && sessionOfItsOwn(s.sets) ? onDay(s.day) : mainTo;
+        put(to.saveId, to.day, s.sets);
+      }
+    }
+  }
+
+  // 6 — no stamp: the payload's date.
   if (unstamped.length) {
-    const dated = known.find((k) => k.day === payloadDay);
-    if (dated) put(dated.saveId, null, unstamped);
-    else if (!rootSaved) put(rootId, null, unstamped);
-    else put(rehomedSaveId(rootId, payloadDay), payloadDay, unstamped);
+    const dated = fam.find((k) => k.day === payloadDay);
+    const to = dated ? { saveId: dated.saveId, day: null } : loose ?? (root ? onDay(payloadDay) : { saveId: rootId, day: null });
+    put(to.saveId, to.day, unstamped);
   }
   return out;
 }
@@ -499,6 +625,58 @@ export function datedName(name: string, day: string): string {
 export function sittingSeconds(sets: Stamped[]): number | null {
   const ts = sets.map((s) => stampMs(s.completedAt)).filter((t): t is number => t != null);
   return ts.length >= 2 ? Math.round((Math.max(...ts) - Math.min(...ts)) / 1000) : null;
+}
+
+/**
+ * The live row's sets, handed to the sittings of a split save. A tick goes
+ * to the sitting holding the same tick, else to the nearest sitting within
+ * the grace. A TOMBSTONE goes to the sitting that HOLDS the set it removes
+ * (the latest posted copy of that key ticked before the removal) — routed
+ * by its own time, an un-tick made during sitting B for a set lifted in
+ * sitting A never reached A. A tick no sitting takes and no saved workout
+ * holds is an orphan: the caller leaves the row open rather than close it
+ * over a set nobody saved (adversary, 2026-10-02).
+ */
+export function routeLiveSets<L extends { exerciseId: string; setNumber: number; isWarmup?: boolean; completedAt: string; removed?: true }>(
+  routes: Array<{ saveId: string; sets: Stamped[] }>,
+  live: L[],
+  saved: SavedSitting[],
+): { byRoute: Map<string, L[]>; orphans: L[] } {
+  const byRoute = new Map<string, L[]>();
+  const orphans: L[] = [];
+  const give = (saveId: string, l: L) => { const a = byRoute.get(saveId); if (a) a.push(l); else byRoute.set(saveId, [l]); };
+  const posted = routes.map((r) => ({
+    saveId: r.saveId,
+    sets: r.sets.map((s) => ({ key: setKey(s), at: stampMs(s.completedAt) })),
+  }));
+  const nearest = (t: number): string | null => {
+    let best: { saveId: string; gap: number } | null = null;
+    for (const r of posted) for (const s of r.sets) {
+      if (s.at == null) continue;
+      const gap = Math.abs(s.at - t);
+      if (gap <= SAME_SESSION_GRACE_MS && (!best || gap < best.gap)) best = { saveId: r.saveId, gap };
+    }
+    return best ? best.saveId : null;
+  };
+  for (const l of live) {
+    const t = stampMs(l.completedAt);
+    const key = setKey(l);
+    if (t == null) { if (posted.length === 1) give(posted[0].saveId, l); else if (!l.removed) orphans.push(l); continue; }
+    if (l.removed) {
+      let holder: { saveId: string; at: number } | null = null;
+      for (const r of posted) for (const s of r.sets) {
+        if (s.key === key && s.at != null && s.at <= t + 1000 && (!holder || s.at > holder.at)) holder = { saveId: r.saveId, at: s.at };
+      }
+      const to = holder ? holder.saveId : nearest(t);
+      if (to) give(to, l);
+      continue;
+    }
+    const same = posted.find((r) => r.sets.some((s) => s.key === key && s.at != null && Math.abs(s.at - t) <= 1000));
+    const to = same ? same.saveId : nearest(t);
+    if (to) give(to, l);
+    else if (!saved.some((k) => k.sets?.some((s) => s.key === key && s.at != null && Math.abs(s.at - t) <= 1000))) orphans.push(l);
+  }
+  return { byRoute, orphans };
 }
 
 /** What the server says of a draft's save id (getSaveIdOwner). */
