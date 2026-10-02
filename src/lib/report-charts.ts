@@ -31,7 +31,11 @@ export interface ChartSeries {
 }
 
 export interface ChartSpec {
-  key: 'weight' | 'bp' | 'cpap-hours' | 'cpap-ahi' | 'dose';
+  /** Axis labels at chosen points, in place of the three date ticks (a
+   *  day-since-dose axis, a month axis). */
+  xLabels?: Array<{ t: number; label: string }>;
+  /** The five report charts, or a Patterns chart (src/lib/patterns.ts). */
+  key: 'weight' | 'bp' | 'cpap-hours' | 'cpap-ahi' | 'dose' | `pattern-${string}`;
   title: string;
   unit: string;
   series: ChartSeries[];
@@ -169,8 +173,10 @@ export function layoutChart(
   });
 
   const mid = tLo + tSpan / 2;
-  const xTicks = (tSpan >= 3 * DAY_MS ? [tMin, mid, tMax] : [tMin, tMax])
-    .map((t) => ({ x: px(Math.min(Math.max(t, tLo), tLo + tSpan)), label: shortDate(t) }));
+  const clampX = (t: number) => px(Math.min(Math.max(t, tLo), tLo + tSpan));
+  const xTicks = spec.xLabels
+    ? spec.xLabels.map((l) => ({ x: clampX(l.t), label: l.label }))
+    : (tSpan >= 3 * DAY_MS ? [tMin, mid, tMax] : [tMin, tMax]).map((t) => ({ x: clampX(t), label: shortDate(t) }));
 
   return {
     spec,

@@ -17,6 +17,10 @@ const TONE: Record<string, string> = {
   hours: 'text-acc-teal',
   ahi: 'text-acc-violet',
   dose: 'text-acc-teal',
+  // Patterns (src/lib/patterns.ts)
+  kcal: 'text-acc-teal',
+  kg: 'text-acc-violet',
+  pressure: 'text-acc-cyan',
 };
 
 const fmtV = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
@@ -24,6 +28,8 @@ const fmtV = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 export default function ReportChart({ spec }: { spec: ChartSpec }) {
   const c = layoutChart(spec, W, H);
   const multi = c.series.length > 1;
+  // Labels the spec places itself under bars (day 0…6) sit under their bar.
+  const centred = !!spec.xLabels && c.series.some((s) => s.kind === 'bar');
   return (
     <figure className="mt-2 break-inside-avoid">
       <figcaption className="mb-0.5 flex items-baseline justify-between gap-2 text-[11px] text-app-tx3 print:text-gray-600">
@@ -61,7 +67,7 @@ export default function ReportChart({ spec }: { spec: ChartSpec }) {
               key={`x${i}`}
               x={t.x}
               y={H - 3}
-              textAnchor={i === 0 ? 'start' : i === c.xTicks.length - 1 ? 'end' : 'middle'}
+              textAnchor={centred ? 'middle' : i === 0 ? 'start' : i === c.xTicks.length - 1 ? 'end' : 'middle'}
               fontSize={8}
               fill="currentColor"
             >
