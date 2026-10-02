@@ -55,6 +55,12 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
 - `src/lib/health-insights.ts` — the pure brain (clock, rotation,
   snapshot, projections, day-relative symptoms, dose comparison, AF
   stats/correlates, CPAP/BP aggregates, severe-symptom notice gate).
+- `src/lib/patterns.ts` — the Patterns page's five questions over what he
+  logs daily (dose week, dose levels, food and the scale, sleep and the
+  next day, monthly pressure and apnea). Pure, null = "not enough data
+  yet": an average needs 3 values, a chart 4 points, a share 5 items, and
+  every number prints its count. The page only fetches and renders; the
+  suite bans causal and advisory words in both files.
 - `src/app/health-actions.ts` — server actions: seeding (profile 169 cm /
   133 kg / goal 103, dose plan 2.5×4 → 5×2 → doctor review, Nebilet +
   Mounjaro, baseline LDL 4.54), bounded writes for every entity.
