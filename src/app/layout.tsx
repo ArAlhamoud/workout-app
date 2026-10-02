@@ -68,9 +68,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         {/* Chroma ground — flat bone, one fixed layer */}
         <div className="aurora-sky" aria-hidden="true" />
-        {/* Opaque ground behind the clock and the Dynamic Island: rows used
-            to scroll up under them and show through (simulator, 2026-10-02). */}
-        <div className="status-cover print:hidden" aria-hidden="true" />
         <main className="mx-auto px-4 pt-[calc(1.25rem+env(safe-area-inset-top))] pb-32 max-w-lg">
           {children}
         </main>
