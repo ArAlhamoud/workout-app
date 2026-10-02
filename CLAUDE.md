@@ -34,6 +34,11 @@ Each of these broke something real. Do not relearn them.
    change inside a transformed element (the skewed volt flag, rows that slide
    on swipe): the DOM said "Set 1/3", the screen said "SET 1/4". Key such
    nodes by what they show, and key list rows by identity, never by index.
+   And the simulator is not the phone: a fixed strip added behind the status
+   bar looked clean in the simulator, and on his iPhone iOS painted a grey
+   gradient over the top of every screen from it (owner, 2026-10-02: "I
+   don't like this gradient look"). Nothing fixed sits at the top edge;
+   content scrolls under the status bar the way it always did.
 
 4. **Weight stacks move in pins, not kilograms.** A jump from 23→27.5 kg
    is one pin, not a user error. Progression logic learns per-machine pin
