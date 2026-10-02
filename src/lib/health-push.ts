@@ -4,8 +4,8 @@
 //
 // Client-side: it talks to HealthKit through the Capacitor bridge.
 
-import { coveredByExisting } from '@/lib/health';
-import { queryWorkouts, queryWorkoutStats, saveWorkout } from '@/lib/native-health';
+import { coveredByExisting } from './health';
+import { queryWorkouts, queryWorkoutStats, saveWorkout } from './native-health';
 
 export interface HealthPushCandidate {
   id: string;
@@ -37,14 +37,46 @@ const LOOKBACK_MS = 6 * 3_600_000;
 
 const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-export async function pushWorkoutsToHealth(candidates: HealthPushCandidate[]): Promise<HealthPushOutcome> {
+/** The three bridge calls the push makes; replaceable so the suite can
+ *  run two pushes against one pretend Health store. */
+export interface HealthPushBridge {
+  queryWorkouts: typeof queryWorkouts;
+  queryWorkoutStats: typeof queryWorkoutStats;
+  saveWorkout: typeof saveWorkout;
+}
+const nativeBridge: HealthPushBridge = { queryWorkouts, queryWorkoutStats, saveWorkout };
+
+// ONE push at a time. The autopilot and "Sync now" each ran this
+// check-then-write on their own: both could read Health before either
+// wrote, and the same session went in twice — a write the app can never
+// undo (rule 11; review, 2026-10-02). A later call waits for the one in
+// flight and only then reads Health, so it sees what that one wrote.
+let pushChain: Promise<unknown> = Promise.resolve();
+
+export function pushWorkoutsToHealth(
+  candidates: HealthPushCandidate[],
+  bridge: HealthPushBridge = nativeBridge,
+): Promise<HealthPushOutcome> {
+  const run = pushChain.then(() => pushOnce(candidates, bridge));
+  pushChain = run.catch(() => undefined);
+  return run;
+}
+
+/** Windows written since the page loaded, in case Health's own query has
+ *  not caught up with a save that just returned. */
+const writtenThisLoad: Array<{ startISO: string; endISO: string; activityType?: string }> = [];
+/** Windows whose save failed or timed out this page load: possibly written. */
+const maybeThisLoad: Array<{ startISO: string; endISO: string; activityType?: string }> = [];
+
+async function pushOnce(candidates: HealthPushCandidate[], bridge: HealthPushBridge): Promise<HealthPushOutcome> {
+  const { queryWorkouts, queryWorkoutStats, saveWorkout } = bridge;
   const out: HealthPushOutcome = { savedIds: [], alreadyIds: [], enrichment: [], errors: [] };
   if (!candidates.length) return out;
 
   const earliest = Math.min(...candidates.map((c) => Date.parse(c.start)));
   let existing: Array<{ startISO: string; endISO: string; activityType?: string }>;
   try {
-    existing = await queryWorkouts(new Date(earliest - LOOKBACK_MS).toISOString());
+    existing = [...(await queryWorkouts(new Date(earliest - LOOKBACK_MS).toISOString())), ...writtenThisLoad];
   } catch (e) {
     // Without seeing what Health already holds, write nothing this run: a
     // missed write retries on the next open; a duplicate never goes away.
@@ -72,6 +104,10 @@ export async function pushWorkoutsToHealth(candidates: HealthPushCandidate[]): P
       out.alreadyIds.push(c.id);
       continue;
     }
+    if (coveredByExisting({ start, end }, maybeThisLoad)) {
+      out.errors.push('save: an earlier save of this session is still unconfirmed');
+      continue;
+    }
     try {
       // No energy value, on purpose. Energy READ out of Health for this window
       // and written back as a new workout double-counts a session the Watch
@@ -79,9 +115,18 @@ export async function pushWorkoutsToHealth(candidates: HealthPushCandidate[]): P
       await saveWorkout({ startISO: c.start, endISO, name: c.name });
       out.savedIds.push(c.id);
       // Two candidates in one run can never both land on the same window.
-      existing = [...existing, { startISO: c.start, endISO, activityType: 'traditionalStrengthTraining' }];
+      const written = { startISO: c.start, endISO, activityType: 'traditionalStrengthTraining' };
+      existing = [...existing, written];
+      writtenThisLoad.push(written);
     } catch (e) {
       out.errors.push(`save: ${why(e)}`);
+      // Outcome UNKNOWN, not "not written": the bridge gives up after 20 s
+      // while HealthKit may still finish the save. Treat the window as
+      // taken for the rest of this page load, or the caller queued behind
+      // this one writes it again (adversary probe, 2026-10-02) — taken, but
+      // NOT "already in Health": that stamp needs proof (rule 11), so the
+      // row stays unmarked and a later load asks Health itself.
+      maybeThisLoad.push({ startISO: c.start, endISO, activityType: 'traditionalStrengthTraining' });
     }
   }
   return out;

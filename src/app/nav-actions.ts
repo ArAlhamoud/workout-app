@@ -7,7 +7,7 @@
 
 import prisma from '@/lib/prisma';
 import { calendarDaysBetween, getDynamicPlan, isTrainingSession, queuedDay } from '@/lib/program';
-import { DEFAULT_DOSE_PLAN, ownerDayKey, ownerTodayUtc, treatmentClock } from '@/lib/health-insights';
+import { DEFAULT_DOSE_PLAN, ownerActivityDayUtc, treatmentClock } from '@/lib/health-insights';
 
 export async function getRoomGlances(): Promise<Record<string, string>> {
   try {
@@ -27,7 +27,7 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
         // table — "the latest row" must mean the latest day he has EATEN,
         // or today reads as unlogged while a future row exists.
         prisma.nutritionLog.findFirst({
-          where: { day: { lte: ownerTodayUtc(now) } },
+          where: { day: { lte: ownerActivityDayUtc(now) } },
           orderBy: { day: 'desc' },
           select: { day: true, kcal: true, proteinG: true },
         }),
@@ -54,8 +54,11 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
         ? `last ${latestInjection.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
         : 'first dose ahead',
       '/health/diet': (() => {
-        // Nutrition days sit at UTC midnight of the owner's calendar day.
-        const key = ownerDayKey(now);
+        // Nutrition days sit at UTC midnight of the owner's ACTIVITY day
+        // (04:00 rollover), the clock the Diet page and the tracker log by.
+        // The calendar day here read "not logged today" after midnight
+        // beside a Diet page showing the day's 1671 kcal (2026-10-02).
+        const key = ownerActivityDayUtc(now).toISOString().slice(0, 10);
         if (latestFuel && latestFuel.day.toISOString().slice(0, 10) === key) {
           return latestFuel.kcal != null ? `${latestFuel.kcal} kcal today` : `${latestFuel.proteinG ?? 0}g protein today`;
         }
@@ -75,14 +78,14 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
 export async function getNowDoors(): Promise<Array<{ href: string; label: string; icon: string }>> {
   try {
     const now = new Date();
-    const todayKey = ownerDayKey(now);
+    const todayKey = ownerActivityDayUtc(now).toISOString().slice(0, 10);
     const dayStart = new Date(now.getTime() - 24 * 3_600_000);
     const [latestInjection, injectionCount, latestFuel, bpToday, bpEver, profile, injectionsRecent] =
       await Promise.all([
         prisma.injection.findFirst({ orderBy: { at: 'desc' }, select: { at: true } }),
         prisma.injection.count(),
         prisma.nutritionLog.findFirst({
-          where: { day: { lte: ownerTodayUtc(now) } },
+          where: { day: { lte: ownerActivityDayUtc(now) } },
           orderBy: { day: 'desc' },
           select: { day: true },
         }),

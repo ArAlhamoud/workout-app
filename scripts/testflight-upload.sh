@@ -25,6 +25,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Never ship a shell that loads a preview or localhost.
+bash "$ROOT/scripts/check-server-url.sh"
 KEY_ID="Q4C9KQJY37"
 ISSUER_ID="3b3a22df-7fe5-4ad4-a523-1aa60fcd9eee"
 KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${KEY_ID}.p8"

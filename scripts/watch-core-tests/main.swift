@@ -493,6 +493,12 @@ do {
 print("Watch core — the Action Button on a day the plan advises against (R6, R8)")
 do {
     check(SessionCore.buttonStarts(mode: "train"), "a training day starts with zero taps")
+    // The phone's session could not be read, yet the plan came back: signal
+    // is there and the live lookup failed. Opening a new session id now
+    // would close the phone's open row and split the workout in two.
+    check(!SessionCore.buttonMayOpenNew(liveKnown: false, planFresh: true), "live lookup failed but the plan arrived: the button does not open a new session behind the phone's back")
+    check(SessionCore.buttonMayOpenNew(liveKnown: true, planFresh: true), "the server said nothing is live: start")
+    check(SessionCore.buttonMayOpenNew(liveKnown: false, planFresh: false), "no signal at all: the offline start still works")
     check(!SessionCore.buttonStarts(mode: "recover") && !SessionCore.buttonStarts(mode: "done"), "a recovery day or a second session lands on the Start screen with the plan's advice — one tap to go ahead")
     check(!SessionCore.promiseKept(shown: "A", opened: "B"), "the big button read Day A and the queue is now Day B: show it, do not open it")
     check(SessionCore.promiseKept(shown: "A", opened: "A") && SessionCore.promiseKept(shown: nil, opened: "B"), "same day, or no day was on screen (the Action Button): start")
