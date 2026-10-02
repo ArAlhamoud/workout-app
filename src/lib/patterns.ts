@@ -19,7 +19,7 @@
 // nothing here fills one in.
 
 import { bpWeightStory, CPAP_ADHERENT_HOURS, ownerActivityDayUtc, ownerDayKey, ownerMonthKey } from './health-insights';
-import { monthLabel, signedKg } from './health-format';
+import { monthLabel, shortDay, signedKg } from './health-format';
 import { MIN_TREND_POINTS, type ChartSpec } from './report-charts';
 
 const DAY_MS = 86_400_000;
@@ -55,6 +55,11 @@ const storedDay = (d: When): number => dayNum(new Date(d).toISOString().slice(0,
 const activityToday = (now: Date): number => storedDay(ownerActivityDayUtc(now));
 
 const mean = (xs: number[]): number => xs.reduce((s, v) => s + v, 0) / xs.length;
+const median = (xs: number[]): number => {
+  const s = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+};
 const round1 = (n: number): number => Math.round(n * 10) / 10 + 0; // + 0: never −0
 const avgOrNull = (xs: number[], round: (n: number) => number): number | null =>
   xs.length >= MIN_AVG ? round(mean(xs)) : null;
@@ -179,8 +184,12 @@ export function weekAfterDose(doses: DoseIn[], diet: DietIn[], weights: WeighIn[
   };
 }
 
-const offsetLabels = (from: number, to: number) =>
-  Array.from({ length: to - from + 1 }, (_, i) => ({ t: (from + i) * DAY_MS, label: String(from + i) }));
+/** One axis label under each bar or point, and none anywhere else: the
+ *  weekly axis once printed "10 Sept", the midpoint of the axis, a date no
+ *  bar stood on (2026-10-02). */
+const markLabels = (points: Array<{ t: number }>, label: (t: number) => string) =>
+  points.map((p) => ({ t: p.t, label: label(p.t) }));
+const offsetLabel = (t: number) => String(Math.round(t / DAY_MS));
 
 /** Seven kcal bars and the weight line, on a day-since-dose axis. */
 export function weekAfterDoseCharts(r: WeekAfterDose): { kcal: ChartSpec | null; weight: ChartSpec | null } {
@@ -195,7 +204,7 @@ export function weekAfterDoseCharts(r: WeekAfterDose): { kcal: ChartSpec | null;
           series: [{ key: 'kcal', label: 'kcal', kind: 'bar', points: bars }],
           refs: [],
           zeroBased: true,
-          xLabels: offsetLabels(0, 6),
+          xLabels: markLabels(bars, offsetLabel),
         }
       : null,
     weight: line.length >= MIN_TREND_POINTS
@@ -206,7 +215,7 @@ export function weekAfterDoseCharts(r: WeekAfterDose): { kcal: ChartSpec | null;
           series: [{ key: 'kg', label: 'kg', kind: 'line', points: line }],
           refs: [],
           zeroBased: false,
-          xLabels: offsetLabels(r.days.find((d) => d.kgChange !== null)!.offset, [...r.days].reverse().find((d) => d.kgChange !== null)!.offset),
+          xLabels: markLabels(line, offsetLabel),
         }
       : null,
   };
@@ -278,6 +287,9 @@ export interface FoodWeek {
   days: number;
   /** kg per 7 days, first to last weigh-in of the week. */
   kgChange: number;
+  /** Logged days under half the week's median kcal, lowest first. They
+   *  stay in `kcal`; the page names them (lowDayNote). */
+  lowDays: number[];
 }
 export interface FoodBucket { kcal: number; proteinG: number | null; kgChange: number; n: number }
 export interface FoodAndScale {
@@ -319,6 +331,7 @@ export function foodAndScale(diet: DietIn[], weights: WeighIn[], now: Date = new
       proteinG: avgOrNull(w.protein, Math.round),
       days: w.kcal.length,
       kgChange: round1(change),
+      lowDays: w.kcal.filter((v) => v < median(w.kcal) / 2).sort((a, b) => a - b),
     });
   }
   if (weeks.length < MIN_TREND_POINTS) return null;
@@ -340,6 +353,7 @@ export function foodAndScale(diet: DietIn[], weights: WeighIn[], now: Date = new
 export function foodAndScaleCharts(r: FoodAndScale): { kcal: ChartSpec | null; weight: ChartSpec | null } {
   if (r.weeks.length < MIN_TREND_POINTS) return { kcal: null, weight: null };
   const t = (w: FoodWeek) => dayNum(w.weekStart) * DAY_MS;
+  const xLabels = r.weeks.map((w) => ({ t: t(w), label: weekLabel(w.weekStart) }));
   return {
     kcal: {
       key: 'pattern-week-kcal',
@@ -348,6 +362,7 @@ export function foodAndScaleCharts(r: FoodAndScale): { kcal: ChartSpec | null; w
       series: [{ key: 'kcal', label: 'kcal', kind: 'bar', points: r.weeks.map((w) => ({ t: t(w), v: w.kcal })) }],
       refs: [],
       zeroBased: true,
+      xLabels,
     },
     weight: {
       key: 'pattern-week-weight',
@@ -356,6 +371,7 @@ export function foodAndScaleCharts(r: FoodAndScale): { kcal: ChartSpec | null; w
       series: [{ key: 'kg', label: 'kg', kind: 'line', points: r.weeks.map((w) => ({ t: t(w), v: w.kgChange })) }],
       refs: [],
       zeroBased: false,
+      xLabels,
     },
   };
 }
@@ -475,8 +491,37 @@ export function monthTrends(bp: BpIn[], nights: NightIn[], weights: WeighIn[], n
 }
 
 const monthT = (month: string): number => Date.parse(`${month}-01T00:00:00Z`);
-const monthEnds = (rows: Array<{ month: string }>) =>
-  [rows[0], rows[rows.length - 1]].map((m) => ({ t: monthT(m.month), label: monthLabel(m.month) }));
+/** Every month's point is named under it. */
+const monthMarks = (rows: Array<{ month: string }>) =>
+  rows.map((m) => ({ t: monthT(m.month), label: monthLabel(m.month) }));
+
+/** One month on the card: its weight once, then whichever of BP and AHI
+ *  that month has. A missing figure is null — the page prints a dash. */
+export interface MonthRow {
+  month: string;
+  kg: number;
+  bp: { systolic: number; diastolic: number } | null;
+  ahi: number | null;
+  /** The pressure the machine reached; shown behind the tap only. */
+  press: number | null;
+}
+
+/**
+ * The BP months and the AHI months as ONE list, oldest first. The card
+ * listed each month twice, weight repeated (2026-10-02). Both lists read
+ * the month's weight off the same weigh-ins, so either one stands for it.
+ */
+export function monthRows(r: MonthTrends): MonthRow[] {
+  const by = new Map<string, MonthRow>();
+  for (const m of r.bp ?? []) {
+    by.set(m.month, { month: m.month, kg: m.kg, bp: { systolic: m.systolic, diastolic: m.diastolic }, ahi: null, press: null });
+  }
+  for (const m of r.apnea ?? []) {
+    const cur = by.get(m.month);
+    by.set(m.month, { month: m.month, kg: cur?.kg ?? m.kg, bp: cur?.bp ?? null, ahi: m.ahi, press: m.press });
+  }
+  return [...by.values()].sort((a, b) => a.month.localeCompare(b.month));
+}
 
 /** Monthly points as lines — only with four months behind each line. */
 export function monthTrendCharts(r: MonthTrends): { weight: ChartSpec | null; bp: ChartSpec | null; apnea: ChartSpec | null } {
@@ -494,7 +539,7 @@ export function monthTrendCharts(r: MonthTrends): { weight: ChartSpec | null; bp
           series: [{ key: 'weight', label: 'Weight', kind: 'line', points: kgRows.map((m) => ({ t: monthT(m.month), v: m.kg })) }],
           refs: [],
           zeroBased: false,
-          xLabels: monthEnds(kgRows),
+          xLabels: monthMarks(kgRows),
         }
       : null,
     bp: bp
@@ -508,7 +553,7 @@ export function monthTrendCharts(r: MonthTrends): { weight: ChartSpec | null; bp
           ],
           refs: [],
           zeroBased: false,
-          xLabels: monthEnds(bp),
+          xLabels: monthMarks(bp),
         }
       : null,
     apnea: apnea
@@ -524,7 +569,7 @@ export function monthTrendCharts(r: MonthTrends): { weight: ChartSpec | null; bp
           ],
           refs: [],
           zeroBased: true,
-          xLabels: monthEnds(apnea),
+          xLabels: monthMarks(apnea),
         }
       : null,
   };
@@ -539,5 +584,16 @@ export const kcalLabel = (kcal: number): string => kcal.toLocaleString('en-US');
 export const kgChangeLabel = (change: number): string => `${signedKg(-change)} kg`;
 
 /** "2026-08-31" → "31 Aug" — a week is named by its Monday. */
-export const weekLabel = (weekStart: string): string =>
-  new Date(`${weekStart}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+export const weekLabel = (weekStart: string): string => shortDay(`${weekStart}T00:00:00Z`, 'UTC');
+
+/**
+ * "31 Aug includes one day at 692 kcal" — said only for a week that has a
+ * logged day under half its own median. A statement of what is in the
+ * average, nothing more: the day is counted like any other.
+ */
+export function lowDayNote(w: FoodWeek): string | null {
+  if (!w.lowDays.length) return null;
+  const kcals = w.lowDays.map(kcalLabel);
+  const list = kcals.length === 1 ? kcals[0] : `${kcals.slice(0, -1).join(', ')} and ${kcals[kcals.length - 1]}`;
+  return `${weekLabel(w.weekStart)} includes ${kcals.length === 1 ? 'one day' : `${kcals.length} days`} at ${list} kcal`;
+}

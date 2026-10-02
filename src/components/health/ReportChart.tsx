@@ -28,8 +28,9 @@ const fmtV = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 export default function ReportChart({ spec }: { spec: ChartSpec }) {
   const c = layoutChart(spec, W, H);
   const multi = c.series.length > 1;
-  // Labels the spec places itself under bars (day 0…6) sit under their bar.
-  const centred = !!spec.xLabels && c.series.some((s) => s.kind === 'bar');
+  // Labels the spec places itself (day 0…6, weeks, months) sit centred under
+  // their bar or point; the report's own date ticks keep to the edges.
+  const centred = !!spec.xLabels;
   return (
     <figure className="mt-2 break-inside-avoid">
       <figcaption className="mb-0.5 flex items-baseline justify-between gap-2 text-[11px] text-app-tx3 print:text-gray-600">

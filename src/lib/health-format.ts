@@ -25,6 +25,19 @@ const dayMonth = (key: string, monthFirst: boolean): string => {
   return monthFirst ? `${month} ${Number(dd)}` : `${Number(dd)} ${month}`;
 };
 
+/**
+ * "7 Sep" — the ONE short day label for charts and Patterns. The month
+ * comes from the table above, not from the runtime: `toLocaleDateString`
+ * with en-GB prints "Sept" on a newer ICU and "Sep" on an older one, so
+ * the weekly axis read "10 Sept" beside "Sep" everywhere else
+ * (2026-10-02). The time zone is always said: Asia/Riyadh for an instant,
+ * UTC for a row stored as a bare day.
+ */
+export function shortDay(d: Date | number | string, timeZone: string): string {
+  const key = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(d));
+  return dayMonth(key, false);
+}
+
 // ── Weight ───────────────────────────────────────────────────
 
 /**

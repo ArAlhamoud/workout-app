@@ -14,6 +14,8 @@
  * line, the app does not grade it.
  */
 
+import { shortDay } from './health-format';
+
 const DAY_MS = 86_400_000;
 
 export type SeriesKind = 'line' | 'step' | 'bar';
@@ -32,7 +34,9 @@ export interface ChartSeries {
 
 export interface ChartSpec {
   /** Axis labels at chosen points, in place of the three date ticks (a
-   *  day-since-dose axis, a month axis). */
+   *  day-since-dose axis, a week axis, a month axis): one per bar or
+   *  point, drawn centred under it. The layout drops some only when they
+   *  would print over each other (`thinLabels`). */
   xLabels?: Array<{ t: number; label: string }>;
   /** The five report charts, or a Patterns chart (src/lib/patterns.ts). */
   key: 'weight' | 'bp' | 'cpap-hours' | 'cpap-ahi' | 'dose' | `pattern-${string}`;
@@ -121,8 +125,38 @@ export function yScale(
   return { min, max, ticks };
 }
 
-const shortDate = (t: number) =>
-  new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' });
+const shortDate = (t: number) => shortDay(t, 'Asia/Riyadh');
+
+/** An axis label is drawn 8 units tall (ReportChart): about this wide a
+ *  character, and this much air between two neighbours. */
+const LABEL_CHAR_W = 4.6;
+const LABEL_GAP = 4;
+const MAX_THINNED_LABELS = 6;
+
+/**
+ * Labels centred on their marks, thinned only when neighbours would
+ * collide: then the first, the last and evenly spaced ones between, six
+ * at most. A label is never moved — one that stays is still under its own
+ * bar or point.
+ */
+export function thinLabels<T extends { x: number; label: string }>(ticks: T[]): T[] {
+  const sorted = [...ticks].sort((a, b) => a.x - b.x);
+  const n = sorted.length;
+  const half = (t: T) => (t.label.length * LABEL_CHAR_W) / 2;
+  const clear = (xs: T[]) => xs.every((t, i) => i === 0 || t.x - xs[i - 1].x >= half(t) + half(xs[i - 1]) + LABEL_GAP);
+  if (n <= 2 || clear(sorted)) return sorted;
+  // An exact stride first (every 3rd of 16); a count with none (12 months)
+  // takes the nearest thing to one.
+  for (const exact of [true, false]) {
+    for (let k = Math.min(n - 1, MAX_THINNED_LABELS); k >= 3; k--) {
+      const idx = Array.from({ length: k }, (_, i) => Math.round((i * (n - 1)) / (k - 1)));
+      if (exact && (n - 1) % (k - 1) !== 0) continue;
+      const pick = idx.map((i) => sorted[i]);
+      if (clear(pick)) return pick;
+    }
+  }
+  return [sorted[0], sorted[n - 1]];
+}
 
 const tickLabel = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
 
@@ -175,7 +209,7 @@ export function layoutChart(
   const mid = tLo + tSpan / 2;
   const clampX = (t: number) => px(Math.min(Math.max(t, tLo), tLo + tSpan));
   const xTicks = spec.xLabels
-    ? spec.xLabels.map((l) => ({ x: clampX(l.t), label: l.label }))
+    ? thinLabels(spec.xLabels.map((l) => ({ x: clampX(l.t), label: l.label })))
     : (tSpan >= 3 * DAY_MS ? [tMin, mid, tMax] : [tMin, tMax]).map((t) => ({ x: clampX(t), label: shortDate(t) }));
 
   return {

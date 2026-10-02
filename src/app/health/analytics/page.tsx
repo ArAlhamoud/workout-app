@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import Link from 'next/link';
 import BackLink from '@/components/BackLink';
 import ReportChart from '@/components/health/ReportChart';
@@ -22,6 +22,8 @@ import {
   foodAndScaleCharts,
   kcalLabel,
   kgChangeLabel,
+  lowDayNote,
+  monthRows,
   monthTrendCharts,
   monthTrends,
   sleepAndNextDay,
@@ -255,11 +257,15 @@ export default async function HealthAnalyticsPage() {
     </div>
   );
 
-  const bpMonths = months?.bp ?? null;
-  const apneaMonths = months?.apnea ?? null;
+  const lowDayNotes = food ? food.weeks.map((w) => lowDayNote(w)).filter((n): n is string => n !== null) : [];
+
+  // One row a month: weight, BP, AHI. It listed BP months and then AHI
+  // months, the weight twice (2026-10-02).
+  const monthList = months ? monthRows(months).slice(-6) : [];
   const hasMonthLine = !!monthCharts && (monthCharts.bp !== null || monthCharts.apnea !== null);
   /** First and latest month when a line exists; every month otherwise. */
-  const ends = <T,>(rows: T[]): T[] => (hasMonthLine && rows.length > 2 ? [rows[0], rows[rows.length - 1]] : rows.slice(-6));
+  const shownMonths = hasMonthLine && monthList.length > 2 ? [monthList[0], monthList[monthList.length - 1]] : monthList;
+  const pressMonths = monthList.filter((m) => m.press !== null);
 
   return (
     <div className="space-y-4 pb-8">
@@ -398,6 +404,12 @@ export default async function HealthAnalyticsPage() {
                 weeks the lower and the upper half are averaged; before that the lightest and the
                 fullest week stand alone.
               </p>
+              {lowDayNotes.length > 0 && (
+                <p>
+                  {lowDayNotes.join('. ')}. A day under half its week&apos;s median is named here and
+                  stays in the average.
+                </p>
+              )}
               <p>Seen together in your logs — water moves the scale as much as food does.</p>
             </More>
           </>
@@ -440,37 +452,40 @@ export default async function HealthAnalyticsPage() {
       {/* 5 · Pressure and apnea as the weight falls */}
       <div className="card-lg p-4">
         <p className="section-label mb-2">Pressure and apnea as the weight falls</p>
-        {!bpMonths && !apneaMonths ? (
+        {shownMonths.length === 0 ? (
           notYet('2 months of BP or CPAP with weigh-ins')
         ) : (
-          <div className="space-y-1.5">
-            {bpMonths && ends(bpMonths).map((m) => (
-              <div key={`bp${m.month}`} className="flex items-baseline justify-between text-sm">
+          // One grid, so the columns line up down the months; keyed by month.
+          <div className="grid grid-cols-[auto_1fr_1fr_1fr] items-baseline gap-x-2 gap-y-1.5 whitespace-nowrap text-sm tabular-nums">
+            {shownMonths.map((m) => (
+              <Fragment key={m.month}>
                 <span className="text-xs text-app-tx3">{monthLabel(m.month)}</span>
-                <span className="tabular-nums text-app-tx1">{m.kg} kg</span>
-                <span className="tabular-nums text-app-tx2">BP {m.systolic}/{m.diastolic}</span>
-              </div>
-            ))}
-            {apneaMonths && ends(apneaMonths).map((m) => (
-              <div key={`ap${m.month}`} className="flex items-baseline justify-between text-sm">
-                <span className="text-xs text-app-tx3">{monthLabel(m.month)}</span>
-                <span className="tabular-nums text-app-tx1">{m.kg} kg</span>
-                <span className="tabular-nums text-app-tx2">AHI {m.ahi}</span>
-                {m.press != null && (
-                  <span className="tabular-nums text-app-tx3">{m.press} hPa</span>
-                )}
-              </div>
+                <span className="text-right text-app-tx1">{m.kg} kg</span>
+                <span className="text-right text-app-tx2">{m.bp ? `BP ${m.bp.systolic}/${m.bp.diastolic}` : '—'}</span>
+                <span className="text-right text-app-tx2">{m.ahi !== null ? `AHI ${m.ahi}` : '—'}</span>
+              </Fragment>
             ))}
           </div>
         )}
-        {hasMonthLine && monthCharts && (
-          <More summary="The months as lines">
-            {monthCharts.weight && <ReportChart spec={monthCharts.weight} />}
-            {monthCharts.bp && <ReportChart spec={monthCharts.bp} />}
-            {monthCharts.apnea && <ReportChart spec={monthCharts.apnea} />}
+        {shownMonths.length > 0 && (
+          <More summary={hasMonthLine ? 'The months as lines' : 'What is counted'}>
+            {monthCharts?.weight && <ReportChart spec={monthCharts.weight} />}
+            {monthCharts?.bp && <ReportChart spec={monthCharts.bp} />}
+            {monthCharts?.apnea && <ReportChart spec={monthCharts.apnea} />}
+            {pressMonths.length > 0 && (
+              <div className="space-y-1 text-xs">
+                {pressMonths.map((m) => (
+                  <div key={m.month} className="flex items-baseline justify-between gap-2">
+                    <span className="text-app-tx3">{monthLabel(m.month)} · machine pressure</span>
+                    <span className="tabular-nums text-app-tx1">{m.press} hPa</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <p>
-              Each point is a month&apos;s average. A BP month needs 3 readings, an AHI month 3
-              measured nights, and both need 2 weigh-ins. A line needs 4 months.
+              Each figure is a month&apos;s average. A BP month needs 3 readings, an AHI month 3
+              measured nights, and both need 2 weigh-ins; a month without one shows a dash. A line
+              needs 4 months.
             </p>
             <p>Seen together in your logs — not a reason.</p>
           </More>

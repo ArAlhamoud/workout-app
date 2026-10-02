@@ -4990,6 +4990,8 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
 // four cards waited on symptom and AF logs he rarely has. These read what he
 // DOES log. Every analysis is a pure function in src/lib/patterns.ts.
 import * as PT from '../src/lib/patterns';
+import { shortDay } from '../src/lib/health-format';
+import type { ChartSpec as PT_ChartSpec } from '../src/lib/report-charts';
 console.log('Patterns — dose week, dose levels, food and scale, sleep, monthly trends');
 {
   const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
@@ -5148,7 +5150,106 @@ console.log('Patterns — dose week, dose levels, food and scale, sleep, monthly
       assert(sl !== null && sl.long.nights + sl.short.nights === hx.health.cpapNight.length && sl.long.hard === null && sl.short.hard === null, `real export: every reported night is on one side; too few sessions for a share (got ${JSON.stringify(sl)})`);
       const mt = PT.monthTrends(hx.health.bpReading, hx.health.cpapNight, hx.bodyStats, now);
       assert(mt?.bp?.length === 2 && mt.apnea?.length === 2 && PT.monthTrendCharts(mt).bp === null, 'real export: two months of pressure and apnea — rows, not a line');
+      const fc1 = fs1 ? PT.foodAndScaleCharts(fs1) : null;
+      const realTicks = fc1?.kcal ? layoutChart(fc1.kcal, 320, 112).xTicks.map((t) => t.label).join() : null;
+      assert(realTicks !== null && realTicks === fs1?.weeks.map((w) => PT.weekLabel(w.weekStart)).join() && realTicks.startsWith('31 Aug,7 Sep,14 Sep,21 Sep') && !/Sept/.test(realTicks), `real export: the weekly axis names each bar's own Monday (got ${realTicks})`);
+      const merged = mt ? PT.monthRows(mt) : [];
+      assert(merged.length === 2 && merged.every((m) => m.bp !== null && m.ahi !== null), `real export: two months, each one row with weight, BP and AHI (got ${JSON.stringify(merged)})`);
+      assert(fs1 !== null && fs1.weeks[0].kcal === 1379 && PT.lowDayNote(fs1.weeks[0]) === '31 Aug includes one day at 692 kcal', `real export: the week of 31 Aug keeps its 692 kcal day in the 1,379 average and names it (got ${fs1?.weeks[0].kcal})`);
     }
+  }
+
+  // Polish round (2026-10-02). On the real page the weekly chart had four
+  // bars (31 Aug, 7, 14, 21 Sep) over an axis reading "31 Aug · 10 Sept ·
+  // 21 Sept": a midpoint date under no bar, and a month spelled two ways.
+  {
+    const ticks = (spec: PT_ChartSpec | null | undefined) => (spec ? layoutChart(spec, 320, 112) : null);
+    const labels = (spec: PT_ChartSpec | null | undefined) => ticks(spec)?.xTicks.map((t) => t.label).join() ?? 'no chart';
+    /** Every axis label sits at the x of a bar or point. */
+    const underMarks = (spec: PT_ChartSpec | null | undefined) => {
+      const c = ticks(spec);
+      if (!c || !c.xTicks.length) return false;
+      const xs = c.series.flatMap((s) => s.points.map((p) => p.x));
+      return c.xTicks.every((t) => xs.some((x) => Math.abs(x - t.x) < 0.01));
+    };
+    const week = (weekStart: string, kcal: number): PT.FoodWeek => ({ weekStart, kcal, proteinG: 120, days: 7, kgChange: -0.5, lowDays: [] });
+    const bucket = { kcal: 1500, proteinG: 120, kgChange: -0.5, n: 1 };
+    const fourWeeks = PT.foodAndScaleCharts({ weeks: ['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21'].map((k, i) => week(k, 1400 + 50 * i)), low: bucket, high: bucket });
+    assert(labels(fourWeeks.kcal) === '31 Aug,7 Sep,14 Sep,21 Sep' && underMarks(fourWeeks.kcal), `four weekly bars, four labels, each under its bar and each the bar's own Monday (got ${labels(fourWeeks.kcal)})`);
+    assert(labels(fourWeeks.weight) === '31 Aug,7 Sep,14 Sep,21 Sep' && underMarks(fourWeeks.weight), `the weekly line carries the same axis as the bars above it (got ${labels(fourWeeks.weight)})`);
+    // A week that did not count leaves a gap: no label is printed for it.
+    const gap = PT.foodAndScaleCharts({ weeks: ['2026-08-31', '2026-09-07', '2026-09-21', '2026-09-28'].map((k) => week(k, 1500)), low: bucket, high: bucket });
+    assert(labels(gap.kcal) === '31 Aug,7 Sep,21 Sep,28 Sep' && underMarks(gap.kcal), `a week that is not counted has no bar and no label (got ${labels(gap.kcal)})`);
+    // Sixteen weeks would print over each other: first, last, evenly spaced.
+    const many = PT.foodAndScaleCharts({ weeks: Array.from({ length: 16 }, (_, i) => week(key('2026-06-01', 7 * i), 1500)), low: bucket, high: bucket });
+    const manyTicks = ticks(many.kcal)?.xTicks ?? [];
+    const steps = manyTicks.slice(1).map((t, i) => t.x - manyTicks[i].x);
+    assert(manyTicks.length >= 3 && manyTicks.length <= 6 && manyTicks[0].label === '1 Jun' && manyTicks[manyTicks.length - 1].label === '14 Sep' && underMarks(many.kcal), `sixteen weeks: the first, the last and a few between, each still under its own bar (got ${labels(many.kcal)})`);
+    assert(steps.length > 0 && Math.min(...steps) >= 30 && Math.max(...steps) - Math.min(...steps) < 0.01 && manyTicks.length === 6, `the labels kept are spaced evenly and clear of each other (steps ${steps.map((x) => Math.round(x)).join()})`);
+    // Day since the dose: a day without an average has no mark and no label.
+    const day = (offset: number, kcal: number | null, kgChange: number | null): PT.DoseDay => ({ offset, kcal, nKcal: kcal === null ? 1 : 3, kgChange, nKg: kgChange === null ? 0 : 3 });
+    const doseCharts = PT.weekAfterDoseCharts({
+      days: [day(0, 1700, 0), day(1, 1500, -0.2), day(2, 1400, -0.4), day(3, 1500, -0.5), day(4, null, null), day(5, 1700, null), day(6, 1800, -0.9)],
+      weeks: 3, low: { offset: 2, kcal: 1400, n: 3 }, other: null,
+    });
+    assert(labels(doseCharts.kcal) === '0,1,2,3,5,6' && underMarks(doseCharts.kcal), `day since the dose: one label under each bar (got ${labels(doseCharts.kcal)})`);
+    assert(labels(doseCharts.weight) === '0,1,2,3,6' && underMarks(doseCharts.weight), `the weight line labels the days it has a point for (got ${labels(doseCharts.weight)})`);
+    const full = PT.weekAfterDoseCharts({ days: Array.from({ length: 7 }, (_, i) => day(i, 1500, -0.1 * i)), weeks: 3, low: { offset: 0, kcal: 1500, n: 3 }, other: null });
+    assert(labels(full.kcal) === '0,1,2,3,4,5,6' && labels(full.weight) === '0,1,2,3,4,5,6', `seven single digits do not collide: all seven days are labelled (got ${labels(full.kcal)})`);
+    // Months.
+    const mon = ['2026-06', '2026-07', '2026-08', '2026-09'];
+    const mc = PT.monthTrendCharts({
+      bp: mon.map((month, i) => ({ month, systolic: 130 - i, diastolic: 84 - i, kg: 133 - i })),
+      apnea: mon.map((month, i) => ({ month, kg: 133 - i, ahi: 3 - 0.5 * i, press: 12 - i })),
+    });
+    for (const [name, spec] of [['weight', mc.weight], ['BP', mc.bp], ['AHI', mc.apnea]] as const) {
+      assert(labels(spec) === 'Jun 2026,Jul 2026,Aug 2026,Sep 2026' && underMarks(spec), `monthly ${name}: every month's point is named under it (got ${labels(spec)})`);
+    }
+    const year = Array.from({ length: 12 }, (_, i) => `2026-${String(i + 1).padStart(2, '0')}`);
+    const yc = PT.monthTrendCharts({ bp: year.map((month, i) => ({ month, systolic: 130 - i, diastolic: 84, kg: 133 - i })), apnea: null });
+    const yt = ticks(yc.bp)?.xTicks ?? [];
+    assert(yt.length >= 3 && yt.length <= 6 && yt[0].label === 'Jan 2026' && yt[yt.length - 1].label === 'Dec 2026' && underMarks(yc.bp), `twelve months: first, last and a few between, each under its point (got ${labels(yc.bp)})`);
+    // One short-month formatter, "Sep", with the time zone said out loud.
+    assert(PT.weekLabel('2026-09-07') === '7 Sep', `a week is "7 Sep", never "7 Sept" (got ${PT.weekLabel('2026-09-07')})`);
+    assert(!/month: 'short'/.test(src('src/lib/patterns.ts')) && !/month: 'short'/.test(src('src/lib/report-charts.ts')) && /shortDay\(/.test(src('src/lib/report-charts.ts')), 'the charts and Patterns print a day through the one formatter, not through the runtime\'s month names');
+    assert(shortDay(at('2026-09-07', '01:00'), 'Asia/Riyadh') === '7 Sep' && shortDay(at('2026-09-07', '01:00'), 'UTC') === '6 Sep', 'the one formatter prints the day on the clock it is asked for');
+    // The doctor report's charts keep their three date ticks, where they were.
+    const report = weightChart(Array.from({ length: 5 }, (_, i) => ({ date: at(key('2026-09-01', 7 * i), '07:00'), weight: 130 - i })));
+    const rc = report ? layoutChart(report, 320, 112) : null;
+    assert(rc?.xTicks.length === 3 && rc.xTicks[0].x === rc.plot.left && rc.xTicks[2].x === rc.plot.right && Math.abs(rc.xTicks[1].x - (rc.plot.left + rc.plot.right) / 2) < 0.01 && rc.xTicks.map((t) => t.label).join() === '1 Sep,15 Sep,29 Sep', `a report chart still ticks its first day, its middle and its last (got ${rc?.xTicks.map((t) => t.label).join()})`);
+    assert(/i === 0 \? 'start'/.test(src('src/components/health/ReportChart.tsx')), 'a report chart still anchors its end ticks to the edges');
+  }
+
+  // Card 3: a week whose average one short day pulls down says so.
+  {
+    const page = src('src/app/health/analytics/page.tsx');
+    assert(/lowDayNote\(/.test(page), 'the page prints the short-day note behind the details tap');
+    const mondays = ['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21'];
+    const diet: PT.DietIn[] = mondays.flatMap((m) => Array.from({ length: 7 }, (_, i) => ({ day: bare(key(m, i)), kcal: 1550, proteinG: 120 })));
+    diet[3].kcal = 700;   // week one: under half of the 1,550 median
+    diet[10].kcal = 800;  // week two: low, but not under half
+    diet[14].kcal = 600;  // week three: two such days
+    diet[15].kcal = 700;
+    const weights = Array.from({ length: 5 }, (_, i) => ({ date: at(key('2026-08-31', i * 7), '07:00'), weight: 130 - i }));
+    const r = PT.foodAndScale(diet, weights, at('2026-09-28', '12:00'));
+    assert(r?.weeks.length === 4 && r.weeks[0].kcal === 1429 && r.weeks[0].days === 7, `the short day stays in its week's average: (6 × 1550 + 700) / 7 (got ${r?.weeks[0].kcal})`);
+    assert(r?.weeks.map((w) => (w.lowDays ?? ['none']).join('/')).join() === '700,,600/700,', `a logged day under half its week's median is kept by name; 800 against 1,550 is not one (got ${r?.weeks.map((w) => (w.lowDays ?? ['none']).join('/')).join()})`);
+    assert(r !== null && PT.lowDayNote(r.weeks[0]) === '31 Aug includes one day at 700 kcal' && PT.lowDayNote(r.weeks[1]) === null && PT.lowDayNote(r.weeks[2]) === '14 Sep includes 2 days at 600 and 700 kcal' && PT.lowDayNote(r.weeks[3]) === null, `the note is a plain statement, and only where it applies (got ${r ? r.weeks.map((w) => PT.lowDayNote(w)).join(' | ') : null})`);
+  }
+
+  // Card 5: one row a month — weight, BP, AHI; the machine's pressure waits behind the tap.
+  {
+    const page = src('src/app/health/analytics/page.tsx');
+    const card = page.slice(page.indexOf('5 · Pressure and apnea'));
+    assert(/monthRows\(/.test(page) && !/key=\{`(bp|ap)\$/.test(page), 'the page renders one merged list of months, not a BP list and then an AHI list');
+    assert(card.indexOf('<More') > 0 && card.indexOf('hPa') > card.indexOf('<More'), 'hPa is printed only behind the details tap');
+    assert(/grid-cols-\[auto_1fr_1fr_1fr\]/.test(card) && /whitespace-nowrap/.test(card) && /tabular-nums/.test(card), 'four columns that line up: no wrapping, tabular numbers');
+    const rows = PT.monthRows({
+      bp: [{ month: '2026-08', systolic: 130, diastolic: 84, kg: 129 }, { month: '2026-09', systolic: 128, diastolic: 83, kg: 127 }],
+      apnea: [{ month: '2026-09', kg: 127, ahi: 2.5, press: 10.2 }, { month: '2026-10', kg: 125, ahi: 2, press: null }],
+    });
+    assert(rows.map((m) => `${m.month} ${m.kg} ${m.bp ? `${m.bp.systolic}/${m.bp.diastolic}` : '—'} ${m.ahi ?? '—'} ${m.press ?? '—'}`).join(' | ') === '2026-08 129 130/84 — — | 2026-09 127 128/83 2.5 10.2 | 2026-10 125 — 2 —', `each month once, oldest first, its weight once; a missing figure is null, never a zero (got ${JSON.stringify(rows)})`);
+    assert(PT.monthRows({ bp: null, apnea: [{ month: '2026-09', kg: 127, ahi: 2.5, press: null }, { month: '2026-10', kg: 125, ahi: 2, press: null }] }).every((m) => m.bp === null) && PT.monthRows({ bp: null, apnea: null }).length === 0, 'AHI months alone still make rows; nothing makes none');
   }
 
   // The page fetches and renders; the words stay correlation-only.
