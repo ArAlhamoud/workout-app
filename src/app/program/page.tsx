@@ -17,6 +17,7 @@ import {
   getDynamicPlan,
   cleanRampSessionDates,
   getTrainingStatus,
+  rescueDatesOf,
   projectPlan,
   type Priority } from '@/lib/program';
 import { getExercises, getBodyStats, getWorkouts } from '@/app/actions';
@@ -143,7 +144,7 @@ export default async function ProgramPage() {
 
   // Where the lifter actually is this week
   const trainingOnly = workouts.filter(isTrainingSession);
-  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly));
+  const status = getTrainingStatus(trainingOnly.map((w) => w.date), new Date(), cleanRampSessionDates(trainingOnly), rescueDatesOf(trainingOnly));
   const weekStart = getMondayOfWeek(ownerActivityDayUtc());
   // TRAINING sessions only (trainer veto in program.ts: a rescue walk must
   // never count as a ramp session). Unfiltered, two walks "spent" the ramp

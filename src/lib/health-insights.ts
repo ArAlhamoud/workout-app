@@ -143,6 +143,16 @@ const time = (d: Date | string) => new Date(d).getTime();
 const calendarDays = (later: Date, earlier: Date | string): number =>
   Math.round((Date.parse(ownerDayKey(later)) - Date.parse(ownerDayKey(new Date(earlier)))) / DAY_MS);
 
+/** The plan as every reader takes it: one step per week, in order. A
+ *  hand-edited plan with a duplicate week made the clock take the first
+ *  match while the Journey showed both as "next". First entry wins. */
+export function normalPlan(plan: DosePlanStep[]): DosePlanStep[] {
+  const seen = new Set<number>();
+  return [...plan]
+    .filter((s) => Number.isFinite(s.week) && !seen.has(s.week) && (seen.add(s.week), true))
+    .sort((a, b) => a.week - b.week);
+}
+
 /**
  * Null before the first injection is logged — the app shows "log your
  * first injection to start the clock" instead of inventing a schedule.
@@ -167,7 +177,7 @@ export function treatmentClock(
   const week = Math.floor(Math.max(0, calendarDays(now, anchor)) / 7) + 1;
   const nextDue = new Date(time(last.at) + WEEK_MS);
   const nextDoseNumber = (doseCountOverride ?? injections.length) + 1;
-  const nextPlanned = plan.find((s) => s.week === nextDoseNumber) ?? null;
+  const nextPlanned = normalPlan(plan).find((s) => s.week === nextDoseNumber) ?? null;
   return {
     week,
     anchor,
@@ -827,7 +837,7 @@ export function journeyStations(
   // called the next injection "Dose 9 · 10 mg" while Dose day prefilled
   // 7.5 — and the dose taken at the review appeared nowhere.
   let covered = 0;
-  for (const step of [...plan].sort((a, b) => a.week - b.week)) {
+  for (const step of normalPlan(plan)) {
     const taken = sorted[step.week - 1];
     covered = Math.max(covered, step.week);
     const isNext = step.week - 1 === sorted.length;

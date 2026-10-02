@@ -44,14 +44,18 @@ export type CheckInField = 'proteinG' | 'waterMl';
  * meal, so it is a day total and never summed onto the row (typing the day's
  * 130 onto a planned 133 must not make 263). But the day's row is normally
  * the pre-logged delivery plan, and a plain set let a 67 typed at 00:30
- * replace a planned 133 (2026-10-02). So a day figure only ever RAISES what
- * the day holds: lower than the row → the row stands and `kept` names it, so
- * the screen can say so instead of "noted". Stacking a meal is Diet's
+ * replace a planned 133 (2026-10-02). So PROTEIN only ever raises what the
+ * day holds: lower than the row → the row stands and `kept` names it, and
+ * the screen offers "Use 67 g instead" (`replace`), because the larger
+ * figure may be his own typo. WATER has no plan behind it and is a plain
+ * set — with "only raises" a 5000 typed for 500 could not be corrected from
+ * anywhere in the app (adversary, 2026-10-02). Stacking a meal is Diet's
  * "Add a meal" (stackMacros).
  */
 export function checkInDayTotals(
   existing: Partial<Record<CheckInField, number | null>> | null,
   entered: Partial<Record<CheckInField, number | null | undefined>>,
+  opts: { replace?: boolean } = {},
 ): {
   patch: Partial<Record<CheckInField, number>>;
   kept: Array<{ field: CheckInField; existing: number }>;
@@ -71,8 +75,9 @@ export function checkInDayTotals(
     }
     const next = Math.round(v);
     const have = existing?.[k] ?? null;
-    if (have == null || next > have) patch[k] = next;
-    else if (next < have) kept.push({ field: k, existing: have });
+    if (next === have) continue;
+    if (have == null || next > have || k === 'waterMl' || opts.replace) patch[k] = next;
+    else kept.push({ field: k, existing: have });
   }
   return { patch, kept, rejected };
 }
@@ -129,7 +134,7 @@ export function weightImportPlan(dayRows: DayWeightRow[]): WeightImportPlan {
   return imported ? { kind: 'update', id: imported.id } : { kind: 'create' };
 }
 
-export type ManualWeightPlan = { kind: 'create' } | { kind: 'takeOver'; id: string };
+export type ManualWeightPlan = { kind: 'create' } | { kind: 'takeOver'; id: string } | { kind: 'update'; id: string };
 
 /**
  * What a weight typed by hand does to a day the scale already synced.
@@ -139,11 +144,19 @@ export type ManualWeightPlan = { kind: 'create' } | { kind: 'takeOver'; id: stri
  * rule taught to each reader: his number takes over the day's imported row
  * (the latest, should a day ever hold two), which becomes manual and from
  * then on blocks the import. The scale's own figure stays in HealthSample.
+ * A later manual weight for the day corrects that same row ('update').
  * A waist/arms-only entry takes nothing over.
  */
 export function manualWeightPlan(dayRows: DayWeightRow[], entry: { weight?: number | null }): ManualWeightPlan {
   if (entry.weight == null) return { kind: 'create' };
-  const imported = dayRows.filter((r) => r.source !== 'manual').sort((a, b) => ms(b.date) - ms(a.date))[0];
+  const latest = (rows: DayWeightRow[]) => rows.sort((a, b) => ms(b.date) - ms(a.date))[0];
+  // A manual weight already owns the day: correct THAT row. The taken-over
+  // row keeps the scale's time, so a correction typed later used to become a
+  // bare-date (00:00Z) row sorting BEFORE it — and lost to his first figure
+  // (data-steward, 2026-10-02). Also makes a double submit one row.
+  const mine = latest(dayRows.filter(isManualWeight));
+  if (mine) return { kind: 'update', id: mine.id };
+  const imported = latest(dayRows.filter((r) => r.source !== 'manual'));
   return imported ? { kind: 'takeOver', id: imported.id } : { kind: 'create' };
 }
 
@@ -164,23 +177,25 @@ export interface BpRowLite {
 /**
  * The existing row a cuff reading from Apple Health is a copy of, or null
  * when it is a new measurement.
- *  1. Any row within a minute — the rolling re-sync of a pair already
- *     imported, or a reading logged at that moment.
+ *  1. An IMPORTED row within a minute — the rolling re-sync of a pair already
+ *     stored. Time alone, as before.
  *  2. A row he TYPED (no import note) with the same systolic/diastolic within
  *     five minutes — logBp stamps the typing moment, so measured 08:00, typed
  *     08:02, synced later used to make two rows and inflate every count and
  *     average (2026-10-02). The same rule logBp applies the other way round.
- *     One typed row answers for ONE cuff reading per batch (`claimed`): two
- *     identical readings minutes apart are the home-monitor protocol and the
- *     second is its own row. Two imported rows are never merged by this rule.
+ *     A typed row is NEVER matched on time alone (a cuff 150/95 landing 50 s
+ *     from a typed 126/80 was dropped), and it answers for ONE cuff reading
+ *     per batch (`claimed`) however close the second is: cuff 08:00 and 08:04
+ *     with one row typed at 08:03:30 swallowed both, on every re-sync
+ *     (adversary, 2026-10-02). Two imported rows are never merged by values.
  */
 export function bpImportTwin(
   pair: { at: number; systolic: number; diastolic: number },
   existing: BpRowLite[],
   claimed: ReadonlySet<string>,
 ): string | null {
-  const sameMoment = existing.find((e) => Math.abs(e.at - pair.at) <= BP_SAME_MOMENT_MS);
-  if (sameMoment) return sameMoment.id;
+  const resync = existing.find((e) => e.notes === BP_IMPORT_NOTE && Math.abs(e.at - pair.at) <= BP_SAME_MOMENT_MS);
+  if (resync) return resync.id;
   let best: BpRowLite | null = null;
   for (const e of existing) {
     if (e.notes === BP_IMPORT_NOTE || claimed.has(e.id)) continue;
@@ -189,4 +204,18 @@ export function bpImportTwin(
     if (gap <= BP_SAME_READING_MS && (!best || gap < Math.abs(best.at - pair.at))) best = e;
   }
   return best ? best.id : null;
+}
+
+/**
+ * The instants of one of HIS calendar days (ownerDayKey — Riyadh, UTC+3, no
+ * DST), for looking up that day's body-stat rows. Both the scale import and
+ * the manual entry keyed a weigh-in by the UTC day: a 01:00 weigh-in on the
+ * 3rd is 22:00Z on the 2nd, so a manual weight backfilled for the 2nd took
+ * over what he sees as the 3rd's weigh-in and blocked the import there
+ * (data-steward, 2026-10-02). A bare date from the form ("2026-10-02" →
+ * 00:00Z = 03:00 Riyadh) falls inside its own day.
+ */
+export function ownerDayWindow(key: string): { start: Date; end: Date } {
+  const start = new Date(`${key}T00:00:00+03:00`);
+  return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
 }

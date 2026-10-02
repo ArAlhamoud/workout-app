@@ -252,12 +252,10 @@ export default async function NewWorkoutPage({
         // own ?day=) must REMOUNT the form, or the old day's template blocks
         // survive under the new masthead and the draft never restores (Mac
         // session's two-sim E2E, 2026-09-02: "DAY B" over Leg Press).
-        // …and by the activity day: a logger left open across the 04:00
-        // rollover refreshes itself (WorkoutForm), and the refresh must
-        // REMOUNT the form on today's prescription, name and date — the
-        // state built from yesterday's props survived a plain refresh
-        // (2026-10-02).
-        key={`${validDay}-${validDur}-${isRescue ? 'r' : 'n'}-${dayLabel}`}
+        // NOT by the activity day: that remounted a session in flight on
+        // any server re-render after 04:00. A logger left open across the
+        // rollover with nothing ticked resets itself (WorkoutForm).
+        key={`${validDay}-${validDur}-${isRescue ? 'r' : 'n'}`}
         exercises={exercises}
         initialName={initialName}
         initialExercises={finalExercises}

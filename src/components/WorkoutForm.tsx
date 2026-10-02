@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, getSaveIdOwner, pushLiveSets } from '@/app/actions';
-import { activityDayStr } from '@/lib/health-insights';
+import { activityDayStr, ownerActivityDayUtc } from '@/lib/health-insights';
 import { landedSerials, liveDiff, liveKey, liveSerial, liveToAdopt, overlayLiveSets, ownLiveSets, visibleSets, withEditStamps, type LiveSession, type LiveSet } from '@/lib/live-session';
 import RestTimer from './RestTimer';
 import SessionClock from './SessionClock';
@@ -31,6 +31,7 @@ import type { ReadinessSignal } from '@/lib/coach';
 import { captureWorkoutHr } from '@/lib/hr-capture';
 import {
   blockHasRecord,
+  closedRowVerdict,
   draftSaveIdFate,
   firstTickDay,
   gymSwitchFailure,
@@ -40,9 +41,9 @@ import {
   planDraftRestore,
   removeSetAt,
   renameForDuration,
+  repriceUndone,
   setRecord,
   shouldWriteDraft,
-  splitBySessionDay,
 } from '@/lib/logger-draft';
 
 interface Exercise {
@@ -449,6 +450,30 @@ export default function WorkoutForm({
   const [gymRetry, setGymRetry] = useState(0);
   /** A re-fitted draft changed the session's length: tell the live row. */
   const liveMetaStaleRef = useRef(false);
+  /** A restored draft's save id the server has not yet vouched for. While
+   *  set, nothing is pushed or polled under it (settleSaveId). */
+  const saveIdUnsettledRef = useRef<string | null>(null);
+  const settleBusyRef = useRef(false);
+  /** Bumped to make the autosave rewrite the draft (a changed save id). */
+  const [draftNonce, setDraftNonce] = useState(0);
+  /** This form asked the server for a new day's page (rollover, nothing
+   *  ticked): only then may fresh props reset it. Holds the memory prop as
+   *  it was when asked — the reset waits for a DIFFERENT one to arrive. */
+  const rolloverAskedRef = useRef<object | null>(null);
+  const lastSessionPropRef = useRef<object>(lastSession);
+  lastSessionPropRef.current = lastSession;
+  /** Retries a session-driven gym load that gave up; the tagged gym's
+   *  button calls it. */
+  const gymReloadRef = useRef<(() => void) | null>(null);
+  /**
+   * No record line for a SCALED machine: a rescue session, or a ramp week
+   * under 100% — in REBOOT a lift over the old best is the lift the
+   * save-time judge marks over-ramp, and the app must not celebrate it
+   * (trainer, 2026-10-02). A held machine (first met inside the ramp,
+   * allowed its pin) is not scaled and keeps its records.
+   */
+  const rampScaledFor = (b: { lastSession?: { rampHold?: boolean } }) =>
+    rescueMode || (returnLoadPct != null && returnLoadPct < 100 && !b.lastSession?.rampHold);
   // The ticked block's screen position when a tick strips warm-up rows from
   // other blocks — restored before paint so nothing moves under his thumb.
   const anchorRef = useRef<{ uid: string; top: number } | null>(null);
@@ -620,6 +645,7 @@ export default function WorkoutForm({
     type Draft = {
       name?: string; date?: string; notes?: string; gym?: string;
       blocks?: unknown; startTime?: number; savedAt?: number; saveId?: string;
+      day?: string | null; dur?: number | null;
     };
     let cancelled = false;
     const dayOf = (d: Date) => activityDayStr(d);
@@ -645,7 +671,25 @@ export default function WorkoutForm({
       const stored = draft.blocks as ExerciseBlock[];
       const away = Boolean(draft.gym && draft.gym !== DEFAULT_GYM_ID);
       const relaid = plan.refit || (plan.represcribe && !away);
-      const next = relaid ? stripDueWarmups(mergeDraftIntoPlan(stored, freshBlocks())) : stored;
+      // From an earlier day, a machine he had STARTED keeps its done sets
+      // and takes today's weight on the rows still open (repriceUndone):
+      // set 1 of Lat Pulldown at 40 before a break left sets 2–3 open at 40
+      // under "Return 60%" (trainer, 2026-10-02). Rows are never removed.
+      // A swapped block sits in another machine's slot and is left alone.
+      const relay = plan.represcribe
+        ? (mine: ExerciseBlock, slot: ExerciseBlock): ExerciseBlock =>
+            mine.exerciseId !== slot.exerciseId || mine.unit === 'seconds'
+              ? mine
+              : {
+                  ...mine,
+                  lastSession: slot.lastSession,
+                  overloadApplied: undefined,
+                  repsAsk: undefined,
+                  prescriptionNote: slot.prescriptionNote,
+                  sets: repriceUndone(mine.sets, slot.sets.find((st) => !st.isWarmup)?.weight, slot.sets.find((st) => st.isWarmup)?.weight),
+                }
+        : undefined;
+      const next = relaid ? stripDueWarmups(mergeDraftIntoPlan(stored, freshBlocks(), away ? undefined : relay)) : stored;
       setName(plan.refit ? renameForDuration(draft.name ?? initialName, durationMin) : draft.name ?? initialName);
       setDate(draft.date ?? today);
       setNotes(draft.notes ?? '');
@@ -665,10 +709,17 @@ export default function WorkoutForm({
         restoreCancelRef.current?.();
         const ids = next.map((b) => b.exerciseId);
         const reprice = plan.represcribe || plan.refit;
-        restoreCancelRef.current = loadGymContext(draft.gym!, reprice, ids, draftGymHooks(draft.gym!, reprice, ids, 1));
+        // repriceStarted: away, the started machines take THAT building's
+        // weight for today on their open rows (the home case is `relay`).
+        // The numbers on screen are B_Fit's only where a re-fit laid fresh
+        // blocks in — that is what a failed load must blank.
+        restoreCancelRef.current = loadGymContext(draft.gym!, reprice, ids, draftGymHooks(draft.gym!, reprice, ids, 1, plan.represcribe, plan.refit ? DEFAULT_GYM_ID : draft.gym!));
       }
       if (draft.startTime) startRef.current = draft.startTime;
       if (plan.refit) liveMetaStaleRef.current = true;
+      // Nothing is pushed under a draft's id until the server has said
+      // whose it is — unless the page's own open row already carries it.
+      saveIdUnsettledRef.current = draft.saveId && draft.saveId !== liveSession?.clientSaveId ? draft.saveId : null;
       // A restored draft was worth writing once; it stays worth writing.
       touchedRef.current = true;
       setDraftRestored(true);
@@ -692,43 +743,6 @@ export default function WorkoutForm({
       if (plan.kind === 'restore' && applyDraft(draft, plan)) return draft;
       void durableRemove(DRAFT_KEY);
       return null;
-    };
-
-    /**
-     * A draft's save id may already belong to a session that is over. Ask
-     * the server before anything is posted under it (2026-10-02: a tick
-     * went into the OLD workout, or Save came back `deduped` with today's
-     * session stored nowhere). Skipped when the page's own open row carries
-     * the id — that proves it live. Bounded: offline, the id is kept and the
-     * two backstops hold (liveClosedElsewhere, createWorkout's day split).
-     */
-    const settleSaveId = async (draft: Draft): Promise<Draft | null> => {
-      if (!draft.saveId || draft.saveId === liveSession?.clientSaveId) return draft;
-      const done = (draft.blocks as ExerciseBlock[]).flatMap((b) => (b.sets ?? []).filter((st) => st.done));
-      let fate: ReturnType<typeof draftSaveIdFate> = 'keep';
-      try {
-        const state = await Promise.race([
-          getSaveIdOwner(draft.saveId),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
-        ]);
-        if (state) fate = draftSaveIdFate(state, done, dayOf);
-      } catch { /* offline: keep the id; the backstops hold */ }
-      if (cancelled || saveIdRef.current !== draft.saveId) return draft;
-      if (fate === 'discard') {
-        // The finished session's ghost: every done set is in the saved
-        // workout already. Bin it and open today's logger.
-        clearDraft();
-        return null;
-      }
-      if (fate === 'new') {
-        // Its sets are a NEW session: a new id (minted by the open-row
-        // effect or the first push), and nothing counts as already pushed.
-        saveIdRef.current = null;
-        resetLiveDiff();
-        liveDeadRef.current = false;
-        return { ...draft, saveId: undefined };
-      }
-      return draft;
     };
 
     // Live session precedence, decided once the draft question is settled:
@@ -769,13 +783,16 @@ export default function WorkoutForm({
       applyLive(liveSession);
     };
 
-    /** The draft question is settled: the save id, the live row, then open
-     *  the autosave gate. */
-    const finish = async (draft: Draft | null) => {
-      const kept = draft ? await settleSaveId(draft) : null;
+    /** The draft question is settled: the live row, then the autosave gate
+     *  opens AT ONCE — the save-id question (settleSaveId) is asked in the
+     *  background. It used to hold the gate for up to 3 s: a set ticked in
+     *  that window was in no draft, and backgrounding lost it (adversary,
+     *  2026-10-02). */
+    const finish = (draft: Draft | null) => {
       if (cancelled) return;
-      maybeLive(kept);
+      maybeLive(draft);
       setInitialized(true);
+      void settleSaveId();
     };
 
     if (rescueMode) { setInitialized(true); return; }
@@ -788,18 +805,17 @@ export default function WorkoutForm({
     }
 
     if (local) {
-      // Applied synchronously — no flash of the bare template — then the
-      // save id is settled before the autosave and the live sync open.
+      // Applied synchronously — no flash of the bare template.
       const opened = openDraft(local);
-      if (opened !== 'hop') void finish(opened);
+      if (opened !== 'hop') finish(opened);
     } else {
       // The autosave gate stays CLOSED until the vault check settles — were
       // it open, the first autosave would write the pristine template over
       // the vault copy before the async read could restore it.
       void durableGet(DRAFT_KEY)
-        .then(async (vaulted) => {
+        .then((vaulted) => {
           if (cancelled) return;
-          if (!vaulted) { await finish(null); return; }
+          if (!vaulted) { finish(null); return; }
           // The vault read lost a race against the user: they already
           // started typing. Their live keystrokes outrank a stored copy.
           if (dirtyRef.current) return;
@@ -807,11 +823,64 @@ export default function WorkoutForm({
           try { parsed = JSON.parse(vaulted) as Draft; } catch { /* a corrupt vault copy restores nothing */ }
           if (!parsed) return;
           const opened = openDraft(parsed);
-          if (opened !== 'hop') await finish(opened);
+          if (opened !== 'hop') finish(opened);
         })
         .finally(() => { if (!cancelled) setInitialized(true); });
     }
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * A restored draft's save id may belong to a session that is over. Ask
+   * the server before anything is pushed under it (2026-10-02: a tick went
+   * into the OLD workout, or Save came back `deduped` with today's session
+   * stored nowhere). Asked in the background and again — on the next poll,
+   * on `online`, on return to the app — until it is answered: the first
+   * version gave up after 3 s and kept the id for good, so the next tick
+   * could hit the closed row and hand off mid-session (adversary). The
+   * verdict is read against the sets done WHEN IT ARRIVES: a set ticked
+   * during the wait is in no saved workout, so `discard` can never bin it.
+   * A Save made before the answer goes out under the old id and the server
+   * sorts its sets by sitting (routeSets).
+   */
+  async function settleSaveId() {
+    const asked = saveIdUnsettledRef.current;
+    if (!asked || settleBusyRef.current || finishedRef.current) return;
+    settleBusyRef.current = true;
+    try {
+      const state = await getSaveIdOwner(asked);
+      if (saveIdUnsettledRef.current !== asked) return;
+      saveIdUnsettledRef.current = null;
+      if (saveIdRef.current !== asked || finishedRef.current) return;
+      const done = blocksRef.current.flatMap((b) => b.sets.filter((st) => st.done));
+      const fate = draftSaveIdFate(state, done, (d) => activityDayStr(d));
+      if (fate === 'discard') {
+        // The finished session's ghost: every done set is in the saved
+        // workout already. Bin it and open today's logger.
+        clearDraft();
+        return;
+      }
+      if (fate === 'new') {
+        // Its sets are a NEW session: a new id (minted by the first push),
+        // nothing counts as already pushed, and the stored draft is
+        // rewritten without the old id.
+        saveIdRef.current = null;
+        resetLiveDiff();
+        liveDeadRef.current = false;
+        setDraftNonce((n) => n + 1);
+      }
+      void flushLive();
+    } catch {
+      /* offline — asked again on the next poll, on `online`, on return */
+    } finally {
+      settleBusyRef.current = false;
+    }
+  }
+  useEffect(() => {
+    const again = () => { void settleSaveId(); };
+    window.addEventListener('online', again);
+    return () => window.removeEventListener('online', again);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -842,6 +911,7 @@ export default function WorkoutForm({
 
   function applyLive(live: LiveSession) {
     saveIdRef.current = live.clientSaveId;
+    saveIdUnsettledRef.current = null; // an open row's id is live by proof
     const started = Date.parse(live.startedAt);
     if (Number.isFinite(started)) startRef.current = Math.min(startRef.current, started);
     // The row's building wins; leave lastGymRef alone so the gym-change
@@ -877,18 +947,21 @@ export default function WorkoutForm({
         const ms = [row.startedAt, row.closedAt, ...row.sets.map((ls) => ls.completedAt)]
           .map((x) => (x ? Date.parse(x) : NaN))
           .filter((t) => Number.isFinite(t));
-        const rowOwner = {
-          days: [...new Set(ms.map((t) => dayOf(new Date(t))))],
-          firstAt: ms.length ? Math.min(...ms) : null,
-          lastAt: ms.length ? Math.max(...ms) : null,
-        };
-        if (!splitBySessionDay(rowOwner, own, dayOf).same.length) {
+        const rowOwner = { day: dayOf(new Date(row.startedAt)), stamps: ms };
+        const verdict = closedRowVerdict(rowOwner, own, dayOf);
+        if (verdict === 'new-id') {
           saveIdRef.current = newClientSaveId();
           resetLiveDiff();
           liveDeadRef.current = false;
+          setDraftNonce((n) => n + 1);
           setTimeout(() => { void flushLive(); }, 0);
           return;
         }
+        // Some of these sets are that session's and some are not: stay on
+        // this screen (pushes stay stopped). A handoff here saved today's
+        // tick as a one-set workout and threw him to the old workout's
+        // page mid-session; Save sorts the sets by sitting on the server.
+        if (verdict === 'stay') return;
       }
       let handedOff = true;
       if (own.length) {
@@ -970,7 +1043,7 @@ export default function WorkoutForm({
    *  failed push stays in the diff and rides the next change or poll. */
   const liveBusyRef = useRef(false);
   async function flushLive() {
-    if (!liveEnabled || liveBusyRef.current || liveDeadRef.current || finishedRef.current) return;
+    if (!liveEnabled || liveBusyRef.current || liveDeadRef.current || finishedRef.current || saveIdUnsettledRef.current) return;
     // Warm-ups included, under the Watch's key; removals only for what was
     // un-ticked here; a changed set stamped as an edit (all in liveDiff).
     const current = ownLiveSets(blocksRef.current, 'phone');
@@ -1014,6 +1087,7 @@ export default function WorkoutForm({
   /** Pull what the other device logged since we last looked, then push ours. */
   async function syncLive() {
     if (!liveEnabled || document.visibilityState === 'hidden' || finishedRef.current) return;
+    if (saveIdUnsettledRef.current) { void settleSaveId(); return; }
     try {
       if (saveIdRef.current) {
         if (liveDeadRef.current) return;
@@ -1044,7 +1118,7 @@ export default function WorkoutForm({
     if (!initialized || !liveEnabled) return;
     // A draft re-fitted to another length keeps its row: tell it the new
     // length, or the Watch would "Continue" on the old plan.
-    if (saveIdRef.current && liveMetaStaleRef.current) {
+    if (saveIdRef.current && liveMetaStaleRef.current && !saveIdUnsettledRef.current) {
       liveMetaStaleRef.current = false;
       void pushLiveSets({ clientSaveId: saveIdRef.current, day: dayAccent ?? null, durationMin: durationMin ?? null, gym }, []).catch(() => {});
       return;
@@ -1113,14 +1187,17 @@ export default function WorkoutForm({
       started: blocks.some((b) => b.sets.some((s) => s.done)),
       touched: touchedRef.current,
     })) return;
-    pendingDraftRef.current = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current, saveId: saveIdRef.current };
+    // day/dur as FIELDS: parsed from the name, a renamed draft ("Push day")
+    // belonged to no day or length and a chosen 30 never re-fitted it.
+    pendingDraftRef.current = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current, saveId: saveIdRef.current, day: dayAccent ?? null, dur: durationMin ?? null };
     const t = setTimeout(() => {
       const draft = pendingDraftRef.current;
       pendingDraftRef.current = null;
       if (draft && !finishedRef.current) void durableSet(DRAFT_KEY, JSON.stringify(draft));
     }, 500);
     return () => clearTimeout(t);
-  }, [initialized, rescueMode, name, date, gym, notes, blocks]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialized, rescueMode, name, date, gym, notes, blocks, draftNonce]);
   // NOTE the real contract here: React runs unmount cleanups in DECLARATION
   // order, so the debounce effect's clearTimeout runs FIRST. The flush below
   // still works because clearTimeout never nulls pendingDraftRef — which
@@ -1152,23 +1229,26 @@ export default function WorkoutForm({
 
   // Left open across the 04:00 rollover with nothing ticked, this form is
   // yesterday's logger: yesterday's date, name and prescription (a morning
-  // that crosses day 21 opens the ramp — on the server, not here). Drop
-  // its draft and ask the server again; the page keys the form by the
-  // activity day, so the refresh remounts it. With a set ticked the session
-  // is in flight and stays; offline, the first tick still re-dates it
-  // (firstTickDay). 2026-10-02.
+  // that crosses day 21 opens the ramp — on the server, not here). Ask the
+  // server again and, when ITS answer lands, reset to it. The first version
+  // keyed the form by the day in the page, so ANY server re-render after
+  // 04:00 remounted a session in flight — rest timer, mood, unsaved edits
+  // gone (adversary, 2026-10-02). Now a reset happens only when this form
+  // asked for one, and only with nothing ticked. The day is read on the
+  // page's own clock (ownerActivityDayUtc — Riyadh), so the two agree on
+  // when it turned. Offline, the first tick still re-dates the session
+  // (firstTickDay).
   useEffect(() => {
     if (healthWorkoutUuid) return;
-    let askedFor = openedDayRef.current;
+    const pageDay = () => ownerActivityDayUtc().toISOString().slice(0, 10);
+    let askedFor = pageDay();
     const check = () => {
       if (document.visibilityState === 'hidden' || finishedRef.current) return;
-      const now = activityDayStr();
+      const now = pageDay();
       if (now === askedFor) return;
       if (blocksRef.current.some((b) => b.sets.some((st) => st.done))) return;
       askedFor = now;
-      pendingDraftRef.current = null;
-      touchedRef.current = false;
-      void durableRemove(DRAFT_KEY);
+      rolloverAskedRef.current = lastSessionPropRef.current;
       router.refresh();
     };
     document.addEventListener('visibilitychange', check);
@@ -1176,6 +1256,15 @@ export default function WorkoutForm({
     return () => { document.removeEventListener('visibilitychange', check); clearInterval(iv); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // The refresh landed (fresh props): today's logger, if still nothing is ticked.
+  useEffect(() => {
+    if (!rolloverAskedRef.current || rolloverAskedRef.current === lastSession) return;
+    rolloverAskedRef.current = null;
+    if (blocksRef.current.some((b) => b.sets.some((st) => st.done))) return;
+    openedDayRef.current = activityDayStr();
+    clearDraft();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialName, lastSession]);
 
   useEffect(() => {
     if (!initialized) return;
@@ -1196,17 +1285,22 @@ export default function WorkoutForm({
       onLoaded: () => {
         lastGymRef.current = gym;
         gymTriesRef.current = 0;
+        gymReloadRef.current = null;
         setGymNotice(null);
       },
       onFailed: () => {
         gymTriesRef.current += 1;
         const f = gymSwitchFailure({ shown, wanted: gym, wantedName: gymName(gym), by, tries: gymTriesRef.current });
         setGymNotice(f.notice);
+        if (f.blank) blankUnstarted();
         if (f.tag !== gym) {
           gymTriesRef.current = 0;
           setGym(f.tag);
         } else if (f.retry) {
           retryTimer = setTimeout(() => setGymRetry((n) => n + 1), 4000);
+        } else {
+          // Gave up: the tagged gym's button asks again.
+          gymReloadRef.current = () => setGymRetry((n) => n + 1);
         }
       },
     });
@@ -1218,19 +1312,49 @@ export default function WorkoutForm({
    *  re-fitted, its prices for the machines not yet started). The session
    *  IS in that building, so the tag stays and a failed load says so and
    *  retries by itself (gymSwitchFailure, by 'session'). */
-  function draftGymHooks(target: string, reprice: boolean, ids: string[], tries: number) {
+  function draftGymHooks(target: string, reprice: boolean, ids: string[], tries: number, repriceStarted: boolean, shown: string) {
+    const load = (n: number) => loadGymContext(target, reprice, ids, draftGymHooks(target, reprice, ids, n, repriceStarted, shown));
     return {
-      onLoaded: () => setGymNotice(null),
+      repriceStarted,
+      onLoaded: () => { gymReloadRef.current = null; setGymNotice(null); },
       onFailed: () => {
-        const f = gymSwitchFailure({ shown: target, wanted: target, wantedName: gymName(target), by: 'session', tries });
+        const f = gymSwitchFailure({ shown, wanted: target, wantedName: gymName(target), by: 'session', tries });
         setGymNotice(f.notice);
-        if (!f.retry) return;
-        const timer = setTimeout(() => {
-          restoreCancelRef.current = loadGymContext(target, reprice, ids, draftGymHooks(target, reprice, ids, tries + 1));
-        }, 4000);
+        if (f.blank) blankUnstarted();
+        if (!f.retry) {
+          gymReloadRef.current = () => { restoreCancelRef.current = load(1); };
+          return;
+        }
+        const timer = setTimeout(() => { restoreCancelRef.current = load(tries + 1); }, 4000);
         restoreCancelRef.current = () => clearTimeout(timer);
       },
     };
+  }
+
+  /**
+   * The tag is the session's building and its numbers would not load: the
+   * prefills still on screen are ANOTHER building's. A set must never be
+   * saved under a tag with the other building's number in it (rule 2), so
+   * the machines not yet started lose their prefilled weights (and their
+   * warm-up rows, which are priced off them) until the load lands; he
+   * types what he lifts, or taps the gym to retry. Done sets and started
+   * machines are his and stay (adversary, 2026-10-02).
+   */
+  function blankUnstarted() {
+    setBlocks((prev) =>
+      prev.map((b) =>
+        b.unit === 'seconds' || b.sets.some((st) => st.done)
+          ? b
+          : {
+              ...b,
+              lastSession: undefined,
+              overloadApplied: undefined,
+              repsAsk: undefined,
+              prescriptionNote: undefined,
+              sets: b.sets.filter((st) => !st.isWarmup).map((st) => ({ ...st, weight: 0 })),
+            },
+      ),
+    );
   }
 
   /**
@@ -1243,7 +1367,7 @@ export default function WorkoutForm({
     target: string,
     reprice: boolean,
     onlyIds?: string[],
-    hooks?: { onLoaded?: () => void; onFailed?: () => void },
+    hooks?: { onLoaded?: () => void; onFailed?: () => void; repriceStarted?: boolean },
   ): () => void {
     const ids = Array.from(new Set(onlyIds ?? blocksRef.current.map((b) => b.exerciseId)));
     if (!ids.length) { hooks?.onLoaded?.(); return () => {}; }
@@ -1269,7 +1393,8 @@ export default function WorkoutForm({
             // overloadApplied dies with the switch: its undo held the OTHER
             // building's weight, and pressing it after a switch would write
             // a B_Fit number into an Alrajhi machine (trainer, rule 2).
-            if (b.sets.some((s) => s.done)) return { ...b, lastSession: prevSession, overloadApplied: undefined, prescriptionNote: undefined };
+            const started = b.sets.some((s) => s.done);
+            if (started && !hooks?.repriceStarted) return { ...b, lastSession: prevSession, overloadApplied: undefined, prescriptionNote: undefined };
             // THIS building's prescription, with THIS building's pins and
             // plateaus — the same numbers the Watch plan sends for gym=work
             // (A3). Only machines not yet started are repriced or resized.
@@ -1288,6 +1413,20 @@ export default function WorkoutForm({
             const hold = readinessRef.current?.verdict === 'hold';
             const seeded = p.reason === 'overload' && !b.overloadDeclined && !hold;
             const working = seeded ? p.workingKg ?? 0 : p.reason === 'overload' ? p.fromKg ?? 0 : p.workingKg ?? 0;
+            // A stale draft's started machine (repriceStarted): done sets
+            // stand, the open rows take this building's weight for today —
+            // never a seed, and no row added or removed (repriceSets).
+            if (started) {
+              const kg = p.reason === 'overload' ? p.fromKg ?? 0 : p.workingKg ?? 0;
+              return {
+                ...b,
+                lastSession: prevSession,
+                overloadApplied: undefined,
+                repsAsk: undefined,
+                prescriptionNote: undefined,
+                sets: unit !== 'seconds' && kg > 0 ? repriceSets(b, kg, inc, anchored, false) : b.sets,
+              };
+            }
             // THIS gym's reps too: its one-more-rep ask, or its baseline —
             // never B_Fit's ask carried across (round 3); none on a hold day.
             const baseReps = prefillReps(prevSession?.reps, b.defaultReps ?? 1, b.maxReps ?? Number.POSITIVE_INFINITY);
@@ -1396,6 +1535,9 @@ export default function WorkoutForm({
     lastGymRef.current = DEFAULT_GYM_ID;
     setGym(DEFAULT_GYM_ID);
     setGymNotice(null);
+    gymReloadRef.current = null;
+    gymTriesRef.current = 0;
+    saveIdUnsettledRef.current = null;
     setRecentSessions({});
     touchedRef.current = false;
     restoreCancelRef.current?.();
@@ -1661,7 +1803,7 @@ export default function WorkoutForm({
           unit: block.unit,
           best: gymRecords[set.exerciseId] ?? 0,
           byReps: repRecordsState[set.exerciseId],
-          rampScaled: returnLoadPct != null && returnLoadPct < 100,
+          rampScaled: rampScaledFor(block),
           earlier: block.sets.filter((s2, i2) => i2 !== idx && s2.done && !s2.isWarmup && s2.exerciseId === set.exerciseId),
         });
         if (record === 'all-time') setPrToast(`${exName} — all-time record`);
@@ -1831,7 +1973,7 @@ export default function WorkoutForm({
     // block has unit 'reps'), so this line and "what moved" stayed empty.
     // Each saved set against its own machine's record at this gym.
     const prs = submitBlocks
-      .filter(({ block: b, sets }) => blockHasRecord(sets.map((s) => ({ ...s, done: true })), b.exerciseId, b.unit, gymRecords))
+      .filter(({ block: b, sets }) => blockHasRecord(sets.map((s) => ({ ...s, done: true })), b.exerciseId, b.unit, gymRecords, rampScaledFor(b)))
       .map(({ block: b }) => exerciseById.get(b.exerciseId)?.name ?? '')
       .filter(Boolean);
 
@@ -2111,7 +2253,22 @@ export default function WorkoutForm({
                 <button
                   key={g.id}
                   type="button"
-                  onClick={() => { gymByRef.current = 'tap'; setGymNotice(null); setGym(g.id); }}
+                  onClick={() => {
+                    // The tagged gym, its numbers not loaded: a tap on it
+                    // asks again — setGym to the same value was a no-op, so
+                    // "tap to retry" did nothing (adversary, 2026-10-02).
+                    if (g.id === gym && gymReloadRef.current) {
+                      const again = gymReloadRef.current;
+                      gymReloadRef.current = null;
+                      gymTriesRef.current = 0;
+                      again();
+                      return;
+                    }
+                    gymByRef.current = 'tap';
+                    gymTriesRef.current = 0;
+                    setGymNotice(null);
+                    setGym(g.id);
+                  }}
                   aria-pressed={active}
                   className={`pressable min-h-[44px] rounded-card border px-3 py-2 text-sm font-semibold transition-all ${
                     active
@@ -2261,7 +2418,7 @@ export default function WorkoutForm({
           // one exercise over instead of one gym over.
           // DONE working sets only: counting undone rows lit the chip on the
           // prefill, before the lift (2026-10-02).
-          const hasNewPR = blockHasRecord(block.sets, block.exerciseId, block.unit, gymRecords);
+          const hasNewPR = blockHasRecord(block.sets, block.exerciseId, block.unit, gymRecords, rampScaledFor(block));
           const allDone = block.sets.length > 0 && block.sets.every((s) => settledSet(block.sets, s));
 
           const lastRpe = block.lastSession?.rpe ?? null;

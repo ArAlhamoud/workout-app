@@ -56,7 +56,9 @@ export default function CheckIn() {
   // What did not save, in one short line — and, on the last step, what the
   // day already held. Never "noted" over a write that failed (2026-10-02).
   const [err, setErr] = useState('');
-  const [doneNote, setDoneNote] = useState('');
+  // A protein figure below what the day holds is kept out, said, and offered
+  // back in one tap — the larger figure may be his own typo.
+  const [keptProtein, setKeptProtein] = useState<{ existing: number; typed: number; day: string; used: boolean } | null>(null);
 
   const go = (s: Step) => {
     setErr('');
@@ -90,6 +92,11 @@ export default function CheckIn() {
     if (busy) return;
     setBusy(true);
     setErr('');
+    // A BP with one number missing is not a BP: it is said, and what he
+    // typed stays — it used to be cleared under "noted" (adversary, 2026-10-02).
+    const halfBp = Boolean(sys) !== Boolean(dia);
+    const day = activityDayStr();
+    const typedProtein = protein ? Number(protein) : undefined;
     let kept: Array<{ field: string; existing: number }> = [];
     const { failed } = await saveEach([
       ...(sys && dia
@@ -102,8 +109,8 @@ export default function CheckIn() {
               // The 04:00 activity day, like Diet: at 00:30 this is still
               // the evening's row, not the next date's planned one.
               const res = await logCheckInNutrition({
-                day: activityDayStr(),
-                proteinG: protein ? Number(protein) : undefined,
+                day,
+                proteinG: typedProtein,
                 waterMl: water ? Number(water) : undefined,
               });
               kept = res.kept;
@@ -112,19 +119,44 @@ export default function CheckIn() {
         : []),
     ]);
     setBusy(false);
-    if (!failed.includes('bp')) { setSys(''); setDia(''); }
+    if (!failed.includes('bp')) { if (!halfBp) { setSys(''); setDia(''); } }
     if (!failed.includes('nutrition')) { setProtein(''); setWater(''); }
-    if (failed.length) {
-      setErr(`${failed.includes('bp') ? 'Blood pressure' : 'Protein / water'}${failed.length > 1 ? ' and protein / water' : ''} not saved. Check and save again.`);
+    const stays = kept.find((k) => k.field === 'proteinG');
+    setKeptProtein(stays && typedProtein != null ? { existing: stays.existing, typed: Math.round(typedProtein), day, used: false } : null);
+    if (failed.length || halfBp) {
+      const bp = failed.includes('bp') || halfBp;
+      const what = `${bp ? 'Blood pressure' : 'Protein / water'}${bp && failed.includes('nutrition') ? ' and protein / water' : ''}`;
+      setErr(halfBp && failed.length === 0 ? 'Blood pressure not saved — a number is missing.' : `${what} not saved. Check and save again.`);
       return;
     }
-    setDoneNote(
-      kept
-        .map((k) => (k.field === 'proteinG' ? `Protein stays ${k.existing} g` : `Water stays ${k.existing} ml`))
-        .join(' · '),
-    );
     finish();
   };
+  const setTypedProtein = async () => {
+    if (busy || !keptProtein) return;
+    setBusy(true);
+    setErr('');
+    try {
+      await logCheckInNutrition({ day: keptProtein.day, proteinG: keptProtein.typed, replace: true });
+      setKeptProtein({ ...keptProtein, used: true });
+      router.refresh();
+    } catch {
+      setErr('Not saved. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const keptLine = keptProtein ? (
+    keptProtein.used ? (
+      <p className="text-xs font-bold text-app-tx2">Protein set to {keptProtein.typed} g.</p>
+    ) : (
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-bold text-app-tx2">Protein stays {keptProtein.existing} g.</p>
+        <button type="button" disabled={busy} className="min-h-[44px] text-xs font-bold text-app-tx1 underline" onClick={setTypedProtein}>
+          Use {keptProtein.typed} g instead
+        </button>
+      </div>
+    )
+  ) : null;
   const errLine = err ? (
     <p role="alert" className="text-sm font-bold text-rpe-grind">{err}</p>
   ) : null;
@@ -268,6 +300,7 @@ export default function CheckIn() {
               Save
             </button>
           </div>
+          {keptLine}
           {errLine}
         </>
       )}
@@ -275,7 +308,8 @@ export default function CheckIn() {
       {step === 'done' && (
         <>
           <p className="text-sm font-bold text-acc-teal">That&apos;s today noted. See you tomorrow.</p>
-          {doneNote && <p className="text-xs font-bold text-app-tx2">{doneNote} — today already has more.</p>}
+          {keptLine}
+          {errLine}
         </>
       )}
     </div>

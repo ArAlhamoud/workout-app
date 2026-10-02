@@ -415,16 +415,21 @@ export async function addNutrition(data: {
 }
 
 /**
- * The Home check-in's protein / water: a figure for the DAY that only ever
- * raises what the day holds (checkInDayTotals) — the row is usually the
+ * The Home check-in's protein / water: figures for the DAY. Protein only
+ * ever raises what the day holds (checkInDayTotals) — the row is usually the
  * pre-logged delivery plan, and a plain set let a late 67 replace a planned
- * 133 (2026-10-02). Returns what it left standing so the screen can say so.
+ * 133 (2026-10-02); water is a plain set. Returns what it left standing so
+ * the screen can say so and offer `replace` — his figure, set on his tap.
  */
-export async function logCheckInNutrition(data: { day: string; proteinG?: number; waterMl?: number }) {
+export async function logCheckInNutrition(data: { day: string; proteinG?: number; waterMl?: number; replace?: boolean }) {
   const day = new Date(`${data.day}T00:00:00.000Z`);
   if (Number.isNaN(day.getTime())) throw new Error('Bad day');
   const existing = await prisma.nutritionLog.findUnique({ where: { day }, select: { proteinG: true, waterMl: true } });
-  const { patch, kept, rejected } = checkInDayTotals(existing, { proteinG: data.proteinG, waterMl: data.waterMl });
+  const { patch, kept, rejected } = checkInDayTotals(
+    existing,
+    { proteinG: data.proteinG, waterMl: data.waterMl },
+    { replace: data.replace === true },
+  );
   // A mistyped figure is refused whole, so the screen says "not saved" and
   // keeps both fields — never a silent drop under "noted".
   if (rejected.length) throw new Error('Entry out of range');

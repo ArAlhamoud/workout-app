@@ -7,7 +7,8 @@ import {
   parseHealthPayload,
   type ParsedSample,
 } from '@/lib/health';
-import { BP_IMPORT_NOTE, BP_SAME_READING_MS, bpImportTwin, weightImportPlan } from '@/lib/health-entry';
+import { BP_IMPORT_NOTE, BP_SAME_READING_MS, bpImportTwin, ownerDayWindow, weightImportPlan } from '@/lib/health-entry';
+import { ownerDayKey } from '@/lib/health-insights';
 
 const HEALTH_SOURCE = 'apple-health';
 
@@ -17,17 +18,19 @@ function dayRange(key: string): { start: Date; end: Date } {
 }
 
 async function upsertBodyStats(weightSamples: ParsedSample[]): Promise<number> {
-  // One BodyStat per calendar day; keep the latest sample of each day.
+  // One BodyStat per calendar day — HIS day (Riyadh), the same key the
+  // manual entry uses, not the UTC day: a 01:00 weigh-in belongs to the
+  // date he sees (2026-10-02). Keep the latest sample of each day.
   const latestByDay = new Map<string, ParsedSample>();
   for (const sample of weightSamples) {
-    const key = dayKey(sample.date);
+    const key = ownerDayKey(sample.date);
     const existing = latestByDay.get(key);
     if (!existing || sample.date > existing.date) latestByDay.set(key, sample);
   }
 
   let upserted = 0;
   for (const [key, sample] of latestByDay) {
-    const { start, end } = dayRange(key);
+    const { start, end } = ownerDayWindow(key);
     // The WHOLE day, not its first row: a waist-only manual entry sorted
     // first and shut the scale out of that day for good (2026-10-02). Only a
     // manual WEIGHT blocks the import — weightImportPlan decides.

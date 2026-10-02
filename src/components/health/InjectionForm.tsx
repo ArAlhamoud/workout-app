@@ -44,7 +44,11 @@ export default function InjectionForm({
   // night and logged after midnight was stored as Wednesday's, moved the
   // next-due day and was hand-patched two weeks running.
   const [earlier, setEarlier] = useState(false);
-  const [takenAt, setTakenAt] = useState('');
+  // Two plain fields, not one combined date-and-time field: on iOS that control rendered
+  // blank and wider than the card (simulator, 2026-10-02); date and time
+  // fields are the ones globals.css already tames.
+  const [takenDate, setTakenDate] = useState('');
+  const [takenTime, setTakenTime] = useState('');
   // Separate state for the free-form field: deriving it from `dose` wiped
   // the field mid-typing whenever a keystroke momentarily equalled a preset
   // ("7" on the way to "7.5") — device-tester.
@@ -60,8 +64,9 @@ export default function InjectionForm({
   const [afterSaved, setAfterSaved] = useState(false);
 
   const effectiveDose = customDose !== '' ? Number(customDose) : dose !== '' ? Number(dose) : NaN;
-  const takenISO = earlier && takenAt ? new Date(takenAt).toISOString() : undefined;
-  const timeMissing = earlier && !takenAt;
+  const takenMs = earlier && takenDate && takenTime ? new Date(`${takenDate}T${takenTime}`).getTime() : NaN;
+  const takenISO = Number.isFinite(takenMs) ? new Date(takenMs).toISOString() : undefined;
+  const timeMissing = earlier && !takenISO;
   // At a checkpoint (planned mg null) every dose is doctor-directed:
   // nothing is "on schedule" because nothing was scheduled.
   const offPlan = plannedDoseMg == null || effectiveDose !== plannedDoseMg;
@@ -205,7 +210,19 @@ export default function InjectionForm({
             <button
               key={label}
               type="button"
-              onClick={() => setEarlier(v)}
+              onClick={() => {
+                // A dose taken earlier is not the NEXT slot's dose: with a plan
+                // that runs on, slot 7's 7.5 mg sat preselected for a back-filled
+                // 5. He names the dose himself.
+                setEarlier(v); if (v) { setDose(''); setCustomDose(''); }
+                if (v && !takenDate) {
+                  // Open on this moment; he moves it back.
+                  const n = new Date();
+                  const p2 = (x: number) => String(x).padStart(2, '0');
+                  setTakenDate(`${n.getFullYear()}-${p2(n.getMonth() + 1)}-${p2(n.getDate())}`);
+                  setTakenTime(`${p2(n.getHours())}:${p2(n.getMinutes())}`);
+                }
+              }}
               className={`flex-1 rounded-card border py-2.5 text-xs font-semibold transition-all ${
                 earlier === v
                   ? 'border-acc-cyan/60 bg-acc-cyan/15 text-acc-cyan'
@@ -217,13 +234,22 @@ export default function InjectionForm({
           ))}
         </div>
         {earlier && (
-          <input
-            type="datetime-local"
-            aria-label="When the injection was taken"
-            className={`${inputCls} mt-1.5 w-full`}
-            value={takenAt}
-            onChange={(e) => setTakenAt(e.target.value)}
-          />
+          <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+            <input
+              type="date"
+              aria-label="Day the injection was taken"
+              className={`${inputCls} min-w-0`}
+              value={takenDate}
+              onChange={(e) => setTakenDate(e.target.value)}
+            />
+            <input
+              type="time"
+              aria-label="Time the injection was taken"
+              className={`${inputCls} min-w-0`}
+              value={takenTime}
+              onChange={(e) => setTakenTime(e.target.value)}
+            />
+          </div>
         )}
       </div>
 

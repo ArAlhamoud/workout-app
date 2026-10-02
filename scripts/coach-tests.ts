@@ -3688,12 +3688,15 @@ console.log('Ramp cut — week 4 (adversary, 2026-09-18)');
   assert(done.cut === day('2026-09-01T00:00:00Z').toISOString(), 'the cut stands until a session is logged OUTSIDE the block — a machine skipped in week 4 must not read its 85% row');
   const later = cutOn([...pre, ...ramp, sess('2026-09-22', 'Day A — Sep 22', 0), sess('2026-09-25', 'Day B — Sep 25', 40), sess('2026-09-29', 'Day A — Sep 29', 0)], day('2026-09-30T00:00:00Z'));
   assert(later.cut === null, 'the first normal-mode session clears it — plain memory is right again');
-  // A rescue logged in normal mode is 60% by construction and never a base.
+  // A rescue logged in normal mode is 60% by construction and never a base
+  // for rampBaseBefore's WALK (it reads a rescue as a scaled session inside a
+  // ramp). prescriptionInputs no longer ASKS for a cut outside a ramp — the
+  // rescue row is left out of memory itself; pinned in "Audit 2" (2026-10-02).
   const rescue = cutOn([
     sess('2026-08-01', 'Day B 45m — Aug 1', 40), sess('2026-08-05', 'Day A 45m — Aug 5', 0),
     sess('2026-08-09', 'Day B 45m — Aug 9', 42.5), sess('2026-08-13', 'Rescue 15m — Aug 13', 25),
   ], day('2026-08-15T00:00:00Z'));
-  assert(rescue.status.mode === 'normal' && rescue.cut === day('2026-08-13T00:00:00Z').toISOString(), `outside a ramp a trailing rescue is still cut out of memory (got ${rescue.status.mode} ${rescue.cut})`);
+  assert(rescue.status.mode === 'normal' && rescue.cut === day('2026-08-13T00:00:00Z').toISOString(), `rampBaseBefore still walks past a trailing rescue as a scaled session (got ${rescue.status.mode} ${rescue.cut})`);
 }
 
 // ── Doctor report: family history and investigations are not printed (owner, 2026-09-30) ──
@@ -4162,14 +4165,26 @@ console.log('Native bridge — Swift twins and plugin methods');
   assert((src('src/app/nav-actions.ts').match(/timeZone: 'Asia\/Riyadh'/g) ?? []).length >= 2, 'the Rooms labels date labs and doses in Riyadh');
   // The form can say WHEN: a dose logged after midnight was stored at the
   // save moment and hand-patched two weeks running.
-  assert(/logInjection\(\{[\s\S]*?\bat:/.test(form) && /datetime-local/.test(form), 'the injection form sends the time he took it');
+  assert(/logInjection\(\{[\s\S]*?\bat:/.test(form) && /type="date"/.test(form) && /type="time"/.test(form) && !/datetime-local/.test(form), 'the injection form sends the time he took it');
+  // Back-filling an earlier dose is not the next slot's dose: "Earlier"
+  // drops the preselect (an extended plan would have offered slot 7's
+  // 7.5 mg for a dose that was 5), and a plan with no week-1 dose shows no
+  // hard-coded 2.5.
+  assert(/setEarlier\(v\);\s*if \(v\) \{ setDose\(''\)/.test(form), 'choosing Earlier clears the preselected dose');
+  assert(!/'2\.5'/.test(src('src/app/health/injection/page.tsx')), 'Dose day never prints a dose the plan does not hold');
+  // A hand-edited plan with a duplicate week: the clock and the Journey read the same normalised plan.
+  const dupPlan = [{ week: 1, mg: 2.5 }, { week: 2, mg: 5 }, { week: 2, mg: null, label: 'Doctor review' }, { week: 3, mg: 5 }];
+  const cDup = treatmentClock(six.slice(0, 1), dupPlan, at)!;
+  const stDup = journeyStations(dupPlan, six.slice(0, 1), at);
+  assert(stDup.filter((x) => x.state === 'next').length === 1 && cDup.nextPlanned?.mg === 5 && /^Dose 2 · 5 mg/.test(stDup.find((x) => x.state === 'next')!.label), 'a duplicate week is read once, the same way by the clock and the Journey');
   assert(injectionTimeOk('2026-10-06T21:00:00+03:00', new Date('2026-10-07T02:00:00+03:00')) && !injectionTimeOk('2026-10-08T02:00:00+03:00', new Date('2026-10-07T02:00:00+03:00')) && !injectionTimeOk('2026-09-01T02:00:00+03:00', new Date('2026-10-07T02:00:00+03:00')) && !injectionTimeOk('junk', new Date()), 'a dose time is accepted from the last 14 days, never the future, never junk');
 }
 
 // ── Health writes: six ways the app stored or lost his data (audit, 2026-10-02) ──
 // Every decision below is a pure function in src/lib/health-entry.ts; the
 // actions, the fuel pipe and the Health import only apply what it returns.
-import { stackMacros, checkInDayTotals, saveEach, weightImportPlan, manualWeightPlan, bpImportTwin } from '../src/lib/health-entry';
+import { stackMacros, checkInDayTotals, saveEach, weightImportPlan, manualWeightPlan, bpImportTwin, ownerDayWindow } from '../src/lib/health-entry';
+import { ownerDayKey } from '../src/lib/health-insights';
 {
   const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   const fnBody = (file: string, from: string, to: string) => {
@@ -4203,7 +4218,16 @@ import { stackMacros, checkInDayTotals, saveEach, weightImportPlan, manualWeight
   assert(higher.patch.proteinG === 140 && !('waterMl' in higher.patch) && higher.kept.length === 0, 'a higher day figure is saved; the same figure is neither rewritten nor reported');
   assert(checkInDayTotals(null, { proteinG: 90 }).patch.proteinG === 90 && Object.keys(checkInDayTotals(null, { proteinG: 0, waterMl: 99999 }).patch).length === 0, 'an empty day takes the figure; zero and out-of-range store nothing');
   assert(checkInDayTotals(null, { proteinG: 4000, waterMl: 1500 }).rejected.join() === 'proteinG' && checkInDayTotals(null, { proteinG: NaN }).rejected.length === 1 && checkInDayTotals(null, { proteinG: 90 }).rejected.length === 0, 'a mistyped figure is reported as rejected, so the save can fail out loud instead of ending on "noted"');
+  // Adversary (2026-10-02): "only raises" made a water typo permanent — 5000
+  // typed for 500 could not be lowered from anywhere in the app. The reason
+  // for the rule is the pre-logged PROTEIN plan; water is his latest figure.
+  const waterFix = checkInDayTotals({ proteinG: 133, waterMl: 5000 }, { waterMl: 500 });
+  assert(waterFix.patch.waterMl === 500 && waterFix.kept.length === 0, 'a lower water figure replaces the day\'s — a typo can be corrected');
+  const useMine = checkInDayTotals({ proteinG: 133, waterMl: 5000 }, { proteinG: 67 }, { replace: true });
+  assert(useMine.patch.proteinG === 67 && useMine.kept.length === 0, '"Use 67 g instead" sets the protein he typed over the larger figure');
   const checkIn = src('src/components/health/CheckIn.tsx');
+  assert(/Use \{[^}]*\} g instead/.test(checkIn) && /replace:\s*true/.test(checkIn) && /replace/.test(fnBody('src/app/health-actions.ts', 'export async function logCheckInNutrition', '\nexport async function ')), 'the kept-protein line carries the way out: one tap sets his figure');
+  assert(/Boolean\(sys\) !== Boolean\(dia\)/.test(checkIn) && /a number is missing/.test(checkIn), 'a half-typed BP is said to be not saved and stays in its field — never cleared under "noted"');
   assert(checkIn.includes('activityDayStr(') && !/getDate\(\)/.test(checkIn), 'the check-in files protein and water under the 04:00 activity day, like Diet');
   assert(checkIn.includes('logCheckInNutrition(') && !/\blogNutrition\b/.test(checkIn), 'the check-in never calls the overwrite (logNutrition)');
   const checkInFn = fnBody('src/app/health-actions.ts', 'export async function logCheckInNutrition', '\nexport async function ');
@@ -4242,7 +4266,29 @@ import { stackMacros, checkInDayTotals, saveEach, weightImportPlan, manualWeight
   const take = manualWeightPlan([{ id: 'h1', date: t('04:10'), source: 'apple-health', weight: 126.9 }, { id: 'h2', date: t('04:12'), source: 'apple-health', weight: 127.0 }], { weight: 126.4 });
   assert(take.kind === 'takeOver' && take.id === 'h2', 'a manual weight on a day the scale already synced takes over the imported row (the latest) — one row, so every reader sees his number');
   assert(manualWeightPlan([{ id: 'h', date: t('04:10'), source: 'apple-health', weight: 126.9 }], {}).kind === 'create', 'a waist-only manual entry leaves the scale row alone');
-  assert(manualWeightPlan([{ id: 'm', date: t('00:00'), source: 'manual', weight: 126.0 }], { weight: 126.4 }).kind === 'create' && manualWeightPlan([], { weight: 126.4 }).kind === 'create', 'with no imported row there is nothing to take over');
+  assert(manualWeightPlan([], { weight: 126.4 }).kind === 'create', 'an empty day takes the manual weight as its own row');
+  // Data-steward (2026-10-02): the taken-over row keeps the scale's time, so
+  // a correction typed later made a 00:00Z row EARLIER than it and lost.
+  const fix = manualWeightPlan([{ id: 'm1', date: t('04:10'), source: 'manual', weight: 126.4 }], { weight: 126.1 });
+  assert(fix.kind === 'update' && fix.id === 'm1', 'a second manual weight corrects the day\'s manual row — never a second row that sorts before it');
+  const fix2 = manualWeightPlan([{ id: 'w', date: t('00:00'), source: 'manual', weight: null }, { id: 'm1', date: t('00:00'), source: 'manual', weight: 126.4 }, { id: 'h', date: t('04:10'), source: 'apple-health', weight: 126.9 }], { weight: 126.1 });
+  assert(fix2.kind === 'update' && fix2.id === 'm1', 'the manual WEIGHT row is the one corrected, before any imported or waist-only row');
+  assert(manualWeightPlan([{ id: 'm1', date: t('04:10'), source: 'manual', weight: 126.4 }], {}).kind === 'create', 'a waist-only entry never rewrites a weight row');
+  // The day is HIS day (Riyadh), on both sides: a 01:00 weigh-in on the 3rd
+  // is 22:00Z on the 2nd, and a manual weight backfilled for the 2nd used to
+  // take it over and block the import for that UTC day.
+  {
+    const w3 = new Date('2026-10-03T01:00:00+03:00');
+    const w2 = new Date('2026-10-02T23:30:00+03:00');
+    const typed2 = new Date('2026-10-02'); // what BodyStatForm sends: a bare date
+    const d2 = ownerDayWindow(ownerDayKey(typed2));
+    const d3 = ownerDayWindow(ownerDayKey(w3));
+    const inside = (d: Date, w: { start: Date; end: Date }) => d >= w.start && d < w.end;
+    assert(ownerDayKey(w3) === '2026-10-03' && ownerDayKey(w2) === '2026-10-02' && ownerDayKey(typed2) === '2026-10-02', 'a 01:00 weigh-in belongs to the 3rd, a 23:30 one to the 2nd, a bare date to itself');
+    assert(inside(typed2, d2) && inside(w2, d2) && !inside(w3, d2), 'a manual weight for the 2nd sees the 23:30 weigh-in and not the 01:00 one after midnight');
+    assert(inside(w3, d3) && !inside(w2, d3) && inside(new Date('2026-10-03'), d3), 'the 01:00 weigh-in sits in the 3rd\'s window, with a manual entry for the 3rd');
+    assert(d2.end.getTime() === d3.start.getTime() && d3.start.toISOString() === '2026-10-02T21:00:00.000Z', 'his days tile the clock: the 3rd starts at 00:00 Riyadh');
+  }
   {
     // The reader every page uses, over what the two plans leave behind.
     const rows = [{ date: '2026-10-01T04:00:00.000Z', weight: 127.2 }, { date: '2026-10-02T04:12:00.000Z', weight: 126.4 }];
@@ -4252,6 +4298,7 @@ import { stackMacros, checkInDayTotals, saveEach, weightImportPlan, manualWeight
   const bodyImport = fnBody('src/lib/health-import.ts', 'async function upsertBodyStats', 'async function enrichWorkouts');
   assert(bodyImport.includes('weightImportPlan(') && !/source === 'manual'/.test(bodyImport) && /findMany\(/.test(bodyImport), 'the weigh-in import reads the whole day and asks weightImportPlan — no first-row check of its own');
   const addStat = fnBody('src/app/actions.ts', 'export async function addBodyStat', '\nexport async function ');
+  assert(addStat.includes('ownerDayWindow(ownerDayKey(') && bodyImport.includes('ownerDayWindow(') && bodyImport.includes('ownerDayKey(sample.date)') && !/dayKey\(sample\.date\)|dayRange\(/.test(bodyImport.replace(/ownerDayKey/g, '')), 'the import and the manual entry key a weigh-in by the same owner day, never the UTC day');
   assert(addStat.includes('manualWeightPlan(') && /source:\s*'manual'/.test(addStat), 'addBodyStat asks manualWeightPlan and marks a taken-over row manual');
 
   // E. Measured 08:00, typed 08:02, cuff synced later: two rows.
@@ -4261,8 +4308,18 @@ import { stackMacros, checkInDayTotals, saveEach, weightImportPlan, manualWeight
   assert(bpImportTwin({ ...cuff, diastolic: 82 }, [typed], new Set()) === null, 'different numbers two minutes apart are two readings');
   assert(bpImportTwin({ ...cuff, at: cuff.at - 6 * 60_000 }, [typed], new Set()) === null, 'the same numbers eight minutes apart are two readings');
   assert(bpImportTwin(cuff, [{ ...typed, notes: 'Apple Health' }], new Set()) === null, 'two cuff readings minutes apart stay two rows — the five-minute rule is for a row he typed');
-  assert(bpImportTwin({ ...cuff, systolic: 140, at: typed.at + 30_000 }, [typed], new Set()) === 'man', 'any reading within a minute of an existing one is still skipped (the rolling re-sync)');
-  assert(bpImportTwin(cuff, [typed], new Set(['man'])) === null && bpImportTwin({ ...cuff, at: typed.at - 20_000 }, [typed], new Set(['man'])) === 'man', 'one typed row answers for one cuff reading; a second identical reading is its own row unless it is the same minute');
+  assert(bpImportTwin({ ...cuff, systolic: 140, at: typed.at + 30_000 }, [{ ...typed, notes: 'Apple Health' }], new Set()) === 'man' && bpImportTwin({ ...cuff, systolic: 140, at: typed.at + 30_000 }, [{ ...typed, notes: 'Apple Health' }], new Set(['man'])) === 'man', 'any pair within a minute of an IMPORTED row is that row again (the rolling re-sync), claimed or not');
+  assert(bpImportTwin({ at: typed.at + 50_000, systolic: 150, diastolic: 95 }, [typed], new Set()) === null, 'a different cuff reading 50 s from a typed one is its own measurement — never dropped on time alone');
+  {
+    // Adversary's probe: cuff 08:00 and 08:04, both 126/80; typed at 08:03:30.
+    const typedLate = { ...typed, at: Date.parse('2026-10-02T05:03:30Z') };
+    const claimed = new Set<string>();
+    const first = bpImportTwin(cuff, [typedLate], claimed);
+    if (first) claimed.add(first);
+    const second = bpImportTwin({ ...cuff, at: Date.parse('2026-10-02T05:04:00Z') }, [typedLate], claimed);
+    assert(first === 'man' && second === null, 'one typed row never swallows two cuff readings, even when the second is within its minute');
+  }
+  assert(bpImportTwin(cuff, [typed], new Set(['man'])) === null, 'one typed row answers for one cuff reading; a second identical reading is its own row');
   const bpImport = fnBody('src/lib/health-import.ts', 'async function importBpReadings', '\nexport async function importHealthSamples');
   assert(bpImport.includes('bpImportTwin(') && bpImport.includes('BP_SAME_READING_MS'), 'the BP import asks bpImportTwin and looks five minutes either side');
   assert(!/data:\s*\{[^}]*\bat\b/.test(bpImport.slice(bpImport.indexOf('if (twinId'), bpImport.indexOf('bpReading.create'))), 'a matched row keeps its own time; only a blank pulse is filled');
@@ -4509,7 +4566,7 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
   const serverDay = (d: Date) => HI.ownerActivityDayUtc(d).toISOString().slice(0, 10);
   const at = (mo: number, d: number, h: number, mi = 0) => new Date(2026, mo - 1, d, h, mi);
   const blk = (exerciseId: string, done: boolean[], programName: string | undefined = exerciseId) => ({
-    exerciseId, programName, sets: done.map((dn, i) => ({ done: dn, setNumber: i + 1 })),
+    uid: `u-${exerciseId}`, exerciseId, programName, sets: done.map((dn, i) => ({ done: dn, setNumber: i + 1 })),
   });
   const pageA45 = { day: 'A' as const, dur: 45, dayExplicit: false, durExplicit: false };
 
@@ -4539,7 +4596,6 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
   assert(/shouldWriteDraft\(/.test(form), 'the autosave asks shouldWriteDraft before it writes');
   assert(/firstTickDay\(/.test(form), 'the first tick re-reads the activity day');
   assert(/draftDisposable\(/.test(banner) && /durableRemove\(DRAFT_KEY\)/.test(banner) && !/localStorage\.removeItem\(DRAFT_KEY\);\s*setDraftName\(null\)/.test(banner), 'the pill\'s purge removes the native copy too, and only a draft with nothing done');
-  assert(/key=\{`\$\{validDay\}-\$\{validDur\}-\$\{isRescue \? 'r' : 'n'\}-\$\{dayLabel\}`\}/.test(page), 'the form is keyed by the activity day: a refresh after 04:00 remounts it on today\'s prescription');
 
   // 2 — the length he chose wins.
   const p30 = { day: 'A' as const, dur: 30, dayExplicit: true, durExplicit: true, today: '2026-10-02' };
@@ -4596,7 +4652,7 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
   // 4 — one save id, one session.
   {
     const owner = LD.ownerOf({ date: new Date('2026-10-02'), sets: [{ completedAt: '2026-10-02T15:00:00.000Z' }, { completedAt: '2026-10-02T15:40:00.000Z' }] }, serverDay);
-    assert(owner.days.join() === '2026-10-02', `a phone save dated at UTC midnight is its own activity day (got ${owner.days.join()})`);
+    assert(owner.day === '2026-10-02', `a phone save dated at UTC midnight is its own activity day (got ${owner.day})`);
     const today = [{ completedAt: '2026-10-04T15:00:00.000Z', n: 1 }, { completedAt: '2026-10-04T15:05:00.000Z', n: 2 }];
     const split = LD.splitBySessionDay(owner, today, serverDay);
     assert(split.same.length === 0 && split.other.length === 2 && split.otherDay === '2026-10-04', `sets lifted on 4 Oct under the id of a workout saved 2 Oct are a NEW session, never a merge (got ${JSON.stringify(split)})`);
@@ -4616,7 +4672,6 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
     assert(LD.draftSaveIdFate({ owner: saved, liveClosed: true }, [doneSet({}), doneSet({ setNumber: 2 })], serverDay) === 'keep', 'the Watch finished first and the phone holds a set it lacks: same id, the handoff merges it');
     assert(LD.draftSaveIdFate({ owner: saved, liveClosed: true }, [doneSet({ weight: 42.5, completedAt: '2026-10-04T15:00:00.000Z' })], serverDay) === 'new', 'a set lifted another day is never posted under the old id');
     assert(!LD.shouldWriteDraft({ finished: true, rescue: false, started: true, touched: true }), 'once saved, nothing writes the session back as a draft (the ghost)');
-    assert(/splitBySessionDay\(/.test(acts) && /rehomedSaveId\(/.test(acts), 'createWorkout never merges another day\'s sets into the workout that owns the id');
     assert(/export async function getSaveIdOwner\(/.test(acts) && /getSaveIdOwner\(/.test(form) && /draftSaveIdFate\(/.test(form), 'the server can say who owns a draft\'s save id, and the restore asks');
     assert(/finishedRef\.current = true/.test(form) && /finished: finishedRef\.current/.test(form), 'the save marks the form finished and the autosave reads it');
   }
@@ -4638,7 +4693,7 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
     assert(LD.setRecord({ weight: 40, reps: 12 }, rec) === 'rep', '12 reps at 40 where 12 was only ever done at 37.5: a rep record');
     assert(LD.setRecord({ weight: 37.5, reps: 10 }, rec) === null, 'lighter than a set of MORE reps is no record');
     assert(LD.setRecord({ weight: 24, reps: 15 }, { ...rec, rampScaled: true }) === null, 'a ramp-scaled set claims nothing below the real record');
-    assert(LD.setRecord({ weight: 42.5, reps: 10 }, { ...rec, rampScaled: true }) === 'all-time', '…a true record in the ramp is still one');
+    assert(LD.setRecord({ weight: 42.5, reps: 10 }, { ...rec, rampScaled: false }) === 'all-time', '…a held machine (not scaled) keeps its record in the ramp');
     assert(LD.setRecord({ weight: 30, reps: 30 }, { ...rec, unit: 'seconds' }) === null && LD.setRecord({ weight: 60, reps: 10, isWarmup: true }, rec) === null, 'never a timed hold, never a warm-up');
     assert(LD.setRecord({ weight: 20, reps: 12 }, { unit: 'reps', best: 0, rampScaled: false }) === null, 'no record at this gym yet (rule 2): the first visit is not fourteen records');
     assert(LD.setRecord({ weight: 42.5, reps: 10 }, { ...rec, earlier: [{ weight: 42.5, reps: 10 }] }) === null, 'three sets at the new weight are one record');
@@ -4670,6 +4725,151 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
     const direct = form.match(/buildBlocks\(/g)?.length ?? 0;
     assert(direct === 3 && /function freshBlocks\(\)[\s\S]{0,260}readinessRef\.current\?\.verdict === 'hold'/.test(form), `every rebuild — Start fresh, the Watch's row, a re-prescribed draft — goes through freshBlocks, which passes the hold (buildBlocks appears ${direct}×: its definition, the mount, freshBlocks)`);
     assert(/setBlocks\(freshBlocks\(\)\)/.test(form), 'Start fresh rebuilds through it');
+  }
+
+  // ── Review round on the above (trainer, data-steward, adversary — 2026-10-02) ──
+  {
+    const coachSrc = read('src/lib/coach.ts');
+    const programSrc = read('src/lib/program.ts');
+    const rx = (re: RegExp, src: string) => re.test(src);
+
+    // A — a re-laid draft never holds two blocks under one uid.
+    const ub = (uid: string, exerciseId: string, done: boolean[], programName?: string) => ({ uid, exerciseId, programName, sets: done.map((dn) => ({ done: dn, weight: 40, isWarmup: false })) });
+    const freshA = [ub('b0-LP', 'LP', [false], 'Leg Press'), ub('b1-CP', 'CP', [false, false], 'Chest Press')];
+    const swapped = LD.mergeDraftIntoPlan([ub('b0-LP', 'LP', [true], 'Leg Press'), ub('b1-CP', 'PF', [true, false])], freshA);
+    assert(swapped.map((b) => `${b.uid}/${b.exerciseId}`).join() === 'b0-LP/LP,b1-CP/PF', `a swapped machine with a done set takes its own slot back — one block per uid (got ${swapped.map((b) => `${b.uid}/${b.exerciseId}`).join()})`);
+    const swappedIdle = LD.mergeDraftIntoPlan([ub('b0-LP', 'LP', [true], 'Leg Press'), ub('b1-CP', 'PF', [false, false])], freshA);
+    assert(swappedIdle.map((b) => `${b.uid}/${b.exerciseId}`).join() === 'b0-LP/LP,b1-CP/CP', `a swap he never started gives the slot back to today's plan (got ${swappedIdle.map((b) => `${b.uid}/${b.exerciseId}`).join()})`);
+    const crowd = LD.mergeDraftIntoPlan([ub('b1-CP', 'PF', [true]), ub('b1-CP', 'XX', [true]), ub('r4nd', 'OWN', [false])], freshA);
+    assert(new Set(crowd.map((b) => b.uid)).size === crowd.length && crowd.length === 4, `whatever the draft holds, the merge returns unique uids (got ${crowd.map((b) => b.uid).join()})`);
+
+    // B / trainer 2 — a started machine's undone rows take today's weight.
+    const rep = LD.repriceUndone([{ done: true, weight: 40 }, { done: false, weight: 40 }, { done: false, weight: 22, isWarmup: true }], 25, 12.5);
+    assert(rep.map((x) => x.weight).join() === '40,25,12.5' && rep.length === 3, `set 1 done at 40 before the break; sets 2–3 open at today's 25, the done set stands, no row removed (got ${rep.map((x) => x.weight).join()})`);
+    assert(LD.repriceUndone([{ done: false, weight: 40 }], null, null)[0].weight === 40 && LD.repriceUndone([{ done: false, weight: 22, isWarmup: true }], 25, null)[0].weight === 22, 'nothing to prescribe leaves the rows as stored');
+    const relaid = LD.mergeDraftIntoPlan([ub('b0-LP', 'LP', [true, false], 'Leg Press')], [{ ...ub('b0-LP', 'LP', [false, false], 'Leg Press'), sets: [{ done: false, weight: 25, isWarmup: false }] }],
+      (mine, slot) => ({ ...mine, sets: LD.repriceUndone(mine.sets, slot.sets[0].weight, null) }));
+    assert(relaid[0].sets.map((x) => x.weight).join() === '40,25', 'the merge hands a started machine its plan slot to reprice from');
+    assert(rx(/repriceUndone\(/, form) && rx(/repriceStarted/, form), 'the logger reprices a stale draft\'s started machines — at home from today\'s plan, away from that building\'s');
+
+    // Trainer 1, steward 7–9, adversary C–D — every set to the workout of its sitting.
+    const R = (known: Array<{ saveId: string; day: string; stamps: string[] }>, day: string, sets: Array<{ completedAt?: string }>) =>
+      LD.routeSets('X', known.map((k) => ({ ...k, stamps: k.stamps.map((x) => Date.parse(x)) })), day, sets, serverDay).map((r) => `${r.saveId}@${r.day}:${r.sets.length}`).join(' ');
+    const oct2 = [{ completedAt: '2026-10-02T15:00:00.000Z' }, { completedAt: '2026-10-02T15:04:00.000Z' }];
+    const oct5 = [{ completedAt: '2026-10-05T15:00:00.000Z' }, { completedAt: '2026-10-05T15:05:00.000Z' }, { completedAt: '2026-10-05T15:10:00.000Z' }];
+    assert(R([], '2026-10-02', [...oct2, ...oct5]) === 'X@null:2 X~2026-10-05@2026-10-05:3', `two sets ticked 2 Oct, never saved, finished 5 Oct: two workouts, each on the day it was lifted (got ${R([], '2026-10-02', [...oct2, ...oct5])})`);
+    assert(R([{ saveId: 'X', day: '2026-10-02', stamps: oct2.map((x) => x.completedAt) }, { saveId: 'X~2026-10-05', day: '2026-10-05', stamps: oct5.map((x) => x.completedAt) }], '2026-10-02', [...oct2, ...oct5]) === 'X@null:2 X~2026-10-05@null:3', 'the outbox replaying it finds both again');
+    assert(R([], '2026-09-30', oct2) === 'X@null:2', 'one sitting he back-dated stays one workout on the date he set');
+    const o350 = '2026-10-03T00:50:00.000Z', o405 = '2026-10-03T01:05:00.000Z', o1800 = '2026-10-03T15:00:00.000Z';
+    const mixedPayload = [{ completedAt: o350 }, { completedAt: o405 }, { completedAt: o1800 }];
+    const firstRoute = R([{ saveId: 'X', day: '2026-10-02', stamps: [o350] }], '2026-10-02', mixedPayload);
+    assert(firstRoute === 'X@null:2 X~2026-10-03@2026-10-03:1', `03:50 and 04:05 are one sitting; 18:00 the next day is another (got ${firstRoute})`);
+    assert(R([{ saveId: 'X', day: '2026-10-02', stamps: [o350, o405] }], '2026-10-02', mixedPayload) === firstRoute, 'replay after the merge widened the owner (and before the second workout landed): the split is the same');
+    assert(R([{ saveId: 'X', day: '2026-10-02', stamps: [o350, o405] }, { saveId: 'X~2026-10-03', day: '2026-10-03', stamps: [o1800] }], '2026-10-02', mixedPayload) === 'X@null:2 X~2026-10-03@null:1', '…and after both landed: nothing grafted into the old workout, nothing stored twice');
+    const sep30 = { saveId: 'X', day: '2026-09-30', stamps: ['2026-09-30T17:00:00.000Z'] };
+    const o410 = '2026-10-03T01:10:00.000Z';
+    assert(R([sep30], '2026-09-30', [{ completedAt: o410 }]) === 'X~2026-10-03@2026-10-03:1', 'the phone finishes first with only its 04:10 set');
+    assert(R([sep30, { saveId: 'X~2026-10-03', day: '2026-10-03', stamps: [o410] }], '2026-09-30', [{ completedAt: o350 }, { completedAt: o410 }]) === 'X~2026-10-03@null:2', 'the Watch then posts 03:50 and 04:10: the SAME workout, found by its sets — not a second one a day earlier');
+    assert(R([sep30], '2026-10-05', [{}, {}]) === 'X~2026-10-05@2026-10-05:2', 'sets with no stamp under a stale id go by the payload\'s date — never merged into the old workout by default');
+    assert(R([sep30], '2026-09-30', [{}, {}]) === 'X@null:2', '…and a replay of the same unstamped save still dedupes (rule 8)');
+    const watchRow = LD.ownerOf({ date: new Date('2026-10-03T00:30:00.000Z'), sets: [] }, serverDay);
+    assert(watchRow.day === '2026-10-02' && !('days' in watchRow), `an instant-dated row at 03:30 Riyadh owns ONE activity day (got ${JSON.stringify(watchRow)})`);
+    assert(LD.datedName('Day B 45m — Oct 2', '2026-10-05') === 'Day B 45m — Oct 5' && LD.datedName('Legs', '2026-10-05') === 'Legs — Oct 5', 'a re-homed workout carries its own date in its name');
+    assert(LD.sittingSeconds(oct5) === 600 && LD.sittingSeconds([{}]) === null, 'its length is its own sets\', not the other day\'s');
+    const rowOwner = { day: '2026-10-02', stamps: oct2.map((x) => Date.parse(x.completedAt)) };
+    assert(LD.closedRowVerdict(rowOwner, oct2, serverDay) === 'handoff' && LD.closedRowVerdict(rowOwner, oct5, serverDay) === 'new-id' && LD.closedRowVerdict(rowOwner, [...oct2, ...oct5], serverDay) === 'stay', 'a closed row: its own sets are handed off, another day\'s take a new id, a mix stays on screen (never thrown to the old workout mid-session)');
+    assert(rx(/routeSets\(/, acts) && rx(/datedName\(/, acts) && rx(/sittingSeconds\(/, acts), 'createWorkout routes every set by sitting, with or without an owner');
+    assert(rx(/startsWith: `\$\{root\}~`/, acts), 'the derived id is resolved by lookup: every workout saved under the id or derived from it is read first');
+    assert(rx(/liveRoutes/, acts) && rx(/closeLive\(root, /, acts), 'a re-homed save still reconciles with the live row under the posted id, and closes it');
+
+    // Trainer 3 — no cut for a trailing rescue.
+    {
+      const day3 = (date: string, name: string, kg: number) => ({
+        date: new Date(`${date}T00:00:00Z`), name, gym: 'bfit', duration: 2400,
+        sets: [1, 2, 3, 4, 5, 6].map(() => ({ exerciseId: 'lat', weight: kg, rpe: 2, isWarmup: false })),
+      });
+      const rows3 = [day3('2026-09-06', 'Day B 45m', 40), day3('2026-09-10', 'Day A 45m', 30), day3('2026-09-14', 'Day B 45m', 40), day3('2026-09-18', 'Rescue 15m — Sep 18', 24)];
+      const in3 = prescriptionInputs(rows3, [], DEFAULT_GYM_ID, new Date('2026-09-19T09:00:00Z'));
+      assert(in3.status.mode === 'normal' && in3.cut === null, `outside a ramp a trailing rescue sets no memory cut — rescue rows are never memory, and the cut walked back over a finished ramp to pre-break weights (got ${in3.status.mode}, cut ${in3.cut})`);
+    }
+
+    // Trainer 4, adversary F — records never celebrate breaking the ramp, or a rep count he never reached.
+    const rec = { unit: 'reps', best: 40, byReps: { 12: 40, 15: 37.5 }, rampScaled: false };
+    assert(LD.setRecord({ weight: 42.5, reps: 10 }, { ...rec, rampScaled: true }) === null, 'REBOOT, prescribed ~25, he lifts 42.5 against a best of 40: no record line for the lift the judge marks over-ramp');
+    assert(LD.setRecord({ weight: 20, reps: 20 }, rec) === null && LD.setRecord({ weight: 30, reps: 16 }, rec) === null, '20 kg × 20 against a 40 kg best is not "best 20-rep set": a rep record needs a set of at least that many reps to beat');
+    assert(LD.setRecord({ weight: 40, reps: 13 }, rec) === 'rep', '13 reps at 40 where 15 was only done at 37.5 still is');
+    assert(!LD.blockHasRecord([{ weight: 42.5, done: true }], 'lp', 'reps', { lp: 40 }, true) && LD.blockHasRecord([{ weight: 42.5, done: true }], 'lp', 'reps', { lp: 40 }, false), 'the chip and the summary line follow the same ramp guard');
+    assert(rx(/const rampScaledFor = /, form) && rx(/rescueMode \|\|/, form.slice(form.indexOf('const rampScaledFor = '), form.indexOf('const rampScaledFor = ') + 400)) && rx(/rampHold/, form.slice(form.indexOf('const rampScaledFor = '), form.indexOf('const rampScaledFor = ') + 400)), 'a rescue session and a scaled ramp machine are "scaled"; a held machine (first met in the ramp) keeps its record');
+
+    // Trainer 5 — rescue rows are out of every per-machine reader.
+    {
+      const cs = (w: number, rpe: number) => [1, 2, 3].map(() => ({ exerciseId: 'row', reps: 12, weight: w, rpe, exercise: { id: 'row', name: 'Mid Row', category: 'BACK' } }));
+      const stuck = ['2026-09-08', '2026-09-12', '2026-09-16', '2026-09-20'].map((d0) => ({ date: new Date(`${d0}T00:00:00Z`), name: 'Day B 45m', sets: cs(40, 3) }));
+      const withRescue = [...stuck, { date: new Date('2026-09-24T00:00:00Z'), name: 'Rescue 15m — Sep 24', sets: cs(25, 2) }];
+      const says = (ws: CoachWorkout[]) => weeklyReport(ws, [], { mode: 'normal', week: 6 }, new Date('2026-09-25T09:00:00Z')).focus.some((f) => f.includes('Mid Row stuck at 40'));
+      assert(says(stuck) && says(withRescue), 'the Stats report still says Mid Row is stuck at 40 after a rescue — the logger opens it at the deload weight');
+      assert(rx(/NOT: \{ name: \{ startsWith: 'Rescue' \} \}/, acts.slice(acts.indexOf('export async function getRecentExerciseSessions'), acts.indexOf('export async function getRecentExerciseSessions') + 900)), 'the ⓘ drawer never shows a rescue\'s weight as a session top');
+      assert(rx(/NOT: \{ name: \{ startsWith: 'Rescue' \} \}/, acts.slice(acts.indexOf('export async function getExerciseHistory'), acts.indexOf('export async function getExerciseHistory') + 1200)), 'nor does the progress chart');
+      void coachSrc;
+    }
+
+    // Trainer 6 — a rescue never closes the ramp.
+    {
+      const dts = (list: string[]) => list.map((x) => new Date(`${x}T00:00:00Z`));
+      const before = dts(['2026-05-10', '2026-05-14', '2026-05-18']);
+      const ramp = dts(['2026-09-01', '2026-09-05', '2026-09-09', '2026-09-13', '2026-09-17', '2026-09-21', '2026-09-25']);
+      const resc = dts(['2026-09-29']);
+      const st = getTrainingStatus([...before, ...ramp, ...resc], new Date('2026-09-30T09:00:00Z'), [], resc);
+      assert(st.mode === 'return' && st.week === 4 && st.sessionsInBlock === 7, `seven ramp sessions and a 15-minute rescue: still RESTORE — the rescue is not session 8 (got ${JSON.stringify(st)})`);
+      const real = getTrainingStatus([...before, ...ramp, ...resc], new Date('2026-09-30T09:00:00Z'), [], []);
+      assert(real.mode === 'normal', 'the same eight rows, all real sessions, do finish it');
+      const later = getTrainingStatus([...before, ...ramp, ...resc], new Date('2026-10-18T09:00:00Z'), [], resc);
+      assert(later.mode === 'return' && later.sessionsInBlock === 7, `…and the rescue still keeps the chain: 19 days after it (23 after the last real session) is not a new layoff (got ${JSON.stringify(later)})`);
+      const sameDay = getTrainingStatus([...before, ...ramp, ...resc, ...resc], new Date('2026-09-30T09:00:00Z'), [], resc);
+      assert(sameDay.mode === 'normal', 'a real session on the rescue\'s day counts');
+      const rsess = (date: string, name: string) => ({ date: new Date(`${date}T00:00:00Z`), name, gym: 'bfit', duration: 2400, sets: [1, 2, 3, 4, 5, 6].map(() => ({ exerciseId: 'lat', weight: 20, rpe: 2, isWarmup: false })) });
+      const viaInputs = prescriptionInputs([
+        ...['2026-05-10', '2026-05-14', '2026-05-18'].map((x) => rsess(x, 'Day B 45m')),
+        ...['2026-09-01', '2026-09-05', '2026-09-09', '2026-09-13', '2026-09-17', '2026-09-21', '2026-09-25'].map((x, i) => rsess(x, i % 2 ? 'Day A 45m' : 'Day B 45m')),
+        rsess('2026-09-29', 'Rescue 15m — Sep 29'),
+      ], [], DEFAULT_GYM_ID, new Date('2026-09-30T09:00:00Z'));
+      assert(viaInputs.status.mode === 'return' && viaInputs.rampRpeCap != null, `the one prescription (phone, /train, Watch, save-time judge) reads it that way: Day A still opens under RESTORE with its effort cap (got ${viaInputs.status.mode})`);
+      // Every screen and the Watch verdict must agree with the logger about
+      // where the ramp ends: no caller of getTrainingStatus may leave the
+      // rescue dates out (a sixth caller cannot be added without them).
+      const bare: string[] = [];
+      const walk = (dir: string) => {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, e.name);
+          if (e.isDirectory()) walk(full);
+          else if (/\.tsx?$/.test(e.name)) {
+            fs.readFileSync(full, 'utf8').split('\n').forEach((line, i) => {
+              if (/getTrainingStatus\(/.test(line) && !/export function getTrainingStatus/.test(line) && !/^\s*(\/\/|\*)/.test(line) && !/rescueDatesOf\(/.test(line)) bare.push(`${path.relative(path.join(__dirname, '..'), full)}:${i + 1}`);
+            });
+          }
+        }
+      };
+      walk(path.join(__dirname, '..', 'src'));
+      assert(bare.length === 0, `every getTrainingStatus call in src/ passes rescueDatesOf (missing: ${bare.join(', ') || 'none'})`);
+      void programSrc;
+    }
+
+    // Adversary E — a session's gym that will not load.
+    const gaveUp = LD.gymSwitchFailure({ shown: 'bfit', wanted: 'work', wantedName: 'Alrajhi Tower', by: 'session', tries: 3 });
+    assert(gaveUp.tag === 'work' && gaveUp.blank && !gaveUp.retry && /tap it to retry/.test(gaveUp.notice), `B_Fit prefills are never left under the Alrajhi tag: the unstarted weights are blanked, and the notice says how to retry (got ${JSON.stringify(gaveUp)})`);
+    assert(!LD.gymSwitchFailure({ shown: 'work', wanted: 'work', wantedName: 'Alrajhi Tower', by: 'session', tries: 1 }).blank, 'a restored Alrajhi draft\'s own numbers are that building\'s: nothing blanked');
+    assert(rx(/g\.id === gym && gymReloadRef\.current/, form) && rx(/blankUnstarted\(/, form), 'tapping the tagged gym retries its load, and a failed session load blanks the other building\'s prefills');
+
+    // Adversary G.
+    const renamed = { name: 'Push day', day: 'A', dur: 45, savedAt: at(10, 2, 18).getTime(), blocks: [blk('lp', [true, false])] };
+    const pRenamed = LD.planDraftRestore(renamed, { day: 'A', dur: 30, dayExplicit: true, durExplicit: true, today: '2026-10-02' }, dayOf);
+    assert(pRenamed.kind === 'restore' && pRenamed.refit, `a draft he renamed still knows its day and length: an explicit 30 re-fits it (got ${JSON.stringify(pRenamed)})`);
+    const pHop = LD.planDraftRestore(renamed, { day: 'B', dur: 45, dayExplicit: false, durExplicit: false, today: '2026-10-02' }, dayOf);
+    assert(pHop.kind === 'hop' && pHop.href === '/workouts/new?day=A&dur=45', 'and a bare open follows it to its own day');
+    assert(rx(/day: dayAccent \?\? null, dur: durationMin \?\? null/, form), 'the autosave writes the day and the length as fields');
+    assert(!rx(/key=\{`[^`]*dayLabel/, page), 'the form is NOT keyed by the day: a server re-render after 04:00 must not remount a session in flight');
+    assert(rx(/rolloverAskedRef\.current/, form) && rx(/ownerActivityDayUtc\(\)/, form), 'the rollover reset happens only when this form asked for it with nothing ticked, on the page\'s own clock');
+    assert(rx(/saveIdUnsettledRef/, form) && !rx(/const kept = draft \? await settleSaveId/, form), 'the save-id question no longer holds the autosave shut: ticks during the wait are drafted, pushes wait, and it is asked again when the network returns');
   }
 }
 

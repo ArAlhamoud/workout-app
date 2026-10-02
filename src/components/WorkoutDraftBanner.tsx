@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { durableRemove } from '@/lib/native-store';
 import { activityDayStr } from '@/lib/health-insights';
-import { draftDisposable } from '@/lib/logger-draft';
+import { draftDisposable, draftHome } from '@/lib/logger-draft';
 import { closeLiveSession, getLiveSession } from '@/app/actions';
 
 const DRAFT_KEY = 'workout-draft';
@@ -28,11 +28,12 @@ export default function WorkoutDraftBanner() {
       if (pathname !== '/') return;
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
-      const draft = JSON.parse(raw) as { name?: string; savedAt?: number; blocks?: Array<{ sets?: Array<{ done?: boolean }> }> };
+      const draft = JSON.parse(raw) as { name?: string; day?: string | null; dur?: number | null; savedAt?: number; blocks?: Array<{ sets?: Array<{ done?: boolean }> }> };
       const ticked = Array.isArray(draft.blocks) && draft.blocks.some((b) => b.sets?.some((s) => s.done));
       const fresh = Date.now() - (draft.savedAt ?? 0) < 4 * 60 * 60 * 1000;
-      const m = draft.name?.match(/^Day ([AB]) (\d+)m/);
-      if (ticked && fresh && m) router.replace(`/workouts/new?day=${m[1]}&dur=${m[2]}`);
+      // The draft's own day and length (fields; the name for older drafts).
+      const home = draftHome(draft);
+      if (ticked && fresh && home) router.replace(`/workouts/new?day=${home.day}&dur=${home.dur}`);
     } catch { /* storage unavailable — the pill still shows */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

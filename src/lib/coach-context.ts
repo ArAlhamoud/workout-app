@@ -5,7 +5,7 @@
 import prisma from '@/lib/prisma';
 import { buildCoachContext, type CoachContextInput } from './coach-ai';
 import { phaseForWeek } from './coach';
-import { isTrainingSession, getDynamicPlan, getTrainingStatus } from './program';
+import { isTrainingSession, getDynamicPlan, getTrainingStatus, rescueDatesOf } from './program';
 import { holdWeekKeys, weekStreak } from './streak';
 
 const START_WEIGHT_FALLBACK = 135;
@@ -45,10 +45,9 @@ export async function assembleCoachContext(): Promise<{ context: string; todayLi
   ]);
 
   const now = new Date();
-  const trainingDates = sessionRows
-    .filter((w) => isTrainingSession(w))
-    .map((w) => w.date);
-  const status = getTrainingStatus(trainingDates, now);
+  const trainingRows = sessionRows.filter((w) => isTrainingSession(w));
+  // A rescue keeps the chain but never closes the ramp (rescueDatesOf).
+  const status = getTrainingStatus(trainingRows.map((w) => w.date), now, [], rescueDatesOf(trainingRows));
   // Judged rows only — a mis-tap must not queue tomorrow's day (adversary).
   const plan = getDynamicPlan(sessionRows.filter((w) => isTrainingSession(w)).map((w) => ({ date: w.date, name: w.name })), now);
   const streak = weekStreak({

@@ -11,6 +11,12 @@ export interface DraftLike {
   name?: string;
   savedAt?: number;
   blocks?: unknown;
+  /** The day and length the draft was written under. Carried as fields:
+   *  parsed from the name, a draft he renamed ("Push day") matched nothing
+   *  and an explicit 30 restored the 45 list un-re-fitted (adversary,
+   *  2026-10-02). The name is only the fallback for older drafts. */
+  day?: string | null;
+  dur?: number | null;
 }
 
 type DoneSet = { done?: boolean };
@@ -48,6 +54,15 @@ export function draftDisposable(draft: DraftLike | null | undefined, today: stri
   if (draftStarted(draft)) return false;
   const at = typeof draft.savedAt === 'number' && draft.savedAt > 0 ? new Date(draft.savedAt) : null;
   return !at || dayOf(at) !== today;
+}
+
+/** The day and length a draft belongs to: its own fields, else (a draft
+ *  written before they existed) its name. null: a freestyle log. */
+export function draftHome(draft: DraftLike | null | undefined): { day: 'A' | 'B'; dur: number } | null {
+  if (!draft) return null;
+  if ((draft.day === 'A' || draft.day === 'B') && typeof draft.dur === 'number' && draft.dur > 0) return { day: draft.day, dur: draft.dur };
+  const m = draft.name?.match(/^Day ([AB]) (\d+)m/);
+  return m ? { day: m[1] as 'A' | 'B', dur: Number(m[2]) } : null;
 }
 
 export type DraftPlan =
@@ -88,11 +103,11 @@ export function planDraftRestore(
   const started = draftStarted(draft);
   const at = typeof draft.savedAt === 'number' && draft.savedAt > 0 ? new Date(draft.savedAt) : null;
   const represcribe = !at || dayOf(at) !== page.today;
-  const m = draft.name?.match(/^Day ([AB]) (\d+)m/);
-  if (m && page.day) {
-    const href = `/workouts/new?day=${m[1]}&dur=${m[2]}`;
-    if (m[1] !== page.day) return !started && page.dayExplicit ? { kind: 'discard' } : { kind: 'hop', href };
-    if (page.dur != null && Number(m[2]) !== page.dur) {
+  const home = draftHome(draft);
+  if (home && page.day) {
+    const href = `/workouts/new?day=${home.day}&dur=${home.dur}`;
+    if (home.day !== page.day) return !started && page.dayExplicit ? { kind: 'discard' } : { kind: 'hop', href };
+    if (page.dur != null && home.dur !== page.dur) {
       if (!page.durExplicit) return { kind: 'hop', href };
       return started ? { kind: 'restore', represcribe, refit: true } : { kind: 'discard' };
     }
@@ -114,24 +129,75 @@ export function renameForDuration(name: string, dur: number | null | undefined):
  * himself (no program name). An unstarted template machine the plan dropped
  * goes — that is what choosing 30 minutes means.
  */
-export function mergeDraftIntoPlan<B extends { exerciseId: string; programName?: string; sets: Array<{ done: boolean }> }>(
+export function mergeDraftIntoPlan<B extends { uid: string; exerciseId: string; programName?: string; sets: Array<{ done: boolean }> }>(
   draftBlocks: B[],
   fresh: B[],
+  /** Applied to a started machine laid back into its plan slot — where an
+   *  earlier day's draft takes today's weight on its undone rows. */
+  relay?: (mine: B, slot: B) => B,
 ): B[] {
   const isStarted = (b: B) => b.sets.some((s) => s.done);
   const used = new Set<B>();
-  const out = fresh.map((f) => {
+  // A slot is claimed by UID first, then by machine. A swap changes a
+  // block's exerciseId and keeps its uid: matched by machine alone, a
+  // swapped block matched nothing, the fresh block for the original machine
+  // stayed, and the swapped one was appended under the SAME uid — every
+  // handler is `b.uid === uid`, so a tick on Chest Press un-ticked Pec Fly,
+  // removing one removed both, and React got a duplicate key (adversary's
+  // probe, 2026-10-02). A swap he had not started gives the slot back to
+  // today's plan.
+  const claimed = new Map<B, B>();
+  for (const f of fresh) {
+    const mine = draftBlocks.find((b) => !used.has(b) && b.uid === f.uid && isStarted(b));
+    if (mine) { used.add(mine); claimed.set(f, mine); }
+  }
+  for (const f of fresh) {
+    if (claimed.has(f)) continue;
     const mine = draftBlocks.find((b) => !used.has(b) && b.exerciseId === f.exerciseId && isStarted(b));
+    if (mine) { used.add(mine); claimed.set(f, mine); }
+  }
+  const out = fresh.map((f) => {
+    const mine = claimed.get(f);
     if (!mine) return f;
-    used.add(mine);
-    return mine;
+    return relay ? relay(mine, f) : mine;
   });
   const inPlan = new Set(fresh.map((f) => f.exerciseId));
+  const slotUids = new Set(fresh.map((f) => f.uid));
   for (const b of draftBlocks) {
     if (used.has(b)) continue;
-    if (isStarted(b) || (!b.programName && !inPlan.has(b.exerciseId))) out.push(b);
+    if (isStarted(b) || (!b.programName && !inPlan.has(b.exerciseId) && !slotUids.has(b.uid))) out.push(b);
   }
-  return out;
+  // One block per uid, whatever the draft held.
+  const seen = new Set<string>();
+  return out.map((b) => {
+    let uid = b.uid;
+    for (let n = 2; seen.has(uid); n++) uid = `${b.uid}~${n}`;
+    seen.add(uid);
+    return uid === b.uid ? b : { ...b, uid };
+  });
+}
+
+/**
+ * The undone rows of a machine at today's weight. Done sets are logged
+ * facts; rows are repriced, never added or removed (the rest capsule rates
+ * by index). In a draft from an earlier day the machine he had STARTED
+ * kept that day's weight on its remaining sets: set 1 of Lat Pulldown
+ * ticked at 40 before a break, and 22 days later sets 2–3 still open at 40
+ * under "Return 60%" — above the ramp's allowance, two days' prescriptions
+ * on one machine (trainer, 2026-10-02). Nothing to prescribe (no working
+ * weight) leaves the rows as stored.
+ */
+export function repriceUndone<S extends { done: boolean; isWarmup?: boolean; weight: number }>(
+  sets: S[],
+  workingKg: number | null | undefined,
+  warmKg: number | null | undefined,
+): S[] {
+  if (!(workingKg != null && workingKg > 0)) return sets;
+  return sets.map((s) => {
+    if (s.done) return s;
+    if (s.isWarmup) return warmKg != null && warmKg > 0 ? { ...s, weight: warmKg } : s;
+    return { ...s, weight: workingKg };
+  });
 }
 
 /**
@@ -182,12 +248,21 @@ export function setRecord(
   rec: { unit?: string | null; best: number; byReps?: Record<number, number>; rampScaled: boolean; earlier?: Array<{ weight: number; reps: number }> },
 ): 'all-time' | 'rep' | null {
   if (isTimedUnit(rec.unit) || set.isWarmup || !(set.weight > 0) || !(rec.best > 0)) return null;
+  // A scaled machine — a ramp week under 100%, or a rescue — has NO record
+  // line, all-time included: in REBOOT, prescribed ~25, a 42.5 against a
+  // best of 40 is the lift the save-time judge marks over-ramp, and the app
+  // must not celebrate breaking its own ramp (trainer, 2026-10-02). A held
+  // machine (first met inside the ramp, allowed its pin) is not scaled.
+  if (rec.rampScaled) return null;
   const earlier = rec.earlier ?? [];
   if (set.weight > rec.best) return earlier.some((e) => e.weight >= set.weight) ? null : 'all-time';
-  if (rec.rampScaled || !(set.reps > 0)) return null;
+  if (!(set.reps > 0)) return null;
+  // A rep record beats a set of AT LEAST this many reps. With none on
+  // record there is nothing to beat: 20 kg × 20 against a 40 kg best was
+  // "best 20-rep set: 20 kg", and every deload day minted one (adversary).
   let repBest = 0;
   for (const [r, kg] of Object.entries(rec.byReps ?? {})) if (Number(r) >= set.reps && kg > repBest) repBest = kg;
-  if (set.weight <= repBest) return null;
+  if (!(repBest > 0) || set.weight <= repBest) return null;
   return earlier.some((e) => e.weight >= set.weight && e.reps >= set.reps) ? null : 'rep';
 }
 
@@ -202,8 +277,10 @@ export function blockHasRecord(
   blockExerciseId: string,
   unit: string | null | undefined,
   records: Record<string, number>,
+  /** A ramp-scaled or rescue machine: no record line (see setRecord). */
+  rampScaled = false,
 ): boolean {
-  if (isTimedUnit(unit)) return false;
+  if (isTimedUnit(unit) || rampScaled) return false;
   return sets.some((s) => {
     const best = records[s.exerciseId ?? blockExerciseId] ?? 0;
     return s.done && !s.isWarmup && best > 0 && s.weight > best;
@@ -225,18 +302,30 @@ export function movedLabel(top: number, prev: number | null | undefined, pin: nu
 
 // ── One save id, one session ─────────────────────────────────
 
-/** A set stamped this close to the owner's own sets is the same sitting,
- *  whatever the calendar says (a session that runs past 04:00). */
+/** Sets stamped this close together are one sitting, whatever the calendar
+ *  says (a session that runs past 04:00). */
 export const SAME_SESSION_GRACE_MS = 4 * 60 * 60 * 1000;
 
-/** What is known of the workout (or closed live row) that owns a save id. */
+/**
+ * What is known of a saved workout (or a closed live row) for routing: its
+ * ONE activity day and the stamps of its sets. One day, on purpose: the
+ * first version added the day of every set, and the UTC date AND the
+ * activity day of an instant-dated Watch row — a row at 03:30 Riyadh owned
+ * two days, and a `same`-by-grace set merged at 04:05 widened the owner so
+ * the replay re-read tomorrow's sets as its own (steward + adversary,
+ * 2026-10-02). The day is the workout's date and never moves.
+ */
 export interface SaveIdOwner {
-  /** Activity days the owner's sets were lifted on, plus its own date. */
-  days: string[];
-  /** Earliest and latest set stamp, ms; null when none is stamped. */
-  firstAt: number | null;
-  lastAt: number | null;
+  day: string;
+  stamps: number[];
 }
+
+/** A workout saved under the posted id or one derived from it. */
+export interface SavedSitting extends SaveIdOwner {
+  saveId: string;
+}
+
+type Stamped = { completedAt?: string | Date | null };
 
 const stampMs = (v: string | Date | null | undefined): number | null => {
   if (!v) return null;
@@ -244,53 +333,173 @@ const stampMs = (v: string | Date | null | undefined): number | null => {
   return Number.isFinite(t) ? t : null;
 };
 
-/** The owner facts of a saved workout. Its date is a bare activity day at
- *  UTC midnight for a phone save and a real instant for some Watch rows —
- *  both are read. */
+/** A phone save is dated a bare activity day at UTC midnight; some Watch
+ *  and imported rows carry a real instant. Either way: one day. */
 export function ownerOf(
   workout: { date: Date; sets: Array<{ completedAt: Date | string | null }> },
   dayOf: (d: Date) => string,
 ): SaveIdOwner {
-  const stamps = workout.sets.map((s) => stampMs(s.completedAt)).filter((t): t is number => t != null);
-  const days = new Set(stamps.map((t) => dayOf(new Date(t))));
-  days.add(workout.date.toISOString().slice(0, 10));
-  if (workout.date.getTime() % 86_400_000 !== 0) days.add(dayOf(workout.date));
-  return { days: [...days].sort(), firstAt: stamps.length ? Math.min(...stamps) : null, lastAt: stamps.length ? Math.max(...stamps) : null };
+  const bare = workout.date.getTime() % 86_400_000 === 0;
+  return {
+    day: bare ? workout.date.toISOString().slice(0, 10) : dayOf(workout.date),
+    stamps: workout.sets.map((s) => stampMs(s.completedAt)).filter((t): t is number => t != null).sort((a, b) => a - b),
+  };
 }
 
 /**
- * Posted sets split by whether they belong to the session that owns their
- * save id. A draft once kept the id of a workout saved days before: a tick
- * was posted under it and the merge overwrote the OLD workout's set, or —
- * the live row gone — Save came back `deduped` with nothing stored and the
- * form cleared the draft; that day's session was stored nowhere
- * (2026-10-02). `same`: lifted on one of the owner's activity days, or
- * within the grace of its sets, or carrying no stamp at all (a replay of
- * an old client — it cannot be told apart, so it merges as it always did).
- * `other`: lifted on another day — a NEW session, never a merge.
+ * A payload's stamped sets as sittings — a function of the payload ALONE,
+ * so a replay cuts it the same way every time. Sets in time order; a gap
+ * over the grace starts a new cluster; a cluster belongs to the activity
+ * day of its FIRST set (03:50 and 04:10 are one sitting, on the day it
+ * began); clusters of one day are one sitting (a session paused at noon
+ * and finished that evening is one workout).
  */
-export function splitBySessionDay<T extends { completedAt?: string | Date | null }>(
+export function sittingsOf<T extends Stamped>(
+  sets: T[],
+  dayOf: (d: Date) => string,
+): { sittings: Array<{ day: string; stamps: number[]; sets: T[] }>; unstamped: T[] } {
+  const unstamped: T[] = [];
+  const stamped: Array<{ t: number; s: T }> = [];
+  for (const s of sets) {
+    const t = stampMs(s.completedAt);
+    if (t == null) unstamped.push(s);
+    else stamped.push({ t, s });
+  }
+  stamped.sort((a, b) => a.t - b.t);
+  const sittings: Array<{ day: string; stamps: number[]; sets: T[] }> = [];
+  let cur: { day: string; stamps: number[]; sets: T[] } | null = null;
+  let prev = Number.NEGATIVE_INFINITY;
+  for (const { t, s } of stamped) {
+    if (!cur || t - prev > SAME_SESSION_GRACE_MS) {
+      const day = dayOf(new Date(t));
+      cur = sittings.find((x) => x.day === day) ?? null;
+      if (!cur) { cur = { day, stamps: [], sets: [] }; sittings.push(cur); }
+    }
+    cur.stamps.push(t);
+    cur.sets.push(s);
+    prev = t;
+  }
+  return { sittings, unstamped };
+}
+
+/** The id a sitting of another day is saved under: derived, so the outbox
+ *  replaying the same payload finds the workout it already made. */
+export const rehomedSaveId = (clientSaveId: string, day: string): string => `${clientSaveId}~${day}`;
+
+/** Where one part of a payload is saved. `day`: the date a NEW workout
+ *  takes; null = the workout exists, or it is the payload's own date. */
+export interface SetRoute<T> {
+  saveId: string;
+  day: string | null;
+  sets: T[];
+}
+
+const gapBetween = (a: number[], b: number[]): number => {
+  let best = Number.POSITIVE_INFINITY;
+  for (const x of a) for (const y of b) best = Math.min(best, Math.abs(x - y));
+  return best;
+};
+
+/**
+ * One save id, one session: every posted set goes to the workout of the
+ * sitting it was lifted in. A draft once kept the id of a workout saved
+ * days before — a tick was merged over the OLD workout's set, or Save came
+ * back `deduped` with nothing stored and the form cleared the draft
+ * (2026-10-02). And a draft that was started, never saved and finished
+ * three days later saved both days under the old date: the plan read "4
+ * days since Day B" the morning after he trained (trainer, same day).
+ *
+ * `known` is the workout saved under the posted id and every one derived
+ * from it. Each sitting of the payload goes, in this order, to
+ *   1. the known workout holding a set within the grace of one of its own
+ *      (the other finisher's copy of the same sitting — whichever device
+ *      posted first, and whatever day its first set fell on);
+ *   2. the known workout dated the sitting's day;
+ *   3. the posted id itself, when nothing is saved under it yet and this
+ *      is the payload's own sitting (the one on the payload's date, else
+ *      its earliest) — it keeps the payload's date, so a session he
+ *      back-dated stays back-dated;
+ *   4. a NEW workout under the derived id, dated the day it was lifted.
+ * Sets with no stamp go by the payload's date the same way: under a stale
+ * id they are no longer merged into the old workout by default (steward).
+ *
+ * Replay-stable: rules 2–4 read only the payload and each workout's date,
+ * and a workout only ever receives sets of sittings routed to it, which no
+ * other sitting is within the grace of — so nothing a merge wrote can
+ * change where the same payload goes next time. `deduped` stays a success
+ * for the SAME sitting (rule 8).
+ */
+export function routeSets<T extends Stamped>(
+  rootId: string,
+  known: SavedSitting[],
+  payloadDay: string,
+  sets: T[],
+  dayOf: (d: Date) => string,
+): SetRoute<T>[] {
+  const { sittings, unstamped } = sittingsOf(sets, dayOf);
+  const rootSaved = known.some((k) => k.saveId === rootId);
+  const own = rootSaved ? null : sittings.find((s) => s.day === payloadDay) ?? (unstamped.length ? null : sittings[0] ?? null);
+  const out: SetRoute<T>[] = [];
+  const put = (saveId: string, day: string | null, add: T[]) => {
+    const r = out.find((x) => x.saveId === saveId);
+    if (r) r.sets.push(...add);
+    else out.push({ saveId, day, sets: [...add] });
+  };
+  for (const s of sittings) {
+    const near = known
+      .map((k) => ({ k, gap: gapBetween(k.stamps, s.stamps) }))
+      .filter((x) => x.gap <= SAME_SESSION_GRACE_MS)
+      .sort((a, b) => a.gap - b.gap)[0]?.k;
+    const dated = known.find((k) => k.day === s.day);
+    if (near) put(near.saveId, null, s.sets);
+    else if (dated) put(dated.saveId, null, s.sets);
+    else if (s === own) put(rootId, null, s.sets);
+    else put(rehomedSaveId(rootId, s.day), s.day, s.sets);
+  }
+  if (unstamped.length) {
+    const dated = known.find((k) => k.day === payloadDay);
+    if (dated) put(dated.saveId, null, unstamped);
+    else if (!rootSaved) put(rootId, null, unstamped);
+    else put(rehomedSaveId(rootId, payloadDay), payloadDay, unstamped);
+  }
+  return out;
+}
+
+/**
+ * Posted sets against ONE owner (the phone's view: the workout that owns a
+ * draft's save id, or a closed live row): `same` are that session's,
+ * `other` are another's. The server routes with routeSets; this is the
+ * same rule for a single owner.
+ */
+export function splitBySessionDay<T extends Stamped>(
   owner: SaveIdOwner,
   posted: T[],
   dayOf: (d: Date) => string,
+  payloadDay: string = owner.day,
 ): { same: T[]; other: T[]; otherDay: string | null } {
-  const same: T[] = [];
-  const other: T[] = [];
-  let first: number | null = null;
-  for (const s of posted) {
-    const t = stampMs(s.completedAt);
-    if (t == null) { same.push(s); continue; }
-    const near = owner.firstAt != null && owner.lastAt != null && t >= owner.firstAt - SAME_SESSION_GRACE_MS && t <= owner.lastAt + SAME_SESSION_GRACE_MS;
-    if (near || owner.days.includes(dayOf(new Date(t)))) { same.push(s); continue; }
-    other.push(s);
-    if (first == null || t < first) first = t;
-  }
-  return { same, other, otherDay: first != null ? dayOf(new Date(first)) : null };
+  const routes = routeSets('#', [{ ...owner, saveId: '#' }], payloadDay, posted, dayOf);
+  const others = routes.filter((r) => r.saveId !== '#');
+  return {
+    same: routes.find((r) => r.saveId === '#')?.sets ?? [],
+    other: others.flatMap((r) => r.sets),
+    otherDay: others.map((r) => r.day).filter((d): d is string => d != null).sort()[0] ?? null,
+  };
 }
 
-/** The id a session lifted on another day is saved under: derived, so the
- *  outbox replaying the same payload finds the workout it already made. */
-export const rehomedSaveId = (clientSaveId: string, day: string): string => `${clientSaveId}~${day}`;
+/** "Day B 45m — Oct 2" saved for the sitting of 5 Oct reads "— Oct 5": a
+ *  re-homed workout carries its own date, not the stale draft's. */
+export function datedName(name: string, day: string): string {
+  const label = new Date(`${day}T00:00:00.000Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+  return `${name.replace(/\s+—\s+[^—]*$/, '')} — ${label}`;
+}
+
+/** A sitting's length from its own stamps, in seconds — the payload's
+ *  duration belongs to the sitting being finished, not to the other day's.
+ *  null with fewer than two stamps. */
+export function sittingSeconds(sets: Stamped[]): number | null {
+  const ts = sets.map((s) => stampMs(s.completedAt)).filter((t): t is number => t != null);
+  return ts.length >= 2 ? Math.round((Math.max(...ts) - Math.min(...ts)) / 1000) : null;
+}
 
 /** What the server says of a draft's save id (getSaveIdOwner). */
 export interface SaveIdState {
@@ -309,6 +518,9 @@ export interface SaveIdState {
  *             sets, done or still to do, are another one.
  *   discard — every done set is already in the saved workout as logged:
  *             the draft is that finished session's ghost.
+ * Judged on the sets done WHEN THE ANSWER ARRIVES, not when it was asked:
+ * a set ticked during the wait is in no saved workout, so it can never be
+ * discarded as a ghost (adversary, 2026-10-02).
  */
 export function draftSaveIdFate(
   state: SaveIdState,
@@ -327,6 +539,25 @@ export function draftSaveIdFate(
   return splitBySessionDay(state.owner, done, dayOf).same.length ? 'keep' : 'new';
 }
 
+/**
+ * The other device closed this session's row with a saved workout. What do
+ * the sets ticked HERE do?
+ *   handoff — they are that sitting's: post them under the same id (the
+ *             server adds what the workout lacks) and follow it.
+ *   new-id  — none is: a draft kept the id of a session finished another
+ *             day. A new id; nothing is handed off.
+ *   stay    — some are, some are not: stay on this screen. Handing off
+ *             threw him to the old workout's page mid-session with today's
+ *             tick saved as a one-set workout; Save sorts the sets by
+ *             sitting on the server.
+ */
+export function closedRowVerdict<T extends Stamped>(row: SaveIdOwner, own: T[], dayOf: (d: Date) => string): 'handoff' | 'new-id' | 'stay' {
+  if (!own.length) return 'handoff';
+  const { same, other } = splitBySessionDay(row, own, dayOf);
+  if (!other.length) return 'handoff';
+  return same.length ? 'stay' : 'new-id';
+}
+
 // ── The gym switch ───────────────────────────────────────────
 
 /**
@@ -338,8 +569,18 @@ export function draftSaveIdFate(
  * restored draft) keeps its tag — the session is in that building — and
  * retries by itself, a few times.
  */
-export function gymSwitchFailure(f: { shown: string; wanted: string; wantedName: string; by: 'tap' | 'session'; tries: number }): { tag: string; retry: boolean; notice: string } {
-  if (f.by === 'tap') return { tag: f.shown, retry: false, notice: `${f.wantedName} did not load · tap again` };
+export function gymSwitchFailure(f: { shown: string; wanted: string; wantedName: string; by: 'tap' | 'session'; tries: number }): { tag: string; retry: boolean; notice: string; blank: boolean } {
+  if (f.by === 'tap') return { tag: f.shown, retry: false, notice: `${f.wantedName} did not load · tap again`, blank: false };
   const retry = f.tries < 3;
-  return { tag: f.wanted, retry, notice: retry ? `${f.wantedName} numbers did not load · retrying` : `${f.wantedName} numbers did not load` };
+  // The tag stays on the session's building while the prefills on screen
+  // are another's: a set must never be saved under a tag with the other
+  // building's number in it (rule 2). The prefilled weights of machines
+  // not yet started are blanked until the load lands — he types what he
+  // lifts, or taps the gym again to retry (adversary, 2026-10-02).
+  return {
+    tag: f.wanted,
+    retry,
+    notice: retry ? `${f.wantedName} numbers did not load · retrying` : `${f.wantedName} numbers did not load · tap it to retry`,
+    blank: f.shown !== f.wanted,
+  };
 }

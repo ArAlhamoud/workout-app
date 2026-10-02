@@ -14,6 +14,7 @@ import {
   cleanRampSessionDates,
   earnsOverload,
   getTrainingStatus,
+  rescueDatesOf,
   isTrainingSession,
   prefillReps,
   programSpec,
@@ -291,8 +292,8 @@ type InputRow = {
  *
  * The cut is gated on the ramp. Outside one, rampBaseBefore still walks back
  * over a just-finished RESTORE week to the scaled sessions, so an ungated cut
- * would open the first post-ramp session at May's weights. The one exception
- * is a trailing Rescue: 60% by construction and never a base.
+ * would open the first post-ramp session at May's weights. A trailing
+ * Rescue is no exception: it is left out of memory itself (isRescueName).
  */
 export function prescriptionInputs<R extends InputRow>(
   rows: R[],
@@ -310,12 +311,18 @@ export function prescriptionInputs<R extends InputRow>(
   // reset a plateau streak (isRescueName, 2026-10-02).
   const gymRows = training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym && !isRescueName(w.name));
   const cleanDates = cleanRampSessionDates(training);
-  const status = getTrainingStatus(training.map((w) => new Date(w.date)), now, cleanDates);
+  // A rescue keeps the chain and never closes the ramp (rescueDatesOf).
+  const status = getTrainingStatus(training.map((w) => new Date(w.date)), now, cleanDates, rescueDatesOf(training));
   const inRamp = status.mode === 'return';
   const rampPct = inRamp ? status.returnWeek.loadPct : null;
   const rampRpeCap = inRamp ? status.returnWeek.rpeCap : null;
-  const afterRescue = !inRamp && (training[0]?.name ?? '').startsWith('Rescue');
-  const cut = inRamp || afterRescue ? rampBaseBefore(training, cleanDates, now) : null;
+  // No cut for a trailing Rescue any more (trainer, 2026-10-02). Rescue
+  // rows are never memory now (isRescueName), so outside a ramp the cut
+  // only did harm: after a finished ramp it walked back over the whole
+  // block to the pre-break rows — a man who stayed one pin down in RESTORE
+  // rated Hard and then logged a rescue opened Leg Press at 36 (he had
+  // lifted 31 Hard) and Lat Pulldown at 40 (35 Hard).
+  const cut = inRamp ? rampBaseBefore(training, cleanDates, now) : null;
   const pinFor = pinMapFor(gymRows as never, exercises, gym);
   const stepIsHis = stepIsHisFor(exercises, gym);
   return {
