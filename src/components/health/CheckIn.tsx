@@ -9,7 +9,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { logSymptoms, logAfEpisode, logBp, logNutrition } from '@/app/health-actions';
+import { logSymptoms, logAfEpisode, logBp, logCheckInNutrition } from '@/app/health-actions';
+import { saveEach } from '@/lib/health-entry';
+import { activityDayStr } from '@/lib/health-insights';
 import { hapticSuccess } from '@/lib/native-feedback';
 
 // The night questions are gone: the prisma report PDF owns CPAP truth
@@ -51,25 +53,87 @@ export default function CheckIn() {
   const [protein, setProtein] = useState('');
   const [water, setWater] = useState('');
   const [busy, setBusy] = useState(false);
+  // What did not save, in one short line — and, on the last step, what the
+  // day already held. Never "noted" over a write that failed (2026-10-02).
+  const [err, setErr] = useState('');
+  const [doneNote, setDoneNote] = useState('');
 
-  const go = (s: Step) => setStep(s);
+  const go = (s: Step) => {
+    setErr('');
+    setStep(s);
+  };
   const finish = () => {
     hapticSuccess();
     setStep('done');
     router.refresh();
   };
+  // A failed save stays on its step with what he entered and says so; the
+  // catch here used to walk on to the next question and the screen ended on
+  // "That's today noted." over a write that never happened (2026-10-02).
+  // Tapping the button again is the retry; "Skip" still lets him out.
   const act = async (fn: () => Promise<unknown>, next: Step) => {
     if (busy) return;
     setBusy(true);
+    setErr('');
     try {
       await fn();
       go(next);
     } catch {
-      go(next); // the check-in never traps him on an error — details can be re-logged later
+      setErr('Not saved. Try again.');
     } finally {
       setBusy(false);
     }
   };
+  // BP and protein/water are separate answers: each is saved on its own
+  // (saveEach), what saved is cleared, what failed stays in its fields.
+  const saveExtras = async () => {
+    if (busy) return;
+    setBusy(true);
+    setErr('');
+    let kept: Array<{ field: string; existing: number }> = [];
+    const { failed } = await saveEach([
+      ...(sys && dia
+        ? [{ key: 'bp' as const, run: () => logBp({ systolic: Number(sys), diastolic: Number(dia) }) }]
+        : []),
+      ...(protein || water
+        ? [{
+            key: 'nutrition' as const,
+            run: async () => {
+              // The 04:00 activity day, like Diet: at 00:30 this is still
+              // the evening's row, not the next date's planned one.
+              const res = await logCheckInNutrition({
+                day: activityDayStr(),
+                proteinG: protein ? Number(protein) : undefined,
+                waterMl: water ? Number(water) : undefined,
+              });
+              kept = res.kept;
+            },
+          }]
+        : []),
+    ]);
+    setBusy(false);
+    if (!failed.includes('bp')) { setSys(''); setDia(''); }
+    if (!failed.includes('nutrition')) { setProtein(''); setWater(''); }
+    if (failed.length) {
+      setErr(`${failed.includes('bp') ? 'Blood pressure' : 'Protein / water'}${failed.length > 1 ? ' and protein / water' : ''} not saved. Check and save again.`);
+      return;
+    }
+    setDoneNote(
+      kept
+        .map((k) => (k.field === 'proteinG' ? `Protein stays ${k.existing} g` : `Water stays ${k.existing} ml`))
+        .join(' · '),
+    );
+    finish();
+  };
+  const errLine = err ? (
+    <p role="alert" className="text-sm font-bold text-rpe-grind">{err}</p>
+  ) : null;
+  const skip = (next: Step) =>
+    err ? (
+      <button type="button" className="min-h-[44px] w-full text-xs font-bold text-app-tx3 underline" onClick={() => go(next)}>
+        Skip
+      </button>
+    ) : null;
 
   if (!open) {
     return (
@@ -135,6 +199,8 @@ export default function CheckIn() {
           >
             Noted
           </button>
+          {errLine}
+          {skip('heart')}
         </>
       )}
 
@@ -173,6 +239,8 @@ export default function CheckIn() {
           >
             Log it — details later if you want
           </button>
+          {errLine}
+          {skip('extras')}
         </>
       )}
 
@@ -195,29 +263,20 @@ export default function CheckIn() {
               type="button"
               className={bigTeal}
               disabled={busy || ((!sys || !dia) && !protein && !water)}
-              onClick={() =>
-                act(async () => {
-                  if (sys && dia) await logBp({ systolic: Number(sys), diastolic: Number(dia) });
-                  if (protein || water) {
-                    const d = new Date();
-                    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                    await logNutrition({
-                      day,
-                      proteinG: protein ? Number(protein) : undefined,
-                      waterMl: water ? Number(water) : undefined,
-                    });
-                  }
-                }, 'done')
-              }
+              onClick={saveExtras}
             >
               Save
             </button>
           </div>
+          {errLine}
         </>
       )}
 
       {step === 'done' && (
-        <p className="text-sm font-bold text-acc-teal">That&apos;s today noted. See you tomorrow.</p>
+        <>
+          <p className="text-sm font-bold text-acc-teal">That&apos;s today noted. See you tomorrow.</p>
+          {doneNote && <p className="text-xs font-bold text-app-tx2">{doneNote} — today already has more.</p>}
+        </>
       )}
     </div>
   );

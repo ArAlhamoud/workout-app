@@ -1,7 +1,8 @@
 'use server';
 
 import { combineIncrement, learnPinIncrements } from '@/lib/coach';
-import { foldExerciseMemory, prescriptionInputs, PRESCRIPTION_WINDOW, type ExerciseMemory } from '@/lib/prescription';
+import { foldExerciseMemory, isRescueName, prescriptionInputs, PRESCRIPTION_WINDOW, type ExerciseMemory } from '@/lib/prescription';
+import { ownerOf, rehomedSaveId, splitBySessionDay, type SaveIdState } from '@/lib/logger-draft';
 import { offGridWeights, parsePinKg, stepPlausible } from '@/lib/pins';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
@@ -19,6 +20,7 @@ import {
   recordedInHealth,
 } from '@/lib/live-session';
 import { ownerActivityDayUtc } from '@/lib/health-insights';
+import { manualWeightPlan } from '@/lib/health-entry';
 import { readChart } from '@/lib/chart';
 import { computeReadiness } from '@/lib/health-metrics';
 import { closeLive, readLive, upsertLive } from '@/lib/live-store';
@@ -109,7 +111,9 @@ export async function getMachinePins(): Promise<Record<string, { kg: number; sou
     getWorkouts(),
     prisma.exercise.findMany({ select: { id: true, pinIncrement: true } }),
   ]);
-  const home = workouts.filter((w) => isTrainingSession(w) && (!w.gym || w.gym === DEFAULT_GYM_ID));
+  // Never a rescue row: 60% by construction, it is no evidence of a stack's
+  // step — the same rows prescriptionInputs learns from (2026-10-02).
+  const home = workouts.filter((w) => isTrainingSession(w) && !isRescueName(w.name) && (!w.gym || w.gym === DEFAULT_GYM_ID));
   const learned = learnPinIncrements(home as never);
   const out: Record<string, { kg: number; source: 'yours' | 'learned' | 'fallback' }> = {};
   for (const e of exercises) {
@@ -215,13 +219,40 @@ export async function createWorkout(data: {
   }>;
   /** Which device is finishing — its own live sets are never re-added. */
   finishSource?: LiveSource;
-}) {
+}): Promise<{ id: string; deduped?: boolean; merged?: number }> {
   // One set per key: two under one key in a single payload hit the
   // WorkoutSet unique index, and the outbox replays a save that can never
   // land. A ticked set is never dropped for it — a second set under a
   // taken key is renumbered, only a replay of one tick collapses.
   data.sets = dedupeByKey(data.sets);
   if (data.clientSaveId) {
+    // One save id, one session (2026-10-02). A draft once kept the id of a
+    // workout saved days before. With that session's closed live row still
+    // there, a tick was posted under the id and the merge below overwrote
+    // the OLD workout's set with today's; with the row gone, Save reached
+    // the merge, found every key already saved, answered `deduped` with
+    // nothing stored — and the form, told SUCCESS, cleared the draft.
+    // Today's session was stored nowhere. `deduped` stays a success for the
+    // SAME sitting (rule 8); sets lifted on another activity day are a new
+    // workout under a derived id (so an outbox replay finds it again),
+    // dated by the day they were lifted — never the stale draft's date.
+    // A payload holding both is split set by set (splitBySessionDay).
+    const owner = await prisma.workout.findUnique({
+      where: { clientSaveId: data.clientSaveId },
+      select: { date: true, sets: { select: { completedAt: true } } },
+    });
+    if (owner) {
+      const split = splitBySessionDay(ownerOf(owner, activityDayKey), data.sets, activityDayKey);
+      if (split.other.length && split.otherDay) {
+        const ownerId = data.clientSaveId;
+        if (split.same.length) await createWorkout({ ...data, sets: split.same, healthWorkoutUuid: undefined });
+        const made = await createWorkout({ ...data, clientSaveId: rehomedSaveId(ownerId, split.otherDay), date: split.otherDay, sets: split.other });
+        // A row re-opened under the old id by today's ticks must not keep
+        // offering "Continue" on the Watch.
+        await closeLive(ownerId, made.id);
+        return made;
+      }
+    }
     // Any set must belong to a machine that exists, or the insert hits the
     // FK and the session becomes unsaveable under its id (steward).
     const knownIds = async (rows: Array<{ exerciseId: string }>) => {
@@ -395,6 +426,37 @@ export async function createWorkout(data: {
   return { id: workout.id };
 }
 
+/** The activity day (04:00 Riyadh) an instant belongs to, as YYYY-MM-DD. */
+function activityDayKey(d: Date): string {
+  return ownerActivityDayUtc(d).toISOString().slice(0, 10);
+}
+
+/**
+ * Who owns a save id — read-only, for the logger's draft restore. A draft
+ * carries its save id across days; before it posts anything under it the
+ * phone must know whether a workout was already saved under that id (and on
+ * which activity days its sets were lifted) or its live row was closed.
+ * The decision itself is pure: draftSaveIdFate (logger-draft.ts).
+ */
+export async function getSaveIdOwner(clientSaveId: string): Promise<SaveIdState> {
+  const [workout, live] = await Promise.all([
+    prisma.workout.findUnique({
+      where: { clientSaveId },
+      select: { date: true, sets: { select: { exerciseId: true, setNumber: true, isWarmup: true, reps: true, weight: true, rpe: true, completedAt: true } } },
+    }),
+    readLive(clientSaveId),
+  ]);
+  return {
+    owner: workout
+      ? {
+          ...ownerOf(workout, activityDayKey),
+          sets: workout.sets.map((s) => ({ exerciseId: s.exerciseId, setNumber: s.setNumber, isWarmup: s.isWarmup, reps: s.reps, weight: s.weight, rpe: s.rpe })),
+        }
+      : null,
+    liveClosed: Boolean(live?.closedAt),
+  };
+}
+
 export async function deleteWorkout(id: string) {
   await prisma.workout.delete({ where: { id } });
   revalidatePath('/workouts');
@@ -520,16 +582,21 @@ export async function getLastSessionForExercises(
       isWarmup: false,
       workout: {
         ...(gym ? gymScope(gym) : {}),
-        // Ramp base: strictly before the first scaled session, and never a
-        // rescue session — those are 60% by construction.
-        ...(before ? { date: { lt: before }, NOT: { name: { startsWith: 'Rescue' } } } : {}),
+        // NEVER a rescue session — 60% by construction — cut or no cut. The
+        // exclusion used to ride the cut, and the cut is set only while the
+        // rescue is the newest row: two sessions later its 2 × 25 was plain
+        // memory and Day B opened Lat Pulldown and Mid Row at 25, not 40, on
+        // the phone, /train and the Watch (2026-10-02).
+        NOT: { name: { startsWith: 'Rescue' } },
+        // Ramp base: strictly before the first scaled session.
+        ...(before ? { date: { lt: before } } : {}),
       },
     },
     orderBy: [{ workout: { date: 'desc' } }, { setNumber: 'desc' }],
     select: {
       exerciseId: true, setNumber: true, weight: true, reps: true, rpe: true,
       exercise: { select: { name: true } },
-      workout: { select: { id: true, date: true, duration: true } },
+      workout: { select: { id: true, date: true, duration: true, name: true } },
     },
     take: Math.min(2000, exerciseIds.length * 40),
   });
@@ -628,14 +695,41 @@ export async function getBodyStats() {
 }
 
 export async function addBodyStat(data: { weight?: number; waist?: number; arms?: number; date: string }) {
-  await prisma.bodyStat.create({
-    data: {
-      date: new Date(data.date),
-      weight: data.weight ?? null,
-      waist: data.waist ?? null,
-      arms: data.arms ?? null,
-    },
+  const date = new Date(data.date);
+  if (Number.isNaN(date.getTime())) throw new Error('Bad date');
+  // Weight is ONE store and a manual weight wins its day. Typed AFTER the
+  // scale synced, it used to sit beside the imported row and lose to the
+  // scale's later timestamp in every reader (2026-10-02). So it takes the
+  // imported row over instead — one row per day, nothing for a reader to
+  // choose between (manualWeightPlan). The day is the UTC day the import
+  // keys by (health.ts dayKey).
+  const start = new Date(`${date.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  const dayRows = await prisma.bodyStat.findMany({
+    where: { date: { gte: start, lt: new Date(start.getTime() + 86_400_000) } },
+    select: { id: true, date: true, source: true, weight: true },
   });
+  const plan = manualWeightPlan(dayRows, { weight: data.weight ?? null });
+  if (plan.kind === 'takeOver') {
+    await prisma.bodyStat.update({
+      where: { id: plan.id },
+      data: {
+        weight: data.weight,
+        source: 'manual',
+        // Only what he typed: a blank waist never erases one already there.
+        ...(data.waist != null ? { waist: data.waist } : {}),
+        ...(data.arms != null ? { arms: data.arms } : {}),
+      },
+    });
+  } else {
+    await prisma.bodyStat.create({
+      data: {
+        date,
+        weight: data.weight ?? null,
+        waist: data.waist ?? null,
+        arms: data.arms ?? null,
+      },
+    });
+  }
   revalidatePath('/stats');
 }
 

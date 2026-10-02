@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, pushLiveSets } from '@/app/actions';
+import { closeLiveSession, createWorkout, getGymMemory, getLiveSession, getRecentExerciseSessions, getSaveIdOwner, pushLiveSets } from '@/app/actions';
 import { activityDayStr } from '@/lib/health-insights';
 import { landedSerials, liveDiff, liveKey, liveSerial, liveToAdopt, overlayLiveSets, ownLiveSets, visibleSets, withEditStamps, type LiveSession, type LiveSet } from '@/lib/live-session';
 import RestTimer from './RestTimer';
@@ -29,6 +29,21 @@ import { armGapGuard, clearComeback, rearmGapGuardFromServer } from '@/lib/gap-g
 import { readReadiness } from '@/lib/health-metrics';
 import type { ReadinessSignal } from '@/lib/coach';
 import { captureWorkoutHr } from '@/lib/hr-capture';
+import {
+  blockHasRecord,
+  draftSaveIdFate,
+  firstTickDay,
+  gymSwitchFailure,
+  isTimedUnit,
+  mergeDraftIntoPlan,
+  movedLabel,
+  planDraftRestore,
+  removeSetAt,
+  renameForDuration,
+  setRecord,
+  shouldWriteDraft,
+  splitBySessionDay,
+} from '@/lib/logger-draft';
 
 interface Exercise {
   id: string;
@@ -208,6 +223,8 @@ function buildBlocks(
   plateauKgs: Record<string, number> = {},
   isRescue = false,
   hisSteps: string[] = [],
+  /** Readiness said HOLD: no seed, no one-more-rep ask (prescribeWorking). */
+  readinessHold = false,
 ): ExerciseBlock[] {
   return initialExercises.map((ie, blockIdx) => {
     const prev = lastSession[ie.exerciseId];
@@ -225,7 +242,7 @@ function buildBlocks(
       prev,
       inc,
       plateauKgs[ie.exerciseId] ?? null,
-      { rampPct: returnLoadPct ?? null, rescue: isRescue, anchored },
+      { rampPct: returnLoadPct ?? null, rescue: isRescue, anchored, readinessHold },
     );
     // Trainer ruling 5: the first two machines he STARTS warm up, whatever
     // they are. Nobody knows which those are yet, so every weighted machine
@@ -329,6 +346,8 @@ export default function WorkoutForm({
   liveSession = null,
   liveOpenElsewhere = false,
   durationMin,
+  dayExplicit = false,
+  durExplicit = false,
 }: {
   exercises: Exercise[];
   initialName?: string;
@@ -373,9 +392,15 @@ export default function WorkoutForm({
   liveOpenElsewhere?: boolean;
   /** The template length, so the live row can tell the Watch which plan to build. */
   durationMin?: number;
+  /** The day / the length in the URL was chosen, not defaulted: it beats an
+   *  unstarted draft and re-fits a started one (planDraftRestore). */
+  dayExplicit?: boolean;
+  durExplicit?: boolean;
 }) {
   const router = useRouter();
   const today = activityDayStr();
+  /** The activity day this form was opened on — what its date defaulted to. */
+  const openedDayRef = useRef(today);
   const [name, setName] = useState(initialName);
   const [date, setDate] = useState(initialDate ?? today);
   const [gym, setGym] = useState(DEFAULT_GYM_ID);
@@ -397,6 +422,33 @@ export default function WorkoutForm({
   // Read by the gym switch, which must never put back a seed a HOLD took.
   const readinessRef = useRef(readiness);
   readinessRef.current = readiness;
+  /** Bumped when the blocks are replaced by STORED ones (a restored draft):
+   *  the hold revert below runs again over them. */
+  const [rebuilds, setRebuilds] = useState(0);
+  /**
+   * Today's template, prescribed now — THE rebuild. "Start fresh" and the
+   * Watch-row rebuild used to call buildBlocks without the readiness
+   * verdict, and the revert effect only runs when the verdict CHANGES: on a
+   * low-recovery morning Start fresh put the +1 pin seeds back, while the
+   * Watch and /train held (2026-10-02). Every rebuild goes through here.
+   */
+  function freshBlocks(): ExerciseBlock[] {
+    return buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, plateauKgs, rescueMode, hisSteps, readinessRef.current?.verdict === 'hold');
+  }
+  /** He did something to this form (a tap, a typed number) — with a ticked
+   *  set, what makes a draft worth writing (shouldWriteDraft). */
+  const touchedRef = useRef(false);
+  /** The session is saved (or handed to the Watch's save): nothing may
+   *  write it back as a draft, push it or poll for it. */
+  const finishedRef = useRef(false);
+  /** One line when a gym's numbers did not load (gymSwitchFailure). */
+  const [gymNotice, setGymNotice] = useState<string | null>(null);
+  /** Who moved the gym tag: his tap, or the session (Watch row, draft). */
+  const gymByRef = useRef<'tap' | 'session'>('session');
+  const gymTriesRef = useRef(0);
+  const [gymRetry, setGymRetry] = useState(0);
+  /** A re-fitted draft changed the session's length: tell the live row. */
+  const liveMetaStaleRef = useRef(false);
   // The ticked block's screen position when a tick strips warm-up rows from
   // other blocks — restored before paint so nothing moves under his thumb.
   const anchorRef = useRef<{ uid: string; top: number } | null>(null);
@@ -434,8 +486,12 @@ export default function WorkoutForm({
   const startRef = useRef(Date.now());
   /** Idempotency key for this submission — survives retries, reset on clear. */
   const saveIdRef = useRef<string | null>(null);
-  /** Last gym the memory refetch ran for — also synced by a draft restore. */
-  const lastGymRef = useRef<string | null>(null);
+  /** The gym whose numbers are ON SCREEN — also synced by a draft restore.
+   *  The form is always built from the home gym's props, so it starts
+   *  there: starting at null made the first run of the gym effect adopt
+   *  whatever the tag was, and a Watch session at Alrajhi picked up here
+   *  with no draft kept B_Fit's prefills under the work tag (2026-10-02). */
+  const lastGymRef = useRef<string | null>(DEFAULT_GYM_ID);
   /** True once the user touches anything — gates the async vault restore. */
   const dirtyRef = useRef(false);
   // ── Live session (phone ↔ Watch handoff, docs/WATCH.md) ──
@@ -527,8 +583,10 @@ export default function WorkoutForm({
         };
       }),
     );
+    // Also after a stored draft replaced the blocks (rebuilds): its seeds
+    // were written before today's verdict.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [readiness?.verdict]);
+  }, [readiness?.verdict, rebuilds]);
 
   // Load per-exercise machine notes after mount (avoids hydration mismatch)
   useEffect(() => {
@@ -563,46 +621,114 @@ export default function WorkoutForm({
       name?: string; date?: string; notes?: string; gym?: string;
       blocks?: unknown; startTime?: number; savedAt?: number; saveId?: string;
     };
-    const applyDraft = (draft: Draft): boolean => {
+    let cancelled = false;
+    const dayOf = (d: Date) => activityDayStr(d);
+    const pageDay = initialName.match(/^Day ([AB]) /)?.[1] as 'A' | 'B' | undefined;
+
+    const applyDraft = (draft: Draft, plan: { represcribe: boolean; refit: boolean }): boolean => {
       if (!Array.isArray(draft.blocks) || draft.blocks.length === 0) return false;
       // The save id rides the draft so a phone session the Watch continued
-      // finishes under the SAME id from either device (live session).
+      // finishes under the SAME id from either device (live session) —
+      // unless a saved or closed session owns it (settleSaveId below).
       if (typeof draft.saveId === 'string' && draft.saveId) saveIdRef.current = draft.saveId;
       const age = Date.now() - (draft.savedAt ?? 0);
-      // An old draft is a real session that got interrupted — sickness, a
-      // dead phone. It used to be silently deleted at 24 h, which threw away
-      // ticked sets with real completedAt stamps. Now it restores with a
-      // prompt; discarding is his tap, never the app's.
-      setName(draft.name ?? initialName);
+      // An old draft WITH TICKED SETS is a real session that got interrupted
+      // — sickness, a dead phone. It used to be silently deleted at 24 h,
+      // which threw away ticked sets with real completedAt stamps. Now it
+      // restores with a prompt; discarding is his tap, never the app's. Its
+      // done sets and its date stand: that session happened then. What it
+      // had NOT started is another matter (2026-10-02): those machines held
+      // the prescription of the day the draft was written — after a 21-day
+      // layoff, full pre-break weights under a "Return 60%" header. They
+      // take today's (mergeDraftIntoPlan). The same merge re-fits a started
+      // draft to a length he has just chosen, and the name follows.
+      const stored = draft.blocks as ExerciseBlock[];
+      const away = Boolean(draft.gym && draft.gym !== DEFAULT_GYM_ID);
+      const relaid = plan.refit || (plan.represcribe && !away);
+      const next = relaid ? stripDueWarmups(mergeDraftIntoPlan(stored, freshBlocks())) : stored;
+      setName(plan.refit ? renameForDuration(draft.name ?? initialName, durationMin) : draft.name ?? initialName);
       setDate(draft.date ?? today);
       setNotes(draft.notes ?? '');
       // Sync the ref too, or the gym-change effect reads the restore as a
       // switch and refetches weights over the draft's own numbers.
       if (draft.gym) { lastGymRef.current = draft.gym; setGym(draft.gym); }
       resetLiveDiff(); // a restored draft replaces the blocks; nothing was un-ticked
-      setBlocks(draft.blocks as ExerciseBlock[]);
+      setBlocks(next);
+      setRebuilds((n) => n + 1);
       // …but THAT building's pins, steps, memory and records must come back
       // too: the page only ever sends B_Fit's, so a restored Alrajhi draft
       // stepped by his B_Fit step and was judged on Alrajhi's (review F1).
-      // The draft's own numbers are his; nothing is repriced.
-      if (draft.gym && draft.gym !== DEFAULT_GYM_ID) {
+      // Same day, same length: the draft's own numbers are his and nothing
+      // is repriced. From an earlier day, or re-fitted: the machines not yet
+      // started take THAT building's prescription for today.
+      if (away) {
         restoreCancelRef.current?.();
-        restoreCancelRef.current = loadGymContext(draft.gym, false, (draft.blocks as ExerciseBlock[]).map((b) => b.exerciseId));
+        const ids = next.map((b) => b.exerciseId);
+        const reprice = plan.represcribe || plan.refit;
+        restoreCancelRef.current = loadGymContext(draft.gym!, reprice, ids, draftGymHooks(draft.gym!, reprice, ids, 1));
       }
       if (draft.startTime) startRef.current = draft.startTime;
+      if (plan.refit) liveMetaStaleRef.current = true;
+      // A restored draft was worth writing once; it stays worth writing.
+      touchedRef.current = true;
       setDraftRestored(true);
       setDraftIsStale(age > 24 * 60 * 60 * 1000);
       return true;
     };
 
-    // A draft from the OTHER day must not restore under this page's
-    // masthead — the Volt header shouts DAY A over Day B content
-    // (device-tester, Aug 30). Follow the draft instead: hop to its own
-    // day/dur so header and content always agree. Discarding stays his tap.
-    const pageDay = initialName.match(/^Day ([AB]) /)?.[1];
-    const draftHome = (nm?: string): string | null => {
-      const d = nm?.match(/^Day ([AB]) (\d+)m/);
-      return d && pageDay && d[1] !== pageDay ? `/workouts/new?day=${d[1]}&dur=${d[2]}` : null;
+    /**
+     * The stored draft, decided (planDraftRestore). Returns the draft now on
+     * screen, null when there is none (it was rubbish, or gave way to the
+     * day or length he tapped — removed from BOTH stores, the native copy
+     * included), or 'hop' when the router is following it to its own
+     * day/length: a draft from the OTHER day must not restore under this
+     * page's masthead — the Volt header shouts DAY A over Day B content
+     * (device-tester, Aug 30) — and a bare open under another length is the
+     * same lie one line down ("30 min" over the 45-minute list).
+     */
+    const openDraft = (draft: Draft): Draft | null | 'hop' => {
+      const plan = planDraftRestore(draft, { day: pageDay ?? null, dur: durationMin ?? null, dayExplicit, durExplicit, today }, dayOf);
+      if (plan.kind === 'hop') { router.replace(plan.href); return 'hop'; }
+      if (plan.kind === 'restore' && applyDraft(draft, plan)) return draft;
+      void durableRemove(DRAFT_KEY);
+      return null;
+    };
+
+    /**
+     * A draft's save id may already belong to a session that is over. Ask
+     * the server before anything is posted under it (2026-10-02: a tick
+     * went into the OLD workout, or Save came back `deduped` with today's
+     * session stored nowhere). Skipped when the page's own open row carries
+     * the id — that proves it live. Bounded: offline, the id is kept and the
+     * two backstops hold (liveClosedElsewhere, createWorkout's day split).
+     */
+    const settleSaveId = async (draft: Draft): Promise<Draft | null> => {
+      if (!draft.saveId || draft.saveId === liveSession?.clientSaveId) return draft;
+      const done = (draft.blocks as ExerciseBlock[]).flatMap((b) => (b.sets ?? []).filter((st) => st.done));
+      let fate: ReturnType<typeof draftSaveIdFate> = 'keep';
+      try {
+        const state = await Promise.race([
+          getSaveIdOwner(draft.saveId),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+        ]);
+        if (state) fate = draftSaveIdFate(state, done, dayOf);
+      } catch { /* offline: keep the id; the backstops hold */ }
+      if (cancelled || saveIdRef.current !== draft.saveId) return draft;
+      if (fate === 'discard') {
+        // The finished session's ghost: every done set is in the saved
+        // workout already. Bin it and open today's logger.
+        clearDraft();
+        return null;
+      }
+      if (fate === 'new') {
+        // Its sets are a NEW session: a new id (minted by the open-row
+        // effect or the first push), and nothing counts as already pushed.
+        saveIdRef.current = null;
+        resetLiveDiff();
+        liveDeadRef.current = false;
+        return { ...draft, saveId: undefined };
+      }
+      return draft;
     };
 
     // Live session precedence, decided once the draft question is settled:
@@ -628,6 +754,7 @@ export default function WorkoutForm({
         // must not land after this (round 3), and its records/memory go.
         restoreCancelRef.current?.();
         restoreCancelRef.current = null;
+        setGymNotice(null);
         setPins(pinIncrements);
         setAnchoredIds(hisSteps);
         setGymRecords(personalRecords);
@@ -635,52 +762,56 @@ export default function WorkoutForm({
         setSessionMemory(lastSession);
         startRef.current = Date.now();
         resetLiveDiff();
-        setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, plateauKgs, rescueMode, hisSteps));
+        setBlocks(freshBlocks());
         setDraftRestored(false);
         setDraftIsStale(false);
       }
       applyLive(liveSession);
     };
 
-    let restored = false;
-    let draftSeen: Draft | null = null;
+    /** The draft question is settled: the save id, the live row, then open
+     *  the autosave gate. */
+    const finish = async (draft: Draft | null) => {
+      const kept = draft ? await settleSaveId(draft) : null;
+      if (cancelled) return;
+      maybeLive(kept);
+      setInitialized(true);
+    };
+
     if (rescueMode) { setInitialized(true); return; }
+    let local: Draft | null = null;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Draft;
-        const home = draftHome(parsed?.name);
-        if (home) { router.replace(home); return; }
-        restored = applyDraft(parsed);
-        if (restored) draftSeen = parsed;
-        if (!restored) localStorage.removeItem(DRAFT_KEY);
-      }
+      if (raw) local = JSON.parse(raw) as Draft;
     } catch {
       localStorage.removeItem(DRAFT_KEY);
     }
 
-    if (restored) {
-      maybeLive(draftSeen);
-      setInitialized(true);
+    if (local) {
+      // Applied synchronously — no flash of the bare template — then the
+      // save id is settled before the autosave and the live sync open.
+      const opened = openDraft(local);
+      if (opened !== 'hop') void finish(opened);
     } else {
       // The autosave gate stays CLOSED until the vault check settles — were
       // it open, the first autosave would write the pristine template over
       // the vault copy before the async read could restore it.
       void durableGet(DRAFT_KEY)
-        .then((vaulted) => {
-          if (!vaulted) { maybeLive(null); return; }
+        .then(async (vaulted) => {
+          if (cancelled) return;
+          if (!vaulted) { await finish(null); return; }
           // The vault read lost a race against the user: they already
           // started typing. Their live keystrokes outrank a stored copy.
           if (dirtyRef.current) return;
-          try {
-            const parsed = JSON.parse(vaulted) as Draft;
-            const home = draftHome(parsed?.name);
-            if (home) { router.replace(home); return; }
-            maybeLive(applyDraft(parsed) ? parsed : null);
-          } catch { /* a corrupt vault copy restores nothing */ }
+          let parsed: Draft | null = null;
+          try { parsed = JSON.parse(vaulted) as Draft; } catch { /* a corrupt vault copy restores nothing */ }
+          if (!parsed) return;
+          const opened = openDraft(parsed);
+          if (opened !== 'hop') await finish(opened);
         })
-        .finally(() => setInitialized(true));
+        .finally(() => { if (!cancelled) setInitialized(true); });
     }
+    return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -716,7 +847,7 @@ export default function WorkoutForm({
     // The row's building wins; leave lastGymRef alone so the gym-change
     // effect refetches THAT gym's memory (rule 2 — an Alrajhi row must not
     // keep B_Fit prefills under a work tag).
-    if (live.gym && live.gym !== gym) setGym(live.gym);
+    if (live.gym && live.gym !== gym) { gymByRef.current = 'session'; setGym(live.gym); }
     setBlocks((prev) => overlayLive(prev, live.sets));
     const n = visibleSets(live.sets).length;
     // A phone-born row says nothing the restored-draft card does not.
@@ -735,6 +866,30 @@ export default function WorkoutForm({
       // workout lacks — BEFORE this copy is let go (adversary: three sets
       // ticked in the basement must not vanish on the poll).
       const own = collectSetsToSave();
+      // Backstop for a draft that kept the id of a session finished on
+      // ANOTHER day (the restore asks the server first; offline it cannot):
+      // the first tick here used to be "handed off" into that old workout
+      // and the logger thrown to its page mid-session (2026-10-02). Sets
+      // lifted on none of the row's days are a new session — a new id, and
+      // everything ticked is pushed under it.
+      if (own.length) {
+        const dayOf = (d: Date) => activityDayStr(d);
+        const ms = [row.startedAt, row.closedAt, ...row.sets.map((ls) => ls.completedAt)]
+          .map((x) => (x ? Date.parse(x) : NaN))
+          .filter((t) => Number.isFinite(t));
+        const rowOwner = {
+          days: [...new Set(ms.map((t) => dayOf(new Date(t))))],
+          firstAt: ms.length ? Math.min(...ms) : null,
+          lastAt: ms.length ? Math.max(...ms) : null,
+        };
+        if (!splitBySessionDay(rowOwner, own, dayOf).same.length) {
+          saveIdRef.current = newClientSaveId();
+          resetLiveDiff();
+          liveDeadRef.current = false;
+          setTimeout(() => { void flushLive(); }, 0);
+          return;
+        }
+      }
       let handedOff = true;
       if (own.length) {
         const payload = {
@@ -775,6 +930,7 @@ export default function WorkoutForm({
         }
       }
       if (!handedOff) return;
+      finishedRef.current = true;
       pendingDraftRef.current = null;
       void durableRemove(DRAFT_KEY);
       hapticSuccess();
@@ -814,7 +970,7 @@ export default function WorkoutForm({
    *  failed push stays in the diff and rides the next change or poll. */
   const liveBusyRef = useRef(false);
   async function flushLive() {
-    if (!liveEnabled || liveBusyRef.current || liveDeadRef.current) return;
+    if (!liveEnabled || liveBusyRef.current || liveDeadRef.current || finishedRef.current) return;
     // Warm-ups included, under the Watch's key; removals only for what was
     // un-ticked here; a changed set stamped as an edit (all in liveDiff).
     const current = ownLiveSets(blocksRef.current, 'phone');
@@ -857,7 +1013,7 @@ export default function WorkoutForm({
 
   /** Pull what the other device logged since we last looked, then push ours. */
   async function syncLive() {
-    if (!liveEnabled || document.visibilityState === 'hidden') return;
+    if (!liveEnabled || document.visibilityState === 'hidden' || finishedRef.current) return;
     try {
       if (saveIdRef.current) {
         if (liveDeadRef.current) return;
@@ -885,7 +1041,15 @@ export default function WorkoutForm({
   // ticked yet. Never when a row is already open elsewhere (a new id
   // would close the Watch's own session).
   useEffect(() => {
-    if (!initialized || !liveEnabled || liveOpenElsewhere || saveIdRef.current) return;
+    if (!initialized || !liveEnabled) return;
+    // A draft re-fitted to another length keeps its row: tell it the new
+    // length, or the Watch would "Continue" on the old plan.
+    if (saveIdRef.current && liveMetaStaleRef.current) {
+      liveMetaStaleRef.current = false;
+      void pushLiveSets({ clientSaveId: saveIdRef.current, day: dayAccent ?? null, durationMin: durationMin ?? null, gym }, []).catch(() => {});
+      return;
+    }
+    if (liveOpenElsewhere || saveIdRef.current) return;
     saveIdRef.current = newClientSaveId();
     void pushLiveSets(
       {
@@ -937,12 +1101,23 @@ export default function WorkoutForm({
     // Rescue sessions are draft-free: merely opening the rescue screen from
     // a notification and backing out must not leave a 60% "Rescue" draft
     // that tomorrow's normal logger restores (adversary).
-    if (rescueMode) return;
+    // Nor is a form nothing was done to, and never a session already saved
+    // (shouldWriteDraft): the writer used to store the pristine template the
+    // moment the form initialised — a logger he only looked at came back two
+    // days later with that day's date, weights and save id — and a push or
+    // poll resolving AFTER the save changed the blocks, re-armed this effect
+    // and wrote the finished session back with its save id (2026-10-02).
+    if (!shouldWriteDraft({
+      finished: finishedRef.current,
+      rescue: rescueMode,
+      started: blocks.some((b) => b.sets.some((s) => s.done)),
+      touched: touchedRef.current,
+    })) return;
     pendingDraftRef.current = { savedAt: Date.now(), name, date, gym, notes, blocks, startTime: startRef.current, saveId: saveIdRef.current };
     const t = setTimeout(() => {
       const draft = pendingDraftRef.current;
       pendingDraftRef.current = null;
-      if (draft) void durableSet(DRAFT_KEY, JSON.stringify(draft));
+      if (draft && !finishedRef.current) void durableSet(DRAFT_KEY, JSON.stringify(draft));
     }, 500);
     return () => clearTimeout(t);
   }, [initialized, rescueMode, name, date, gym, notes, blocks]);
@@ -955,7 +1130,7 @@ export default function WorkoutForm({
     const flush = () => {
       const draft = pendingDraftRef.current;
       pendingDraftRef.current = null;
-      if (draft) void durableSet(DRAFT_KEY, JSON.stringify(draft));
+      if (draft && !finishedRef.current) void durableSet(DRAFT_KEY, JSON.stringify(draft));
     };
     const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
     window.addEventListener('pagehide', flush);
@@ -973,17 +1148,90 @@ export default function WorkoutForm({
   // Blocks with a completed set are left alone — those are logged facts.
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
+  const gymName = (id: string) => GYMS.find((g) => g.id === id)?.name ?? id;
+
+  // Left open across the 04:00 rollover with nothing ticked, this form is
+  // yesterday's logger: yesterday's date, name and prescription (a morning
+  // that crosses day 21 opens the ramp — on the server, not here). Drop
+  // its draft and ask the server again; the page keys the form by the
+  // activity day, so the refresh remounts it. With a set ticked the session
+  // is in flight and stays; offline, the first tick still re-dates it
+  // (firstTickDay). 2026-10-02.
+  useEffect(() => {
+    if (healthWorkoutUuid) return;
+    let askedFor = openedDayRef.current;
+    const check = () => {
+      if (document.visibilityState === 'hidden' || finishedRef.current) return;
+      const now = activityDayStr();
+      if (now === askedFor) return;
+      if (blocksRef.current.some((b) => b.sets.some((st) => st.done))) return;
+      askedFor = now;
+      pendingDraftRef.current = null;
+      touchedRef.current = false;
+      void durableRemove(DRAFT_KEY);
+      router.refresh();
+    };
+    document.addEventListener('visibilitychange', check);
+    const iv = setInterval(check, 60_000);
+    return () => { document.removeEventListener('visibilitychange', check); clearInterval(iv); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!initialized) return;
     if (lastGymRef.current === null) { lastGymRef.current = gym; return; }
     if (lastGymRef.current === gym) return;
-    lastGymRef.current = gym;
+    // lastGymRef is the gym whose numbers are ON SCREEN. It used to be moved
+    // here, before the fetch, and the failure kept everything: from gym LTE
+    // a switch that never loaded left B_Fit's weights under the Alrajhi tag
+    // in silence, and they were saved there (rule 2, 2026-10-02). It moves
+    // only once that gym's numbers have landed; on failure his tap is undone
+    // with one line, and the next tap retries (gymSwitchFailure).
+    const shown = lastGymRef.current;
+    const by = gymByRef.current;
     restoreCancelRef.current?.();
     restoreCancelRef.current = null;
-
-    return loadGymContext(gym, true);
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const cancel = loadGymContext(gym, true, undefined, {
+      onLoaded: () => {
+        lastGymRef.current = gym;
+        gymTriesRef.current = 0;
+        setGymNotice(null);
+      },
+      onFailed: () => {
+        gymTriesRef.current += 1;
+        const f = gymSwitchFailure({ shown, wanted: gym, wantedName: gymName(gym), by, tries: gymTriesRef.current });
+        setGymNotice(f.notice);
+        if (f.tag !== gym) {
+          gymTriesRef.current = 0;
+          setGym(f.tag);
+        } else if (f.retry) {
+          retryTimer = setTimeout(() => setGymRetry((n) => n + 1), 4000);
+        }
+      },
+    });
+    return () => { cancel(); if (retryTimer) clearTimeout(retryTimer); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gym, initialized, returnLoadPct, rescueMode]);
+  }, [gym, initialized, returnLoadPct, rescueMode, gymRetry]);
+
+  /** A restored draft's building: its context (and, from an earlier day or
+   *  re-fitted, its prices for the machines not yet started). The session
+   *  IS in that building, so the tag stays and a failed load says so and
+   *  retries by itself (gymSwitchFailure, by 'session'). */
+  function draftGymHooks(target: string, reprice: boolean, ids: string[], tries: number) {
+    return {
+      onLoaded: () => setGymNotice(null),
+      onFailed: () => {
+        const f = gymSwitchFailure({ shown: target, wanted: target, wantedName: gymName(target), by: 'session', tries });
+        setGymNotice(f.notice);
+        if (!f.retry) return;
+        const timer = setTimeout(() => {
+          restoreCancelRef.current = loadGymContext(target, reprice, ids, draftGymHooks(target, reprice, ids, tries + 1));
+        }, 4000);
+        restoreCancelRef.current = () => clearTimeout(timer);
+      },
+    };
+  }
 
   /**
    * THIS building's pins, his steps there, weight memory and records — and,
@@ -991,15 +1239,21 @@ export default function WorkoutForm({
    * restored draft reloads the context only: its numbers are his (review F1).
    * One round trip (getGymMemory): three POSTs used to race from gym LTE.
    */
-  function loadGymContext(target: string, reprice: boolean, onlyIds?: string[]): () => void {
+  function loadGymContext(
+    target: string,
+    reprice: boolean,
+    onlyIds?: string[],
+    hooks?: { onLoaded?: () => void; onFailed?: () => void },
+  ): () => void {
     const ids = Array.from(new Set(onlyIds ?? blocksRef.current.map((b) => b.exerciseId)));
-    if (!ids.length) return () => {};
+    if (!ids.length) { hooks?.onLoaded?.(); return () => {}; }
     let cancelled = false;
     // ONE round trip for all three memories — three separate POSTs used to
     // race from gym LTE to us-east-1, and the prefill waited on the slowest.
     getGymMemory(ids, target)
       .then(({ lastSession: next, personalRecords, repRecords, pins: gymPins, hisSteps: gymHisSteps, plateauKgs: gymPlateaus }) => {
         if (cancelled) return;
+        hooks?.onLoaded?.();
         setGymRecords(personalRecords);
         setRepRecordsState(repRecords);
         setSessionMemory(next);
@@ -1063,7 +1317,9 @@ export default function WorkoutForm({
           });
         });
       })
-      .catch(() => { /* keep the current numbers (and badges) rather than blanking the form */ });
+      // Keep the current numbers (and badges) rather than blanking the form —
+      // and SAY the load failed: the caller puts the tag back or retries.
+      .catch(() => { if (!cancelled) hooks?.onFailed?.(); });
     return () => { cancelled = true; };
   }
 
@@ -1135,7 +1391,13 @@ export default function WorkoutForm({
     setLiveNotice(null);
     setName(initialName);
     setDate(today);
+    // Everything below is reset to the home gym's own props, so the tag's
+    // numbers ARE on screen: no refetch to wait on (or to fail).
+    lastGymRef.current = DEFAULT_GYM_ID;
     setGym(DEFAULT_GYM_ID);
+    setGymNotice(null);
+    setRecentSessions({});
+    touchedRef.current = false;
     restoreCancelRef.current?.();
     restoreCancelRef.current = null;
     setPins(pinIncrements);
@@ -1144,7 +1406,7 @@ export default function WorkoutForm({
     setRepRecordsState(repRecords);
     setSessionMemory(lastSession);
     setNotes('');
-    setBlocks(buildBlocks(initialExercises, lastSession, returnLoadPct, pinIncrements, plateauKgs, rescueMode, hisSteps));
+    setBlocks(freshBlocks());
     startRef.current = Date.now();
     saveIdRef.current = null;
     setDraftRestored(false);
@@ -1303,6 +1565,19 @@ export default function WorkoutForm({
     const now = new Date().toISOString();
     const el = typeof document !== 'undefined' ? document.getElementById(`block-${uid}`) : null;
     anchorRef.current = el ? { uid, top: el.getBoundingClientRect().top } : null;
+    // The FIRST tick dates the session. A logger left mounted across the
+    // 04:00 rollover still held the day it was opened on, and the session
+    // was saved under yesterday (2026-10-02). Only the untouched default
+    // moves — never a date he set, never a detected session's.
+    const ticking = blocksRef.current.find((b) => b.uid === uid)?.sets[setIdx]?.done === false;
+    if (ticking && !healthWorkoutUuid && !blocksRef.current.some((b) => b.sets.some((st) => st.done))) {
+      const day = firstTickDay(date, openedDayRef.current, activityDayStr());
+      if (day !== date) {
+        setDate(day);
+        const label = new Date(`${day}T00:00:00Z`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+        if (name === initialName) setName(initialName.replace(/— [^—]*$/, `— ${label}`));
+      }
+    }
     setBlocks((prev) => {
       const ticked = prev.map((b) =>
         b.uid === uid
@@ -1377,15 +1652,20 @@ export default function WorkoutForm({
         // first; else the per-rep-count record (Hevy's insight) — on a
         // 12–15-rep pin program, "9 reps where 8 was the best" is the usual
         // form of progress and used to pass in silence. Warm-ups never count.
-        if (!block.unit && !set.isWarmup && set.weight > 0) {
-          const currentPR = gymRecords[block.exerciseId] ?? 0;
-          const repBest = repRecordsState[block.exerciseId]?.[set.reps] ?? 0;
-          if (set.weight > currentPR) {
-            setPrToast(`${exName} — all-time record`);
-          } else if (set.reps > 0 && set.weight > repBest) {
-            setPrToast(`${exName} — best ${set.reps}-rep set: ${set.weight} kg`);
-          }
-        }
+        // The guard here read "no unit" as "not timed" — but every
+        // template block carries unit 'reps', so no program machine ever got
+        // its toast (2026-10-02). setRecord tests for a TIMED unit, against
+        // this gym's records (rule 2), and celebrates only: nothing on a
+        // first visit, nothing a ramp-scaled set did below the real record.
+        const record = setRecord(set, {
+          unit: block.unit,
+          best: gymRecords[set.exerciseId] ?? 0,
+          byReps: repRecordsState[set.exerciseId],
+          rampScaled: returnLoadPct != null && returnLoadPct < 100,
+          earlier: block.sets.filter((s2, i2) => i2 !== idx && s2.done && !s2.isWarmup && s2.exerciseId === set.exerciseId),
+        });
+        if (record === 'all-time') setPrToast(`${exName} — all-time record`);
+        else if (record === 'rep') setPrToast(`${exName} — best ${set.reps}-rep set: ${set.weight} kg`);
       }
       return updated;
     });
@@ -1434,9 +1714,10 @@ export default function WorkoutForm({
         b.uid === uid
           ? {
               ...b,
-              sets: b.sets
-                .filter((_, i) => i !== idx)
-                .map((s, i) => ({ ...s, setNumber: i + 1 })),
+              // Working sets renumber from 1; the warm-up stays 0 (the old
+              // i + 1 ran over the warm-up too — W,1,2,3 minus set 3 saved
+              // as sets 2 and 3; 2026-10-02).
+              sets: removeSetAt(b.sets, idx),
             }
           : b,
       ),
@@ -1546,8 +1827,11 @@ export default function WorkoutForm({
     if (!setsToSave.length) { setError('Log at least one set'); return; }
 
     const vol = Math.round(setsToSave.reduce((sum, s) => sum + (s.isWarmup ? 0 : s.weight * s.reps), 0));
+    // The old "no unit" guard never matched a program machine (every template
+    // block has unit 'reps'), so this line and "what moved" stayed empty.
+    // Each saved set against its own machine's record at this gym.
     const prs = submitBlocks
-      .filter(({ block: b, sets }) => !b.unit && sets.some((s) => !s.isWarmup && s.weight > (gymRecords[b.exerciseId] ?? 0)))
+      .filter(({ block: b, sets }) => blockHasRecord(sets.map((s) => ({ ...s, done: true })), b.exerciseId, b.unit, gymRecords))
       .map(({ block: b }) => exerciseById.get(b.exerciseId)?.name ?? '')
       .filter(Boolean);
 
@@ -1558,20 +1842,15 @@ export default function WorkoutForm({
     const moved = returnLoadPct
       ? []
       : (submitBlocks
-          .filter(({ block: b }) => !b.unit)
+          .filter(({ block: b }) => !isTimedUnit(b.unit))
           .map(({ block: b, sets: ss }) => {
             const tops = ss.filter((s2) => !s2.isWarmup && s2.weight > 0).map((s2) => s2.weight);
             const top = tops.length ? Math.max(...tops) : 0;
-            const prev = b.lastSession?.weight ?? null;
-            if (!top || prev == null || top === prev) return null;
+            // Only a move UP is said (movedLabel): a deload day's minus
+            // sign on this screen would be a grade.
+            const label = movedLabel(top, b.lastSession?.weight, pins[b.exerciseId] ?? 0);
             const nm = exerciseById.get(b.exerciseId)?.name ?? '';
-            const inc = pins[b.exerciseId] ?? 0;
-            const diff = +(top - prev).toFixed(1);
-            const moves = inc > 0 ? Math.round(diff / inc) : 0;
-            const label = moves !== 0 && Math.abs(moves * inc - diff) < 0.01
-              ? `${moves > 0 ? '+' : ''}${moves} pin${Math.abs(moves) === 1 ? '' : 's'}`
-              : `${diff > 0 ? '+' : ''}${diff} kg`;
-            return `${nm} · ${label}`;
+            return label && nm ? `${nm} · ${label}` : null;
           })
           .filter((x): x is string => x !== null));
     setShowSummary({ sets: setsToSave.length, vol, prs, moved, ramp: returnLoadPct != null, time: formatElapsed(Math.floor((Date.now() - startRef.current) / 1000)) });
@@ -1619,7 +1898,11 @@ export default function WorkoutForm({
       // disarm the debounced writer, or a save landing inside the 500 ms
       // window gets resurrected as a ghost draft by the still-armed flush;
       // re-saving that ghost would mint a DUPLICATE workout under a fresh
-      // clientSaveId (adversary F1, corrupts-data class).
+      // clientSaveId (adversary F1, corrupts-data class). finishedRef closes
+      // the same door for good: the last flush or a poll resolving after
+      // this point changes the blocks, which re-armed the autosave and wrote
+      // the finished session back WITH its save id (2026-10-02).
+      finishedRef.current = true;
       pendingDraftRef.current = null;
       void durableRemove(DRAFT_KEY);
       // Fire-and-forget: pull the session's real HR curve off the Watch data
@@ -1688,7 +1971,14 @@ export default function WorkoutForm({
 
   return (
     <>
-      <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Any tap or typed number inside the form marks it touched — the
+          line between a logger he used and one he only looked at. */}
+      <form
+        onSubmit={handleSubmit}
+        onInputCapture={() => { touchedRef.current = true; }}
+        onClickCapture={() => { touchedRef.current = true; }}
+        className="space-y-4"
+      >
 
         {/* Session queued offline — the save is safe, not lost */}
         {queuedOffline && (
@@ -1733,6 +2023,10 @@ export default function WorkoutForm({
         {/* Draft restored notice */}
         {liveNotice && (
           <p className="text-acc-teal text-xs font-semibold px-1" aria-live="polite">{liveNotice}</p>
+        )}
+        {/* Outside the details card on purpose: it folds away after set 1. */}
+        {gymNotice && (
+          <p className="text-acc-ember text-xs font-semibold px-1" aria-live="polite">{gymNotice}</p>
         )}
         {draftRestored && (
           <div className="card rounded-card border-acc-teal/30 px-4 py-3 flex items-center justify-between">
@@ -1817,7 +2111,7 @@ export default function WorkoutForm({
                 <button
                   key={g.id}
                   type="button"
-                  onClick={() => setGym(g.id)}
+                  onClick={() => { gymByRef.current = 'tap'; setGymNotice(null); setGym(g.id); }}
                   aria-pressed={active}
                   className={`pressable min-h-[44px] rounded-card border px-3 py-2 text-sm font-semibold transition-all ${
                     active
@@ -1965,11 +2259,9 @@ export default function WorkoutForm({
           // Press set sitting in a swapped-to Pec Fly block was clearing Pec
           // Fly's record and lighting a 🏆 he never earned. Rule 2's fake PR,
           // one exercise over instead of one gym over.
-          const hasNewPR =
-            !isTimed &&
-            block.sets.some(
-              (s) => s.weight > 0 && s.weight > (gymRecords[s.exerciseId ?? block.exerciseId] ?? 0),
-            );
+          // DONE working sets only: counting undone rows lit the chip on the
+          // prefill, before the lift (2026-10-02).
+          const hasNewPR = blockHasRecord(block.sets, block.exerciseId, block.unit, gymRecords);
           const allDone = block.sets.length > 0 && block.sets.every((s) => settledSet(block.sets, s));
 
           const lastRpe = block.lastSession?.rpe ?? null;

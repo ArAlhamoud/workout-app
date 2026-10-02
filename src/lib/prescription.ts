@@ -58,10 +58,22 @@ export type ExerciseMemory = {
 export interface MemorySetRow extends EvidenceSet {
   exerciseId: string;
   exerciseName?: string | null;
-  workout: { id: string; date: Date; duration: number | null };
+  /** name: a Rescue row is never memory (foldExerciseMemory). */
+  workout: { id: string; date: Date; duration: number | null; name?: string | null };
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * A rescue session ("Rescue 15m — …"): two sets at 60%, by construction.
+ * It keeps the chain alive and counts as a session for the schedule and the
+ * ramp — and it is NEVER evidence about a machine: not weight memory, not a
+ * session top, not a pin, not a plateau streak. It used to be kept out of
+ * memory only while it was the newest row; two sessions later the Day B
+ * plan opened Lat Pulldown and Mid Row at the rescue's 25 instead of 40, on
+ * the phone, /train and the Watch alike (2026-10-02).
+ */
+export const isRescueName = (name: string | null | undefined): boolean => (name ?? '').startsWith('Rescue');
 
 /**
  * History → memory per machine. Rows must come newest session first and,
@@ -69,7 +81,8 @@ const round2 = (n: number) => Math.round(n * 100) / 100;
  * the last set of the latest session, the prefill memory. Sessions group by
  * calendar DAY, not workout id — a session saved in two halves is one day's
  * evidence, never "two straight sessions" earned in an afternoon. A mis-tap
- * row (seconds long, nothing rated) is not memory at all.
+ * row (seconds long, nothing rated) is not memory at all — and neither is a
+ * Rescue row (isRescueName): 60% by construction, whoever passes it in.
  */
 export function foldExerciseMemory(
   rows: MemorySetRow[],
@@ -78,6 +91,7 @@ export function foldExerciseMemory(
   const out: Record<string, ExerciseMemory> = {};
   const byExercise = new Map<string, MemorySetRow[]>();
   for (const r of rows) {
+    if (isRescueName(r.workout.name)) continue;
     if (!isTrainingSession({ name: 'Day', duration: r.workout.duration, sets: evidence.get(r.workout.id) ?? [] })) continue;
     const list = byExercise.get(r.exerciseId);
     if (list) list.push(r);
@@ -290,7 +304,11 @@ export function prescriptionInputs<R extends InputRow>(
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, PRESCRIPTION_WINDOW);
   const training = window.filter((w) => isTrainingSession(w));
-  const gymRows = training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym);
+  // Rescue rows stay in `training` (the schedule and the ramp count them)
+  // and out of everything read off a machine's weights: a 60% top broke the
+  // pin ladder (Leg Press 30/35/40 + a rescue's 24 learned nothing) and
+  // reset a plateau streak (isRescueName, 2026-10-02).
+  const gymRows = training.filter((w) => (w.gym ?? DEFAULT_GYM_ID) === gym && !isRescueName(w.name));
   const cleanDates = cleanRampSessionDates(training);
   const status = getTrainingStatus(training.map((w) => new Date(w.date)), now, cleanDates);
   const inRamp = status.mode === 'return';

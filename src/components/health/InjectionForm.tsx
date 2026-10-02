@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { logInjection, logSymptoms } from '@/app/health-actions';
-import { SITES, siteLabel } from '@/lib/health-insights';
+import { SITES, siteLabel, initialDoseChoice } from '@/lib/health-insights';
 import { hapticSuccess } from '@/lib/native-feedback';
 
 const AFTER_KINDS = [
@@ -37,7 +37,14 @@ export default function InjectionForm({
   isFirst: boolean;
 }) {
   const router = useRouter();
-  const [dose, setDose] = useState(String(plannedDoseMg ?? lastDoseMg ?? 2.5));
+  // A review slot (or a plan that has ended) preselects nothing: the dose
+  // is the doctor's, and one tap must not store last week's.
+  const [dose, setDose] = useState(initialDoseChoice(plannedDoseMg, lastDoseMg, isFirst));
+  // When he took it. "Now" unless he says earlier: a dose taken Tuesday
+  // night and logged after midnight was stored as Wednesday's, moved the
+  // next-due day and was hand-patched two weeks running.
+  const [earlier, setEarlier] = useState(false);
+  const [takenAt, setTakenAt] = useState('');
   // Separate state for the free-form field: deriving it from `dose` wiped
   // the field mid-typing whenever a keystroke momentarily equalled a preset
   // ("7" on the way to "7.5") — device-tester.
@@ -52,7 +59,9 @@ export default function InjectionForm({
   const [after, setAfter] = useState<Record<string, number>>({});
   const [afterSaved, setAfterSaved] = useState(false);
 
-  const effectiveDose = customDose !== '' ? Number(customDose) : Number(dose);
+  const effectiveDose = customDose !== '' ? Number(customDose) : dose !== '' ? Number(dose) : NaN;
+  const takenISO = earlier && takenAt ? new Date(takenAt).toISOString() : undefined;
+  const timeMissing = earlier && !takenAt;
   // At a checkpoint (planned mg null) every dose is doctor-directed:
   // nothing is "on schedule" because nothing was scheduled.
   const offPlan = plannedDoseMg == null || effectiveDose !== plannedDoseMg;
@@ -68,12 +77,13 @@ export default function InjectionForm({
         clicks: clicks ? Number(clicks) : undefined,
         onSchedule: !offPlan,
         notes: notes || undefined,
+        at: takenISO,
       });
       hapticSuccess();
       setSaved(true);
       router.refresh();
     } catch {
-      setError('Could not save — check the dose (0.5–20 mg) and your connection.');
+      setError('Could not save — check the dose (0.5–20 mg), the time and your connection.');
     } finally {
       setBusy(false);
     }
@@ -160,7 +170,7 @@ export default function InjectionForm({
               type="button"
               onClick={() => { setDose(String(d)); setCustomDose(''); }}
               className={`flex-1 rounded-card border py-2.5 text-sm font-bold tabular-nums transition-all ${
-                customDose === '' && Number(dose) === d
+                customDose === '' && dose !== '' && Number(dose) === d
                   ? 'border-acc-cyan/60 bg-acc-cyan/15 text-acc-cyan'
                   : 'border-app-border bg-app-surface2/60 text-app-tx2'
               }`}
@@ -183,8 +193,37 @@ export default function InjectionForm({
         )}
         {plannedDoseMg == null && (
           <p className="mt-1.5 text-[11px] text-acc-ember">
-            No dose is scheduled for this slot — logged as doctor-directed.
+            No dose is scheduled for this slot — choose the dose your doctor set.
           </p>
+        )}
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-xs text-app-tx3">Taken</p>
+        <div className="flex gap-1.5">
+          {([['Now', false], ['Earlier', true]] as const).map(([label, v]) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => setEarlier(v)}
+              className={`flex-1 rounded-card border py-2.5 text-xs font-semibold transition-all ${
+                earlier === v
+                  ? 'border-acc-cyan/60 bg-acc-cyan/15 text-acc-cyan'
+                  : 'border-app-border bg-app-surface2/60 text-app-tx2'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {earlier && (
+          <input
+            type="datetime-local"
+            aria-label="When the injection was taken"
+            className={`${inputCls} mt-1.5 w-full`}
+            value={takenAt}
+            onChange={(e) => setTakenAt(e.target.value)}
+          />
         )}
       </div>
 
@@ -222,11 +261,11 @@ export default function InjectionForm({
       {error && <p className="text-xs text-rpe-hard">{error}</p>}
       <button
         type="button"
-        disabled={busy || !Number.isFinite(effectiveDose) || effectiveDose <= 0}
+        disabled={busy || !Number.isFinite(effectiveDose) || effectiveDose <= 0 || timeMissing}
         onClick={save}
         className="w-full rounded-card-lg bg-gradient-to-r from-acc-cyan to-acc-teal py-3.5 text-sm font-bold text-white shadow-glow-teal transition-all active:scale-[0.99] disabled:opacity-50"
       >
-        {busy ? 'Saving…' : `Save injection · ${Number.isFinite(effectiveDose) && effectiveDose > 0 ? effectiveDose : '—'} mg · ${siteLabel(site)}`}
+        {busy ? 'Saving…' : Number.isFinite(effectiveDose) && effectiveDose > 0 ? `Save injection · ${effectiveDose} mg · ${siteLabel(site)}` : 'Choose a dose'}
       </button>
     </div>
   );

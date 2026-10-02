@@ -2,8 +2,10 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import BackLink from '@/components/BackLink';
 import { getHealthData } from '../../health-actions';
+import { monthLabel, weightChangeLabel } from '@/lib/health-format';
 import {
   afCorrelates,
+  ownerMonthKey,
   cpapCompliance,
   cpapStats,
   afStats,
@@ -42,7 +44,10 @@ export default async function HealthAnalyticsPage() {
 
   // Weight vs AHI: monthly averages of both, shown side by side when at
   // least 2 months of CPAP data exist alongside weigh-ins.
-  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  // HIS calendar months (ownerMonthKey), never the server's: a weigh-in
+  // between 00:00 and 03:00 Riyadh on the 1st was averaged into the month
+  // before (2026-10-02).
+  const monthKey = ownerMonthKey;
   const ahiByMonth = new Map<string, { total: number; n: number }>();
   for (const n of data.cpapNights) {
     if (n.ahi == null) continue;
@@ -231,7 +236,7 @@ export default async function HealthAnalyticsPage() {
           <div className="space-y-1.5">
             {cpapMonths.map((m) => (
               <div key={m.month} className="flex items-baseline justify-between text-sm">
-                <span className="text-xs text-app-tx3">{m.month}</span>
+                <span className="text-xs text-app-tx3">{monthLabel(m.month)}</span>
                 <span className="tabular-nums text-app-tx1">{m.weight} kg</span>
                 <span className="tabular-nums text-app-tx2">AHI {m.ahi}</span>
                 {m.press != null && (
@@ -243,14 +248,18 @@ export default async function HealthAnalyticsPage() {
         )}
         {weight && (
           <p className="mt-2 border-t border-ink/10 pt-2 text-[11px] text-app-tx3">
-            Total so far: {weight.lostKg > 0 ? `−${weight.lostKg}` : weight.lostKg} kg
-            ({weight.pctLost}%).
+            Total so far: {weightChangeLabel(weight.lostKg, weight.pctLost)}.
           </p>
         )}
       </div>
       {mask.monthLogged > 0 && (
         <div className="card-lg p-4">
-          <p className="section-label mb-2">The mask, this month</p>
+          {/* Nights arrive in a weekly report: before the first one of a
+              month lands, the card shows the latest reported month, named —
+              it used to disappear whole (2026-10-02). */}
+          <p className="section-label mb-2">
+            {mask.monthIsCurrent || !mask.month ? 'The mask, this month' : `The mask · ${monthLabel(mask.month)}`}
+          </p>
           <div className="grid grid-cols-3 gap-2 text-center">
             <div>
               <p className="metric-value">{mask.month4h}<span className="text-sm text-app-tx3">/{mask.monthLogged}</span></p>

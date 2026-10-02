@@ -6,9 +6,11 @@ import PdfShareButton from '@/components/health/PdfShareButton';
 import ReportChart from '@/components/health/ReportChart';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, weightChart } from '@/lib/report-charts';
 import { getHealthData } from '../../health-actions';
+import { cpapAdherenceLabel, reportAge, signedKg, weightChangeAr, weightChangeLabel } from '@/lib/health-format';
 import {
   afStats,
   bpAverage,
+  cpapAdherence,
   bpSplitAroundAnchor,
   doseLedger,
   labRefLabel,
@@ -121,11 +123,13 @@ export default async function DoctorReportPage({
   // CPAP aggregates computed over the SELECTED RANGE — cpapStats' 30-day
   // window under a "last 3 months" heading printed month-old compliance as
   // if it covered the quarter (three reviewers, independently).
+  // Adherence — nights used and nights of 4 h or more, of the nights the
+  // weekly reports cover — is ONE function for this page and the PDF.
+  const adherence = cpapAdherence(cpap);
   const cpapUsed = cpap.filter((n) => n.usageHours > 0);
   const cpapAvgH = cpapUsed.length
     ? Math.round((cpapUsed.reduce((s, n) => s + n.usageHours, 0) / cpapUsed.length) * 10) / 10
     : null;
-  const cpapOver4 = cpapUsed.filter((n) => n.usageHours >= 4).length;
   const cpapAhis = cpap.filter((n) => n.ahi != null) as Array<{ ahi: number }>;
   const cpapAvgAhi = cpapAhis.length
     ? Math.round((cpapAhis.reduce((s, n) => s + n.ahi, 0) / cpapAhis.length) * 10) / 10
@@ -149,8 +153,8 @@ export default async function DoctorReportPage({
   const rangeDelta =
     rangeStartW != null && rangeEndW != null ? Math.round((rangeEndW - rangeStartW) * 10) / 10 : null;
   // Honest sign everywhere: a regain prints as +N kg, never as an unsigned
-  // number sitting in a "lost" position (clinical-safety).
-  const signedKg = (lost: number) => (lost >= 0 ? `−${Math.abs(lost)}` : `+${Math.abs(lost)}`);
+  // number sitting in a "lost" position (clinical-safety) — and the percent
+  // carries the same sign (weightChangeLabel, shared with the PDF).
 
   // Symptom summary: max + average severity per kind in range.
   const symptomAgg = new Map<string, { total: number; n: number; max: number }>();
@@ -171,7 +175,7 @@ export default async function DoctorReportPage({
     dose: doseChart(ledger),
   };
   const tooFew = (
-    <p className="mt-1 text-xs text-app-tx3 print:text-gray-600">Not enough readings in this range for a trend yet.</p>
+    <p className="mt-1 text-xs text-app-tx3 print:text-gray-600">Not enough data yet for a chart.</p>
   );
 
   const sideEffects = sideEffectRows(ongoingSymptoms(data.profile.ongoingSymptoms), symptomAgg);
@@ -189,15 +193,6 @@ export default async function DoctorReportPage({
   const pulses = bp.filter((r) => r.pulse != null).map((r) => r.pulse as number);
   const pulseAvg =
     pulses.length >= 3 ? Math.round(pulses.reduce((s, p) => s + p, 0) / pulses.length) : null;
-  // Adherence denominator: mornings elapsed since therapy began (clamped to
-  // the range), never less than the nights used — a lagging report must not
-  // read "7 of 6".
-  const cpapFrom = firstCpapNight
-    ? Math.max(new Date(firstCpapNight).getTime(), since.getTime())
-    : null;
-  const cpapElapsed = cpapFrom
-    ? Math.max(cpapUsed.length, Math.floor((Date.now() - cpapFrom) / DAY_MS) + 1)
-    : 0;
   const rangeLabel = range === '4w' ? 'Last 4 weeks' : range === '3m' ? 'Last 3 months' : 'All data';
   const rangeLabelAr = range === '4w' ? 'آخر ٤ أسابيع' : range === '3m' ? 'آخر ٣ أشهر' : 'كل البيانات';
 
@@ -254,7 +249,9 @@ export default async function DoctorReportPage({
         {/* Patient block — what a clinician expects at the top of a page */}
         <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
           <Row label="Patient" value="Abdulrahman Alhamoud" />
-          <Row label="Born" value={`1988 · ${new Date().getFullYear() - 1988} y`} />
+          {/* No birth date is stored, only the year — so the age prints as
+              the pair it can be, never as an exact figure (2026-10-02). */}
+          <Row label="Born" value={`1988 · ${reportAge(null)}`} />
           <Row label="Height" value={`${data.profile.heightCm} cm`} />
           {conditions.length > 0 && (
             <p className="pt-1 text-xs leading-relaxed text-app-tx2 print:text-gray-700">
@@ -303,7 +300,7 @@ export default async function DoctorReportPage({
                   visit 133 kg, and the percentage below hangs off the latter
                   (owner, 2026-09-11; physician review flagged it). */}
               <Row label="First clinic visit → now" value={`${snapshot.startKg} → ${snapshot.currentKg} kg`} />
-              <Row label="Change" value={`${signedKg(snapshot.lostKg)} kg (${snapshot.pctLost}%)`} />
+              <Row label="Change" value={weightChangeLabel(snapshot.lostKg, snapshot.pctLost)} />
               <Row label="BMI" value={`${snapshot.startBmi} → ${snapshot.bmi}`} />
               {rangeDelta != null && (
                 <Row
@@ -327,7 +324,7 @@ export default async function DoctorReportPage({
                 value={`${pace.kgPerWeek > 0 ? '+' : pace.kgPerWeek < 0 ? '−' : ''}${Math.abs(pace.kgPerWeek)} kg/week`}
               />
             )}
-            {charts.dose && <ReportChart spec={charts.dose} />}
+            {charts.dose ? <ReportChart spec={charts.dose} /> : tooFew}
             <div className="mt-1.5 space-y-1">
               {ledger.map((d) => (
                 <div key={d.n} className="text-sm tabular-nums">
@@ -421,13 +418,10 @@ export default async function DoctorReportPage({
               {firstCpapNight && <Row label="Therapy since" value={fmt(firstCpapNight)} />}
               <Row label="Nights logged" value={String(cpap.length)} />
               <Row label="Average use" value={`${cpapAvgH ?? '—'} h/night`} />
-              <Row label="Nights ≥ 4 h" value={`${cpapOver4} of ${cpap.length}`} />
-              {cpapElapsed > 0 && (
-                <Row
-                  label="Nights used"
-                  value={`${cpapUsed.length} of ${cpapElapsed} (${Math.round((cpapUsed.length / cpapElapsed) * 100)}%)`}
-                />
-              )}
+              <Row label="Nights ≥ 4 h" value={`${adherence.over4} of ${adherence.reported}`} />
+              {/* Of the nights REPORTED, and through which date: the weekly
+                  report lags, and unreported is not unused (2026-10-02). */}
+              <Row label="Nights used" value={cpapAdherenceLabel(adherence)} />
               {cpapAvgAhi != null && <Row label="Average AHI" value={String(cpapAvgAhi)} />}
               {cpapDeepMin != null && (
                 <Row
@@ -470,7 +464,7 @@ export default async function DoctorReportPage({
           <p className="section-label mb-1 print:font-bold print:text-black">الملخّص — {rangeLabelAr}</p>
           <div className="space-y-1 text-sm leading-relaxed text-app-tx1 print:text-black">
             <p>
-              الوزن منذ أول زيارة للعيادة: {snapshot ? `${snapshot.startKg} كجم ← ${snapshot.currentKg} كجم (${snapshot.lostKg >= 0 ? 'نقص' : 'زيادة'} ${Math.abs(snapshot.lostKg)} كجم، ${snapshot.pctLost}٪)` : 'لا يوجد'}
+              الوزن منذ أول زيارة للعيادة: {snapshot ? `${snapshot.startKg} كجم ← ${snapshot.currentKg} كجم (${weightChangeAr(snapshot.lostKg, snapshot.pctLost)})` : 'لا يوجد'}
             </p>
             <p>
               مونجارو: {clock ? `الأسبوع ${clock.week} · الجرعة الحالية ${clock.lastDoseMg} ملغ أسبوعيًا` : 'لم يبدأ بعد'} · عدد الحقن في الفترة: {injections.length}

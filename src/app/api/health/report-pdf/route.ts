@@ -1,8 +1,10 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getHealthData } from '@/app/health-actions';
+import { cpapAdherenceLabel, pdfSafe, reportAge, weightChangeLabel, wrapLines } from '@/lib/health-format';
 import {
   afStats,
   bpAverage,
+  cpapAdherence,
   bpSplitAroundAnchor,
   doseLedger,
   ledgerByDose,
@@ -40,15 +42,11 @@ const fmt = (d: Date | string) =>
 const fmtMin = (m: number) =>
   m >= 60 ? `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim() : `${m} min`;
 
-/** Standard-font PDFs speak WinAnsi only — swap the glyphs it lacks. */
-const clean = (s: string) =>
-  s
-    .replace(/−/g, '-')
-    .replace(/≥/g, '>=')
-    .replace(/≤/g, '<=')
-    .replace(/→/g, '->')
-    .replace(/[–—]/g, '-')
-    .replace(/·/g, '·'); // middle dot IS WinAnsi — keep
+// Standard-font PDFs speak WinAnsi only. EVERY string drawn goes through
+// pdfSafe (src/lib/health-format.ts): the six-glyph swap that lived here
+// let one "≈", "μ" or Arabic letter in a med name throw inside pdf-lib and
+// take the whole report down with a 500 (2026-10-02). The suite fails on
+// a drawText whose first argument is not pdfSafe(...).
 
 /**
  * The doctor report as a real PDF file — same aggregates as the page
@@ -104,11 +102,13 @@ export async function GET(request: Request) {
     RANGES[range],
   );
   const af = afStats(data.afEpisodes);
+  // One adherence for the page and this file (cpapAdherence): of the
+  // nights REPORTED, never of every morning up to today.
+  const adherence = cpapAdherence(cpap);
   const cpapUsed = cpap.filter((n) => n.usageHours > 0);
   const cpapAvgH = cpapUsed.length
     ? Math.round((cpapUsed.reduce((s, n) => s + n.usageHours, 0) / cpapUsed.length) * 10) / 10
     : null;
-  const cpapOver4 = cpapUsed.filter((n) => n.usageHours >= 4).length;
   const cpapAhis = cpap.filter((n) => n.ahi != null) as Array<{ ahi: number }>;
   const cpapAvgAhi = cpapAhis.length
     ? Math.round((cpapAhis.reduce((s, n) => s + n.ahi, 0) / cpapAhis.length) * 10) / 10
@@ -137,20 +137,10 @@ export async function GET(request: Request) {
   const pulses = bp.filter((r) => r.pulse != null).map((r) => r.pulse as number);
   const pulseAvg =
     pulses.length >= 3 ? Math.round(pulses.reduce((s, p) => s + p, 0) / pulses.length) : null;
-  // Adherence denominator: mornings elapsed since therapy began (clamped to
-  // the range), never less than the nights actually used — a lagging prisma
-  // report must not produce "7 of 6".
-  const cpapFrom = firstCpapNight
-    ? Math.max(new Date(firstCpapNight).getTime(), since.getTime())
-    : null;
-  const cpapElapsed = cpapFrom
-    ? Math.max(cpapUsed.length, Math.floor((Date.now() - cpapFrom) / DAY_MS) + 1)
-    : 0;
   const meds = data.meds.filter((m) => !m.stoppedOn);
   const conditions = ((data.profile.conditions as string[] | null) ?? []).filter(
     (c): c is string => typeof c === 'string',
   );
-  const signedKg = (lost: number) => (lost >= 0 ? `-${Math.abs(lost)}` : `+${Math.abs(lost)}`);
 
   // Trend charts — the SAME specs the page draws (src/lib/report-charts.ts).
   const weightsInRange = inRange(data.bodyStats.filter((b) => b.weight != null), (b) => b.date);
@@ -192,15 +182,14 @@ export async function GET(request: Request) {
     }
   };
   const text = (t: string, x: number, size: number, f = font, color = INK) =>
-    page.drawText(clean(t), { x, y, size, font: f, color });
+    page.drawText(pdfSafe(t), { x, y, size, font: f, color });
   // Compact rhythm so the written report fits page 1 and the charts get
   // page 2 (owner, 2026-09-30: "two pages, one normal, one the graphs").
   const row = (label: string, value: string, dim = false) => {
     ensure(15);
     text(label, M, 9.5, font, DIM);
-    const v = clean(value);
-    const w = bold.widthOfTextAtSize(v, 9.5);
-    page.drawText(v, { x: A4[0] - M - w, y, size: 9.5, font: bold, color: dim ? DIM : INK });
+    const w = bold.widthOfTextAtSize(pdfSafe(value), 9.5);
+    page.drawText(pdfSafe(value), { x: A4[0] - M - w, y, size: 9.5, font: bold, color: dim ? DIM : INK });
     y -= 13.5;
   };
   const section = (title: string) => {
@@ -213,10 +202,14 @@ export async function GET(request: Request) {
     text(title.toUpperCase(), M, 8.5, bold, DIM);
     y -= 13;
   };
+  // A note wraps inside the margins: the conditions line was one unwrapped
+  // line at 433 of 483 pt — one more diagnosis and it ran off the page.
   const note = (t: string) => {
-    ensure(14);
-    text(t, M, 8.5, font, DIM);
-    y -= 12;
+    for (const line of wrapLines(pdfSafe(t), A4[0] - 2 * M, (s) => font.widthOfTextAtSize(s, 8.5))) {
+      ensure(14);
+      text(line, M, 8.5, font, DIM);
+      y -= 12;
+    }
   };
   const fmtV = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
   /** One trend chart, drawn from the shared layout. Layout y runs down from
@@ -230,9 +223,9 @@ export async function GET(request: Request) {
     if (spec.series.length > 1) {
       let lx = A4[0] - M;
       for (const s of [...spec.series].reverse()) {
-        const lbl = `- ${s.label}`;
+        const lbl = pdfSafe(`- ${s.label}`);
         lx -= bold.widthOfTextAtSize(lbl, 8) + 8;
-        page.drawText(lbl, { x: lx, y, size: 8, font: bold, color: TONE[s.key] ?? INK });
+        page.drawText(pdfSafe(lbl), { x: lx, y, size: 8, font: bold, color: TONE[s.key] ?? INK });
       }
     }
     y -= 6;
@@ -242,17 +235,17 @@ export async function GET(request: Request) {
     const Y = (py: number) => top - py;
     for (const t of c.yTicks) {
       page.drawLine({ start: { x: X(c.plot.left), y: Y(t.y) }, end: { x: X(c.plot.right), y: Y(t.y) }, thickness: 0.4, color: LINE });
-      const w = font.widthOfTextAtSize(t.label, 7);
-      page.drawText(t.label, { x: X(c.plot.left) - 4 - w, y: Y(t.y) - 2.5, size: 7, font, color: DIM });
+      const w = font.widthOfTextAtSize(pdfSafe(t.label), 7);
+      page.drawText(pdfSafe(t.label), { x: X(c.plot.left) - 4 - w, y: Y(t.y) - 2.5, size: 7, font, color: DIM });
     }
     c.xTicks.forEach((t, i) => {
-      const w = font.widthOfTextAtSize(t.label, 7);
+      const w = font.widthOfTextAtSize(pdfSafe(t.label), 7);
       const x = i === 0 ? X(t.x) : i === c.xTicks.length - 1 ? X(t.x) - w : X(t.x) - w / 2;
-      page.drawText(t.label, { x, y: Y(c.height) + 2, size: 7, font, color: DIM });
+      page.drawText(pdfSafe(t.label), { x, y: Y(c.height) + 2, size: 7, font, color: DIM });
     });
     for (const r of c.refs) {
       page.drawLine({ start: { x: X(c.plot.left), y: Y(r.y) }, end: { x: X(c.plot.right), y: Y(r.y) }, thickness: 0.7, color: DIM, dashArray: [3, 3] });
-      page.drawText(clean(r.label), { x: X(c.plot.right) + 3, y: Y(r.y) - 2.5, size: 7, font, color: DIM });
+      page.drawText(pdfSafe(r.label), { x: X(c.plot.right) + 3, y: Y(r.y) - 2.5, size: 7, font, color: DIM });
     }
     for (const s of c.series) {
       const color = TONE[s.key] ?? INK;
@@ -273,7 +266,7 @@ export async function GET(request: Request) {
       }
       for (const p of s.points) page.drawCircle({ x: X(p.x), y: Y(p.y), size: 1.6, color });
       const last = s.points[s.points.length - 1];
-      if (last) page.drawText(fmtV(last.v), { x: X(c.plot.right) + 3, y: Y(last.y) - 2.5, size: 7, font: bold, color });
+      if (last) page.drawText(pdfSafe(fmtV(last.v)), { x: X(c.plot.right) + 3, y: Y(last.y) - 2.5, size: 7, font: bold, color });
     }
     // Clear the date labels before the next line (a Dose 1 row once sat on them).
     y = top - H - 16;
@@ -286,7 +279,8 @@ export async function GET(request: Request) {
   y -= 24;
 
   row('Patient', 'Abdulrahman Alhamoud');
-  row('Born', `1988 · ${new Date().getFullYear() - 1988} y`);
+  // Only the birth YEAR is stored, so the age prints as the pair it can be.
+  row('Born', `1988 · ${reportAge(null)}`);
   row('Height', `${data.profile.heightCm} cm`);
   if (conditions.length) note(conditions.join(' · '));
   // Family history and investigations are not printed (owner, 2026-09-30).
@@ -297,7 +291,7 @@ export async function GET(request: Request) {
   section('Weight');
   if (snapshot) {
     row('First clinic visit -> now', `${snapshot.startKg} -> ${snapshot.currentKg} kg`);
-    row('Change', `${signedKg(snapshot.lostKg)} kg (${snapshot.pctLost}%)`);
+    row('Change', weightChangeLabel(snapshot.lostKg, snapshot.pctLost, '-'));
     row('BMI', `${snapshot.startBmi} -> ${snapshot.bmi}`);
     if (pace) row('Current pace', `${pace.kgPerWeek > 0 ? '+' : ''}${pace.kgPerWeek} kg/week`);
   } else {
@@ -363,10 +357,8 @@ export async function GET(request: Request) {
     if (firstCpapNight) row('Therapy since', fmt(firstCpapNight));
     row('Nights logged', String(cpap.length));
     row('Average use', `${cpapAvgH ?? '-'} h/night`);
-    row('Nights >= 4 h', `${cpapOver4} of ${cpap.length}`);
-    if (cpapElapsed > 0) {
-      row('Nights used', `${cpapUsed.length} of ${cpapElapsed} (${Math.round((cpapUsed.length / cpapElapsed) * 100)}%)`);
-    }
+    row('Nights >= 4 h', `${adherence.over4} of ${adherence.reported}`);
+    row('Nights used', cpapAdherenceLabel(adherence));
     if (cpapAvgAhi != null) row('Average AHI', String(cpapAvgAhi));
     if (cpapDeepMin != null) {
       row('Deep sleep (device estimate)', `${cpapDeepMin} min/night - ${cpapDeep.length} nights`);
@@ -394,7 +386,7 @@ export async function GET(request: Request) {
   y -= 16;
   const trend = (title: string, spec: ChartSpec | null) => {
     if (spec) chart(spec);
-    else note(`${title}: not enough readings in this range for a trend yet.`);
+    else note(`${title}: not enough data yet for a chart.`);
   };
   trend('Weight', charts.weight);
   trend('Mounjaro dose', charts.dose);
@@ -406,11 +398,11 @@ export async function GET(request: Request) {
   // still identify itself. Drawn last, when the page count is known.
   const pages = doc.getPages();
   pages.forEach((p, i) => {
-    p.drawText(clean(`Abdulrahman Alhamoud · prepared ${fmt(new Date())} · AR Health`), {
+    p.drawText(pdfSafe(`Abdulrahman Alhamoud · prepared ${fmt(new Date())} · AR Health`), {
       x: M, y: 30, size: 7.5, font, color: DIM,
     });
     const pn = `page ${i + 1} of ${pages.length}`;
-    p.drawText(pn, {
+    p.drawText(pdfSafe(pn), {
       x: A4[0] - M - font.widthOfTextAtSize(pn, 7.5), y: 30, size: 7.5, font, color: DIM,
     });
   });

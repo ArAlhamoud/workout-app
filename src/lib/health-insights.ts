@@ -124,6 +124,11 @@ export interface TreatmentClock {
   /** True when the plan simply ends before the next dose: the UI asks for
    *  a plan edit instead of looping the last step forever. */
   planExhausted: boolean;
+  /** The next slot is a doctor-review checkpoint: a slot exists, and it
+   *  schedules nothing. Every screen says "Doctor review" for it and none
+   *  offers a dose (2026-10-02: Home said "Dose 7 · Tuesday", Journey said
+   *  "Doctor review", and the form had 5 mg preselected). */
+  atCheckpoint: boolean;
   overdue: boolean;
 }
 
@@ -172,6 +177,7 @@ export function treatmentClock(
     nextDue,
     nextPlanned,
     planExhausted: nextPlanned === null,
+    atCheckpoint: nextPlanned !== null && nextPlanned.mg === null,
     overdue: calendarDays(now, last.at) >= 8,
   };
 }
@@ -456,18 +462,19 @@ export interface AfStats {
 
 export function afStats(episodes: AfLite[], now: Date = new Date()): AfStats {
   const sorted = [...episodes].sort((a, b) => time(b.startedAt) - time(a.startedAt));
-  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  // HIS calendar months (ownerMonthKey): on the server's clock an episode
+  // between 00:00 and 03:00 Riyadh on the 1st counted in the month before,
+  // and "this month" was last month for those three hours (2026-10-02).
   const per = new Map<string, number>();
   for (const e of episodes) {
-    const k = monthKey(new Date(e.startedAt));
+    const k = ownerMonthKey(new Date(e.startedAt));
     per.set(k, (per.get(k) ?? 0) + 1);
   }
-  const thisKey = monthKey(now);
-  const lastKey = monthKey(new Date(now.getFullYear(), now.getMonth() - 1, 15));
+  const thisKey = ownerMonthKey(now);
   return {
     daysSinceLast: sorted.length ? calendarDays(now, sorted[0].startedAt) : null,
     thisMonth: per.get(thisKey) ?? 0,
-    lastMonth: per.get(lastKey) ?? 0,
+    lastMonth: per.get(previousMonthKey(thisKey)) ?? 0,
     perMonth: [...per.entries()].sort().map(([month, count]) => ({ month, count })),
   };
 }
@@ -521,7 +528,8 @@ export interface CpapStats {
   nights30d: number;
   nightsOver4h30d: number;
   avgAhi30d: number | null;
-  /** Consecutive nights (ending at the most recent logged night) with any use. */
+  /** Consecutive nights of CPAP_ADHERENT_HOURS or more, ending at the most
+   *  recent reported night — the same number as CpapStrip.currentStreak. */
   streak: number;
   /**
    * Average deep sleep MINUTES over the nights that reported it — the
@@ -533,20 +541,44 @@ export interface CpapStats {
   deepNights: number;
 }
 
+/** A night counts as adherent from 4 h on the mask — the clinical
+ *  adherence threshold, the line the report already draws and counts. */
+export const CPAP_ADHERENT_HOURS = 4;
+
+/**
+ * The mask streak, defined ONCE: consecutive mornings with a reported
+ * night of CPAP_ADHERENT_HOURS or more. `current` ends at the most recent
+ * reported night; a short night or a morning with no row breaks it.
+ * Nights are keyed by the morning they ended, so days are compared as
+ * calendar days, never as elapsed milliseconds on the server's clock.
+ */
+function maskStreaks(
+  nights: Array<{ night: Date | string; usageHours: number | null }>,
+): { current: number; best: number } {
+  const rows = nights
+    .filter((n) => n.usageHours != null)
+    .map((n) => ({ day: ownerDayNumber(new Date(n.night)), h: n.usageHours as number }))
+    .sort((a, b) => a.day - b.day);
+  let best = 0;
+  let run = 0;
+  let prev: number | null = null;
+  for (const r of rows) {
+    if (r.h >= CPAP_ADHERENT_HOURS) run = prev !== null && r.day - prev === 1 ? run + 1 : 1;
+    else run = 0;
+    prev = r.day;
+    best = Math.max(best, run);
+  }
+  return { current: run, best };
+}
+
 export function cpapStats(nights: CpapLite[], now: Date = new Date()): CpapStats {
   const recent = nights.filter((n) => now.getTime() - time(n.night) <= 30 * DAY_MS);
   const used = recent.filter((n) => n.usageHours > 0);
   const ahis = recent.filter((n) => n.ahi != null) as Array<{ ahi: number }>;
-  const sorted = [...nights].sort((a, b) => time(b.night) - time(a.night));
-  let streak = 0;
-  let cursor: number | null = null;
-  for (const n of sorted) {
-    if (n.usageHours <= 0) break;
-    const t = new Date(n.night).setHours(12, 0, 0, 0);
-    if (cursor !== null && Math.round((cursor - t) / DAY_MS) !== 1) break;
-    streak += 1;
-    cursor = t;
-  }
+  // ONE streak for Home and Patterns (maskStreaks): Home counted any use
+  // and said "6 nights running" while Patterns counted 4 h nights and said
+  // "current streak 1" (2026-10-02).
+  const streak = maskStreaks(nights).current;
   // Device-ESTIMATED from airflow, not staged sleep. Nights with no
   // reported figure are absent, never zero.
   const deep = recent.filter(
@@ -633,28 +665,31 @@ export function bpContextAverages(
 }
 
 /**
- * Weekly averages over the last `weeks` calendar weeks (Monday-anchored,
- * local time), oldest first. A week below the 3-reading guard reports null
- * averages but keeps its count, so the page can say "2 readings — not
- * enough" instead of drawing a lie. Weeks with zero readings are skipped
- * entirely; the caller decides how much silence to show.
+ * Weekly averages over the last `weeks` calendar weeks, oldest first. A
+ * week is HIS week — Monday 00:00 Riyadh — not the server's: on UTC
+ * Mondays his 7 Sep 01:24 reading landed in the week before, and from
+ * 00:00 to 03:00 on a Monday the current week was still last week
+ * (2026-10-02). `weekStart` is that Monday's Riyadh midnight as an instant.
+ * A week below the 3-reading guard reports null averages but keeps its
+ * count, so the page can say "2 readings — not enough" instead of drawing
+ * a lie. Weeks with zero readings are skipped entirely; the caller decides
+ * how much silence to show.
  */
 export function bpWeeklyAverages(
   readings: BpLite[],
   weeks: number,
   now: Date = new Date(),
 ): Array<{ weekStart: Date; systolic: number | null; diastolic: number | null; n: number }> {
-  const monday = new Date(now);
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  const firstStart = new Date(monday);
-  firstStart.setDate(firstStart.getDate() - (weeks - 1) * 7);
+  const today = ownerDayNumber(now);
+  const weekday = new Date(today * DAY_MS).getUTCDay(); // of his calendar day
+  const monday = today - ((weekday + 6) % 7);
+  const firstDay = monday - (weeks - 1) * 7;
 
   const byWeek = new Map<number, BpLite[]>();
   for (const r of readings) {
-    const t = time(r.at);
-    if (t < firstStart.getTime() || t >= monday.getTime() + 7 * DAY_MS) continue;
-    const index = Math.floor((t - firstStart.getTime()) / (7 * DAY_MS));
+    const day = ownerDayNumber(new Date(r.at));
+    if (day < firstDay || day >= monday + 7) continue;
+    const index = Math.floor((day - firstDay) / 7);
     const list = byWeek.get(index) ?? [];
     list.push(r);
     byWeek.set(index, list);
@@ -662,8 +697,8 @@ export function bpWeeklyAverages(
 
   const out: Array<{ weekStart: Date; systolic: number | null; diastolic: number | null; n: number }> = [];
   for (const [index, list] of [...byWeek.entries()].sort((a, b) => a[0] - b[0])) {
-    const weekStart = new Date(firstStart);
-    weekStart.setDate(weekStart.getDate() + index * 7);
+    const key = new Date((firstDay + index * 7) * DAY_MS).toISOString().slice(0, 10);
+    const weekStart = new Date(`${key}T00:00:00+03:00`);
     const enough = list.length >= 3;
     out.push({
       weekStart,
@@ -773,41 +808,78 @@ export function journeyStations(
   injections: Array<InjectionLite & { site?: string }>,
   now: Date = new Date(),
 ): JourneyStation[] {
+  void now; // kept for callers; the stations are a function of the log alone
   const sorted = [...injections].sort((a, b) => time(a.at) - time(b.at));
+  // His dates, on any server: a 02:00 Wednesday log read "Sep 29" here and
+  // "30 Sep" on Dose day.
+  const day = (t: Date | string | number) =>
+    new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' });
+  const takenStation = (n: number, taken: InjectionLite & { site?: string }): JourneyStation => ({
+    kind: 'dose',
+    label: `Dose ${n} · ${taken.doseMg} mg`,
+    detail: `${day(taken.at)}${taken.site ? ` · ${siteLabel(taken.site)}` : ''}`,
+    state: 'done',
+  });
   const out: JourneyStation[] = [];
-  let doseIndex = 0;
-  for (const step of plan) {
+  // DOSE-indexed, exactly like the clock (slot n = the nth injection): the
+  // review slot is the slot of the dose the doctor directs. Skipping it
+  // here made the two disagree once the plan ran past the review — Journey
+  // called the next injection "Dose 9 · 10 mg" while Dose day prefilled
+  // 7.5 — and the dose taken at the review appeared nowhere.
+  let covered = 0;
+  for (const step of [...plan].sort((a, b) => a.week - b.week)) {
+    const taken = sorted[step.week - 1];
+    covered = Math.max(covered, step.week);
+    const isNext = step.week - 1 === sorted.length;
     if (step.mg === null) {
       out.push({
         kind: 'checkpoint',
         label: step.label ?? 'Doctor review',
         detail: 'the plan beyond this is yours and your doctor’s to write',
-        state: doseIndex >= step.week - 1 ? 'next' : 'gate',
+        state: taken ? 'done' : isNext ? 'next' : 'gate',
       });
+      if (taken) out.push(takenStation(step.week, taken));
       continue;
     }
-    const taken = sorted[doseIndex];
     if (taken) {
-      out.push({
-        kind: 'dose',
-        label: `Dose ${step.week} · ${taken.doseMg} mg`,
-        detail: `${new Date(taken.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}${taken.site ? ` · ${siteLabel(taken.site)}` : ''}`,
-        state: 'done',
-      });
-      doseIndex += 1;
+      out.push(takenStation(step.week, taken));
     } else {
-      const isNext = doseIndex === sorted.length && out.every((s) => s.state !== 'next');
       out.push({
         kind: 'dose',
         label: `Dose ${step.week} · ${step.mg} mg`,
-        detail: isNext && sorted.length
-          ? `due ${new Date(time(sorted[sorted.length - 1].at) + WEEK_MS).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-          : null,
+        detail: isNext && sorted.length ? `due ${day(time(sorted[sorted.length - 1].at) + WEEK_MS)}` : null,
         state: isNext ? 'next' : 'future',
       });
     }
   }
+  // Doses beyond the end of the written plan are still his history.
+  for (let n = covered + 1; n <= sorted.length; n++) out.push(takenStation(n, sorted[n - 1]));
   return out;
+}
+
+/** The line under the road on Home for what comes next. A review slot is
+ *  named as the review — never as a numbered dose the plan does not hold. */
+export function nextDoseCaption(clock: TreatmentClock, nextDoseNumber: number, _now: Date = new Date()): string {
+  if (clock.planExhausted) return 'Plan complete — doctor review';
+  const what = clock.atCheckpoint ? 'Doctor review' : `Dose ${nextDoseNumber}`;
+  if (clock.daysSinceLast >= 7 || clock.overdue) return `${what} · today`;
+  return `${what} · ${clock.nextDue.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'Asia/Riyadh' })}`;
+}
+
+/** What the injection form opens on. Only a SCHEDULED dose is preselected;
+ *  at a review slot, or past the end of the plan, nothing is — the dose is
+ *  the doctor's, and one tap must not store last week's. */
+export function initialDoseChoice(plannedDoseMg: number | null, _lastDoseMg: number | null, _isFirst: boolean): string {
+  return plannedDoseMg != null ? String(plannedDoseMg) : '';
+}
+
+/** A dose time he may enter: a real instant, not in the future (5 min of
+ *  clock slack), and within the last 14 days — older is a typo, and the
+ *  treatment clock would swallow it whole. */
+export function injectionTimeOk(at: string, now: Date = new Date()): boolean {
+  const t = Date.parse(at);
+  if (!Number.isFinite(t)) return false;
+  return t <= now.getTime() + 5 * 60_000 && t >= now.getTime() - 14 * DAY_MS;
 }
 
 // ── Fuel (daily macros) ──────────────────────────────────────
@@ -863,19 +935,24 @@ export interface FuelWeek {
   proteinLoggedDays: number;
 }
 
-/** The last `days` calendar days of macro logs, guarded like everything else. */
+/**
+ * The last `days` diet days of macro logs, guarded like everything else.
+ * Diet rows are keyed by the 04:00 ACTIVITY day at UTC midnight, so the
+ * window is counted on that clock (ownerActivityDayUtc) and ends on it.
+ * On the server's clock the window slid a day at 03:00 Riyadh and let in
+ * the planned row for a day he had not started (2026-10-02).
+ */
 export function fuelWeek(
   logs: FuelDayLite[],
   targets: FuelTargets,
   days = 7,
   now: Date = new Date(),
 ): FuelWeek {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - (days - 1));
+  const end = ownerActivityDayUtc(now).getTime();
+  const start = end - (days - 1) * DAY_MS;
   const recent = logs.filter((l) => {
     const t = new Date(l.day).getTime();
-    return t >= start.getTime() && t <= now.getTime();
+    return t >= start && t <= end;
   });
   const kcals = recent.map((l) => l.kcal).filter((v): v is number => v != null);
   const prots = recent.map((l) => l.proteinG).filter((v): v is number => v != null);
@@ -1040,7 +1117,13 @@ export function deliveryDayPattern(
   };
 }
 
-/** Longest calm stretch between AF episodes (and since the last one). */
+/**
+ * Longest calm stretch between AF episodes (and since the last one), in
+ * HIS calendar days — the same count as afStats.daysSinceLast, so "days
+ * calm" and "longest calm stretch" can be compared on the heart sheet.
+ * This counted elapsed 24 h blocks while "days calm" counted calendar
+ * days: 20 days calm beside a 19-day record (2026-10-02).
+ */
 export function afRecord(
   episodes: Array<{ startedAt: Date | string }>,
   now: Date = new Date(),
@@ -1049,13 +1132,17 @@ export function afRecord(
   const times = episodes.map((e) => new Date(e.startedAt).getTime()).sort((a, b) => a - b);
   let longest = 0;
   for (let i = 1; i < times.length; i++) {
-    longest = Math.max(longest, Math.floor((times[i] - times[i - 1]) / DAY_MS));
+    longest = Math.max(longest, calendarDays(new Date(times[i]), new Date(times[i - 1])));
   }
-  const current = Math.max(0, Math.floor((now.getTime() - times[times.length - 1]) / DAY_MS));
+  const current = Math.max(0, calendarDays(now, new Date(times[times.length - 1])));
   return { currentDays: current, longestDays: Math.max(longest, current) };
 }
 
 export interface CpapStrip {
+  /** The month the two counts below describe ("2026-09"): this month, or
+   *  the latest month with a reported night when this one has none yet. */
+  month: string | null;
+  monthIsCurrent: boolean;
   monthLogged: number;
   month4h: number;
   /** Consecutive ≥4h nights ending at the most recent logged night. */
@@ -1063,37 +1150,73 @@ export interface CpapStrip {
   bestStreak: number;
 }
 
-/** The compliance strip: this calendar month + streaks over all history. */
+/**
+ * The compliance strip: one calendar month + streaks over all history.
+ * Months are HIS months, and nights arrive in a WEEKLY report — so at the
+ * start of a month there is no night for it yet. The card used to vanish
+ * whole (streaks and deep sleep with it) until the first report of the
+ * month landed, true on 2026-10-02; it now shows the latest reported
+ * month, named. Rows dated after this month are never the fallback.
+ */
 export function cpapCompliance(
   nights: Array<{ night: Date | string; usageHours: number | null }>,
   now: Date = new Date(),
 ): CpapStrip {
-  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const rows = nights
-    .filter((n) => n.usageHours != null)
-    .map((n) => ({ d: new Date(n.night), h: n.usageHours as number }))
-    .sort((a, b) => a.d.getTime() - b.d.getTime());
-
-  let monthLogged = 0;
-  let month4h = 0;
-  for (const r of rows) {
-    const key = `${r.d.getUTCFullYear()}-${String(r.d.getUTCMonth() + 1).padStart(2, '0')}`;
-    if (key !== monthKey) continue;
-    monthLogged++;
-    if (r.h >= 4) month4h++;
+  const thisKey = ownerMonthKey(now);
+  const byMonth = new Map<string, { logged: number; over4: number }>();
+  for (const n of nights) {
+    if (n.usageHours == null) continue;
+    const key = ownerMonthKey(new Date(n.night));
+    if (key > thisKey) continue;
+    const cur = byMonth.get(key) ?? { logged: 0, over4: 0 };
+    cur.logged += 1;
+    if (n.usageHours >= CPAP_ADHERENT_HOURS) cur.over4 += 1;
+    byMonth.set(key, cur);
   }
+  const month = byMonth.has(thisKey) ? thisKey : [...byMonth.keys()].sort().pop() ?? null;
+  const counts = month ? byMonth.get(month)! : { logged: 0, over4: 0 };
+  const streaks = maskStreaks(nights);
+  return {
+    month,
+    monthIsCurrent: month === thisKey,
+    monthLogged: counts.logged,
+    month4h: counts.over4,
+    currentStreak: streaks.current,
+    bestStreak: streaks.best,
+  };
+}
 
-  let best = 0;
-  let run = 0;
-  let prev: number | null = null;
-  for (const r of rows) {
-    const t = r.d.getTime();
-    if (r.h >= 4 && prev !== null && t - prev <= DAY_MS + 60_000) run += 1;
-    else run = r.h >= 4 ? 1 : 0;
-    prev = t;
-    best = Math.max(best, run);
-  }
-  return { monthLogged, month4h, currentStreak: run, bestStreak: best };
+export interface CpapAdherence {
+  /** Nights the weekly reports cover — the only honest denominator. */
+  reported: number;
+  used: number;
+  over4: number;
+  /** used / reported, null with nothing reported. */
+  pct: number | null;
+  /** The last reported night (keyed by the morning it ended). */
+  through: Date | null;
+}
+
+/**
+ * Adherence over the nights handed in (the report's selected range), for
+ * the doctor report page AND its PDF. The denominator is the nights
+ * REPORTED: nights arrive in a weekly prisma report, so dividing by every
+ * morning up to today counted the unreported ones as unused — "23 of 29
+ * (79%)" on 2026-10-02 from 25 reported nights, 23 of them used. `through`
+ * dates the data so the reader sees where it stops.
+ */
+export function cpapAdherence(
+  nights: Array<{ night: Date | string; usageHours: number }>,
+): CpapAdherence {
+  const used = nights.filter((n) => n.usageHours > 0).length;
+  const last = nights.reduce((m, n) => Math.max(m, time(n.night)), -Infinity);
+  return {
+    reported: nights.length,
+    used,
+    over4: nights.filter((n) => n.usageHours >= CPAP_ADHERENT_HOURS).length,
+    pct: nights.length ? Math.round((used / nights.length) * 100) : null,
+    through: nights.length ? new Date(last) : null,
+  };
 }
 
 /** Month rows pairing BP averages with weight averages — the payoff story.
@@ -1102,7 +1225,9 @@ export function bpWeightStory(
   bp: Array<{ at: Date | string; systolic: number; diastolic: number }>,
   bodyStats: Array<{ date: Date | string; weight: number | null }>,
 ): Array<{ month: string; systolic: number; diastolic: number; kg: number }> | null {
-  const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  // HIS calendar months: a reading or weigh-in between 00:00 and 03:00
+  // Riyadh on the 1st belongs to the new month (2026-10-02).
+  const monthKey = ownerMonthKey;
   const bpBy = new Map<string, { s: number; d: number; n: number }>();
   for (const r of bp) {
     const k = monthKey(new Date(r.at));
@@ -1136,6 +1261,26 @@ export function bpWeightStory(
  *  (adversary M1). */
 export function ownerDayKey(d: Date = new Date()): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Riyadh' });
+}
+
+/** His calendar day as a whole number of days — for "consecutive days"
+ *  and week arithmetic that must not depend on the server's time zone. */
+function ownerDayNumber(d: Date): number {
+  return Math.round(Date.parse(ownerDayKey(d)) / DAY_MS);
+}
+
+/** The owner's calendar month (YYYY-MM). Every month bucket on a health
+ *  screen goes through this: `getMonth()` on Vercel is the UTC month, so
+ *  the first three hours of the 1st in Riyadh belonged to the month before
+ *  (audit, 2026-10-02). */
+export function ownerMonthKey(d: Date = new Date()): string {
+  return ownerDayKey(d).slice(0, 7);
+}
+
+/** "2026-01" → "2025-12". */
+function previousMonthKey(key: string): string {
+  const [y, m] = key.split('-').map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
 }
 
 /**

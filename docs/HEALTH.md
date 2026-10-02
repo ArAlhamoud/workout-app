@@ -38,8 +38,10 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
    report omits is absent, never zero.
 5. **Guards over charts.** Below honest thresholds (4 weigh-ins for a
    projection, 5 answered episodes for an AF correlate, 3 readings for a
-   BP average, 3 logs for a dose comparison) the answer is "not enough
-   data yet" — a chart from 3 points is a lie with axes.
+   BP average, 3 logs for a dose comparison, 4 points for a chart) the
+   answer is "not enough data yet" — a chart from 3 points is a lie with
+   axes. Every chart on the doctor report, the dose step included, needs
+   4 (`MIN_TREND_POINTS`; it was 3, and 2 for the dose, until 2026-10-02).
 6. **Ten-second logging.** Segmented controls, tri-state flags
    (yes/no/skip — an unanswered flag never enters a denominator),
    last-value defaults, one row per CPAP night (upsert).

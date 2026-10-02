@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { stackMacros } from '@/lib/health-entry';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,10 +78,15 @@ export async function POST(request: Request) {
         const prev = existing?.notes?.trim();
         patch.notes = prev && !prev.includes(note) ? `${prev} · ${note}` : note;
       }
-      const caps: Record<string, number> = { kcal: 8000, proteinG: 400, carbsG: 900, fatG: 400, waterMl: 10_000 };
-      for (const k of Object.keys(patch)) {
-        if (typeof patch[k] !== 'number') continue; // notes append, never sum
-        patch[k] = Math.min(((existing as Record<string, number | null> | null)?.[k] ?? 0) + (patch[k] as number), caps[k]);
+      // The ONE sum, shared with addNutrition (stackMacros): only the keys
+      // sent are stacked. A zero adds nothing — it used to turn a blank
+      // field into a stored 0 (2026-10-02).
+      const sent = { kcal: kc, proteinG: p, carbsG: c, fatG: f, waterMl: w };
+      for (const k of Object.keys(sent)) delete patch[k];
+      Object.assign(patch, stackMacros(existing, sent));
+      if (!Object.keys(patch).length) {
+        skipped.push(r.day as string);
+        continue;
       }
     }
     await prisma.nutritionLog.upsert({ where: { day }, update: patch, create: { day, ...patch } as never });

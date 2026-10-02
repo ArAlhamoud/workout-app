@@ -7,7 +7,11 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { nextDoseCaption, initialDoseChoice, injectionTimeOk, journeyStations } from '../src/lib/health-insights';
 import { pushWorkoutsToHealth } from '../src/lib/health-push';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { cpapAdherence, ownerMonthKey } from '../src/lib/health-insights';
+import { cpapAdherenceLabel, monthLabel, pdfSafe, reportAge, signedKg, weighInLabel, weightChangeAr, weightChangeLabel, wrapLines } from '../src/lib/health-format';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
 import { adjustedTime, classifyVisit, fmtVisit, gymTimeStats, isStale } from '../src/lib/gym-visits';
@@ -3718,9 +3722,9 @@ console.log('Doctor report — trend charts');
   assert(weightChart([{ date: d('2026-09-01'), weight: 127 }, { date: d('2026-09-08'), weight: 126 }]) === null, 'two weigh-ins are not a weight trend');
   const w = weightChart([
     { date: d('2026-09-01'), weight: 127.9 }, { date: d('2026-09-08'), weight: null },
-    { date: d('2026-09-15'), weight: 126.4 }, { date: d('2026-09-29'), weight: 125.0 },
+    { date: d('2026-09-15'), weight: 126.4 }, { date: d('2026-09-22'), weight: 125.6 }, { date: d('2026-09-29'), weight: 125.0 },
   ]);
-  assert(w !== null && w.series[0].points.length === 3, 'a weigh-in without a weight is skipped, three make a trend');
+  assert(w !== null && w.series[0].points.length === 4, 'a weigh-in without a weight is skipped, four make a chart');
   const wc = layoutChart(w!, 320, 112);
   assert(inBox(wc), 'every weight point lands inside the plot');
   const wTicks = wc.yTicks.map((t) => Number(t.label));
@@ -3732,6 +3736,7 @@ console.log('Doctor report — trend charts');
     { at: d('2026-09-08'), systolic: 114, diastolic: 73 },
     { at: d('2026-09-11'), systolic: 112, diastolic: 72 },
     { at: d('2026-09-15'), systolic: 118, diastolic: 66 },
+    { at: d('2026-09-18'), systolic: 116, diastolic: 70 },
   ]);
   assert(bpc !== null && bpc.series.map((s) => s.key).join() === 'systolic,diastolic', 'BP charts systolic and diastolic together');
   assert(bpChart([{ at: d('2026-09-08'), systolic: 114, diastolic: 73 }]) === null, 'one BP reading is not a trend');
@@ -3742,6 +3747,7 @@ console.log('Doctor report — trend charts');
     { night: d('2026-09-27'), usageHours: 0.5, ahi: null },
     { night: d('2026-09-28'), usageHours: 3.65, ahi: 2 },
     { night: d('2026-09-29'), usageHours: 4.82, ahi: 1 },
+    { night: d('2026-09-30'), usageHours: 6.1, ahi: 2 },
   ];
   const hc = cpapHoursChart(nights);
   assert(hc !== null && hc.series[0].kind === 'bar' && hc.zeroBased, 'CPAP hours are bars from zero');
@@ -3750,17 +3756,17 @@ console.log('Doctor report — trend charts');
   assert(Number(hcl.yTicks[0].label) === 0, 'hours axis starts at 0');
   assert(hcl.series[0].barWidth > 0 && inBox(hcl), 'bars have width and stay inside the plot');
   const ac = cpapAhiChart(nights);
-  assert(ac !== null && ac.series[0].points.length === 3, 'a night without AHI is absent, never zero');
+  assert(ac !== null && ac.series[0].points.length === 4, 'a night without AHI is absent, never zero');
 
   // Dose: a step that holds between injections and runs on to today.
   const dc = doseChart(
-    [{ at: d('2026-09-15'), doseMg: 2.5 }, { at: d('2026-09-22'), doseMg: 5 }, { at: d('2026-09-29'), doseMg: 5 }],
+    [{ at: d('2026-09-08'), doseMg: 2.5 }, { at: d('2026-09-15'), doseMg: 2.5 }, { at: d('2026-09-22'), doseMg: 5 }, { at: d('2026-09-29'), doseMg: 5 }],
     d('2026-10-03'),
   );
   assert(dc !== null && dc.series[0].kind === 'step' && dc.zeroBased, 'the dose is a step from zero');
   const dcl = layoutChart(dc!, 320, 112);
   const steps = dcl.series[0].path;
-  assert(steps.length === 3 * 2 - 1 + 1, `a step path has a corner per change plus the run to today (got ${steps.length})`);
+  assert(steps.length === 4 * 2 - 1 + 1, `a step path has a corner per change plus the run to today (got ${steps.length})`);
   assert(Math.abs(steps[steps.length - 1].x - dcl.plot.right) < 0.01, 'the current dose runs to the right edge (today)');
   assert(steps[1].y === steps[0].y && steps[1].x === steps[2].x, 'the dose holds flat until the next injection, then steps');
   assert(doseChart([{ at: d('2026-09-15'), doseMg: 2.5 }]) === null, 'one injection is not a schedule');
@@ -3799,7 +3805,7 @@ console.log('Doctor report — lab reference ranges');
   for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
     assert(read(f).includes('labRefLabel(l)') && !/ref (≤|<=) \$\{l\.refHigh\}/.test(read(f)), `${f} prints the lab range through labRefLabel`);
   }
-  assert(/\.replace\(\/≤\/g, '<='\)/.test(read('src/app/api/health/report-pdf/route.ts')), 'the PDF font swaps ≤ for <= (WinAnsi has no ≤)');
+  assert(pdfSafe('ref ≤ 2.59') === 'ref <= 2.59' && /pdfSafe/.test(read('src/app/api/health/report-pdf/route.ts')), 'the PDF font swaps ≤ for <= (WinAnsi has no ≤)');
 }
 
 // ── Doctor report: only LDL and Lp(a) print (owner, 2026-09-30) ──
@@ -4117,6 +4123,554 @@ console.log('Native bridge — Swift twins and plugin methods');
   }
   const guard = src('scripts/check-server-url.sh');
   assert(/workout-app-gamma-rouge\.vercel\.app/.test(guard) && /exit 1/.test(guard), 'the guard names the live site and fails the build otherwise');
+}
+
+// ── The doctor-review slot: one story on every screen ────────
+// With 6 doses logged, Home said "Dose 7 · Tuesday", Journey said "Doctor
+// review · next", and Dose day showed "— mg planned" while the form had 5 mg
+// preselected: one tap would store 5 mg whatever the doctor decided
+// (audit, 2026-10-02). Law: nothing ever suggests a dose.
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const dose = (iso: string, mg: number) => ({ at: new Date(iso), doseMg: mg, site: 'abdomen-left' });
+  const six = ['2026-08-25', '2026-09-01', '2026-09-08', '2026-09-15', '2026-09-22', '2026-09-29']
+    .map((d, i) => dose(`${d}T21:00:00+03:00`, i < 4 ? 2.5 : 5));
+  const at = new Date('2026-10-02T12:00:00+03:00');
+  const c6 = treatmentClock(six, DEFAULT_DOSE_PLAN, at)!;
+  assert(c6.atCheckpoint === true && c6.planExhausted === false, 'after dose 6 the next slot is the doctor review, and the clock says so');
+  assert(treatmentClock(six.slice(0, 4), DEFAULT_DOSE_PLAN, at)!.atCheckpoint === false, 'a scheduled slot is not a checkpoint');
+  assert(nextDoseCaption(c6, 7, at) === 'Doctor review · Tuesday', `Home names the review, not a dose (got "${nextDoseCaption(c6, 7, at)}")`);
+  assert(nextDoseCaption(treatmentClock(six.slice(0, 4), DEFAULT_DOSE_PLAN, new Date('2026-09-17T12:00:00+03:00'))!, 5, new Date('2026-09-17T12:00:00+03:00')) === 'Dose 5 · Tuesday', 'a scheduled dose is still named with its day');
+  assert(initialDoseChoice(null, 5, false) === '' && initialDoseChoice(null, null, false) === '', 'a review slot preselects NOTHING — not the last dose');
+  assert(initialDoseChoice(5, 2.5, false) === '5' && initialDoseChoice(2.5, null, true) === '2.5', 'a scheduled slot preselects the planned dose');
+  const form = src('src/components/health/InjectionForm.tsx');
+  assert(/initialDoseChoice\(plannedDoseMg, lastDoseMg, isFirst\)/.test(form), 'the form opens on that choice');
+  // The dose he takes at the review slot belongs on the path, and a plan
+  // extended past the review must name the same dose on every screen.
+  const seven = [...six, dose('2026-10-06T21:00:00+03:00', 7.5)];
+  const st7 = journeyStations(DEFAULT_DOSE_PLAN, seven, new Date('2026-10-07T12:00:00+03:00'));
+  assert(st7.some((s) => s.kind === 'dose' && /^Dose 7 · 7\.5 mg/.test(s.label) && s.state === 'done'), 'the 7th dose appears on the Journey after the review');
+  assert(st7.find((s) => s.kind === 'checkpoint')!.state === 'done', 'a review he has passed is no longer "next"');
+  const longPlan = [...DEFAULT_DOSE_PLAN, { week: 8, mg: 7.5 }, { week: 9, mg: 10 }];
+  const stLong = journeyStations(longPlan, seven, new Date('2026-10-07T12:00:00+03:00'));
+  const cLong = treatmentClock(seven, longPlan, new Date('2026-10-07T12:00:00+03:00'))!;
+  const nextStation = stLong.find((s) => s.state === 'next')!;
+  assert(cLong.nextPlanned?.week === 8 && /^Dose 8 · 7\.5 mg/.test(nextStation.label), `Journey and Dose day name the same next dose (clock week ${cLong.nextPlanned?.week}, station "${nextStation.label}")`);
+  // One dose, one date: a 02:00 Wednesday log is Wednesday in Riyadh on every screen.
+  const late = journeyStations(DEFAULT_DOSE_PLAN, [dose('2026-09-30T02:00:00+03:00', 2.5)], new Date('2026-10-02T12:00:00+03:00'));
+  assert(late[0].detail!.startsWith('Sep 30') && late[1].detail === 'due Oct 7', `Journey dates a dose in Riyadh (got "${late[0].detail}", "${late[1].detail}")`);
+  assert((src('src/app/nav-actions.ts').match(/timeZone: 'Asia\/Riyadh'/g) ?? []).length >= 2, 'the Rooms labels date labs and doses in Riyadh');
+  // The form can say WHEN: a dose logged after midnight was stored at the
+  // save moment and hand-patched two weeks running.
+  assert(/logInjection\(\{[\s\S]*?\bat:/.test(form) && /datetime-local/.test(form), 'the injection form sends the time he took it');
+  assert(injectionTimeOk('2026-10-06T21:00:00+03:00', new Date('2026-10-07T02:00:00+03:00')) && !injectionTimeOk('2026-10-08T02:00:00+03:00', new Date('2026-10-07T02:00:00+03:00')) && !injectionTimeOk('2026-09-01T02:00:00+03:00', new Date('2026-10-07T02:00:00+03:00')) && !injectionTimeOk('junk', new Date()), 'a dose time is accepted from the last 14 days, never the future, never junk');
+}
+
+// ── Health writes: six ways the app stored or lost his data (audit, 2026-10-02) ──
+// Every decision below is a pure function in src/lib/health-entry.ts; the
+// actions, the fuel pipe and the Health import only apply what it returns.
+import { stackMacros, checkInDayTotals, saveEach, weightImportPlan, manualWeightPlan, bpImportTwin } from '../src/lib/health-entry';
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const fnBody = (file: string, from: string, to: string) => {
+    const s = src(file);
+    const a = s.indexOf(from);
+    const b = s.indexOf(to, a + from.length);
+    return a < 0 ? '' : s.slice(a, b < 0 ? undefined : b);
+  };
+
+  // A. "Add a meal" with only protein typed wrote kcal 0 / carbs 0 / fat 0,
+  // and Diet said "0 kcal · 1800 left" for a day that had no calorie entry.
+  const onlyProtein = stackMacros(null, { proteinG: 30 });
+  assert(onlyProtein.proteinG === 30 && !('kcal' in onlyProtein) && !('carbsG' in onlyProtein) && !('fatG' in onlyProtein), 'adding only protein to an empty day stores protein and leaves kcal, carbs and fat blank');
+  const onNullKcal = stackMacros({ kcal: null, proteinG: 67, carbsG: null, fatG: null }, { proteinG: 30 });
+  assert(onNullKcal.proteinG === 97 && !('kcal' in onNullKcal), 'adding protein to a row whose kcal is blank stacks the protein and never writes kcal 0');
+  const dinner = stackMacros({ kcal: 1170, proteinG: 66, carbsG: 120, fatG: 40 }, { kcal: 630, proteinG: 67 });
+  assert(dinner.kcal === 1800 && dinner.proteinG === 133 && !('carbsG' in dinner) && !('fatG' in dinner), 'dinner stacks onto the delivery baseline; the fields he left blank are not rewritten');
+  assert(Object.keys(stackMacros({ kcal: 500 }, { kcal: 0, proteinG: undefined, carbsG: -5, fatG: 9999 })).length === 0, 'nothing, a negative or an absurd number adds nothing');
+  assert(stackMacros({ proteinG: 390 }, { proteinG: 30 }).proteinG === 400 && stackMacros({ waterMl: 500 }, { waterMl: 750 }).waterMl === 1250, 'a stacked total stays inside the same bounds; water stacks too (the pipe)');
+  const addFn = fnBody('src/app/health-actions.ts', 'export async function addNutrition', '\nexport async function ');
+  const fuelRoute = src('src/app/api/health/fuel/route.ts');
+  assert(addFn.includes('stackMacros(') && !/\?\?\s*0\)\s*\+/.test(addFn), 'addNutrition sums through stackMacros — no (existing ?? 0) + inc of its own');
+  assert(fuelRoute.includes('stackMacros(') && !/\?\?\s*0\)\s*\+/.test(fuelRoute), 'the fuel pipe sums through the same stackMacros');
+
+  // B. The check-in asks "Anything measured today?" — a day figure. At 00:30
+  // a 67 typed there replaced the NEXT calendar day's planned 133.
+  const lower = checkInDayTotals({ proteinG: 133, waterMl: null }, { proteinG: 67, waterMl: 1500 });
+  assert(!('proteinG' in lower.patch) && lower.kept.length === 1 && lower.kept[0].field === 'proteinG' && lower.kept[0].existing === 133, 'a check-in protein below what the day already holds changes nothing, and says what was kept');
+  assert(lower.patch.waterMl === 1500, 'the water typed beside it is still saved');
+  const higher = checkInDayTotals({ proteinG: 66, waterMl: 2000 }, { proteinG: 140, waterMl: 2000 });
+  assert(higher.patch.proteinG === 140 && !('waterMl' in higher.patch) && higher.kept.length === 0, 'a higher day figure is saved; the same figure is neither rewritten nor reported');
+  assert(checkInDayTotals(null, { proteinG: 90 }).patch.proteinG === 90 && Object.keys(checkInDayTotals(null, { proteinG: 0, waterMl: 99999 }).patch).length === 0, 'an empty day takes the figure; zero and out-of-range store nothing');
+  assert(checkInDayTotals(null, { proteinG: 4000, waterMl: 1500 }).rejected.join() === 'proteinG' && checkInDayTotals(null, { proteinG: NaN }).rejected.length === 1 && checkInDayTotals(null, { proteinG: 90 }).rejected.length === 0, 'a mistyped figure is reported as rejected, so the save can fail out loud instead of ending on "noted"');
+  const checkIn = src('src/components/health/CheckIn.tsx');
+  assert(checkIn.includes('activityDayStr(') && !/getDate\(\)/.test(checkIn), 'the check-in files protein and water under the 04:00 activity day, like Diet');
+  assert(checkIn.includes('logCheckInNutrition(') && !/\blogNutrition\b/.test(checkIn), 'the check-in never calls the overwrite (logNutrition)');
+  const checkInFn = fnBody('src/app/health-actions.ts', 'export async function logCheckInNutrition', '\nexport async function ');
+  assert(checkInFn.includes('checkInDayTotals(') && /rejected\.length\) throw/.test(checkInFn) && /return\s*\{[^}]*kept/.test(checkInFn), 'logCheckInNutrition decides through checkInDayTotals and returns what it kept');
+
+  // C. A mistyped diastolic threw, the protein after it was never sent, and
+  // the screen said "That's today noted."
+  pendingAsync.push((async () => {
+    let ran = 0;
+    let out: { saved: string[]; failed: string[] } | null = null;
+    try {
+      out = await saveEach([
+        { key: 'bp', run: async () => { throw new Error('Reading out of range'); } },
+        { key: 'nutrition', run: async () => { ran++; } },
+      ]);
+    } catch { /* the old behaviour: the first failure aborts the rest */ }
+    assert(ran === 1, 'a failed BP save does not skip the protein save after it');
+    assert(out !== null && out.failed.join() === 'bp' && out.saved.join() === 'nutrition', 'each answer reports saved or failed on its own');
+    const allOk = await saveEach([{ key: 'a', run: async () => 1 }, { key: 'b', run: async () => 2 }]).catch(() => null);
+    assert(allOk !== null && allOk.failed.length === 0 && allOk.saved.join() === 'a,b', 'two good saves report no failure');
+  })());
+  assert(checkIn.includes('saveEach(') && !/catch\s*\{\s*go\(next\)/.test(checkIn), 'the check-in saves each answer on its own and never walks past a failed save');
+  assert(/not saved/i.test(checkIn) && /failed\.includes\('bp'\)/.test(checkIn), 'a failed save is said plainly, by name');
+  assert(/if \(!failed\.includes\('bp'\)\)[^\n]*setSys\(''\)/.test(checkIn), 'only what saved is cleared — the failed entry stays in its fields for a retry');
+
+  // D. Weight is ONE store. A waist-only manual row blocked that day's scale
+  // weigh-in for good; a manual weight typed AFTER the scale synced lost to
+  // the scale's later timestamp in every reader.
+  const t = (h: string) => new Date(`2026-10-02T${h}:00.000Z`);
+  assert(weightImportPlan([{ id: 'm', date: t('00:00'), source: 'manual', weight: null }]).kind === 'create', 'a waist-only manual entry does not block the scale weigh-in for that day');
+  assert(weightImportPlan([{ id: 'm', date: t('00:00'), source: 'manual', weight: 126.4 }]).kind === 'skip', 'a manual WEIGHT blocks the import');
+  assert(weightImportPlan([{ id: 'h', date: t('04:10'), source: 'apple-health', weight: 126.9 }, { id: 'm', date: t('09:00'), source: 'manual', weight: 126.4 }]).kind === 'skip', 'a manual weight blocks the import wherever it sorts in the day — not only as the first row');
+  const upd = weightImportPlan([{ id: 'm', date: t('00:00'), source: 'manual', weight: null }, { id: 'h', date: t('04:10'), source: 'apple-health', weight: 126.9 }]);
+  assert(upd.kind === 'update' && upd.id === 'h', 'a re-sync corrects the IMPORTED row of the day, never the manual waist row beside it');
+  assert(weightImportPlan([]).kind === 'create', 'an empty day takes the scale reading');
+  const take = manualWeightPlan([{ id: 'h1', date: t('04:10'), source: 'apple-health', weight: 126.9 }, { id: 'h2', date: t('04:12'), source: 'apple-health', weight: 127.0 }], { weight: 126.4 });
+  assert(take.kind === 'takeOver' && take.id === 'h2', 'a manual weight on a day the scale already synced takes over the imported row (the latest) — one row, so every reader sees his number');
+  assert(manualWeightPlan([{ id: 'h', date: t('04:10'), source: 'apple-health', weight: 126.9 }], {}).kind === 'create', 'a waist-only manual entry leaves the scale row alone');
+  assert(manualWeightPlan([{ id: 'm', date: t('00:00'), source: 'manual', weight: 126.0 }], { weight: 126.4 }).kind === 'create' && manualWeightPlan([], { weight: 126.4 }).kind === 'create', 'with no imported row there is nothing to take over');
+  {
+    // The reader every page uses, over what the two plans leave behind.
+    const rows = [{ date: '2026-10-01T04:00:00.000Z', weight: 127.2 }, { date: '2026-10-02T04:12:00.000Z', weight: 126.4 }];
+    const s = weightSnapshot({ heightCm: 169, startWeightKg: 133, goalWeightKg: 103 }, [120, 110, 103], rows);
+    assert(s !== null && s.currentKg === 126.4, 'after the take-over the day holds one weight — his — and weightSnapshot reads it');
+  }
+  const bodyImport = fnBody('src/lib/health-import.ts', 'async function upsertBodyStats', 'async function enrichWorkouts');
+  assert(bodyImport.includes('weightImportPlan(') && !/source === 'manual'/.test(bodyImport) && /findMany\(/.test(bodyImport), 'the weigh-in import reads the whole day and asks weightImportPlan — no first-row check of its own');
+  const addStat = fnBody('src/app/actions.ts', 'export async function addBodyStat', '\nexport async function ');
+  assert(addStat.includes('manualWeightPlan(') && /source:\s*'manual'/.test(addStat), 'addBodyStat asks manualWeightPlan and marks a taken-over row manual');
+
+  // E. Measured 08:00, typed 08:02, cuff synced later: two rows.
+  const typed = { id: 'man', at: Date.parse('2026-10-02T05:02:10Z'), systolic: 126, diastolic: 80, notes: null };
+  const cuff = { at: Date.parse('2026-10-02T05:00:00Z'), systolic: 126, diastolic: 80 };
+  assert(bpImportTwin(cuff, [typed], new Set()) === 'man', 'the cuff\'s copy of a reading typed two minutes later is the same measurement');
+  assert(bpImportTwin({ ...cuff, diastolic: 82 }, [typed], new Set()) === null, 'different numbers two minutes apart are two readings');
+  assert(bpImportTwin({ ...cuff, at: cuff.at - 6 * 60_000 }, [typed], new Set()) === null, 'the same numbers eight minutes apart are two readings');
+  assert(bpImportTwin(cuff, [{ ...typed, notes: 'Apple Health' }], new Set()) === null, 'two cuff readings minutes apart stay two rows — the five-minute rule is for a row he typed');
+  assert(bpImportTwin({ ...cuff, systolic: 140, at: typed.at + 30_000 }, [typed], new Set()) === 'man', 'any reading within a minute of an existing one is still skipped (the rolling re-sync)');
+  assert(bpImportTwin(cuff, [typed], new Set(['man'])) === null && bpImportTwin({ ...cuff, at: typed.at - 20_000 }, [typed], new Set(['man'])) === 'man', 'one typed row answers for one cuff reading; a second identical reading is its own row unless it is the same minute');
+  const bpImport = fnBody('src/lib/health-import.ts', 'async function importBpReadings', '\nexport async function importHealthSamples');
+  assert(bpImport.includes('bpImportTwin(') && bpImport.includes('BP_SAME_READING_MS'), 'the BP import asks bpImportTwin and looks five minutes either side');
+  assert(!/data:\s*\{[^}]*\bat\b/.test(bpImport.slice(bpImport.indexOf('if (twinId'), bpImport.indexOf('bpReading.create'))), 'a matched row keeps its own time; only a blank pulse is filled');
+
+  // F. A failed save wiped what he typed.
+  for (const f of ['src/components/health/BpTracker.tsx', 'src/components/health/FuelTracker.tsx']) {
+    const s = src(f);
+    assert(/return true;[\s\S]*?catch[\s\S]*?return false;/.test(s) && /\.then\(\(ok\)\s*=>\s*\{\s*if \(ok\)/.test(s), `${f.split('/').pop()} clears its inputs only after a save that succeeded`);
+  }
+}
+
+// ── Health screens: one calendar, one definition, honest reports (audit 2, 2026-10-02) ──
+console.log('Health screens — Riyadh calendar, shared definitions, report honesty');
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const dayRow = (iso: string) => new Date(`${iso}T00:00:00Z`);
+  const fnBody = (file: string, name: string) => {
+    const t = src(file);
+    const at = t.indexOf(`export function ${name}(`);
+    const end = t.indexOf('\nexport ', at + 1);
+    return at < 0 ? '' : t.slice(at, end < 0 ? undefined : end);
+  };
+
+  // 1. CPAP adherence. Nights arrive in a WEEKLY report, so a morning with
+  // no row is "not reported yet", not "mask not used". On 2026-10-02 the
+  // doctor report printed "Nights used 23 of 29 (79%)" from 25 reported
+  // nights: the denominator was every morning up to today.
+  {
+    const nights = Array.from({ length: 25 }, (_, i) => ({
+      night: dayRow(`2026-09-${String(5 + i).padStart(2, '0')}`),
+      usageHours: i === 3 || i === 11 ? 0 : i === 7 ? 2.5 : 6,
+    }));
+    const a = cpapAdherence(nights);
+    assert(a.reported === 25 && a.used === 23 && a.pct === 92, `adherence divides by the nights REPORTED: 23 of 25, 92% (got ${a.used} of ${a.reported}, ${a.pct}%)`);
+    assert(a.over4 === 22, `nights of 4 h or more are counted by the same function (got ${a.over4})`);
+    assert(a.through !== null && a.through.toISOString().slice(0, 10) === '2026-09-29', 'adherence says through which night the data runs');
+    assert(cpapAdherenceLabel(a) === '23 of 25 reported (92%) · through 29 Sep', `the row names the denominator and the date (got "${cpapAdherenceLabel(a)}")`);
+    assert(cpapAdherence([]).pct === null, 'no reported night, no percentage');
+    for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
+      const t = src(f);
+      assert(/cpapAdherence\(/.test(t) && /cpapAdherenceLabel\(/.test(t) && !/cpapElapsed/.test(t), `${f} takes CPAP adherence from the one shared function`);
+    }
+  }
+
+  // 2. BP weeks are HIS calendar weeks. His 7 Sep 01:24 reading (a Monday)
+  // sat in the previous week on the server, and from 00:00 to 03:00 on a
+  // Monday "this week" was still last week.
+  {
+    const bp = (iso: string) => ({ at: iso, systolic: 120, diastolic: 80 });
+    const wk = bpWeeklyAverages(
+      [bp('2026-09-07T01:24:00+03:00'), bp('2026-09-08T08:00:00+03:00'), bp('2026-09-09T08:00:00+03:00')],
+      4, new Date('2026-09-10T12:00:00+03:00'),
+    );
+    assert(wk.length === 1 && wk[0].n === 3, `a Monday 01:24 Riyadh reading belongs to the week it starts (got ${wk.map((w) => w.n).join('+')})`);
+    assert(wk.length > 0 && wk[0].weekStart.toISOString() === '2026-09-06T21:00:00.000Z', 'the week starts at Monday 00:00 Riyadh');
+    const early = bpWeeklyAverages([bp('2026-09-14T00:30:00+03:00')], 4, new Date('2026-09-14T01:00:00+03:00'));
+    assert(early.length === 1 && early[0].weekStart.toISOString() === '2026-09-13T21:00:00.000Z', 'at 01:00 on a Monday the current week is already the new one');
+    const sunday = bpWeeklyAverages([bp('2026-09-13T23:50:00+03:00')], 4, new Date('2026-09-14T01:00:00+03:00'));
+    assert(sunday.length === 1 && sunday[0].weekStart.toISOString() === '2026-09-06T21:00:00.000Z', 'Sunday 23:50 stays in the week that is ending');
+  }
+
+  // 3. Months are HIS calendar months: anything between 00:00 and 03:00
+  // Riyadh on the 1st was counted in the month before.
+  {
+    const af = afStats([{ startedAt: '2026-10-01T01:00:00+03:00' }], new Date('2026-10-02T12:00:00+03:00'));
+    assert(af.thisMonth === 1 && af.lastMonth === 0, `an AF episode at 01:00 on the 1st is this month's (got ${af.thisMonth}/${af.lastMonth})`);
+    const afEarly = afStats([{ startedAt: '2026-09-30T20:00:00+03:00' }], new Date('2026-10-01T01:30:00+03:00'));
+    assert(afEarly.thisMonth === 0 && afEarly.lastMonth === 1, 'at 01:30 on the 1st, yesterday evening is already last month');
+    const jan = afStats([{ startedAt: '2025-12-31T22:00:00+03:00' }], new Date('2026-01-01T00:30:00+03:00'));
+    assert(jan.lastMonth === 1 && jan.perMonth[0].month === '2025-12', 'last month crosses the year');
+
+    const row = (iso: string, s: number) => ({ at: iso, systolic: s, diastolic: 80 });
+    const story = bpWeightStory(
+      [row('2026-09-05T08:00:00+03:00', 130), row('2026-09-12T08:00:00+03:00', 130), row('2026-09-20T08:00:00+03:00', 130),
+       row('2026-10-01T01:00:00+03:00', 120), row('2026-10-01T09:00:00+03:00', 120), row('2026-10-02T09:00:00+03:00', 120)],
+      [{ date: '2026-09-06T08:00:00+03:00', weight: 127 }, { date: '2026-09-20T08:00:00+03:00', weight: 126 },
+       { date: '2026-10-01T02:00:00+03:00', weight: 125 }, { date: '2026-10-02T08:00:00+03:00', weight: 125 }],
+    );
+    assert(story !== null && story.length === 2 && story[1].month === '2026-10' && story[1].systolic === 120 && story[0].systolic === 130,
+      'a reading and a weigh-in in the small hours of the 1st count in the new month');
+
+    assert(ownerMonthKey(new Date('2026-10-01T01:00:00+03:00')) === '2026-10' && ownerMonthKey(new Date('2026-09-30T23:59:00+03:00')) === '2026-09', 'the month key is the Riyadh month');
+    assert(monthLabel('2026-08') === 'Aug 2026' && monthLabel('2026-12') === 'Dec 2026', `months print as words (got "${monthLabel('2026-08')}")`);
+
+    // The mask card: on 2 Oct no October night had been reported yet, so
+    // the whole card — streaks and deep sleep included — disappeared.
+    const sept = Array.from({ length: 10 }, (_, i) => ({ night: dayRow(`2026-09-${20 + i}`), usageHours: i === 4 ? 3 : 6 }));
+    const strip = cpapCompliance(sept, new Date('2026-10-02T10:00:00+03:00'));
+    assert(strip.monthLogged === 10 && strip.month4h === 9 && strip.month === '2026-09' && strip.monthIsCurrent === false,
+      `with no night reported this month the card shows the latest reported month, labelled (got ${strip.monthLogged} nights, month ${strip.month})`);
+    const oct = cpapCompliance([...sept, { night: dayRow('2026-10-01'), usageHours: 7 }], new Date('2026-10-02T10:00:00+03:00'));
+    assert(oct.monthLogged === 1 && oct.month === '2026-10' && oct.monthIsCurrent === true, 'once this month has a reported night it is this month again');
+    const first = cpapCompliance([{ night: dayRow('2026-09-01'), usageHours: 6 }], new Date('2026-09-01T01:00:00+03:00'));
+    assert(first.monthLogged === 1 && first.monthIsCurrent === true, 'at 01:00 on the 1st the current month is the new one');
+    const patterns = src('src/app/health/analytics/page.tsx');
+    assert(!/getMonth\(\)|getFullYear\(\)/.test(patterns) && /ownerMonthKey/.test(patterns) && /monthLabel\(/.test(patterns), 'the Patterns page keys months on the Riyadh calendar and prints them as words');
+    assert(/mask\.monthIsCurrent/.test(patterns), 'the mask card says which month it shows');
+  }
+
+  // 4. The diet week runs on the 04:00 activity day, like the rows it reads.
+  {
+    const logs = ['2026-09-25', '2026-09-26', '2026-10-01', '2026-10-02'].map((d2) => ({ day: dayRow(d2), kcal: 1800, proteinG: d2 === '2026-10-02' ? 60 : 130 }));
+    // 03:30 Riyadh on 2 Oct is still the activity day of 1 Oct: the window
+    // is 25 Sep – 1 Oct, and the planned row for the 2nd is not eaten yet.
+    const wk = fuelWeek(logs, FUEL_DEFAULTS, 7, new Date('2026-10-02T03:30:00+03:00'));
+    assert(wk.daysLogged === 3 && wk.proteinHitDays === 3, `before 04:00 the diet week ends on last evening's day (got ${wk.daysLogged} days, ${wk.proteinHitDays} on protein)`);
+    const late = fuelWeek(logs, FUEL_DEFAULTS, 7, new Date('2026-10-02T00:30:00+03:00'));
+    assert(late.daysLogged === 3 && late.proteinHitDays === 3, `at 00:30 the evening's row is today's row (got ${late.daysLogged})`);
+    const after = fuelWeek(logs, FUEL_DEFAULTS, 7, new Date('2026-10-02T04:30:00+03:00'));
+    assert(after.daysLogged === 3 && after.proteinHitDays === 2, `after 04:00 the window moves on a day: 26 Sep – 2 Oct (got ${after.daysLogged})`);
+    assert(/ownerActivityDayUtc\(now\)/.test(fnBody('src/lib/health-insights.ts', 'fuelWeek')), 'fuelWeek reads the activity-day clock, not the server clock');
+  }
+
+  // 5. PDF text is total: one character Helvetica cannot encode ("≈", Greek
+  // "μ", a non-breaking hyphen, any Arabic letter) in a med name, dose or
+  // lab unit threw inside pdf-lib and the whole report returned 500.
+  {
+    const nasty = ['≈ 5 mg', 'μmol/L', 'Co‑amoxiclav', 'نيبيليت 5 ملغ', 'x ≠ y ↑ ✓', 'a\tb‏c', 'HbA₁c ٥٫٧', '😀 ok', 'Zoë · café – “q” €5 ±2°'];
+    assert(pdfSafe('≈ 5 mg') === '~ 5 mg' && pdfSafe('Co‑amoxiclav') === 'Co-amoxiclav', 'the common glyphs map to their plain equivalents');
+    assert(pdfSafe('μmol/L') === 'µmol/L', 'Greek mu becomes the micro sign Helvetica has');
+    assert(/^\?+ 5 \?+$/.test(pdfSafe('نيبيليت 5 ملغ')), `what cannot be encoded prints as "?" (got "${pdfSafe('نيبيليت 5 ملغ')}")`);
+    assert(pdfSafe('Zoë · café') === 'Zoë · café', 'what Helvetica can encode is left alone');
+    pendingAsync.push((async () => {
+      const doc = await PDFDocument.create();
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      const page = doc.addPage();
+      let threw = '';
+      for (const s of nasty) {
+        try {
+          font.widthOfTextAtSize(pdfSafe(s), 9);
+          page.drawText(pdfSafe(s), { x: 20, y: 400, size: 9, font });
+        } catch (e) {
+          threw += `[${s}: ${(e as Error).message.slice(0, 40)}] `;
+        }
+      }
+      await doc.save();
+      assert(threw === '', `pdf-lib draws every string after pdfSafe ${threw}`);
+      // The conditions line ran 433 of 483 pt on one line with no wrap.
+      const conditions = ['Paroxysmal atrial fibrillation', 'Obstructive sleep apnoea on CPAP', 'Hypertension', 'Dyslipidaemia with raised Lp(a)', 'Obesity class II', 'Fatty liver'].join(' · ');
+      const measure = (s: string) => font.widthOfTextAtSize(s, 8.5);
+      const lines = wrapLines(conditions, 483, measure);
+      assert(lines.length > 1 && lines.every((l) => measure(l) <= 483), `a long conditions line wraps inside the margins (got ${lines.length} line(s))`);
+      assert(lines.join(' ') === conditions, 'wrapping loses no word');
+      assert(wrapLines('short', 483, measure).length === 1, 'a short line stays one line');
+      assert(wrapLines('  noted at the time: gas', 483, measure)[0] === '  noted at the time: gas', 'an indented note keeps its indent');
+    })());
+    const pdf = src('src/app/api/health/report-pdf/route.ts');
+    assert(/pdfSafe/.test(pdf) && !/const clean = /.test(pdf), 'the PDF route encodes text through pdfSafe');
+    const rawDraws = [...pdf.matchAll(/drawText\(([^,]+),/g)].map((m) => m[1].trim()).filter((a) => !/^pdfSafe\(/.test(a));
+    assert(rawDraws.length === 0, `every drawText argument goes through pdfSafe (raw: ${rawDraws.join(' | ')})`);
+    assert(/wrapLines\(/.test(pdf), 'the PDF wraps long notes');
+  }
+
+  // 6. Law 5: "a chart from 3 points is a lie with axes" — and the report
+  // drew trends from 3 points and the dose chart from 2.
+  {
+    const w3 = [1, 8, 15].map((d2) => ({ date: dayRow(`2026-09-${String(d2).padStart(2, '0')}`), weight: 127 - d2 / 10 }));
+    assert(weightChart(w3) === null, 'three weigh-ins are not a chart');
+    assert(weightChart([...w3, { date: dayRow('2026-09-22'), weight: 125 }]) !== null, 'four weigh-ins are');
+    const b3 = [8, 11, 15].map((d2) => ({ at: dayRow(`2026-09-${String(d2).padStart(2, '0')}`), systolic: 114, diastolic: 73 }));
+    assert(bpChart(b3) === null && bpChart([...b3, { at: dayRow('2026-09-18'), systolic: 112, diastolic: 70 }]) !== null, 'BP charts from four readings, not three');
+    const n3 = [26, 27, 28].map((d2) => ({ night: dayRow(`2026-09-${d2}`), usageHours: 6, ahi: 2 }));
+    assert(cpapHoursChart(n3) === null && cpapAhiChart(n3) === null, 'three CPAP nights are not a chart');
+    const doses = [15, 22, 29].map((d2) => ({ at: dayRow(`2026-09-${d2}`), doseMg: 2.5 }));
+    assert(doseChart(doses.slice(0, 2), dayRow('2026-10-03')) === null && doseChart(doses, dayRow('2026-10-03')) === null, 'two or three injections are not a dose chart');
+    assert(doseChart([...doses, { at: dayRow('2026-10-06'), doseMg: 5 }], dayRow('2026-10-07')) !== null, 'four injections are');
+    assert(/charts\.dose \? <ReportChart spec=\{charts\.dose\} \/> : tooFew/.test(src('src/app/health/report/page.tsx')), 'the report page says "not enough" under a dose chart it will not draw');
+    assert(/4 points for a chart/.test(src('docs/HEALTH.md')), 'HEALTH.md law 5 states the chart threshold');
+  }
+
+  // 7. One fact, one definition. Home said "6 nights running on the mask"
+  // (any use) while Patterns said "current streak 1" (4 h or more); and AF
+  // "days calm" was Riyadh calendar days while "longest calm stretch" was
+  // elapsed 24 h blocks, compared directly on the heart sheet.
+  {
+    const nights = [5, 6, 7, 8, 9, 10].map((d2, i) => ({ night: dayRow(`2026-09-${String(d2).padStart(2, '0')}`), usageHours: i === 3 ? 2 : 6 }));
+    const now = new Date('2026-09-10T12:00:00+03:00');
+    const home = cpapStats(nights, now).streak;
+    const patterns = cpapCompliance(nights, now).currentStreak;
+    assert(home === 2 && patterns === 2, `Home and Patterns report the same mask streak: nights of 4 h or more (got ${home} and ${patterns})`);
+    assert(cpapStats([...nights, { night: dayRow('2026-09-12'), usageHours: 6 }], now).streak === 1 &&
+      cpapCompliance([...nights, { night: dayRow('2026-09-12'), usageHours: 6 }], now).currentStreak === 1, 'a night with no report breaks the streak in both');
+    const eps = [{ startedAt: '2026-08-01T23:00:00+03:00' }, { startedAt: '2026-08-21T01:00:00+03:00' }];
+    const at = new Date('2026-09-10T00:30:00+03:00');
+    const rec = afRecord(eps, at);
+    const calm = afStats(eps, at).daysSinceLast;
+    assert(rec !== null && rec.currentDays === calm && calm === 20, `"days calm" and the current calm stretch are the same number (got ${calm} and ${rec?.currentDays})`);
+    assert(rec !== null && rec.longestDays === 20, `the longest stretch is counted in calendar days too (got ${rec?.longestDays})`);
+  }
+
+  // 8. The Journey said "125 kg today" for a weigh-in from 27 Sep.
+  {
+    const now = new Date('2026-10-02T10:00:00+03:00');
+    assert(weighInLabel(125, '2026-09-27T05:30:49.000Z', now) === '125 kg · Sep 27', `an old weigh-in carries its date (got "${weighInLabel(125, '2026-09-27T05:30:49.000Z', now)}")`);
+    assert(weighInLabel(124.6, '2026-10-02T06:00:00+03:00', now) === '124.6 kg today', 'a weigh-in from today may say today');
+    assert(weighInLabel(125, '2026-10-01T23:30:00+03:00', new Date('2026-10-02T00:30:00+03:00')) === '125 kg · Oct 1', 'yesterday evening is not today after midnight');
+    const journey = src('src/app/journey/page.tsx');
+    assert(/weighInLabel\(/.test(journey) && !/currentKg\} kg today/.test(journey), 'the Journey header dates the weight');
+  }
+
+  // 9. Signs agree. A zero change printed "−0 kg"; a regain printed
+  // "+1.5 kg (-1.1%)", and the Arabic line a negative percent after "gain".
+  {
+    assert(weightChangeLabel(0, 0) === '0 kg (0%)' && signedKg(0) === '0' && signedKg(-1.5) === '+1.5' && signedKg(8) === '−8', `no change is "0 kg" (got "${weightChangeLabel(0, 0)}")`);
+    assert(weightChangeLabel(-1.5, -1.1) === '+1.5 kg (+1.1%)', `a regain is plus in both figures (got "${weightChangeLabel(-1.5, -1.1)}")`);
+    assert(weightChangeLabel(8, 6) === '−8 kg (−6%)' && weightChangeLabel(8, 6, '-') === '-8 kg (-6%)', 'a loss is minus in both figures, on the page and in the PDF');
+    const ar = weightChangeAr(-1.5, -1.1);
+    assert(/زيادة/.test(ar) && !/[-−]/.test(ar) && /1\.1/.test(ar), `the Arabic line never prints a negative after the word for gain (got "${ar}")`);
+    assert(/نقص 8 /.test(weightChangeAr(8, 6)) && !/نقص|زيادة/.test(weightChangeAr(0, 0)), 'loss says loss; zero says neither');
+    for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts', 'src/app/health/analytics/page.tsx']) {
+      assert(/weightChangeLabel\(/.test(src(f)) && !/const signedKg/.test(src(f)), `${f} prints the weight change through the one helper`);
+    }
+  }
+
+  // The report's age was year − 1988, exact-looking and wrong before the
+  // birthday. No birth date is stored, so it prints the honest pair.
+  {
+    const now = new Date('2026-10-02T10:00:00+03:00');
+    assert(reportAge(null, now) === '37–38 y', `without a birth date the age is not printed as exact (got "${reportAge(null, now)}")`);
+    assert(reportAge('1988-11-05', now) === '37 y' && reportAge('1988-10-02', now) === '38 y' && reportAge('1988-03-01', now) === '38 y', 'with a birth date the age respects the birthday');
+    assert(reportAge('not a date', now) === '37–38 y', 'a junk birth date falls back to the year');
+    for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
+      assert(/reportAge\(/.test(src(f)) && !/getFullYear\(\) - 1988/.test(src(f)), `${f} prints the age through reportAge`);
+    }
+  }
+}
+
+// ── Audit 2: the phone logger (2026-10-02) ─────────────────────────────────
+// Eight confirmed bugs, each a decision that lived inline in WorkoutForm
+// where nothing could test it. The decisions are pure now
+// (src/lib/logger-draft.ts, prescription.ts); these run them, and pin the
+// form, the page, the banner and createWorkout to them.
+console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save ids, records, gym switch');
+{
+  const LD: typeof import('../src/lib/logger-draft') = require('../src/lib/logger-draft');
+  const HI: typeof import('../src/lib/health-insights') = require('../src/lib/health-insights');
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const form = read('src/components/WorkoutForm.tsx');
+  const acts = read('src/app/actions.ts');
+  const banner = read('src/components/WorkoutDraftBanner.tsx');
+  const page = read('src/app/workouts/new/page.tsx');
+  // The phone's clock (local, 04:00 rollover) and the server's (Riyadh).
+  const dayOf = (d: Date) => HI.activityDayStr(d);
+  const serverDay = (d: Date) => HI.ownerActivityDayUtc(d).toISOString().slice(0, 10);
+  const at = (mo: number, d: number, h: number, mi = 0) => new Date(2026, mo - 1, d, h, mi);
+  const blk = (exerciseId: string, done: boolean[], programName: string | undefined = exerciseId) => ({
+    exerciseId, programName, sets: done.map((dn, i) => ({ done: dn, setNumber: i + 1 })),
+  });
+  const pageA45 = { day: 'A' as const, dur: 45, dayExplicit: false, durExplicit: false };
+
+  // 1 — an untouched draft is not a session.
+  assert(!LD.shouldWriteDraft({ finished: false, rescue: false, started: false, touched: false }), 'a logger he only looked at writes no draft');
+  assert(LD.shouldWriteDraft({ finished: false, rescue: false, started: false, touched: true }) && LD.shouldWriteDraft({ finished: false, rescue: false, started: true, touched: false }), 'a tick or a typed number does');
+  const peeked = { name: 'Day A 45m — Oct 2', savedAt: at(10, 2, 18).getTime(), blocks: [blk('lp', [false, false]), blk('cp', [false])] };
+  assert(LD.planDraftRestore(peeked, { ...pageA45, today: '2026-10-04' }, dayOf).kind === 'discard', 'a draft with nothing ticked from 2 Oct is discarded on 4 Oct — never restored with its old date, weights and save id');
+  assert(LD.draftDisposable(peeked, '2026-10-04', dayOf) && !LD.draftDisposable(peeked, '2026-10-02', dayOf), 'the same untouched draft is rubbish for the pill the next day, and kept the same day');
+  assert(LD.planDraftRestore({ ...peeked, savedAt: at(10, 2, 23).getTime() }, { ...pageA45, today: dayOf(at(10, 3, 3)) }, dayOf).kind === 'restore', '03:00 is still the same activity day (04:00 rollover): the draft restores');
+  assert(LD.planDraftRestore({ ...peeked, savedAt: at(10, 2, 23).getTime() }, { ...pageA45, today: dayOf(at(10, 3, 5)) }, dayOf).kind === 'discard', '…and at 05:00 it is yesterday\'s');
+  assert(LD.draftDisposable({ name: 'x', blocks: peeked.blocks }, '2026-10-02', dayOf), 'an undated draft with nothing done is rubbish');
+  const begun = { name: 'Day A 45m — Oct 2', savedAt: at(10, 2, 18).getTime(), blocks: [blk('lp', [true, false]), blk('cp', [false])] };
+  const begunPlan = LD.planDraftRestore(begun, { ...pageA45, today: '2026-10-04' }, dayOf);
+  assert(begunPlan.kind === 'restore' && begunPlan.represcribe && !begunPlan.refit, `a draft with done sets from an earlier day restores — and its unstarted machines are re-prescribed (got ${JSON.stringify(begunPlan)})`);
+  assert(!LD.draftDisposable(begun, '2026-10-09', dayOf), 'a draft with a ticked set is never disposable, however old');
+  const sameDay = LD.planDraftRestore(begun, { ...pageA45, today: '2026-10-02' }, dayOf);
+  assert(sameDay.kind === 'restore' && !sameDay.represcribe, 'the same day: restored as stored, nothing repriced');
+  const fresh = [blk('lp', [false, false, false]), blk('cp', [false, false, false]), blk('sh', [false])];
+  const merged = LD.mergeDraftIntoPlan([blk('lp', [true, false]), blk('cp', [false]), blk('own', [false], ''), blk('gone', [true])], fresh);
+  assert(merged[0].sets.length === 2 && merged[0].sets[0].done, 'a started machine keeps its rows exactly as stored');
+  assert(merged[1] === fresh[1] && merged[2] === fresh[2], 'every machine not yet started is today\'s fresh block');
+  assert(merged.length === 5 && merged[3].exerciseId === 'own' && merged[4].exerciseId === 'gone', 'a block he added and a started machine the plan dropped both stay');
+  assert(LD.firstTickDay('2026-10-02', '2026-10-02', '2026-10-03') === '2026-10-03', 'a logger left open across 04:00: the first tick dates the session today');
+  assert(LD.firstTickDay('2026-09-30', '2026-10-02', '2026-10-03') === '2026-09-30' && LD.firstTickDay('2026-10-02', '2026-10-02', '2026-10-02') === '2026-10-02', 'a date he set himself, or the same day, is left alone');
+  assert(/planDraftRestore\(/.test(form) && /mergeDraftIntoPlan\(/.test(form), 'the logger restores through planDraftRestore and re-prescribes through mergeDraftIntoPlan');
+  assert(/shouldWriteDraft\(/.test(form), 'the autosave asks shouldWriteDraft before it writes');
+  assert(/firstTickDay\(/.test(form), 'the first tick re-reads the activity day');
+  assert(/draftDisposable\(/.test(banner) && /durableRemove\(DRAFT_KEY\)/.test(banner) && !/localStorage\.removeItem\(DRAFT_KEY\);\s*setDraftName\(null\)/.test(banner), 'the pill\'s purge removes the native copy too, and only a draft with nothing done');
+  assert(/key=\{`\$\{validDay\}-\$\{validDur\}-\$\{isRescue \? 'r' : 'n'\}-\$\{dayLabel\}`\}/.test(page), 'the form is keyed by the activity day: a refresh after 04:00 remounts it on today\'s prescription');
+
+  // 2 — the length he chose wins.
+  const p30 = { day: 'A' as const, dur: 30, dayExplicit: true, durExplicit: true, today: '2026-10-02' };
+  assert(LD.planDraftRestore(peeked, p30, dayOf).kind === 'discard', 'an explicit 30 over an unstarted 45-minute draft: the tap wins, the draft goes');
+  const refit = LD.planDraftRestore(begun, p30, dayOf);
+  assert(refit.kind === 'restore' && refit.refit, `…over a started one: the done sets stay and the rest is re-fitted (got ${JSON.stringify(refit)})`);
+  const bare = LD.planDraftRestore(begun, { ...p30, dur: 60, durExplicit: false }, dayOf);
+  assert(bare.kind === 'hop' && bare.href === '/workouts/new?day=A&dur=45', 'a bare open (the + tab, the pill) still follows the draft to its own length');
+  const otherDay = LD.planDraftRestore(begun, { ...p30, day: 'B' }, dayOf);
+  assert(otherDay.kind === 'hop', 'a started draft from the other day is followed, never binned for a tap');
+  assert(LD.planDraftRestore(peeked, { ...p30, day: 'B' }, dayOf).kind === 'discard', 'an unstarted one gives way to the day he tapped');
+  assert(LD.renameForDuration('Day A 45m — Oct 2', 30) === 'Day A 30m — Oct 2' && LD.renameForDuration('Legs', 30) === 'Legs', 'the name follows the length; a name of his own is left alone');
+  assert(/durExplicit=\{/.test(page) && /dayExplicit=\{/.test(page), 'the page tells the form whether day and length were chosen');
+
+  // 3 — a rescue is never weight memory.
+  {
+    const id = (name: string) => data.exercises.find((e) => e.name === name)!.id;
+    const [lat, row, lp, cpr] = [id('Lat Pulldown'), id('Mid Row'), id('Leg Press'), id('Chest Press')];
+    type S = { exerciseId: string; exerciseName: string; setNumber: number; weight: number; reps: number; rpe: number | null; isWarmup: boolean };
+    const three = (exerciseId: string, exerciseName: string, weight: number, rpe: number, n = 3): S[] =>
+      Array.from({ length: n }, (_, i) => ({ exerciseId, exerciseName, setNumber: i + 1, weight, reps: 12, rpe, isWarmup: false }));
+    const w = (date: string, name: string, sets: S[]) => ({ id: `${name}@${date}`, date: new Date(`${date}T00:00:00Z`), name, gym: 'bfit', duration: 2400, sets });
+    const dayB = (date: string) => w(date, 'Day B 45m', [...three(lat, 'Lat Pulldown', 40, 2), ...three(row, 'Mid Row', 40, 3)]);
+    const dayA = (date: string, kg: number) => w(date, 'Day A 45m', [...three(lp, 'Leg Press', kg, 2), ...three(cpr, 'Chest Press', 27.5, 2)]);
+    const rescue = w('2026-09-24', 'Rescue 15m — Sep 24', [...three(lat, 'Lat Pulldown', 25, 2, 2), ...three(row, 'Mid Row', 25, 2, 2), ...three(lp, 'Leg Press', 24, 2, 2), ...three(cpr, 'Chest Press', 16.5, 2, 2)]);
+    const history = [dayA('2026-09-06', 30), dayB('2026-09-08'), dayA('2026-09-10', 35), dayB('2026-09-12'), dayA('2026-09-14', 40), dayB('2026-09-16'), dayA('2026-09-18', 40), dayB('2026-09-20')];
+    const rows = [...history, rescue, dayA('2026-09-26', 40)];
+    const now = new Date('2026-09-28T09:00:00Z');
+    const foldAll = (ws: typeof rows) => {
+      const mem: MemorySetRow[] = [];
+      const ev = new Map<string, Array<{ rpe: number | null; isWarmup: boolean }>>();
+      for (const x of ws) {
+        for (const st of x.sets) mem.push({ exerciseId: st.exerciseId, exerciseName: st.exerciseName, setNumber: st.setNumber, weight: st.weight, reps: st.reps, rpe: st.rpe, workout: { id: x.id, date: x.date, duration: x.duration, name: x.name } });
+        ev.set(x.id, x.sets.map((st) => ({ rpe: st.rpe, isWarmup: false })));
+      }
+      mem.sort((a, b) => b.workout.date.getTime() - a.workout.date.getTime() || b.setNumber - a.setNumber);
+      return foldExerciseMemory(mem, ev);
+    };
+    const exs = data.exercises.map((e) => ({ id: e.id, pinIncrement: null }));
+    const inputs = prescriptionInputs(rows, exs, DEFAULT_GYM_ID, now);
+    const without = prescriptionInputs([...history, dayA('2026-09-26', 40)], exs, DEFAULT_GYM_ID, now);
+    assert(inputs.status.mode === 'normal' && inputs.cut === null, `the probe is a normal block, two sessions past the rescue (got ${inputs.status.mode}, cut ${inputs.cut})`);
+    const memory = foldAll(rows);
+    assert(memory[lat]?.weight === 40 && memory[row]?.weight === 40, `a Rescue 15m (2 × 25) is not weight memory two sessions later (got Lat Pulldown ${memory[lat]?.weight}, Mid Row ${memory[row]?.weight})`);
+    const byName = new Map(data.exercises.map((e) => [e.name, { id: e.id }]));
+    const plan = planExercises(getDayTemplate('B').exercises, byName, memory, inputs);
+    const latP = plan.find((p) => p.name === 'Lat Pulldown')!.prescription;
+    assert(latP.workingKg === 40 && latP.reason === 'last', `the Day B plan — phone, /train and the Watch read this one — opens Lat Pulldown at 40 (got ${JSON.stringify(latP)})`);
+    assert(inputs.pinFor(lp) === without.pinFor(lp) && inputs.pinFor(lp) === 5, `a rescue's 60% weight teaches no pin and breaks no ladder (Leg Press 30/35/40 → 5; got ${inputs.pinFor(lp)}, without the rescue ${without.pinFor(lp)})`);
+    assert(inputs.plateauKgFor(row) === 40 && without.plateauKgFor(row) === 40, `…and does not reset a plateau streak (Mid Row four sessions at 40 Hard; got ${inputs.plateauKgFor(row)})`);
+    assert(/NOT: \{ name: \{ startsWith: 'Rescue' \} \},[\s\S]{0,120}\.\.\.\(before \? \{ date: \{ lt: before \} \} : \{\}\)/.test(acts), 'the memory query leaves Rescue rows out with or without a cut');
+  }
+
+  // 4 — one save id, one session.
+  {
+    const owner = LD.ownerOf({ date: new Date('2026-10-02'), sets: [{ completedAt: '2026-10-02T15:00:00.000Z' }, { completedAt: '2026-10-02T15:40:00.000Z' }] }, serverDay);
+    assert(owner.days.join() === '2026-10-02', `a phone save dated at UTC midnight is its own activity day (got ${owner.days.join()})`);
+    const today = [{ completedAt: '2026-10-04T15:00:00.000Z', n: 1 }, { completedAt: '2026-10-04T15:05:00.000Z', n: 2 }];
+    const split = LD.splitBySessionDay(owner, today, serverDay);
+    assert(split.same.length === 0 && split.other.length === 2 && split.otherDay === '2026-10-04', `sets lifted on 4 Oct under the id of a workout saved 2 Oct are a NEW session, never a merge (got ${JSON.stringify(split)})`);
+    assert(LD.rehomedSaveId('abc', '2026-10-04') === 'abc~2026-10-04', 'its id is derived, so an outbox replay finds the workout it already made');
+    const replay = LD.splitBySessionDay(owner, [{ completedAt: '2026-10-02T15:00:00.000Z' }, {}], serverDay);
+    assert(replay.other.length === 0 && replay.same.length === 2, 'a replay of the same sitting — and a set with no stamp — still merges (deduped stays a SUCCESS, rule 8)');
+    const late = LD.ownerOf({ date: new Date('2026-10-02'), sets: [{ completedAt: '2026-10-03T00:50:00.000Z' }] }, serverDay);
+    assert(LD.splitBySessionDay(late, [{ completedAt: '2026-10-03T01:05:00.000Z' }], serverDay).other.length === 0, 'a handed-off session that runs past 04:00 Riyadh is still one session');
+    const mixed = LD.splitBySessionDay(owner, [{ completedAt: '2026-10-02T15:00:00.000Z' }, ...today], serverDay);
+    assert(mixed.same.length === 1 && mixed.other.length === 2, 'a payload holding both is split set by set');
+    const saved = { ...owner, sets: [{ exerciseId: 'lp', setNumber: 1, isWarmup: false, reps: 12, weight: 40, rpe: 2 }] };
+    const doneSet = (o: Partial<{ setNumber: number; weight: number; completedAt: string }>) => ({ exerciseId: 'lp', setNumber: 1, reps: 12, weight: 40, rpe: 2, completedAt: '2026-10-02T15:00:00.000Z', ...o });
+    assert(LD.draftSaveIdFate({ owner: null, liveClosed: false }, [], serverDay) === 'keep', 'an id nobody owns is kept');
+    assert(LD.draftSaveIdFate({ owner: null, liveClosed: true }, [doneSet({})], serverDay) === 'new', 'a draft whose live row was closed takes a new id');
+    assert(LD.draftSaveIdFate({ owner: saved, liveClosed: true }, [], serverDay) === 'new', 'an unstarted draft holding a saved workout\'s id takes a new id');
+    assert(LD.draftSaveIdFate({ owner: saved, liveClosed: true }, [doneSet({})], serverDay) === 'discard', 'a draft whose every done set is already in the saved workout is that session\'s ghost');
+    assert(LD.draftSaveIdFate({ owner: saved, liveClosed: true }, [doneSet({}), doneSet({ setNumber: 2 })], serverDay) === 'keep', 'the Watch finished first and the phone holds a set it lacks: same id, the handoff merges it');
+    assert(LD.draftSaveIdFate({ owner: saved, liveClosed: true }, [doneSet({ weight: 42.5, completedAt: '2026-10-04T15:00:00.000Z' })], serverDay) === 'new', 'a set lifted another day is never posted under the old id');
+    assert(!LD.shouldWriteDraft({ finished: true, rescue: false, started: true, touched: true }), 'once saved, nothing writes the session back as a draft (the ghost)');
+    assert(/splitBySessionDay\(/.test(acts) && /rehomedSaveId\(/.test(acts), 'createWorkout never merges another day\'s sets into the workout that owns the id');
+    assert(/export async function getSaveIdOwner\(/.test(acts) && /getSaveIdOwner\(/.test(form) && /draftSaveIdFate\(/.test(form), 'the server can say who owns a draft\'s save id, and the restore asks');
+    assert(/finishedRef\.current = true/.test(form) && /finished: finishedRef\.current/.test(form), 'the save marks the form finished and the autosave reads it');
+  }
+
+  // 5 — deleting a row renumbers the working sets only.
+  {
+    const st = (setNumber: number, isWarmup = false) => ({ setNumber, isWarmup, id: `${isWarmup ? 'w' : 's'}${setNumber}` });
+    const left = LD.removeSetAt([st(0, true), st(1), st(2), st(3)], 3);
+    assert(left.map((s) => s.setNumber).join() === '0,1,2', `W,1,2,3 minus set 3 is W,1,2 (got ${left.map((s) => s.setNumber).join()})`);
+    assert(LD.removeSetAt([st(0, true), st(1), st(2), st(3)], 1).map((s) => `${s.id}:${s.setNumber}`).join() === 'w0:0,s2:1,s3:2', 'minus set 1: the working sets close up from 1, the warm-up stays 0');
+    assert(LD.removeSetAt([st(0, true), st(1)], 0).map((s) => s.setNumber).join() === '1', 'minus the warm-up: set 1 stays set 1');
+    assert(/removeSetAt\(b\.sets, idx\)/.test(form) && !/\.map\(\(s, i\) => \(\{ \.\.\.s, setNumber: i \+ 1 \}\)\)/.test(form), 'removeSet goes through removeSetAt');
+  }
+
+  // 6 — records fire for program machines, and only celebrate.
+  {
+    const rec = { unit: 'reps', best: 40, byReps: { 10: 40, 12: 37.5 }, rampScaled: false };
+    assert(LD.setRecord({ weight: 42.5, reps: 10 }, rec) === 'all-time', 'a template block (unit "reps") heavier than the record: all-time');
+    assert(LD.setRecord({ weight: 40, reps: 12 }, rec) === 'rep', '12 reps at 40 where 12 was only ever done at 37.5: a rep record');
+    assert(LD.setRecord({ weight: 37.5, reps: 10 }, rec) === null, 'lighter than a set of MORE reps is no record');
+    assert(LD.setRecord({ weight: 24, reps: 15 }, { ...rec, rampScaled: true }) === null, 'a ramp-scaled set claims nothing below the real record');
+    assert(LD.setRecord({ weight: 42.5, reps: 10 }, { ...rec, rampScaled: true }) === 'all-time', '…a true record in the ramp is still one');
+    assert(LD.setRecord({ weight: 30, reps: 30 }, { ...rec, unit: 'seconds' }) === null && LD.setRecord({ weight: 60, reps: 10, isWarmup: true }, rec) === null, 'never a timed hold, never a warm-up');
+    assert(LD.setRecord({ weight: 20, reps: 12 }, { unit: 'reps', best: 0, rampScaled: false }) === null, 'no record at this gym yet (rule 2): the first visit is not fourteen records');
+    assert(LD.setRecord({ weight: 42.5, reps: 10 }, { ...rec, earlier: [{ weight: 42.5, reps: 10 }] }) === null, 'three sets at the new weight are one record');
+    const sets = [{ weight: 42.5, done: false }, { weight: 42.5, done: false }];
+    assert(!LD.blockHasRecord(sets, 'lp', 'reps', { lp: 40 }), 'the PR chip does not light on the prefill, before the lift');
+    assert(LD.blockHasRecord([{ ...sets[0], done: true }, sets[1]], 'lp', 'reps', { lp: 40 }), '…it lights on the lifted set');
+    assert(!LD.blockHasRecord([{ weight: 60, done: true, exerciseId: 'cp' }], 'fly', 'reps', { fly: 20, cp: 60 }), 'a swapped block: each set against its own machine\'s record');
+    assert(LD.movedLabel(42.5, 40, 2.5) === '+1 pin' && LD.movedLabel(45, 40, 2.5) === '+2 pins' && LD.movedLabel(41, 40, 2.5) === '+1 kg', 'what moved: whole pins, else kilograms');
+    assert(LD.movedLabel(36, 40, 2.5) === null && LD.movedLabel(40, 40, 2.5) === null, 'a deload or a step down is never printed on the celebration screen');
+    assert(!/!block\.unit\b/.test(form) && !/!b\.unit\b/.test(form), 'no guard reads "no unit" as "not timed" — every template block carries unit "reps"');
+    assert(/setRecord\(/.test(form) && /blockHasRecord\(/.test(form) && /movedLabel\(/.test(form), 'the toast, the chip and the summary lines go through the tested rules');
+  }
+
+  // 7 — a gym switch that did not load.
+  {
+    const tap = LD.gymSwitchFailure({ shown: 'bfit', wanted: 'work', wantedName: 'Alrajhi Tower', by: 'tap', tries: 1 });
+    assert(tap.tag === 'bfit' && !tap.retry && /did not load/.test(tap.notice), `a failed switch puts the tag back on the gym whose numbers are on screen, and says so (got ${JSON.stringify(tap)})`);
+    const sess = LD.gymSwitchFailure({ shown: 'bfit', wanted: 'work', wantedName: 'Alrajhi Tower', by: 'session', tries: 1 });
+    assert(sess.tag === 'work' && sess.retry && !LD.gymSwitchFailure({ shown: 'bfit', wanted: 'work', wantedName: 'Alrajhi Tower', by: 'session', tries: 3 }).retry, 'a switch the session asked for keeps its tag and retries, three times');
+    assert(/gymSwitchFailure\(/.test(form) && !/lastGymRef\.current = gym;\s*restoreCancelRef/.test(form), 'the tag is confirmed only once that gym\'s numbers are on screen');
+    assert(/lastGymRef = useRef<string \| null>\(DEFAULT_GYM_ID\)/.test(form), 'the form starts on the home gym\'s numbers: a Watch session at Alrajhi picked up with no draft refetches instead of adopting the tag');
+  }
+
+  // 8 — a HOLD morning holds on every rebuild.
+  {
+    const mem: ExerciseMemory = { weight: 20, reps: 12, rpe: 1, overload: true, allEasy: true, repsFloor: 12 };
+    const tpl = getDayTemplate('B').exercises.find((e) => e.name === 'Rear Delt Fly')!;
+    assert(prescribeWorking(tpl, mem, 2.5, null, { rampPct: null, rescue: false, readinessHold: true }).workingKg === 20, 'told HOLD, the prescription takes no pin');
+    const direct = form.match(/buildBlocks\(/g)?.length ?? 0;
+    assert(direct === 3 && /function freshBlocks\(\)[\s\S]{0,260}readinessRef\.current\?\.verdict === 'hold'/.test(form), `every rebuild — Start fresh, the Watch's row, a re-prescribed draft — goes through freshBlocks, which passes the hold (buildBlocks appears ${direct}×: its definition, the mount, freshBlocks)`);
+    assert(/setBlocks\(freshBlocks\(\)\)/.test(form), 'Start fresh rebuilds through it');
+  }
 }
 
 Promise.all(pendingAsync).then(() => {

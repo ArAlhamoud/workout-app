@@ -252,7 +252,12 @@ export default async function NewWorkoutPage({
         // own ?day=) must REMOUNT the form, or the old day's template blocks
         // survive under the new masthead and the draft never restores (Mac
         // session's two-sim E2E, 2026-09-02: "DAY B" over Leg Press).
-        key={`${validDay}-${validDur}-${isRescue ? 'r' : 'n'}`}
+        // …and by the activity day: a logger left open across the 04:00
+        // rollover refreshes itself (WorkoutForm), and the refresh must
+        // REMOUNT the form on today's prescription, name and date — the
+        // state built from yesterday's props survived a plain refresh
+        // (2026-10-02).
+        key={`${validDay}-${validDur}-${isRescue ? 'r' : 'n'}-${dayLabel}`}
         exercises={exercises}
         initialName={initialName}
         initialExercises={finalExercises}
@@ -264,6 +269,12 @@ export default async function NewWorkoutPage({
         liveSession={liveRow && (!liveRow.day || liveRow.day === validDay) ? liveRow : null}
         liveOpenElsewhere={Boolean(liveRow)}
         durationMin={validDur}
+        // Was the day / the length CHOSEN (a pill, /train's 30/45/60, a
+        // hop to a draft's own) or only defaulted? A chosen one beats an
+        // unstarted draft and re-fits a started one; a bare open follows
+        // the draft (planDraftRestore, 2026-10-02).
+        dayExplicit={day === 'A' || day === 'B'}
+        durExplicit={durStr === '30' || durStr === '45' || durStr === '60'}
         personalRecords={personalRecords}
         repRecords={repRecords}
         plateauKgs={plateauKgs}
