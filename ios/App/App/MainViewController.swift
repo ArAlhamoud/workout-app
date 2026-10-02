@@ -16,4 +16,17 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(RestActivityPlugin())
         bridge?.registerPluginInstance(CloudBackupPlugin())
     }
+
+    /// iOS 26+ draws a "scroll edge effect" — a grey fade — over content that
+    /// scrolls under the status bar and the bottom edge. It arrived with the
+    /// first Xcode 27 build (2026-10-02) and the owner did not want it: "use
+    /// the normal way of the old way". A web overlay was removed first on the
+    /// wrong theory; the fade is UIKit's, so it is switched off here.
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        if #available(iOS 26.0, *), let scroll = webView?.scrollView {
+            scroll.topEdgeEffect.isHidden = true
+            scroll.bottomEdgeEffect.isHidden = true
+        }
+    }
 }

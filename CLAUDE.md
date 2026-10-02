@@ -35,10 +35,12 @@ Each of these broke something real. Do not relearn them.
    on swipe): the DOM said "Set 1/3", the screen said "SET 1/4". Key such
    nodes by what they show, and key list rows by identity, never by index.
    And the simulator is not the phone: a fixed strip added behind the status
-   bar looked clean in the simulator, and on his iPhone iOS painted a grey
-   gradient over the top of every screen from it (owner, 2026-10-02: "I
-   don't like this gradient look"). Nothing fixed sits at the top edge;
-   content scrolls under the status bar the way it always did.
+   bar was blamed for a grey fade at the top of every screen (owner,
+   2026-10-02: "I don't like this gradient look") — wrongly. The fade is
+   iOS 26+'s own scroll edge effect, which the app inherited when it was
+   first built with Xcode 27; it is switched off in MainViewController.
+   Rebuilding with a new Xcode can change native look: compare against the
+   phone, not just the simulator.
 
 4. **Weight stacks move in pins, not kilograms.** A jump from 23→27.5 kg
    is one pin, not a user error. Progression logic learns per-machine pin
