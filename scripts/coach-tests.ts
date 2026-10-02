@@ -4421,7 +4421,8 @@ console.log('Health screens — Riyadh calendar, shared definitions, report hone
     assert(oct.monthLogged === 1 && oct.month === '2026-10' && oct.monthIsCurrent === true, 'once this month has a reported night it is this month again');
     const first = cpapCompliance([{ night: dayRow('2026-09-01'), usageHours: 6 }], new Date('2026-09-01T01:00:00+03:00'));
     assert(first.monthLogged === 1 && first.monthIsCurrent === true, 'at 01:00 on the 1st the current month is the new one');
-    const patterns = src('src/app/health/analytics/page.tsx');
+    // The month arithmetic moved to src/lib/patterns.ts with the Patterns rebuild.
+    const patterns = src('src/app/health/analytics/page.tsx') + src('src/lib/patterns.ts');
     assert(!/getMonth\(\)|getFullYear\(\)/.test(patterns) && /ownerMonthKey/.test(patterns) && /monthLabel\(/.test(patterns), 'the Patterns page keys months on the Riyadh calendar and prints them as words');
     assert(/mask\.monthIsCurrent/.test(patterns), 'the mask card says which month it shows');
   }
@@ -4981,6 +4982,194 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
     assert(RR([], { day: '2026-10-01' }, [...twoSessions, st('z', 1, RY('2026-10-02', '09:00'))]) === 'X@null:6 X~2026-10-02@2026-10-02:7', 'a stray tick between them folds into the nearer session');
     assert(RR([], { day: '2026-09-30' }, full('2026-10-02', '18:00')) === 'X@null:6' && RR([], { day: '2026-10-02' }, full('2026-10-02', '18:00')) === 'X@null:6', 'an ordinary single sitting is untouched: the posted id, the payload\'s date');
     assert(/routes\[0\]\.saveId === root && routes\[0\]\.day == null/.test(acts), 'the plain path is taken only when nothing is re-dated');
+  }
+}
+
+// ── Patterns: five questions his own logs can answer (2026-10-02) ──
+// The owner: the Patterns page "is not much of a use for me" — three of its
+// four cards waited on symptom and AF logs he rarely has. These read what he
+// DOES log. Every analysis is a pure function in src/lib/patterns.ts.
+import * as PT from '../src/lib/patterns';
+console.log('Patterns — dose week, dose levels, food and scale, sleep, monthly trends');
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const DAY = 86_400_000;
+  const key = (start: string, i: number) => new Date(Date.parse(`${start}T00:00:00Z`) + i * DAY).toISOString().slice(0, 10);
+  const bare = (k: string) => new Date(`${k}T00:00:00.000Z`);
+  const at = (k: string, hhmm: string) => new Date(`${k}T${hhmm}:00+03:00`);
+
+  // 1 — the week after a dose.
+  {
+    const doses = [
+      { at: at('2026-09-01', '21:00'), doseMg: 2.5 },
+      { at: at('2026-09-08', '21:00'), doseMg: 2.5 },
+      { at: at('2026-09-16', '01:30'), doseMg: 2.5 }, // 15 Sep 22:30 UTC — HIS 16th
+      { at: at('2026-09-22', '21:00'), doseMg: 2.5 },
+    ];
+    const K = [1700, 1500, 1400, 1500, 1600, 1700, 1800];
+    const doseDays = ['2026-09-01', '2026-09-08', '2026-09-16', '2026-09-22'];
+    const diet: PT.DietIn[] = [];
+    for (let i = 0; i < 30; i++) {
+      const k = key('2026-09-01', i);
+      const d0 = [...doseDays].reverse().find((d) => d <= k) as string;
+      const off = Math.round((Date.parse(k) - Date.parse(d0)) / DAY);
+      diet.push({ day: bare(k), kcal: off <= 6 ? K[off] : 9000, proteinG: 120 });
+    }
+    diet[29].kcal = 100; // 30 Sep: the plan for a day he has not begun
+    const w = (k: string, hhmm: string, weight: number) => ({ date: at(k, hhmm), weight });
+    const weights = [
+      w('2026-09-01', '07:00', 130), w('2026-09-02', '07:00', 129.8), w('2026-09-03', '07:00', 129.6), w('2026-09-04', '07:00', 129.5), w('2026-09-07', '07:00', 129.1),
+      w('2026-09-08', '07:00', 129), w('2026-09-09', '01:00', 128.8), w('2026-09-10', '07:00', 128.6), w('2026-09-11', '07:00', 128.5), w('2026-09-14', '07:00', 128.1),
+      w('2026-09-15', '07:00', 128), w('2026-09-17', '07:00', 127.9), w('2026-09-18', '07:00', 127.8), // no weigh-in on the 16th, the dose day
+      w('2026-09-22', '07:00', 127), w('2026-09-23', '07:00', 126.8), w('2026-09-24', '07:00', 126.6), w('2026-09-25', '07:00', 126.5), w('2026-09-28', '07:00', 126.1),
+    ];
+    const now = at('2026-09-30', '02:00'); // before 04:00: his activity day is still the 29th
+    const r = PT.weekAfterDose(doses, diet, weights, now);
+    assert(r !== null && r.days.length === 7 && r.days.map((d) => d.kcal).join() === K.join(), `kcal by day since the dose, on HIS calendar: a dose at 01:30 Riyadh on the 16th makes the 16th day 0 — the 15th is day 7 of the week before and is not counted (got ${r?.days.map((d) => d.kcal).join()})`);
+    assert(r?.days.map((d) => d.nKcal).join() === '4,4,4,4,4,4,3' && r.weeks === 4, `every average carries its count; day 6 has three weeks, the short week none (got ${r?.days.map((d) => d.nKcal).join()})`);
+    assert(r?.low.offset === 2 && r.low.kcal === 1400 && r.low.n === 4 && r.other?.offset === 6 && r.other.kcal === 1800 && r.other.n === 3 && r.other.after === true, 'the glance: the lowest day, and the highest day after it');
+    assert(r?.days.map((d) => `${d.kgChange}×${d.nKg}`).join(' ') === '0×3 -0.2×3 -0.4×3 -0.5×3 null×0 null×0 -0.9×3', `weight change against the DOSE-DAY weigh-in; a week with no weigh-in on its dose day is left out, never filled in; a 01:00 weigh-in on the 9th is the 9th (got ${r?.days.map((d) => `${d.kgChange}×${d.nKg}`).join(' ')})`);
+    const charts = r ? PT.weekAfterDoseCharts(r) : null;
+    assert(charts?.kcal?.series[0].kind === 'bar' && charts.kcal.series[0].points.length === 7 && charts?.weight?.series[0].points.length === 5, 'behind the tap: seven kcal bars and the weight line over the days that have an average');
+    assert(PT.weekAfterDose(doses.slice(0, 2), diet.slice(0, 14), weights, at('2026-09-14', '23:00')) === null, 'two dose weeks: no day has three values — not enough data yet');
+    const thin = PT.weekAfterDose(doses, diet, weights.slice(0, 10), now);
+    assert(thin !== null && thin.days.every((d) => d.kgChange === null) && PT.weekAfterDoseCharts(thin).weight === null, 'two weeks of weigh-ins: no weight average and no weight line');
+    assert(PT.weekAfterDose([], diet, weights, now) === null, 'no dose logged: nothing to count from');
+  }
+
+  // 2 — what each dose level did.
+  {
+    const doses = ['2026-08-04', '2026-08-11', '2026-08-18', '2026-08-25'].map((k) => ({ at: at(k, '21:00'), doseMg: 2.5 }))
+      .concat(['2026-09-01', '2026-09-08'].map((k) => ({ at: at(k, '21:00'), doseMg: 5 })));
+    const weights = Array.from({ length: 42 }, (_, i) => ({ date: at(key('2026-08-04', i), '07:00'), weight: i <= 28 ? 130 - 0.1 * i : 127.2 - 0.2 * (i - 28) }));
+    const diet = Array.from({ length: 42 }, (_, i) => ({ day: bare(key('2026-08-04', i)), kcal: i === 27 ? 2500 : i < 28 ? 1800 : 1500 }));
+    const r = PT.doseLevels(doses, diet, weights, at('2026-09-15', '12:00'));
+    assert(r?.length === 2 && r[0].doseMg === 2.5 && r[0].weeks === 4 && r[0].kgPerWeek === -0.7 && r[0].weightWeeks === 4, `2.5 mg: four weeks counted, the weekly change averaged over them (got ${JSON.stringify(r?.[0])})`);
+    assert(r?.[0].avgKcal === 1825 && r[0].kcalDays === 28 && r[1].avgKcal === 1500 && r[1].kcalDays === 14, `a day belongs to the dose before it: the eve of the step up is still a 2.5 mg day (got ${r?.[0].avgKcal}/${r?.[1].avgKcal})`);
+    assert(r?.[1].doseMg === 5 && r[1].weeks === 2 && r[1].kgPerWeek === null && r[1].weightWeeks === 2, 'two weeks at 5 mg: the weeks are stated, the average is not shown');
+    assert(PT.doseLevels([], diet, weights, at('2026-09-15', '12:00')) === null && PT.doseLevels(doses.slice(0, 1), diet.slice(0, 2), [], at('2026-08-05', '23:00')) === null, 'no dose, or one dose with two logged days: not enough data yet');
+  }
+
+  // 3 — food and the scale.
+  {
+    const mondays = ['2026-08-31', '2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05'];
+    const weekKcal = [1600, 1550, 1650, 1750, 1800, 1700];
+    const monKg = [130, 129.1, 128.1, 127.3, 126.8, 126.4, 125.8];
+    const diet: PT.DietIn[] = [];
+    mondays.forEach((m, wi) => {
+      for (let i = 0; i < 7; i++) diet.push({ day: bare(key(m, i)), kcal: weekKcal[wi], proteinG: 120 + wi });
+    });
+    // Week one: six days of 1500 and a Sunday of 2200 — still 1600 a day.
+    for (let i = 0; i < 6; i++) diet[i].kcal = 1500;
+    diet[6].kcal = 2200;
+    // Every Monday weigh-in at 01:00 Riyadh — Sunday 22:00 UTC.
+    const weights = monKg.map((kg, i) => ({ date: at(key('2026-08-31', i * 7), '01:00'), weight: kg }));
+    const now = at('2026-10-12', '12:00');
+    const r = PT.foodAndScale(diet, weights, now);
+    assert(r?.weeks.length === 6 && r.weeks[0].weekStart === '2026-08-31' && r.weeks[0].kcal === 1600 && r.weeks[1].kcal === 1550, `weeks start on HIS Monday: Sunday the 6th is week one, a 01:00 Monday weigh-in opens its own week (got ${JSON.stringify(r?.weeks.slice(0, 2))})`);
+    assert(r?.weeks.map((x) => x.kgChange).join() === '-0.9,-1,-0.8,-0.5,-0.4,-0.6', `each week's change on the scale (got ${r?.weeks.map((x) => x.kgChange).join()})`);
+    assert(r?.low.kcal === 1600 && r.low.kgChange === -0.9 && r.low.n === 3 && r.high.kcal === 1750 && r.high.kgChange === -0.5 && r.high.n === 3 && r.low.proteinG === 121, `six weeks: the lower and the upper half, three weeks each (got ${JSON.stringify(r?.low)} ${JSON.stringify(r?.high)})`);
+    const fc = r ? PT.foodAndScaleCharts(r) : null;
+    assert(fc?.kcal?.series[0].points.length === 6 && fc?.weight?.series[0].points.length === 6, 'behind the tap: weekly kcal bars and the weekly change');
+    // A week with four logged days is simply not counted.
+    const five = PT.foodAndScale(diet.filter((d) => !['2026-09-15', '2026-09-16', '2026-09-17'].includes((d.day as Date).toISOString().slice(0, 10))), weights, now);
+    assert(five?.weeks.length === 5 && five.low.n === 1 && five.low.kcal === 1550 && five.low.kgChange === -1 && five.high.n === 1 && five.high.kcal === 1800, `five weeks cannot make two averages: the lightest and the fullest week stand as single weeks (got ${JSON.stringify(five?.low)})`);
+    assert(PT.foodAndScale(diet.slice(0, 21), weights, now) === null, 'three qualifying weeks: not enough data yet');
+    assert(PT.foodAndScale(diet, weights.filter((_, i) => i % 2 === 0), now) === null, 'a week without two weigh-ins five days apart has no change, and is not counted');
+    assert(PT.foodAndScale(diet, weights, at('2026-09-28', '02:00'))?.weeks.length === 4, 'rows after his activity day are a plan, not a week eaten');
+  }
+
+  // 4 — sleep and the next day.
+  {
+    const hours = [5, 6, 7, 5, 3, 2, 0, 3.9];
+    const nights = hours.map((h, i) => ({ night: bare(key('2026-09-01', i)), usageHours: h }));
+    const bpOn = (k: string, hhmm: string, s: number, d: number) => ({ at: at(k, hhmm), systolic: s, diastolic: d });
+    const bp = [
+      bpOn('2026-09-01', '08:00', 120, 80), bpOn('2026-09-02', '08:00', 122, 82), bpOn('2026-09-03', '08:00', 118, 78),
+      bpOn('2026-09-05', '01:00', 150, 100), // still the evening of the 4th
+      bpOn('2026-09-05', '08:00', 130, 85), bpOn('2026-09-06', '08:00', 132, 87), bpOn('2026-09-07', '08:00', 128, 83),
+    ];
+    const sessions = [
+      { date: bare('2026-09-01'), rpes: [3, 3, 2, 1, null] }, { date: bare('2026-09-02'), rpes: [4, 2] }, { date: bare('2026-09-03'), rpes: [2, 2] },
+      { date: bare('2026-09-04'), rpes: [null, null] },
+      { date: bare('2026-09-05'), rpes: [3, 3, 3] }, { date: bare('2026-09-06'), rpes: [3, 3, 3] },
+    ];
+    const now = at('2026-09-09', '12:00');
+    const r = PT.sleepAndNextDay(nights, bp, sessions, now);
+    assert(r?.long.nights === 4 && r.short.nights === 4, 'nights of 4 h or more against nights under 4 h; a night at 0 h is a reported night');
+    assert(r?.long.bp?.systolic === 128 && r.long.bp.diastolic === 85 && r.long.bp.n === 4 && r?.short.bp?.systolic === 130 && r.short.bp.diastolic === 85 && r.short.bp.n === 3, `the reading of the day the night ended; one at 01:00 stays with the day before (got ${JSON.stringify(r?.long.bp)} ${JSON.stringify(r?.short.bp)})`);
+    assert(r?.long.hard?.pct === 38 && r.long.hard.sets === 8 && r.long.hard.sessions === 3 && r?.short.hard === null, `share of rated sets at Hard or above: three sessions and five rated sets, or nothing (got ${JSON.stringify(r?.long.hard)})`);
+    assert(PT.sleepAndNextDay(nights.slice(0, 7), bp, sessions, now) === null, 'three nights on one side: not enough data yet');
+    assert(PT.sleepAndNextDay(nights, bp, sessions, at('2026-09-07', '12:00')) === null, 'a night keyed after today is not counted');
+  }
+
+  // 5 — pressure and apnea by month.
+  {
+    const months = ['2026-06', '2026-07', '2026-08', '2026-09'];
+    const bp = months.flatMap((m, i) => [5, 12, 19].map((d) => ({ at: at(`${m}-${String(d).padStart(2, '0')}`, '08:00'), systolic: 130 - 2 * i, diastolic: 84 - i })));
+    const weights = months.flatMap((m, i) => [3, 20].map((d) => ({ date: at(`${m}-${String(d).padStart(2, '0')}`, '07:00'), weight: 133 - 2 * i })));
+    const nights = months.flatMap((m, i) => [4, 11, 18].map((d) => ({ night: bare(`${m}-${String(d).padStart(2, '0')}`), usageHours: 5, ahi: 3 - 0.5 * i, p95Pressure: 12 - i })));
+    const now = at('2026-09-30', '12:00');
+    const two = PT.monthTrends(bp.slice(6), nights.slice(6), weights.slice(4), now);
+    const c2 = two ? PT.monthTrendCharts(two) : null;
+    assert(two?.bp?.length === 2 && two.apnea?.length === 2 && two.apnea[0].month === '2026-08' && two.apnea[0].ahi === 2 && two.apnea[0].press === 10 && two.apnea[0].kg === 129 && c2?.bp === null && c2.apnea === null && c2.weight === null, 'two months: the months as rows, no line');
+    const four = PT.monthTrends(bp, nights, weights, now);
+    const c4 = four ? PT.monthTrendCharts(four) : null;
+    assert(four?.bp?.length === 4 && c4?.bp?.series.length === 2 && c4.bp.series[0].points.length === 4 && c4.apnea?.series[0].points.length === 4 && c4.weight?.series[0].points.length === 4, 'four months: a line through monthly points');
+    assert(c4?.bp?.xLabels?.[0].label === 'Jun 2026' && c4.bp.xLabels[c4.bp.xLabels.length - 1].label === 'Sep 2026', 'the axis names the months in words');
+    const oct = PT.monthTrends(bp, nights.concat(['2026-10-01', '2026-10-02', '2026-10-03'].map((k) => ({ night: bare(k), usageHours: 5, ahi: 1, p95Pressure: 9 }))), weights.concat([{ date: at('2026-10-01', '01:00'), weight: 125 }, { date: at('2026-10-02', '09:00'), weight: 125 }]), at('2026-10-05', '12:00'));
+    assert(oct?.apnea?.[oct.apnea.length - 1].month === '2026-10' && oct.apnea[oct.apnea.length - 1].kg === 125, 'a weigh-in at 01:00 Riyadh on the 1st is the new month\'s');
+    assert(PT.monthTrends(bp.slice(9), nights.slice(9), weights.slice(6), now) === null, 'one month: not enough data yet');
+    assert(PT.monthTrends(bp, nights.filter((_, i) => i % 3 !== 0), weights, now)?.apnea === null, 'a month with two measured nights has no AHI average');
+  }
+
+  // The real export, read as of the moment it was written.
+  {
+    const hx = data as unknown as {
+      exportedAt: string;
+      workouts: Array<{ date: string; sets: Array<{ rpe: number | null }> }>;
+      bodyStats: Array<{ date: string; weight: number | null }>;
+      health: {
+        injection: Array<{ at: string; doseMg: number }>;
+        nutritionLog: Array<{ day: string; kcal: number | null; proteinG: number | null }>;
+        cpapNight: Array<{ night: string; usageHours: number; ahi: number | null; p95Pressure: number | null }>;
+        bpReading: Array<{ at: string; systolic: number; diastolic: number }>;
+      };
+    };
+    if (hx.health?.injection?.length >= 6 && hx.health.nutritionLog?.length >= 28) {
+      const now = new Date(hx.exportedAt);
+      const fs1 = PT.foodAndScale(hx.health.nutritionLog, hx.bodyStats, now);
+      assert(fs1 !== null && fs1.weeks.length >= 4 && fs1.weeks[0].weekStart === '2026-08-31' && fs1.weeks.every((x) => x.days >= 5), `real export: at least four weeks of food with a weight change, from the week of 31 Aug (got ${fs1?.weeks.length})`);
+      const wad = PT.weekAfterDose(hx.health.injection, hx.health.nutritionLog, hx.bodyStats, now);
+      assert(wad !== null && wad.weeks >= 5 && wad.days.every((d) => (d.kcal === null || d.nKcal >= 3) && (d.kgChange === null || d.nKg >= 3)), `real export: the dose week has an average only where three weeks gave one (got ${JSON.stringify(wad?.days)})`);
+      const lv = PT.doseLevels(hx.health.injection, hx.health.nutritionLog, hx.bodyStats, now);
+      assert(lv?.length === 2 && lv[0].doseMg === 2.5 && lv[0].weeks === 4 && lv[0].kgPerWeek !== null && lv[1].doseMg === 5 && lv[1].weeks === 2 && lv[1].kgPerWeek === null, `real export: 2.5 mg × 4 weeks with a weekly change, 5 mg × 2 weeks without one yet (got ${JSON.stringify(lv)})`);
+      const sl = PT.sleepAndNextDay(hx.health.cpapNight, hx.health.bpReading, hx.workouts.map((x) => ({ date: x.date, rpes: x.sets.map((s) => s.rpe) })), now);
+      assert(sl !== null && sl.long.nights + sl.short.nights === hx.health.cpapNight.length && sl.long.hard === null && sl.short.hard === null, `real export: every reported night is on one side; too few sessions for a share (got ${JSON.stringify(sl)})`);
+      const mt = PT.monthTrends(hx.health.bpReading, hx.health.cpapNight, hx.bodyStats, now);
+      assert(mt?.bp?.length === 2 && mt.apnea?.length === 2 && PT.monthTrendCharts(mt).bp === null, 'real export: two months of pressure and apnea — rows, not a line');
+    }
+  }
+
+  // The page fetches and renders; the words stay correlation-only.
+  {
+    const page = src('src/app/health/analytics/page.tsx');
+    const lib = src('src/lib/patterns.ts');
+    const banned = /\b(because|causes?|caused|leads? to|improves?|improved|should|try|recommend\w*|better|worse)\b/i;
+    const hit = (s: string) => banned.exec(s)?.[0] ?? null;
+    assert(hit(page) === null && hit(lib) === null, `Patterns never says why and never advises: no banned word in the page or in patterns.ts (found ${hit(page) ?? hit(lib)})`);
+    assert(hit('it helps because') !== null && hit('this leads to that') !== null && hit('You should') !== null && hit('entry, retry-free, bestStreak') === null, 'the word check catches the words and not their look-alikes');
+    for (const fn of ['weekAfterDose', 'doseLevels', 'foodAndScale', 'sleepAndNextDay', 'monthTrends', 'deliveryDayPattern']) {
+      assert(new RegExp(`\\b${fn}\\(`).test(page), `the page renders ${fn}`);
+    }
+    assert(!/\.reduce\(|new Map</.test(page), 'no arithmetic over logs in the page');
+    for (const kept of ['Days after injection', 'By dose level', 'AF episodes', 'best streak', 'the full log, entry by entry']) {
+      assert(page.includes(kept), `nothing that existed is deleted: "${kept}"`);
+    }
+    assert(/more appear.{0,40}as you log symptoms and AF episodes/.test(page), 'the cards still waiting for data sit behind one collapsed line');
+    assert(/text-(red|rose)-|rpe-grind|missed/i.test(page) === false, 'zero shame: no red, no "missed"');
+    assert(/deliveryDayPattern\(/.test(src('src/app/health/diet/page.tsx')), 'the delivery-day comparison stays on Diet too');
+    assert(!/setHours|getDay\(\)|getMonth\(\)|getDate\(\)/.test(lib), 'patterns.ts never asks the server what day it is');
   }
 }
 

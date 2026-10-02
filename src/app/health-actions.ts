@@ -547,6 +547,17 @@ export async function getHealthData() {
   };
 }
 
+/** Sessions for Patterns: the stored day and each working set's rating —
+ *  nothing else. getHealthData carries no training rows. */
+export async function getPatternSessions() {
+  const rows = await prisma.workout.findMany({
+    orderBy: { date: 'desc' },
+    take: 200,
+    select: { date: true, sets: { where: { isWarmup: false }, select: { rpe: true } } },
+  });
+  return rows.map((w) => ({ date: w.date, rpes: w.sets.map((s) => s.rpe) }));
+}
+
 // ── Apple Health sync (Wave 5: routes → same-origin server actions) ──────────
 // Apple Health sync, as server actions rather than REST endpoints.
 //

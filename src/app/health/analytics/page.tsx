@@ -1,19 +1,35 @@
 import type { Metadata } from 'next';
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import BackLink from '@/components/BackLink';
-import { getHealthData } from '../../health-actions';
+import ReportChart from '@/components/health/ReportChart';
+import { getHealthData, getPatternSessions } from '../../health-actions';
 import { monthLabel, weightChangeLabel } from '@/lib/health-format';
 import {
   afCorrelates,
-  ownerMonthKey,
   cpapCompliance,
   cpapStats,
   afStats,
   dayRelativeSymptoms,
+  deliveryDayPattern,
   severityByDose,
   weightSnapshot,
   SYMPTOM_LABEL as KIND_LABEL,
 } from '@/lib/health-insights';
+import {
+  doseLevels,
+  foodAndScale,
+  foodAndScaleCharts,
+  kcalLabel,
+  kgChangeLabel,
+  monthTrendCharts,
+  monthTrends,
+  sleepAndNextDay,
+  weekAfterDose,
+  weekAfterDoseCharts,
+  weekLabel,
+  type SleepSide,
+} from '@/lib/patterns';
 
 export const metadata: Metadata = { title: 'Health Patterns' };
 export const dynamic = 'force-dynamic';
@@ -22,11 +38,56 @@ export const dynamic = 'force-dynamic';
 const heat = (v: number) =>
   v >= 2.5 ? 'bg-rpe-hard/70' : v >= 1.5 ? 'bg-rpe-med/70' : v >= 0.5 ? 'bg-acc-cyan/40' : 'bg-ink/5';
 
+/** Label left, number right, its count beside it — the Diet page's row. */
+function Row({ label, value, count }: { label: string; value: string; count?: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <span className="font-semibold text-app-tx2">{label}</span>
+      <span className="flex-none font-round font-extrabold tabular-nums">
+        {value}
+        {count && <span className="ml-1.5 text-[11px] font-semibold text-app-tx3">{count}</span>}
+      </span>
+    </div>
+  );
+}
+
+/** The chart and the sentences sit behind one tap (glance rule). */
+function More({ summary, children }: { summary: string; children: ReactNode }) {
+  return (
+    <details className="mt-3 border-t border-ink/10 pt-2">
+      <summary className="cursor-pointer text-[11px] font-bold text-app-tx3">{summary}</summary>
+      <div className="mt-1.5 space-y-2 text-[11px] leading-relaxed text-app-tx3">{children}</div>
+    </details>
+  );
+}
+
+const notYet = (what: string) => <p className="text-sm text-app-tx3">Not enough data yet · {what}</p>;
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+
+// Patterns: five questions the logs he keeps every day can answer, then one
+// collapsed line for the cards still waiting on symptom and AF logs. Every
+// number comes from src/lib/patterns.ts — this file fetches and renders.
 export default async function HealthAnalyticsPage() {
-  const data = await getHealthData();
+  const [data, sessions] = await Promise.all([getHealthData(), getPatternSessions()]);
   const injections = data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site }));
   const symptoms = data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity }));
+  const diet = data.nutrition.map((n) => ({ day: n.day, kcal: n.kcal, proteinG: n.proteinG }));
+  const nights = data.cpapNights.map((n) => ({
+    night: n.night, usageHours: n.usageHours, ahi: n.ahi, p95Pressure: n.p95Pressure,
+  }));
 
+  // The five cards.
+  const doseWeek = weekAfterDose(injections, diet, data.bodyStats);
+  const doseWeekCharts = doseWeek ? weekAfterDoseCharts(doseWeek) : null;
+  const levels = doseLevels(injections, diet, data.bodyStats);
+  const food = foodAndScale(diet, data.bodyStats);
+  const foodCharts = food ? foodAndScaleCharts(food) : null;
+  const delivery = deliveryDayPattern(diet);
+  const sleep = sleepAndNextDay(nights, data.bpReadings, sessions);
+  const months = monthTrends(data.bpReadings, nights, data.bodyStats);
+  const monthCharts = months ? monthTrendCharts(months) : null;
+
+  // The cards that were here before.
   const relative = dayRelativeSymptoms(symptoms, injections);
   const byDose = severityByDose(symptoms, injections);
   const af = afStats(data.afEpisodes);
@@ -41,56 +102,164 @@ export default async function HealthAnalyticsPage() {
     (data.profile.milestonesKg as number[] | null) ?? [],
     data.bodyStats,
   );
-
-  // Weight vs AHI: monthly averages of both, shown side by side when at
-  // least 2 months of CPAP data exist alongside weigh-ins.
-  // HIS calendar months (ownerMonthKey), never the server's: a weigh-in
-  // between 00:00 and 03:00 Riyadh on the 1st was averaged into the month
-  // before (2026-10-02).
-  const monthKey = ownerMonthKey;
-  const ahiByMonth = new Map<string, { total: number; n: number }>();
-  for (const n of data.cpapNights) {
-    if (n.ahi == null) continue;
-    const k = monthKey(new Date(n.night));
-    const cur = ahiByMonth.get(k) ?? { total: 0, n: 0 };
-    cur.total += n.ahi; cur.n += 1;
-    ahiByMonth.set(k, cur);
-  }
-  // The pressure the machine had to reach. AHI is already treated to
-  // normal, so it is a floored metric; required pressure still has room to
-  // fall as weight does (owner's per-night screens, 2026-09-07).
-  const pressByMonth = new Map<string, { total: number; n: number }>();
-  for (const n of data.cpapNights) {
-    if (n.p95Pressure == null) continue;
-    const k = monthKey(new Date(n.night));
-    const cur = pressByMonth.get(k) ?? { total: 0, n: 0 };
-    cur.total += n.p95Pressure; cur.n += 1;
-    pressByMonth.set(k, cur);
-  }
-  const weightByMonth = new Map<string, { total: number; n: number }>();
-  for (const b of data.bodyStats) {
-    if (b.weight == null) continue;
-    const k = monthKey(new Date(b.date));
-    const cur = weightByMonth.get(k) ?? { total: 0, n: 0 };
-    cur.total += b.weight; cur.n += 1;
-    weightByMonth.set(k, cur);
-  }
-  const cpapMonths = [...ahiByMonth.keys()]
-    .filter((k) => weightByMonth.has(k))
-    .sort()
-    .slice(-6)
-    .map((k) => ({
-      month: k,
-      ahi: Math.round((ahiByMonth.get(k)!.total / ahiByMonth.get(k)!.n) * 10) / 10,
-      weight: Math.round((weightByMonth.get(k)!.total / weightByMonth.get(k)!.n) * 10) / 10,
-      press: pressByMonth.has(k)
-        ? Math.round((pressByMonth.get(k)!.total / pressByMonth.get(k)!.n) * 10) / 10
-        : null,
-    }));
-
   const relativeKinds = Object.entries(relative).filter(([, cells]) =>
     cells.some((c) => c.count >= 2),
   );
+
+  /* Side effects relative to injection day */
+  const relativeCard = (
+    <div className="card-lg p-4" key="relative">
+      <p className="section-label mb-1">Days after injection</p>
+      {relativeKinds.length === 0 ? (
+        <p className="text-sm text-app-tx3">
+          Not enough data yet · a few weeks of symptom logs
+        </p>
+      ) : (
+        <>
+          <div className="mb-1.5 flex items-center gap-2 pl-24 pr-1">
+            {Array.from({ length: 8 }, (_, i) => (
+              <span key={i} className="flex-1 text-center text-[9px] font-bold text-app-tx3">
+                {i === 0 ? 'D0' : `+${i}`}
+              </span>
+            ))}
+          </div>
+          <div className="space-y-1.5">
+            {relativeKinds.map(([kind, cells]) => {
+              const byOffset = new Map(cells.map((c) => [c.offset, c]));
+              return (
+                <div key={kind} className="flex items-center gap-2">
+                  <span className="w-22 min-w-[5.5rem] text-xs font-semibold text-app-tx2">
+                    {KIND_LABEL[kind] ?? kind}
+                  </span>
+                  <div className="flex flex-1 gap-1">
+                    {Array.from({ length: 8 }, (_, offset) => {
+                      const cell = byOffset.get(offset);
+                      return (
+                        // Value in the cell, not a title tooltip — there
+                        // is no hover on a phone (device-tester).
+                        <div
+                          key={offset}
+                          className={`flex h-6 flex-1 items-center justify-center rounded text-[8px] font-bold text-app-tx1/80 ${heat(cell?.avgSeverity ?? 0)}`}
+                        >
+                          {cell ? cell.avgSeverity : ''}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[10px] text-app-tx3">
+            Cell = average logged severity on that day after an injection.
+          </p>
+        </>
+      )}
+    </div>
+  );
+
+  /* Severity by dose */
+  const symptomDoseCard = (
+    <div className="card-lg p-4" key="symptom-dose">
+      <p className="section-label mb-1">By dose level</p>
+      {Object.keys(byDose).length === 0 ? (
+        <p className="text-sm text-app-tx3">
+          Not enough data yet · 3+ logs per dose level
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {Object.entries(byDose).map(([kind, rows]) => (
+            <div key={kind} className="flex items-baseline justify-between text-sm">
+              <span className="font-semibold text-app-tx1">{KIND_LABEL[kind] ?? kind}</span>
+              <span className="text-xs tabular-nums text-app-tx2">
+                {rows.map((r) => `${r.doseMg} mg: avg ${r.avgSeverity} (${r.n})`).join(' · ')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  /* AF */
+  const afCard = (
+    <div className="card-lg p-4" key="af">
+      <p className="section-label mb-1">AF episodes</p>
+      <div className="flex items-baseline gap-4">
+        <div>
+          <div className="metric-value text-app-tx1">{af.thisMonth}</div>
+          <div className="metric-label">this month</div>
+        </div>
+        <div>
+          <div className="metric-value text-app-tx2">{af.lastMonth}</div>
+          <div className="metric-label">last month</div>
+        </div>
+        {af.perMonth.length >= 2 && (
+          <div className="ml-auto flex items-end gap-1">
+            {af.perMonth.slice(-6).map((m) => (
+              <div key={m.month} className="flex flex-col items-center gap-0.5">
+                <div
+                  className="w-4 rounded-t bg-rpe-hard/60"
+                  style={{ height: `${Math.min(40, 6 + m.count * 8)}px` }}
+                />
+                <span className="text-[8px] font-bold text-app-tx3">{m.count}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="mt-3 border-t border-ink/10 pt-3">
+        {correlates === null ? (
+          <p className="text-sm text-app-tx3">
+            Not enough data yet · 5+ episodes with circumstances logged
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {correlates.map((c) => (
+              <div key={c.label} className="flex items-center gap-2 text-sm">
+                <span className="w-32 flex-none text-xs text-app-tx2">{c.label}</span>
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/10">
+                  <div
+                    className="h-full rounded-full bg-rpe-hard/70"
+                    style={{ width: `${Math.round((c.hits / c.answered) * 100)}%` }}
+                  />
+                </div>
+                <span className="w-14 flex-none text-right text-xs tabular-nums text-app-tx1">
+                  {c.hits} of {c.answered}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // A card with data shows as a card; one still waiting moves behind the line.
+  const older = [
+    { card: relativeCard, has: relativeKinds.length > 0 },
+    { card: symptomDoseCard, has: Object.keys(byDose).length > 0 },
+    { card: afCard, has: correlates !== null },
+  ];
+  const waiting = older.filter((o) => !o.has);
+
+  const sleepCell = (title: string, s: SleepSide) => (
+    <div>
+      <p className="text-[11px] font-bold text-app-tx2">
+        {title} · {plural(s.nights, 'night')}
+      </p>
+      <p className="metric-value mt-1">{s.bp ? `${s.bp.systolic}/${s.bp.diastolic}` : '—'}</p>
+      <p className="metric-label">next-day BP{s.bp ? ` × ${s.bp.n}` : ''}</p>
+      <p className="metric-value mt-2">{s.hard ? `${s.hard.pct}%` : '—'}</p>
+      <p className="metric-label">sets Hard or above{s.hard ? ` × ${s.hard.sets}` : ''}</p>
+    </div>
+  );
+
+  const bpMonths = months?.bp ?? null;
+  const apneaMonths = months?.apnea ?? null;
+  const hasMonthLine = !!monthCharts && (monthCharts.bp !== null || monthCharts.apnea !== null);
+  /** First and latest month when a line exists; every month otherwise. */
+  const ends = <T,>(rows: T[]): T[] => (hasMonthLine && rows.length > 2 ? [rows[0], rows[rows.length - 1]] : rows.slice(-6));
 
   return (
     <div className="space-y-4 pb-8">
@@ -102,142 +271,190 @@ export default async function HealthAnalyticsPage() {
         </h1>
       </div>
 
-      {/* Side effects relative to injection day */}
+      {/* 1 · The week after a dose */}
       <div className="card-lg p-4">
-        <p className="section-label mb-1">Days after injection</p>
-        {relativeKinds.length === 0 ? (
-          <p className="text-sm text-app-tx3">
-            Not enough data yet · a few weeks of symptom logs
-          </p>
-        ) : (
+        <p className="section-label mb-2">The week after a dose</p>
+        {doseWeek && doseWeekCharts ? (
           <>
-            <div className="mb-1.5 flex items-center gap-2 pl-24 pr-1">
-              {Array.from({ length: 8 }, (_, i) => (
-                <span key={i} className="flex-1 text-center text-[9px] font-bold text-app-tx3">
-                  {i === 0 ? 'D0' : `+${i}`}
-                </span>
-              ))}
+            <div className="space-y-1.5 text-sm text-app-tx1">
+              <Row
+                label={`Lowest · day ${doseWeek.low.offset}`}
+                value={`${kcalLabel(doseWeek.low.kcal)} kcal`}
+                count={`× ${doseWeek.low.n}`}
+              />
+              {doseWeek.other && (
+                <Row
+                  label={doseWeek.other.after ? `Up to, by day ${doseWeek.other.offset}` : `Highest · day ${doseWeek.other.offset}`}
+                  value={`${kcalLabel(doseWeek.other.kcal)} kcal`}
+                  count={`× ${doseWeek.other.n}`}
+                />
+              )}
             </div>
-            <div className="space-y-1.5">
-              {relativeKinds.map(([kind, cells]) => {
-                const byOffset = new Map(cells.map((c) => [c.offset, c]));
-                return (
-                  <div key={kind} className="flex items-center gap-2">
-                    <span className="w-22 min-w-[5.5rem] text-xs font-semibold text-app-tx2">
-                      {KIND_LABEL[kind] ?? kind}
+            <More summary={`Day by day · ${plural(doseWeek.weeks, 'dose week')}`}>
+              {doseWeekCharts.kcal && <ReportChart spec={doseWeekCharts.kcal} />}
+              {doseWeekCharts.weight && <ReportChart spec={doseWeekCharts.weight} />}
+              <div className="space-y-1 text-xs">
+                {doseWeek.days.map((d) => (
+                  <div key={d.offset} className="flex items-baseline justify-between gap-2">
+                    <span className="text-app-tx3">Day {d.offset}</span>
+                    <span className="tabular-nums text-app-tx1">
+                      {d.kcal !== null ? `${kcalLabel(d.kcal)} kcal × ${d.nKcal}` : '—'}
                     </span>
-                    <div className="flex flex-1 gap-1">
-                      {Array.from({ length: 8 }, (_, offset) => {
-                        const cell = byOffset.get(offset);
-                        return (
-                          // Value in the cell, not a title tooltip — there
-                          // is no hover on a phone (device-tester).
-                          <div
-                            key={offset}
-                            className={`flex h-6 flex-1 items-center justify-center rounded text-[8px] font-bold text-app-tx1/80 ${heat(cell?.avgSeverity ?? 0)}`}
-                          >
-                            {cell ? cell.avgSeverity : ''}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <span className="tabular-nums text-app-tx2">
+                      {d.kgChange !== null ? `${kgChangeLabel(d.kgChange)} × ${d.nKg}` : '—'}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-            <p className="mt-2 text-[10px] text-app-tx3">
-              Cell = average logged severity on that day after an injection.
-            </p>
-          </>
-        )}
-      </div>
-
-      {/* Severity by dose */}
-      <div className="card-lg p-4">
-        <p className="section-label mb-1">By dose level</p>
-        {Object.keys(byDose).length === 0 ? (
-          <p className="text-sm text-app-tx3">
-            Not enough data yet · 3+ logs per dose level
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {Object.entries(byDose).map(([kind, rows]) => (
-              <div key={kind} className="flex items-baseline justify-between text-sm">
-                <span className="font-semibold text-app-tx1">{KIND_LABEL[kind] ?? kind}</span>
-                <span className="text-xs tabular-nums text-app-tx2">
-                  {rows.map((r) => `${r.doseMg} mg: avg ${r.avgSeverity} (${r.n})`).join(' · ')}
-                </span>
+                ))}
               </div>
-            ))}
+              <p>
+                Day 0 is the day of the injection on your calendar. Each figure is the average of the
+                days logged that far from a dose, and × is how many. The scale is read against the
+                weigh-in of the dose day; a week with no weigh-in that day is left out, and nothing
+                is filled in. A figure needs 3 days, a line needs 4 points.
+              </p>
+              <p>Seen together in your logs — not a reason.</p>
+            </More>
+          </>
+        ) : (
+          notYet('3 dose weeks of logged food')
+        )}
+      </div>
+
+      {/* 2 · What each dose level did */}
+      <div className="card-lg p-4">
+        <p className="section-label mb-2">What each dose level did</p>
+        {levels ? (
+          <>
+            <div className="space-y-3">
+              {levels.map((l) => (
+                <div key={l.doseMg} className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="metric-value">{l.doseMg}</p>
+                    <p className="metric-label">mg · {plural(l.weeks, 'week')}</p>
+                  </div>
+                  <div>
+                    <p className="metric-value">{l.kgPerWeek !== null ? kgChangeLabel(l.kgPerWeek).replace(' kg', '') : '—'}</p>
+                    <p className="metric-label">kg a week × {l.weightWeeks}</p>
+                  </div>
+                  <div>
+                    <p className="metric-value">{l.avgKcal !== null ? kcalLabel(l.avgKcal) : '—'}</p>
+                    <p className="metric-label">kcal a day × {l.kcalDays}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <More summary="How the weeks are counted">
+              <p>
+                A week runs from a dose day to the day before the next dose, 7 days at most, and
+                belongs to the dose that opened it. Its change on the scale is read from the first
+                and last weigh-in of that week, at least 5 days apart, scaled to 7 days; × is the
+                weeks that had one. kcal is the average of the logged days, × the days. A figure
+                needs 3 weeks or 3 days — until then it shows a dash beside its count.
+              </p>
+              <p>Numbers for the doctor review. The app does not rank dose levels.</p>
+            </More>
+          </>
+        ) : (
+          notYet('a dose and 3 logged days after it')
+        )}
+      </div>
+
+      {/* 3 · Food and the scale */}
+      <div className="card-lg p-4">
+        <p className="section-label mb-2">Food and the scale</p>
+        {food && foodCharts ? (
+          <>
+            <div className="space-y-1.5 text-sm text-app-tx1">
+              {[food.low, food.high].map((b, i) => (
+                <Row
+                  key={i}
+                  label={
+                    b.n > 1
+                      ? `Weeks around ${kcalLabel(b.kcal)} kcal`
+                      : `${i === 0 ? 'Lightest' : 'Fullest'} week · ${kcalLabel(b.kcal)} kcal`
+                  }
+                  value={kgChangeLabel(b.kgChange)}
+                  count={`× ${b.n}`}
+                />
+              ))}
+            </div>
+            <More summary={`Week by week · ${plural(food.weeks.length, 'week')}`}>
+              {foodCharts.kcal && <ReportChart spec={foodCharts.kcal} />}
+              {foodCharts.weight && <ReportChart spec={foodCharts.weight} />}
+              <div className="space-y-1 text-xs">
+                {food.weeks.map((w) => (
+                  <div key={w.weekStart} className="flex items-baseline justify-between gap-2">
+                    <span className="text-app-tx3">{weekLabel(w.weekStart)}</span>
+                    <span className="tabular-nums text-app-tx1">{kcalLabel(w.kcal)} kcal × {w.days}</span>
+                    <span className="tabular-nums text-app-tx2">{w.proteinG !== null ? `${w.proteinG} g` : '—'}</span>
+                    <span className="tabular-nums text-app-tx1">{kgChangeLabel(w.kgChange)}</span>
+                  </div>
+                ))}
+              </div>
+              <p>
+                A week is Monday to Sunday and counts with 5 or more logged days; × is the days.
+                The grams are protein. The change is from the first to the last weigh-in between
+                that Monday and the next, at least 5 days apart, scaled to 7 days. With 6 or more
+                weeks the lower and the upper half are averaged; before that the lightest and the
+                fullest week stand alone.
+              </p>
+              <p>Seen together in your logs — water moves the scale as much as food does.</p>
+            </More>
+          </>
+        ) : (
+          notYet('4 weeks with 5+ logged days and weigh-ins')
+        )}
+        {delivery && (
+          <div className="mt-3 space-y-1.5 border-t border-ink/10 pt-3 text-sm text-app-tx1">
+            <Row label="Sun–Thu (delivered)" value={`${kcalLabel(delivery.deliveryAvg)} kcal`} count={`× ${delivery.nDelivery}`} />
+            <Row label="Fri–Sat (yours)" value={`${kcalLabel(delivery.ownAvg)} kcal`} count={`× ${delivery.nOwn}`} />
           </div>
         )}
       </div>
 
-      {/* AF */}
+      {/* 4 · Sleep and the next day */}
       <div className="card-lg p-4">
-        <p className="section-label mb-1">AF episodes</p>
-        <div className="flex items-baseline gap-4">
-          <div>
-            <div className="metric-value text-app-tx1">{af.thisMonth}</div>
-            <div className="metric-label">this month</div>
-          </div>
-          <div>
-            <div className="metric-value text-app-tx2">{af.lastMonth}</div>
-            <div className="metric-label">last month</div>
-          </div>
-          {af.perMonth.length >= 2 && (
-            <div className="ml-auto flex items-end gap-1">
-              {af.perMonth.slice(-6).map((m) => (
-                <div key={m.month} className="flex flex-col items-center gap-0.5">
-                  <div
-                    className="w-4 rounded-t bg-rpe-hard/60"
-                    style={{ height: `${Math.min(40, 6 + m.count * 8)}px` }}
-                  />
-                  <span className="text-[8px] font-bold text-app-tx3">{m.count}</span>
-                </div>
-              ))}
+        <p className="section-label mb-2">Sleep and the next day</p>
+        {sleep ? (
+          <>
+            <div className="grid grid-cols-2 gap-2 text-center">
+              {sleepCell('4 h or more', sleep.long)}
+              {sleepCell('Under 4 h', sleep.short)}
             </div>
-          )}
-        </div>
-        <div className="mt-3 border-t border-ink/10 pt-3">
-          {correlates === null ? (
-            <p className="text-sm text-app-tx3">
-              Not enough data yet · 5+ episodes with circumstances logged
-            </p>
-          ) : (
-            <div className="space-y-1.5">
-              {correlates.map((c) => (
-                <div key={c.label} className="flex items-center gap-2 text-sm">
-                  <span className="w-32 flex-none text-xs text-app-tx2">{c.label}</span>
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/10">
-                    <div
-                      className="h-full rounded-full bg-rpe-hard/70"
-                      style={{ width: `${Math.round((c.hits / c.answered) * 100)}%` }}
-                    />
-                  </div>
-                  <span className="w-14 flex-none text-right text-xs tabular-nums text-app-tx1">
-                    {c.hits} of {c.answered}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+            <More summary="What is counted">
+              <p>
+                Nights are split by mask time: 4 h or more, and under 4 h; × is the nights. The
+                pressure is the average reading on the day the night ended, × the days that had
+                one. The share is of rated working sets in a session on that day, × the sets. A
+                pressure needs 3 days; a share needs 3 sessions and 5 rated sets — until then it
+                shows a dash.
+              </p>
+              <p>Seen together in your logs — not a reason.</p>
+            </More>
+          </>
+        ) : (
+          notYet('4 nights on each side of 4 h')
+        )}
       </div>
 
-      {/* Weight vs AHI */}
+      {/* 5 · Pressure and apnea as the weight falls */}
       <div className="card-lg p-4">
-        <p className="section-label mb-1">Weight × sleep apnea</p>
-        {cpapMonths.length < 2 ? (
-          <p className="text-sm text-app-tx3">
-            Not enough data yet · 2 months of CPAP + weigh-ins
-          </p>
+        <p className="section-label mb-2">Pressure and apnea as the weight falls</p>
+        {!bpMonths && !apneaMonths ? (
+          notYet('2 months of BP or CPAP with weigh-ins')
         ) : (
           <div className="space-y-1.5">
-            {cpapMonths.map((m) => (
-              <div key={m.month} className="flex items-baseline justify-between text-sm">
+            {bpMonths && ends(bpMonths).map((m) => (
+              <div key={`bp${m.month}`} className="flex items-baseline justify-between text-sm">
                 <span className="text-xs text-app-tx3">{monthLabel(m.month)}</span>
-                <span className="tabular-nums text-app-tx1">{m.weight} kg</span>
+                <span className="tabular-nums text-app-tx1">{m.kg} kg</span>
+                <span className="tabular-nums text-app-tx2">BP {m.systolic}/{m.diastolic}</span>
+              </div>
+            ))}
+            {apneaMonths && ends(apneaMonths).map((m) => (
+              <div key={`ap${m.month}`} className="flex items-baseline justify-between text-sm">
+                <span className="text-xs text-app-tx3">{monthLabel(m.month)}</span>
+                <span className="tabular-nums text-app-tx1">{m.kg} kg</span>
                 <span className="tabular-nums text-app-tx2">AHI {m.ahi}</span>
                 {m.press != null && (
                   <span className="tabular-nums text-app-tx3">{m.press} hPa</span>
@@ -246,12 +463,27 @@ export default async function HealthAnalyticsPage() {
             ))}
           </div>
         )}
+        {hasMonthLine && monthCharts && (
+          <More summary="The months as lines">
+            {monthCharts.weight && <ReportChart spec={monthCharts.weight} />}
+            {monthCharts.bp && <ReportChart spec={monthCharts.bp} />}
+            {monthCharts.apnea && <ReportChart spec={monthCharts.apnea} />}
+            <p>
+              Each point is a month&apos;s average. A BP month needs 3 readings, an AHI month 3
+              measured nights, and both need 2 weigh-ins. A line needs 4 months.
+            </p>
+            <p>Seen together in your logs — not a reason.</p>
+          </More>
+        )}
         {weight && (
           <p className="mt-2 border-t border-ink/10 pt-2 text-[11px] text-app-tx3">
             Total so far: {weightChangeLabel(weight.lostKg, weight.pctLost)}.
           </p>
         )}
       </div>
+
+      {older.filter((o) => o.has).map((o) => o.card)}
+
       {mask.monthLogged > 0 && (
         <div className="card-lg p-4">
           {/* Nights arrive in a weekly report: before the first one of a
@@ -285,6 +517,16 @@ export default async function HealthAnalyticsPage() {
             </details>
           )}
         </div>
+      )}
+
+      {/* Everything still waiting for data: one line, the cards behind it. */}
+      {waiting.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-center text-xs font-bold text-app-tx3">
+            {waiting.length} more appear{waiting.length === 1 ? 's' : ''} as you log symptoms and AF episodes
+          </summary>
+          <div className="mt-4 space-y-4">{waiting.map((o) => o.card)}</div>
+        </details>
       )}
 
       <Link href="/health/timeline" className="block text-center text-xs font-bold text-app-tx3">
