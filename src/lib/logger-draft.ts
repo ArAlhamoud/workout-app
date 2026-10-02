@@ -361,6 +361,18 @@ export const plainSaveId = (id: string): boolean => id.length > 0 && !/[~%_]/.te
 /** What follows the posted id in a derived one: `~YYYY-MM-DD`, nothing else. */
 export const SAVE_ID_FAMILY = /^~\d{4}-\d{2}-\d{2}$/;
 
+/**
+ * May a saved row be written to Apple Health? Health cannot be undone
+ * (rule 11), so a stray-tick row — fewer than three working sets — never
+ * is. Not the full evidence bar: that also hid a real short session
+ * (twenty minutes, three machines × one set, unrated) from Health for
+ * good, and main wrote those (review round 3, 2026-10-02).
+ */
+export const HEALTH_PUSH_MIN_WORKING_SETS = 3;
+export function healthPushable(sets: Array<{ isWarmup?: boolean | null }>): boolean {
+  return sets.filter((s) => !s.isWarmup).length >= HEALTH_PUSH_MIN_WORKING_SETS;
+}
+
 /** A split-off sitting must hold at least this many working sets. */
 export const SPLIT_MIN_WORKING_SETS = 4;
 
@@ -452,44 +464,59 @@ const gapBetween = (a: number[], b: number[]): number => {
 
 /**
  * One save id, one session: every posted set goes to the workout of the
- * sitting it was lifted in. A draft once kept the id of a workout saved
+ * session it was lifted in. A draft once kept the id of a workout saved
  * days before — a tick was merged over the OLD workout's set, or Save came
  * back `deduped` with nothing stored and the form cleared the draft
- * (2026-10-02). And a draft that was started, never saved and finished
- * three days later saved both days under the old date: the plan read "4
- * days since Day B" the morning after he trained (trainer, same day).
+ * (2026-10-02). And a draft started, never saved and finished three days
+ * later saved both days under the old date.
  *
- * But a split is the EXCEPTION. The first router cut every payload at
- * every gap: a machine he forgot and ticked the next morning became a
- * second workout dated today (and, rated, a session — done-today, a ramp
- * step); a back-fill ticked across two evenings became two; a warm-up
- * ticked at 02:00 became a one-set row (adversary's probe, same day).
+ * But a split is the EXCEPTION, and a WORKOUT is a SESSION. Earlier
+ * versions cut every payload at every gap (a forgotten machine ticked the
+ * next morning became a second workout; a warm-up ticked at 02:00 a
+ * one-set row), then guarded only the split-off piece (two rated sets
+ * yesterday, interrupted, plus a ten-set session today were two ramp
+ * sessions on consecutive days), and let one old tick in a hand-dated
+ * payload drag the whole session into the old workout (three review
+ * rounds, same day).
  *
  * THE RULE, in order. `known` is the workout saved under the posted id and
- * every one derived from it.
- *   1. A date he set by hand: ONE workout, never split, never re-dated —
- *      the posted id, or (that id being another session's) a new one on
- *      the date he set.
- *   2. A posted set whose tick a known workout already holds (same key,
- *      same moment) goes back to that workout. A second finisher's copies
- *      can never land in two.
- *   3. The rest is cut into sittings (sittingsOf). A sitting within the
- *      grace of a known workout's sets, else one dated the sitting's day,
- *      goes to that workout — the nearest; ties by id order.
- *   4. Of the sittings still unplaced, the MAIN one is the sitting on the
- *      payload's date. With none on that date and nothing saved under the
- *      id, the date was not the ticks' (a back-fill): everything is one
- *      workout on the payload's date. With the id already another
- *      session's, the main sitting is the largest, saved under a derived
- *      id on its own day.
- *   5. Any other unplaced sitting FOLDS into main — unless it is a session
- *      of its own (sessionOfItsOwn) on another activity day: only then is
- *      it a new workout, under the derived id, dated the day it was lifted.
- *   6. Sets with no stamp go by the payload's date.
+ * every one derived from it (the "family").
+ *   1. A posted set whose tick a family workout already holds (same key,
+ *      same moment) goes back to that workout — always, first.
+ *   2. The rest is cut into sittings (sittingsOf). A sitting within the
+ *      grace of a family workout's sets goes to it (the nearest; ties by
+ *      id order).
+ *   3. A date he set BY HAND: everything still unplaced, stamped or not,
+ *      is ONE workout on that date — the family workout dated that day,
+ *      else the posted id, else (the id being another session's) a new
+ *      workout under the derived id. Never split, never re-dated, and the
+ *      target is never chosen from the ticks of rule 1.
+ *   Otherwise:
+ *   4. A sitting on a family workout's day goes to that workout.
+ *   5. Of the sittings still unplaced, each one that is a session of its
+ *      own (sessionOfItsOwn) is a workout dated ITS OWN activity day; a
+ *      sitting that is not a session folds into the nearest such sitting
+ *      in time (ties: the later). The posted id, when nothing is saved
+ *      under it, goes to the earliest session; every other gets the
+ *      derived id of its day. So two ticks on 2 Oct and a full session on
+ *      5 Oct are one workout dated 5 Oct.
+ *      Three cases keep the payload's own date, exactly as before this
+ *      router existed, under the posted id when nothing is saved under it:
+ *        - a single unplaced sitting (the ordinary save);
+ *        - no sitting is a session;
+ *        - no sitting falls on the payload's date (a back-fill from a
+ *          client that sent no hand flag).
+ *      With the id already another day's workout and no session among
+ *      them, they are one new workout dated the LATEST sitting's day.
+ *   6. Sets with no stamp follow the payload's stamped sets when those all
+ *      went to one workout; else the family workout on the payload's date;
+ *      else the posted id — its own workout when that is dated within a
+ *      day of the payload (a second finisher's copy of the same session),
+ *      a derived id only when it is provably another session's.
  *
- * Replay-stable: once saved, every set is found again by rule 2, and
- * rules 3–5 read only the payload and each workout's date. `deduped`
- * stays a success for the SAME sitting (rule 8).
+ * Replay-stable: once saved, every stamped set is found again by rule 1,
+ * and rules 2–6 read only the payload and each workout's date. `deduped`
+ * stays a success for the SAME session (rule 8).
  */
 export function routeSets<T extends Stamped>(
   rootId: string,
@@ -531,61 +558,89 @@ export function routeSets<T extends Stamped>(
     return dated ? { saveId: dated.saveId, day: null } : { saveId: rehomedSaveId(rootId, day), day };
   };
 
-  // 1 — his date.
-  if (byHand) {
-    // …into the family workout that already holds one of its ticks, or
-    // stands within the grace of them, or is dated that day (the other
-    // finisher's copy of this session); else the posted id; else — the id
-    // being another session's — a new workout on the date he set.
-    const stamps = sets.map((x) => stampMs(x.completedAt)).filter((t): t is number => t != null);
-    const theirs = fam.find((k) => sets.some((x) => holds(k, x))) ?? nearestOf(stamps) ?? fam.find((k) => k.day === payloadDay) ?? null;
-    const to = theirs ? { saveId: theirs.saveId, day: null } : root ? onDay(payloadDay) : { saveId: rootId, day: null };
-    put(to.saveId, to.day, sets);
-    return out;
-  }
+  const DAY_MS = 86_400_000;
+  const daysApart = (x: string, y: string) => Math.abs(Date.parse(`${x}T00:00:00Z`) - Date.parse(`${y}T00:00:00Z`)) / DAY_MS;
+  /** The workouts that received a STAMPED set — what unstamped ones follow. */
+  const stampedTo = new Set<string>();
+  const putStamped = (saveId: string, day: string | null, add: T[]) => { if (add.length) stampedTo.add(saveId); put(saveId, day, add); };
 
-  // 2 — ticks already saved.
+  // 1 — ticks already saved go home.
   const rest: T[] = [];
   for (const x of sets) {
     const holder = fam.find((k) => holds(k, x));
-    if (holder) put(holder.saveId, null, [x]);
+    if (holder) putStamped(holder.saveId, null, [x]);
     else rest.push(x);
   }
 
-  // 3 — sittings a known workout claims.
+  // 2 — sittings within the grace of a family workout.
   const { sittings, unstamped } = sittingsOf(rest, dayOf);
-  const free: typeof sittings = [];
+  const unplaced: typeof sittings = [];
   for (const s of sittings) {
-    const k = nearestOf(s.stamps) ?? fam.find((x) => x.day === s.day) ?? null;
-    if (k) put(k.saveId, null, s.sets);
+    const k = nearestOf(s.stamps);
+    if (k) putStamped(k.saveId, null, s.sets);
+    else unplaced.push(s);
+  }
+
+  // 3 — his date: what is left is one workout on it.
+  if (byHand) {
+    const unit = [...unplaced.flatMap((s) => s.sets), ...unstamped];
+    if (unit.length) {
+      const dated = fam.find((k) => k.day === payloadDay);
+      // Nothing stamped left, and the posted id's workout is dated the day
+      // next door: the other finisher's unstamped copy of that session.
+      const adjacent = !unplaced.length && root && daysApart(root.day, payloadDay) <= 1 ? root : null;
+      const home = dated ?? adjacent;
+      const to = home ? { saveId: home.saveId, day: null } : root ? onDay(payloadDay) : { saveId: rootId, day: null };
+      put(to.saveId, to.day, unit);
+    }
+    return out;
+  }
+
+  // 4 — a sitting on a family workout's day.
+  const free: typeof sittings = [];
+  for (const s of unplaced) {
+    const k = fam.find((x) => x.day === s.day);
+    if (k) putStamped(k.saveId, null, s.sets);
     else free.push(s);
   }
 
-  // 4, 5 — the main sitting, and what folds into it.
-  let loose: { saveId: string; day: string | null } | null = null;
+  // 5 — a workout per session; the rest folds.
   if (free.length) {
-    const dated = free.find((s) => s.day === payloadDay);
-    if (!root && !dated) {
-      loose = { saveId: rootId, day: null };
-      for (const s of free) put(rootId, null, s.sets);
+    const sessions = free.filter((s) => sessionOfItsOwn(s.sets));
+    const asOnMain = !root && (free.length === 1 || !sessions.length || !free.some((s) => s.day === payloadDay));
+    if (asOnMain) {
+      for (const s of free) putStamped(rootId, null, s.sets);
+    } else if (!sessions.length) {
+      const latest = free.reduce((m, s) => (s.stamps[0] > m.stamps[0] ? s : m));
+      const to = onDay(latest.day);
+      for (const s of free) putStamped(to.saveId, to.day, s.sets);
     } else {
-      const working = (s: (typeof free)[number]) => s.sets.filter((x) => !x.isWarmup).length;
-      const main = dated ?? free.reduce((m, s) => (working(s) > working(m) || (working(s) === working(m) && s.stamps[0] > m.stamps[0]) ? s : m));
-      const mainTo = root ? onDay(main.day) : { saveId: rootId, day: null };
-      if (main.day === payloadDay) loose = mainTo;
-      put(mainTo.saveId, mainTo.day, main.sets);
+      const earliest = sessions.reduce((m, s) => (s.stamps[0] < m.stamps[0] ? s : m));
+      const target = new Map(sessions.map((s) => [s, !root && s === earliest ? { saveId: rootId, day: s.day === payloadDay ? null : s.day } : onDay(s.day)] as const));
+      for (const s of sessions) { const to = target.get(s)!; putStamped(to.saveId, to.day, s.sets); }
       for (const s of free) {
-        if (s === main) continue;
-        const to = s.day !== main.day && sessionOfItsOwn(s.sets) ? onDay(s.day) : mainTo;
-        put(to.saveId, to.day, s.sets);
+        if (target.has(s)) continue;
+        let best = sessions[0];
+        let bestGap = gapBetween(best.stamps, s.stamps);
+        for (const c of sessions.slice(1)) {
+          const gap = gapBetween(c.stamps, s.stamps);
+          if (gap < bestGap || (gap === bestGap && c.stamps[0] > best.stamps[0])) { best = c; bestGap = gap; }
+        }
+        const to = target.get(best)!;
+        putStamped(to.saveId, to.day, s.sets);
       }
     }
   }
 
-  // 6 — no stamp: the payload's date.
+  // 6 — no stamp.
   if (unstamped.length) {
     const dated = fam.find((k) => k.day === payloadDay);
-    const to = dated ? { saveId: dated.saveId, day: null } : loose ?? (root ? onDay(payloadDay) : { saveId: rootId, day: null });
+    let to: { saveId: string; day: string | null };
+    if (stampedTo.size === 1) to = { saveId: [...stampedTo][0], day: null };
+    else if (dated) to = { saveId: dated.saveId, day: null };
+    else if (!root) to = { saveId: rootId, day: null };
+    else if (!stampedTo.size && daysApart(root.day, payloadDay) <= 1) to = { saveId: rootId, day: null };
+    else to = onDay(payloadDay);
     put(to.saveId, to.day, unstamped);
   }
   return out;
@@ -619,12 +674,22 @@ export function datedName(name: string, day: string): string {
   return `${name.replace(/\s+—\s+[^—]*$/, '')} — ${label}`;
 }
 
-/** A sitting's length from its own stamps, in seconds — the payload's
- *  duration belongs to the sitting being finished, not to the other day's.
- *  null with fewer than two stamps. */
+/**
+ * A workout's length from its sets' stamps, in seconds: the span of its
+ * LARGEST run of sets with no gap over the grace (ties: the later). A
+ * workout can hold a folded tick from days before — its length is its
+ * session's, not three days. null with fewer than two stamps in that run.
+ */
 export function sittingSeconds(sets: Stamped[]): number | null {
-  const ts = sets.map((s) => stampMs(s.completedAt)).filter((t): t is number => t != null);
-  return ts.length >= 2 ? Math.round((Math.max(...ts) - Math.min(...ts)) / 1000) : null;
+  const ts = sets.map((s) => stampMs(s.completedAt)).filter((t): t is number => t != null).sort((a, b) => a - b);
+  let best: number[] = [];
+  let run: number[] = [];
+  for (const t of ts) {
+    if (run.length && t - run[run.length - 1] > SAME_SESSION_GRACE_MS) run = [];
+    run.push(t);
+    if (run.length >= best.length) best = run;
+  }
+  return best.length >= 2 ? Math.round((best[best.length - 1] - best[0]) / 1000) : null;
 }
 
 /**

@@ -698,7 +698,10 @@ export default function WorkoutForm({
       const next = relaid ? stripDueWarmups(mergeDraftIntoPlan(stored, freshBlocks(), away ? undefined : relay)) : stored;
       setName(plan.refit ? renameForDuration(draft.name ?? initialName, durationMin) : draft.name ?? initialName);
       setDate(draft.date ?? today);
-      dateByHandRef.current = draft.dateByHand === true;
+      // His date stays his only on the day he set it: a draft from an older
+      // day must not carry the flag into a new one (he edits the field
+      // again, or the server dates the session by its sets).
+      dateByHandRef.current = draft.dateByHand === true && !plan.represcribe;
       setNotes(draft.notes ?? '');
       // Sync the ref too, or the gym-change effect reads the restore as a
       // switch and refetches weights over the draft's own numbers.
@@ -769,6 +772,7 @@ export default function WorkoutForm({
         setName(initialName);
         setNotes('');
         setDate(today);
+        dateByHandRef.current = false;
         lastGymRef.current = DEFAULT_GYM_ID;
         setGym(DEFAULT_GYM_ID);
         // Back to B_Fit wholesale: a restored Alrajhi draft's context fetch

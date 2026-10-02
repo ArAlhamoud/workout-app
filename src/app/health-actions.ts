@@ -5,7 +5,7 @@
 // The app is a tracker, not a diagnostic tool — nothing in this file
 // interprets; it stores, seeds, and reads.
 
-import { isTrainingSession } from '@/lib/program';
+import { healthPushable } from '@/lib/logger-draft';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, ownerTodayUtc, weightPace, injectionTimeOk } from '@/lib/health-insights';
@@ -604,7 +604,7 @@ export async function getWorkoutsToPush() {
     },
     orderBy: { date: 'desc' },
     take: PUSH_BATCH,
-    select: { id: true, name: true, date: true, duration: true, createdAt: true, sets: { select: { completedAt: true, rpe: true, isWarmup: true } } },
+    select: { id: true, name: true, date: true, duration: true, createdAt: true, sets: { select: { completedAt: true, isWarmup: true } } },
   });
 
   return planHealthPush(
@@ -616,9 +616,10 @@ export async function getWorkoutsToPush() {
       createdAt: w.createdAt,
       setTimes: w.sets.map((st) => st.completedAt).filter((d): d is Date => d != null),
       setCount: w.sets.length,
-      // The evidence bar every other reader uses: a row that is not a
-      // session is never written to Apple Health (rule 11, 2026-10-02).
-      session: isTrainingSession({ name: w.name, duration: w.duration, sets: w.sets }),
+      // A stray-tick row (fewer than three working sets) is never written
+      // to Apple Health — it cannot be undone (rule 11, 2026-10-02). A real
+      // short session still is (healthPushable).
+      session: healthPushable(w.sets),
     })),
     new Date(),
   ).map((p) => ({

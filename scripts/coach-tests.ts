@@ -4764,7 +4764,7 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
       LD.routeSets('X', known.map((k) => ({ ...k, stamps: k.stamps.map((x) => Date.parse(x)) })), day, sets, serverDay).map((r) => `${r.saveId}@${r.day}:${r.sets.length}`).join(' ');
     const oct2 = [{ completedAt: '2026-10-02T15:00:00.000Z' }, { completedAt: '2026-10-02T15:04:00.000Z' }];
     const oct5 = [0, 5, 10, 15].map((m) => ({ completedAt: `2026-10-05T15:${String(m).padStart(2, '0')}:00.000Z`, exerciseId: `m${m}`, setNumber: 1, rpe: 2 }));
-    assert(R([], '2026-10-02', [...oct2, ...oct5]) === 'X@null:2 X~2026-10-05@2026-10-05:4', `two sets ticked 2 Oct, never saved, finished 5 Oct: two workouts, each on the day it was lifted (got ${R([], '2026-10-02', [...oct2, ...oct5])})`);
+    assert(R([], '2026-10-02', [...oct2, ...oct5]) === 'X@2026-10-05:6', `two sets ticked 2 Oct, never saved, finished as a session on 5 Oct: ONE workout dated 5 Oct (got ${R([], '2026-10-02', [...oct2, ...oct5])})`);
     assert(R([{ saveId: 'X', day: '2026-10-02', stamps: oct2.map((x) => x.completedAt) }, { saveId: 'X~2026-10-05', day: '2026-10-05', stamps: oct5.map((x) => x.completedAt) }], '2026-10-02', [...oct2, ...oct5]) === 'X@null:2 X~2026-10-05@null:4', 'the outbox replaying it finds both again');
     assert(R([], '2026-09-30', oct2) === 'X@null:2', 'one sitting he back-dated stays one workout on the date he set');
     const o350 = '2026-10-03T00:50:00.000Z', o405 = '2026-10-03T01:05:00.000Z', o1800 = '2026-10-03T15:00:00.000Z';
@@ -4903,7 +4903,6 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
     const twoEvenings = [...full('2026-10-01', '21:00'), ...full('2026-10-02', '21:00').map((x) => ({ ...x, exerciseId: `n${x.exerciseId}` }))];
     assert(RR([], { day: '2026-09-29' }, twoEvenings) === 'X@null:12', `a back-fill dated last Tuesday, ticked across two evenings: no sitting is on the payload's date, so the date was set by hand — one workout on it (got ${RR([], { day: '2026-09-29' }, twoEvenings)})`);
     const incident = [st('a', 1, RY('2026-10-02', '18:00')), st('a', 2, RY('2026-10-02', '18:04')), ...full('2026-10-05', '18:00')];
-    assert(RR([], { day: '2026-10-02' }, incident) === 'X@null:2 X~2026-10-05@2026-10-05:6', `the incident stands: a stale draft continued as a FULL session three days later is two workouts, each on its day (got ${RR([], { day: '2026-10-02' }, incident)})`);
     assert(RR([], { day: '2026-10-02', dateByHand: true }, incident) === 'X@null:8', 'a hand-set date is never split or re-dated, whatever the ticks say');
     assert(RR([kOf('X', '2026-09-20', full('2026-09-20', '18:00'))], { day: '2026-10-02', dateByHand: true }, full('2026-10-05', '18:00')) === 'X~2026-10-02@2026-10-02:6', 'a hand-set date under a stale id is one NEW workout on that date — still never merged into the old one');
     assert(LD.sessionOfItsOwn(full('2026-10-05', '18:00')) && !LD.sessionOfItsOwn([st('b', 1, RY('2026-10-02', '08:00'), 2), st('b', 2, RY('2026-10-02', '08:03'), 2)]) && !LD.sessionOfItsOwn([st('a', 0, RY('2026-10-02', '02:00'))]), 'a session of its own: the app\'s evidence bar AND four working sets');
@@ -4915,7 +4914,6 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
     assert(RR([], { day: '2026-10-02' }, [st('a', 1, RY('2026-10-02', '23:58')), st('a', 2, RY('2026-10-03', '04:00'))]) === 'X@null:2', 'a pause of 4 h 02 across the rollover is still one evening');
     const pushRow = { id: 'w', name: 'Day A', date: new Date('2026-10-01T00:00:00Z'), duration: 60, createdAt: new Date('2026-10-01T16:00:00Z'), setTimes: [new Date('2026-10-01T15:00:00Z')], setCount: 1 };
     assert(planHealthPush([{ ...pushRow, session: false }], new Date('2026-10-03T12:00:00Z')).length === 0 && planHealthPush([{ ...pushRow, session: true }], new Date('2026-10-03T12:00:00Z')).length === 1, 'a row that is not a session is never a candidate for Apple Health (rule 11)');
-    assert(/session: isTrainingSession\(/.test(read('src/app/health-actions.ts')), 'the push query judges each row by the evidence bar');
 
     // 4 — a second finisher whose payload bridges two saved sittings.
     const a1 = st('a', 1, RY('2026-10-02', '23:00')), b1 = st('b', 1, RY('2026-10-03', '01:30')), c1 = st('c', 1, RY('2026-10-03', '04:10'));
@@ -4931,7 +4929,6 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
     assert(RR([{ saveId: 'X', ...bareOwner }], { day: '2026-10-02' }, [st('b', 1, RY('2026-10-02', '04:05'))]) === 'X@null:1', 'so the phone\'s half of a handoff across 04:00 still joins it');
 
     // 2, 6, 7 — the glue in createWorkout.
-    assert(/duration: last \? data\.duration \?\? sittingSeconds\(r\.sets\) \?\? undefined : sittingSeconds\(r\.sets\) \?\? undefined/.test(acts), 'the sitting being finished keeps the payload\'s duration (the HealthKit-detected one included); only an older sitting takes its own span');
     assert(/SAVE_ID_FAMILY\.test\(/.test(acts) && LD.SAVE_ID_FAMILY.test('~2026-10-03') && !LD.SAVE_ID_FAMILY.test('~%') && LD.plainSaveId('save-abc-123') && !LD.plainSaveId('X~2026-10-03') && !LD.plainSaveId('a%') && !LD.plainSaveId('a_b'), 'the family is filtered in code to the id and id~YYYY-MM-DD; an id with ~, % or _ is not a root');
     assert(/plainSaveId\(/.test(read('src/app/api/watch/log/route.ts')) && /plainSaveId\(/.test(read('src/app/api/live/route.ts')), '/api/watch/log and /api/live refuse such an id');
     assert(/const allowedOnce = await rampAllowances\(data\.sets, data\.gym, data\.name, root, true\)/.test(acts) && /allowed: allowedOnce/.test(acts), 'rule 10: the ramp allowances of a split save are computed ONCE, before any sitting is committed, from a snapshot without the whole family');
@@ -4947,6 +4944,43 @@ console.log('Audit 2 — the phone logger: drafts, lengths, rescue memory, save 
     assert(lr.orphans.length === 1 && lr.orphans[0] === farSet, 'a live set no sitting takes is reported, never dropped');
     assert(LD.routeLiveSets(routesL, [farSet], [{ saveId: 'X~2026-10-09', day: '2026-10-09', stamps: [], sets: [{ key: LD.setKey(farSet), at: Date.parse(farSet.completedAt) }] }]).orphans.length === 0, '…unless a saved workout already holds that tick');
     assert(/routeLiveSets\(/.test(acts) && /if \(!liveOrphans\.length\) await closeLive\(root, /.test(acts), 'and the row is left open while it holds a set nobody saved');
+
+    // ── Round 3 on the router (2026-10-02): the final rule ──
+    // 1 — a hand-set date never drags a session into the workout of an old tick.
+    const mon = (ex: string, n: number, hm: string) => st(ex, n, RY('2026-09-28', hm), 2);
+    const thu = (ex: string, n: number, hm: string) => st(ex, n, RY('2026-10-01', hm), 2);
+    const monday = kOf('X', '2026-09-28', [mon('lp', 1, '18:00'), mon('lp', 2, '18:04'), mon('chest', 1, '18:10')]);
+    const thursday = [mon('lp', 1, '18:00'), mon('sh', 1, '18:20'), thu('lp', 2, '18:00'), thu('lp', 3, '18:04'), thu('chest', 1, '18:10'), thu('chest', 2, '18:14'), thu('row', 1, '18:20')];
+    assert(RR([monday], { day: '2026-10-01', dateByHand: true }, thursday) === 'X@null:2 X~2026-10-01@2026-10-01:5', `Monday's copy of lp#1 in a draft he re-dated to Thursday: Monday's ticks go home, Thursday's five sets are a NEW workout on the date he typed — never merged over Monday's keys (got ${RR([monday], { day: '2026-10-01', dateByHand: true }, thursday)})`);
+    assert(/dateByHandRef\.current = draft\.dateByHand === true && !plan\.represcribe/.test(form) && /setDate\(today\);\s*dateByHandRef\.current = false;\s*lastGymRef\.current = DEFAULT_GYM_ID;/.test(form), 'the flag is dropped whenever the form itself moves the date: a draft from an older day, a live row beating a draft');
+
+    // 2 — a second finisher's unstamped sets, a day apart.
+    const phoneFirst = kOf('X', '2026-10-02', [st('a', 1, RY('2026-10-02', '04:10'))]);
+    assert(RR([phoneFirst], { day: '2026-10-01' }, [st('b', 1), st('b', 2)]) === 'X@null:2' && RR([phoneFirst], { day: '2026-10-01', dateByHand: true }, [st('b', 1), st('b', 2)]) === 'X@null:2', `unstamped sets posted under a saved id dated the day next door join it — not a second workout for the same session (got ${RR([phoneFirst], { day: '2026-10-01' }, [st('b', 1), st('b', 2)])})`);
+    assert(RR([phoneFirst], { day: '2026-10-01' }, [st('c', 1, RY('2026-10-02', '04:20')), st('b', 1)]) === 'X@null:2', 'and they follow the payload\'s stamped sets wherever those went');
+    assert(RR([phoneFirst], { day: '2026-10-06' }, [st('b', 1), st('b', 2)]) === 'X~2026-10-06@2026-10-06:2', 'only an id provably another session\'s (two days or more) derives a new one');
+
+    // 3 — a split save's length is each sitting's own.
+    assert(/duration: sittingSeconds\(r\.sets\) \?\? data\.duration/.test(acts), 'in the split path every route takes its own sitting\'s span; the payload\'s only when it has fewer than two stamps');
+    assert(LD.sittingSeconds([st('a', 1, RY('2026-10-02', '18:00')), ...full('2026-10-05', '18:00')]) === 20 * 60, `a workout holding a folded tick from days ago is as long as its session, not three days (got ${LD.sittingSeconds([st('a', 1, RY('2026-10-02', '18:00')), ...full('2026-10-05', '18:00')])})`);
+
+    // 4 — Health: only a stray-tick row is held back.
+    assert(!LD.healthPushable([{ isWarmup: false }]) && !LD.healthPushable([{ isWarmup: true }, { isWarmup: true }, { isWarmup: false }, { isWarmup: false }]) && LD.healthPushable([{ isWarmup: false }, { isWarmup: false }, { isWarmup: false }]), 'a one-set stray row is never pushed to Apple Health; three machines × one set, unrated, twenty minutes, is');
+    assert(/session: healthPushable\(w\.sets\)/.test(read('src/app/health-actions.ts')), 'the push query holds back only a row with fewer than three working sets');
+
+    // 5 — the final rule: a workout per SESSION, dated its own day; the rest folds.
+    const y2 = [st('a', 1, RY('2026-10-01', '19:00'), 2), st('a', 2, RY('2026-10-01', '19:05'), 2)];
+    const today10 = [...full('2026-10-02', '18:00'), ...full('2026-10-02', '18:30').slice(0, 4).map((x) => ({ ...x, exerciseId: `n${x.exerciseId}` }))];
+    assert(RR([], { day: '2026-10-01' }, [...y2, ...today10]) === 'X@2026-10-02:12', `two rated sets yesterday (interrupted) and a ten-set session today: ONE workout dated today — one interruption is not two ramp sessions (got ${RR([], { day: '2026-10-01' }, [...y2, ...today10])})`);
+    assert(RR([], { day: '2026-10-02' }, incident) === 'X@2026-10-05:8', `the stale-draft incident: two ticks on 2 Oct and a full session on 5 Oct, never saved, are ONE workout dated 5 Oct (got ${RR([], { day: '2026-10-02' }, incident)})`);
+    const three = (d0: string) => [1, 2, 3].map((n) => st(`t${d0}`, n, RY(d0, `18:0${n}`)));
+    assert(RR([], { day: '2026-10-01' }, [...three('2026-10-01'), ...three('2026-10-02')]) === 'X@null:6', 'no sitting is a session: one workout on the payload\'s date, as on main');
+    assert(RR([kOf('X', '2026-09-20', full('2026-09-20', '18:00'))], { day: '2026-09-20' }, [...three('2026-10-01'), ...three('2026-10-02')]) === 'X~2026-10-02@2026-10-02:6', '…and under an id another day\'s workout owns: one NEW workout, dated the latest sitting\'s day');
+    const twoSessions = [...full('2026-10-01', '18:00'), ...full('2026-10-02', '18:00').map((x) => ({ ...x, exerciseId: `n${x.exerciseId}` }))];
+    assert(RR([], { day: '2026-10-01' }, twoSessions) === 'X@null:6 X~2026-10-02@2026-10-02:6', 'two sessions on two days are two workouts; the posted id goes to the earliest');
+    assert(RR([], { day: '2026-10-01' }, [...twoSessions, st('z', 1, RY('2026-10-02', '09:00'))]) === 'X@null:6 X~2026-10-02@2026-10-02:7', 'a stray tick between them folds into the nearer session');
+    assert(RR([], { day: '2026-09-30' }, full('2026-10-02', '18:00')) === 'X@null:6' && RR([], { day: '2026-10-02' }, full('2026-10-02', '18:00')) === 'X@null:6', 'an ordinary single sitting is untouched: the posted id, the payload\'s date');
+    assert(/routes\[0\]\.saveId === root && routes\[0\]\.day == null/.test(acts), 'the plain path is taken only when nothing is re-dated');
   }
 }
 

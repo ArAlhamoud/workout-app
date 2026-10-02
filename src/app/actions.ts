@@ -266,7 +266,9 @@ export async function createWorkout(data: {
     // A detected session's date is its HealthKit day, a back-fill's is the
     // day he typed: both are his, never the ticks'.
     const routes = routeSets(root, known, { day: payloadDay, dateByHand: data.dateSetByHand === true || Boolean(data.healthWorkoutUuid) }, data.sets, activityDayKey);
-    if (routes.length && !(routes.length === 1 && routes[0].saveId === root)) {
+    // The plain path — one route, the posted id, nothing re-dated — is the
+    // ordinary save, byte for byte what it was before the router.
+    if (routes.length && !(routes.length === 1 && routes[0].saveId === root && routes[0].day == null)) {
       const stampsOf = (sets: Array<{ completedAt?: string }>) =>
         sets.map((x) => (x.completedAt ? Date.parse(x.completedAt) : NaN)).filter((t) => Number.isFinite(t));
       const lastOf = (sets: Array<{ completedAt?: string }>) => Math.max(Number.NEGATIVE_INFINITY, ...stampsOf(sets));
@@ -296,13 +298,16 @@ export async function createWorkout(data: {
             clientSaveId: r.saveId,
             sets: r.sets,
             // A NEW workout for another day is dated the day it was lifted
-            // and named for it. The payload's duration (the HealthKit one
-            // included), notes and HK identity belong to the sitting being
-            // finished now; an OLDER sitting takes the span of its own sets.
+            // and named for it. The payload's notes and HK identity belong
+            // to the sitting being finished now.
             date: r.day ?? data.date,
             name: r.day ? datedName(data.name, r.day) : data.name,
             notes: last ? data.notes : undefined,
-            duration: last ? data.duration ?? sittingSeconds(r.sets) ?? undefined : sittingSeconds(r.sets) ?? undefined,
+            // In THIS path the payload's duration is the whole draft's
+            // elapsed time (the phone clamps it to 3 h): every route takes
+            // the span of its own session, the payload's only when it has
+            // fewer than two stamps to measure.
+            duration: sittingSeconds(r.sets) ?? data.duration,
             healthWorkoutUuid: last ? data.healthWorkoutUuid : undefined,
           },
           { live: liveRow ? { ...liveRow, sets: liveByRoute.get(r.saveId) ?? [] } : null, close: false, allowed: allowedOnce },
