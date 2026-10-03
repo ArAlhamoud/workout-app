@@ -157,21 +157,55 @@ const ASLEEP_VALUES = new Set([
 const SLEEP_WINDOW_HOURS = 36;
 
 /**
- * Two asleep samples separated by less than this are the same night; a bigger
- * gap starts a new block, which is what separates last night from yesterday's
- * afternoon nap.
+ * The night a block of sleep belongs to runs from 18:00 the evening before to
+ * 14:00 on the morning he wakes. Everything that STARTS inside that window is
+ * one night, however many times he woke: his first Fitbit night was 02:00–
+ * 06:55 then 09:49–13:30, and counting only the last block reported 3.7 h of
+ * an 8 h night (owner, 2026-10-03; Apple Health scores it the same way). A
+ * block starting at 14:00 or later is a nap and never joins a night.
  */
-const SLEEP_BLOCK_GAP_MS = 60 * 60_000;
+const NIGHT_FROM_HOUR = 18;
+const NAP_FROM_HOUR = 14;
 
 /**
- * Hours actually asleep last night, or null when nothing was recorded.
- *
- * Two things this guards against. First, double counting: the Watch and a
- * third-party sleep app both write overlapping asleep samples for the same
- * night, and naively summing durations can hand back eleven hours of sleep for
- * a seven-hour night. Overlapping intervals are unioned first. Second, naps:
- * the samples are grouped into blocks and only the most recent block counts, so
- * yesterday's couch nap doesn't get added to last night's total.
+ * Milliseconds asleep in the most recent night. Pure, in the device's local
+ * time. Overlapping intervals from several sources are unioned first, so the
+ * Watch and a Fitbit writing the same night never add up to eleven hours.
+ * With no night on record (only a nap), the most recent block is reported.
+ */
+export function nightAsleepMs(intervals: Array<{ start: number; end: number }>, now: number = Date.now()): number {
+  const sorted = intervals
+    .filter((i) => Number.isFinite(i.start) && Number.isFinite(i.end) && i.end > i.start)
+    .sort((a, b) => a.start - b.start);
+  if (!sorted.length) return 0;
+  const merged: { start: number; end: number }[] = [];
+  for (const next of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && next.start <= last.end) last.end = Math.max(last.end, next.end);
+    else merged.push({ ...next });
+  }
+  // The window of the newest night: wake day D, from D−1 18:00 to D 14:00.
+  // A block that starts after 18:00 belongs to the night ending TOMORROW: on
+  // the evening he trains, an 18:30 doze is not "last night" (he lifts in the
+  // evening, and the readiness check would read one hour of sleep).
+  const n = new Date(now);
+  const today = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+  const wakeDay = (t: number) => {
+    const d = new Date(t);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() + (d.getHours() >= NIGHT_FROM_HOUR ? 1 : 0));
+  };
+  const inNight = (t: number) => new Date(t).getHours() < NAP_FROM_HOUR || new Date(t).getHours() >= NIGHT_FROM_HOUR;
+  const night = [...merged].reverse().find((b) => inNight(b.start) && wakeDay(b.start).getTime() <= today);
+  if (!night) return merged[merged.length - 1].end - merged[merged.length - 1].start;
+  const wake = wakeDay(night.start);
+  const from = new Date(wake.getFullYear(), wake.getMonth(), wake.getDate() - 1, NIGHT_FROM_HOUR).getTime();
+  const to = new Date(wake.getFullYear(), wake.getMonth(), wake.getDate(), NAP_FROM_HOUR).getTime();
+  return merged.filter((b) => b.start >= from && b.start < to).reduce((ms, b) => ms + (b.end - b.start), 0);
+}
+
+/**
+ * Hours actually asleep last night, or null when nothing was recorded. The
+ * night rule and the de-duplication live in nightAsleepMs.
  */
 export async function lastNightSleepHours(): Promise<number | null> {
   if (!isNativeApp()) return null;
@@ -179,28 +213,11 @@ export async function lastNightSleepHours(): Promise<number | null> {
     const startISO = new Date(Date.now() - SLEEP_WINDOW_HOURS * HOUR_MS).toISOString();
     const samples = await queryCategory('sleepAnalysis', { startISO });
 
-    const intervals = samples
-      .filter((s) => ASLEEP_VALUES.has(s.value))
-      .map((s) => ({ start: new Date(s.startISO).getTime(), end: new Date(s.endISO).getTime() }))
-      .filter((i) => Number.isFinite(i.start) && Number.isFinite(i.end) && i.end > i.start)
-      .sort((a, b) => a.start - b.start);
-
-    if (!intervals.length) return null;
-
-    // Union overlapping intervals (across every source), then keep only the
-    // trailing block — consecutive stretches less than an hour apart.
-    const merged: { start: number; end: number }[] = [];
-    for (const next of intervals) {
-      const last = merged[merged.length - 1];
-      if (last && next.start <= last.end) last.end = Math.max(last.end, next.end);
-      else merged.push({ ...next });
-    }
-
-    let asleepMs = 0;
-    for (let i = merged.length - 1; i >= 0; i--) {
-      if (i < merged.length - 1 && merged[i + 1].start - merged[i].end > SLEEP_BLOCK_GAP_MS) break;
-      asleepMs += merged[i].end - merged[i].start;
-    }
+    const asleepMs = nightAsleepMs(
+      samples
+        .filter((s) => ASLEEP_VALUES.has(s.value))
+        .map((s) => ({ start: new Date(s.startISO).getTime(), end: new Date(s.endISO).getTime() })),
+    );
 
     const hours = round1(asleepMs / HOUR_MS);
     return hours > 0 ? hours : null;
