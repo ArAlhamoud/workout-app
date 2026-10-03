@@ -88,7 +88,7 @@ import { dedupeByKey, finishUpdates, landedSerials, liveDiff, liveSerial, liveTo
 import { gymSwap, gymWeightNote } from '../src/lib/gym-equipment';
 import { BODY, bodyPathAt, slimProgress } from '../src/lib/body-figure';
 import { computeGapLadder } from '../src/lib/gap-guard';
-import { assessSickSignal, computeReadiness } from '../src/lib/health-metrics';
+import { assessSickSignal, computeReadiness, nightAsleepMs } from '../src/lib/health-metrics';
 import { CARDIO_RULE, afOnChart, clampTimedReps, effortCeiling, getExercisesForDuration, getPlankTarget, nextTryWeight, repeatToEarn, isOverRamp, rampSessionVerdicts, allowedRampKg } from '../src/lib/program';
 import { routeForDeepLink } from '../src/lib/deep-links';
 import { binHeartRate } from '../src/lib/hr-capture';
@@ -5272,6 +5272,37 @@ console.log('Patterns — dose week, dose levels, food and scale, sleep, monthly
     assert(/deliveryDayPattern\(/.test(src('src/app/health/diet/page.tsx')), 'the delivery-day comparison stays on Diet too');
     assert(!/setHours|getDay\(\)|getMonth\(\)|getDate\(\)/.test(lib), 'patterns.ts never asks the server what day it is');
   }
+}
+
+// ── A split night is one night (owner, 2026-10-03) ──
+console.log('Sleep — the night is every block from evening to early afternoon');
+{
+  // Local-time constructors: the phone computes in its own zone, and so does this test.
+  const L = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).getTime();
+  const iv = (a: number, b: number) => ({ start: a, end: b });
+  const H = (ms: number) => Math.round((ms / 3_600_000) * 10) / 10;
+  // His first Fitbit night: 4 h 23 asleep from 02:00, awake, then 09:49–13:30
+  // (Apple Health: 8 h 4 min).
+  const split = [iv(L(3, 2), L(3, 6, 23)), iv(L(3, 9, 49), L(3, 13, 30))];
+  assert(H(nightAsleepMs(split, L(3, 15))) === 8.1, `a split night counts both blocks (got ${H(nightAsleepMs(split, L(3, 15)))} h)`);
+  // A normal night plus an afternoon nap: the nap is not the night.
+  const napped = [iv(L(4, 23), L(5, 6, 30)), iv(L(5, 15), L(5, 16))];
+  assert(H(nightAsleepMs(napped, L(5, 17))) === 7.5, `an afternoon nap is not added to the night (got ${H(nightAsleepMs(napped, L(5, 17)))} h)`);
+  // Yesterday's nap stays out of last night.
+  const yesterdayNap = [iv(L(5, 15), L(5, 16)), iv(L(5, 23, 30), L(6, 6, 30))];
+  assert(H(nightAsleepMs(yesterdayNap, L(6, 8))) === 7, `yesterday's nap stays out of last night (got ${H(nightAsleepMs(yesterdayNap, L(6, 8)))} h)`);
+  // Two devices writing the same night are unioned, never summed.
+  const twoDevices = [iv(L(6, 23), L(7, 6)), iv(L(6, 23, 30), L(7, 6, 30))];
+  assert(H(nightAsleepMs(twoDevices, L(7, 8))) === 7.5, `overlapping sources are unioned (got ${H(nightAsleepMs(twoDevices, L(7, 8)))} h)`);
+  // Only a nap on record: it is still reported rather than nothing.
+  assert(H(nightAsleepMs([iv(L(8, 15), L(8, 16, 30))], L(8, 17))) === 1.5, 'a lone nap is still reported');
+  assert(nightAsleepMs([]) === 0, 'no sleep, no hours');
+  // He trains in the evening: an 18:30 doze today is tonight's, not last night's.
+  const evening = [iv(L(9, 23), L(10, 6, 30)), iv(L(10, 18, 30), L(10, 19, 30))];
+  assert(H(nightAsleepMs(evening, L(10, 21))) === 7.5, `an evening doze does not replace last night before bed (got ${H(nightAsleepMs(evening, L(10, 21)))} h)`);
+  // After midnight that night is the current one.
+  const late = [iv(L(10, 23, 30), L(11, 6, 30))];
+  assert(H(nightAsleepMs(late, L(11, 7))) === 7, 'the night just slept is the one reported in the morning');
 }
 
 Promise.all(pendingAsync).then(() => {
