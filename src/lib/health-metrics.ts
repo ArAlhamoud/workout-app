@@ -15,7 +15,7 @@
 // which runs under plain ts-node with no path-alias resolution.
 import type { ReadinessSignal } from './coach';
 import { isNativeApp, queryCategory, queryDailyStats } from './native-health';
-import { ASLEEP_VALUES, localDayKey, mergeIntervals, nightOf } from './sleep';
+import { ASLEEP_VALUES, groupSleepBlocks, localDayKey, mergeIntervals } from './sleep';
 
 const HOUR_MS = 3_600_000;
 
@@ -146,13 +146,14 @@ const SLEEP_WINDOW_HOURS = 36;
 
 /**
  * Milliseconds asleep in the most recent night. Pure, in the device's local
- * time. The night rule (18:00 the evening before to 14:00 on the wake day;
- * a block from 14:00 is a nap) and the union of sources live in
- * src/lib/sleep.ts — ONE rule for this readiness read and the stored
- * nights (2026-10-05). The newest night that has ended by today is
- * reported: on the evening he trains, an 18:30 doze belongs to tomorrow's
- * night, not to "last night". With no night on record (only a nap), the
- * most recent block is reported.
+ * time. The night rule (blocks joined across short awake gaps; a nap is a
+ * run from 14:00 that ends before 20:00 and lasts under 3 h; every other
+ * run is keyed by where it ends) and the union of sources live in
+ * src/lib/sleep.ts (groupSleepBlocks) — ONE rule for this readiness read and
+ * the stored nights. The newest night that has ended by today is reported:
+ * an evening doze belongs to tomorrow's night or is a nap, never "last
+ * night". With no night on record (only a nap), the most recent block is
+ * reported.
  */
 export function nightAsleepMs(
   intervals: Array<{ start: number; end: number }>,
@@ -162,14 +163,10 @@ export function nightAsleepMs(
   const blocks = mergeIntervals(intervals);
   if (!blocks.length) return 0;
   const today = localDayKey(now, offsetMin);
-  const byNight = new Map<string, number>();
-  for (const b of blocks) {
-    const night = nightOf(b.start, offsetMin);
-    if (night && night <= today) byNight.set(night, (byNight.get(night) ?? 0) + (b.end - b.start));
-  }
-  const latest = [...byNight.keys()].sort().pop();
-  if (latest === undefined) return blocks[blocks.length - 1].end - blocks[blocks.length - 1].start;
-  return byNight.get(latest) as number;
+  const nights = groupSleepBlocks(blocks, offsetMin).filter((n) => n.wakeDay <= today);
+  const latest = nights[nights.length - 1];
+  if (!latest) return blocks[blocks.length - 1].end - blocks[blocks.length - 1].start;
+  return latest.blocks.reduce((ms, b) => ms + (b.end - b.start), 0);
 }
 
 /**

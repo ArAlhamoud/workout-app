@@ -40,29 +40,47 @@ const DEEP = 4;
 const REM = 5;
 
 /**
- * The night a block of sleep belongs to runs from 18:00 the evening before
- * to 14:00 on the morning he wakes. Everything that STARTS inside that
- * window is one night, however many times he woke: his first Fitbit night
- * was 02:00–06:55 then 09:49–13:30, and counting only the last block
- * reported 3.7 h of an 8 h night (owner, 2026-10-03; Apple Health scores it
- * the same way). A block starting at 14:00 or later is a nap and never
- * joins a night; a doze from 18:00 belongs to the night ending tomorrow.
+ * The night rule (owner, 2026-10-03; review, 2026-10-05). Asleep intervals
+ * from every source are unioned into blocks, and blocks separated by an
+ * awake gap under RUN_GAP_MIN are one RUN — continuity keeps a night
+ * together whatever side of 14:00 it falls (his first Fitbit night was
+ * 02:00–06:55 then 09:49–13:30; counting one block reported 3.7 h of 8).
+ *
+ * A run is a NAP — not stored, not a night — only when it starts at or
+ * after 14:00, ends before 20:00 the same day and lasts under 3 h. Every
+ * other run belongs to the wake day of its END; an end from 18:00 on is the
+ * night ending the next morning (a 20:00 doze, or 17:30 → 05:00 after a
+ * bad night). The old start-keyed rule called anything starting 14:00–18:00
+ * a nap and dropped a whole 17:30 → 05:00 night.
  */
-export const NIGHT_FROM_HOUR = 18;
 export const NAP_FROM_HOUR = 14;
+export const NAP_ENDS_BEFORE_HOUR = 20;
+export const NAP_MAX_MIN = 180;
+export const RUN_GAP_MIN = 90;
+/** A run ending at or after this hour belongs to tomorrow's night. */
+export const EVENING_HOUR = 18;
+/** Oxygen and breathing readings count from first asleep to final wake
+ *  plus this much: a Fitbit may stamp its reading at the session's end. */
+export const SPOT_AFTER_WAKE_MIN = 30;
+/** This morning's night is written only this long after its last block… */
+export const SETTLE_MIN = 60;
+/** …and not before this local hour: an open at 03:00 is mid-night. */
+export const SETTLE_FROM_HOUR = 5;
 
-/** The first run reads backwards in chunks this long… */
+/** Reads go in chunks this long, so no bridge call spans months. */
 export const SLEEP_CHUNK_DAYS = 60;
-/** …until a chunk comes back empty, and never further back than 5 years. */
+/** The first run walks back this far, across empty chunks. */
 export const SLEEP_BACKFILL_MAX_DAYS = 1826;
 /** Later runs re-read from the newest stored night minus this many days:
  *  a wearable that syncs late corrects the nights it lands in. */
 export const SLEEP_RESYNC_DAYS = 3;
-/** Nights per import call. Each night is at most 8 upserts, so one server
- *  action writes at most 160 rows — a first run over years of nights is
- *  many short calls, never one that can time out. */
+/** Nights per import call. Each night is at most 8 upserts in one
+ *  transaction, so one server action writes at most 160 rows. */
 export const SLEEP_IMPORT_MAX_NIGHTS = 20;
 export const SLEEP_SOURCE = 'apple-health';
+/** The backfill's own cursor: one HealthSample row of this type (value =
+ *  the instant the walk has reached, ms) — no schema change. */
+export const SLEEP_BACKFILL_TYPE = 'sleep_backfill_from';
 
 /** The HealthSample types one night writes. `sleep_asleep_h` predates this
  *  module (Stats' sleep debt reads it) and keeps its name and unit. */
@@ -141,20 +159,46 @@ export function localDayKey(t: number, offsetMin?: number): string {
   return keyOf(p.y, p.m, p.d);
 }
 
-/** The wake day of the night a block starting at `t` belongs to, or null
- *  for a nap (a start from 14:00 to 18:00). */
-export function nightOf(t: number, offsetMin?: number): string | null {
-  const p = localParts(t, offsetMin);
-  if (p.h >= NIGHT_FROM_HOUR) return keyOf(p.y, p.m, p.d + 1);
-  if (p.h < NAP_FROM_HOUR) return keyOf(p.y, p.m, p.d);
-  return null;
+/**
+ * Asleep blocks grouped into nights by the rule above: { wakeDay, blocks }
+ * oldest first. Naps are dropped. ONE implementation for the stored nights
+ * (sleepNights) and readiness (nightAsleepMs).
+ */
+export function groupSleepBlocks(intervals: Interval[], offsetMin?: number): Array<{ wakeDay: string; blocks: Interval[] }> {
+  const blocks = mergeIntervals(intervals);
+  const runs: Interval[][] = [];
+  for (const b of blocks) {
+    const run = runs[runs.length - 1];
+    if (run && b.start - run[run.length - 1].end < RUN_GAP_MIN * MIN_MS) run.push(b);
+    else runs.push([b]);
+  }
+  const nights = new Map<string, Interval[]>();
+  for (const run of runs) {
+    const start = run[0].start;
+    const end = run[run.length - 1].end;
+    const s = localParts(start, offsetMin);
+    const e = localParts(end, offsetMin);
+    const sameDay = s.y === e.y && s.m === e.m && s.d === e.d;
+    const nap = s.h >= NAP_FROM_HOUR && sameDay && e.h < NAP_ENDS_BEFORE_HOUR && end - start < NAP_MAX_MIN * MIN_MS;
+    if (nap) continue;
+    const wakeDay = e.h >= EVENING_HOUR ? keyOf(e.y, e.m, e.d + 1) : keyOf(e.y, e.m, e.d);
+    nights.set(wakeDay, [...(nights.get(wakeDay) ?? []), ...run]);
+  }
+  return [...nights.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([wakeDay, bs]) => ({ wakeDay, blocks: bs }));
 }
 
-/** The instant a night's window opens: 18:00 local the evening before. */
+/**
+ * The earliest instant a night keyed `wakeDay` is expected to reach back
+ * to: noon local the day before (a run ending from 18:00 rolls to the next
+ * night, so a night's sleep starts after that morning — noon leaves room
+ * for a long evening run such as 17:30 → 05:00).
+ */
 export function nightWindowStart(wakeDay: string, offsetMin?: number): number {
   const [y, m, d] = wakeDay.split('-').map(Number);
-  if (offsetMin === undefined) return new Date(y, m - 1, d - 1, NIGHT_FROM_HOUR).getTime();
-  return Date.UTC(y, m - 1, d - 1, NIGHT_FROM_HOUR) - offsetMin * MIN_MS;
+  if (offsetMin === undefined) return new Date(y, m - 1, d - 1, 12).getTime();
+  return Date.UTC(y, m - 1, d - 1, 12) - offsetMin * MIN_MS;
 }
 
 /** Where a later run starts reading: the window of the newest stored night
@@ -167,28 +211,20 @@ export function incrementalSleepStart(newestWakeDay: string, offsetMin?: number)
 /**
  * The nights a run may write: only those whose whole window lies inside
  * what was read (a night cut by the window's edge would overwrite a stored
- * night with half of it), and none that ends after today.
+ * night with part of it), none that ends after today, and this morning's
+ * night only once it has settled — its last block ended SETTLE_MIN ago and
+ * it is past SETTLE_FROM_HOUR. An open at 03:00 would otherwise store
+ * three hours as "last night" for Stats, the glance and the room.
  */
 export function nightsToWrite(nights: SleepNight[], fromMs: number, now: number, offsetMin?: number): SleepNight[] {
   const today = localDayKey(now, offsetMin);
-  return nights.filter((n) => nightWindowStart(n.wakeDay, offsetMin) >= fromMs && n.wakeDay <= today);
-}
-
-/** Index of the block holding `t` (start ≤ t ≤ end), or -1. Blocks sorted. */
-function blockAt(blocks: Interval[], t: number, endInclusive: boolean): number {
-  let lo = 0;
-  let hi = blocks.length - 1;
-  let found = -1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (blocks[mid].start <= t) {
-      found = mid;
-      lo = mid + 1;
-    } else hi = mid - 1;
-  }
-  if (found < 0) return -1;
-  const b = blocks[found];
-  return t < b.end || (endInclusive && t === b.end) ? found : -1;
+  const settled = localParts(now, offsetMin).h >= SETTLE_FROM_HOUR;
+  return nights.filter((n) => {
+    if (nightWindowStart(n.wakeDay, offsetMin) < fromMs || Date.parse(n.bedISO) < fromMs) return false;
+    if (n.wakeDay > today) return false;
+    if (n.wakeDay === today) return settled && Date.parse(n.wakeISO) <= now - SETTLE_MIN * MIN_MS;
+    return true;
+  });
 }
 
 /**
@@ -196,86 +232,69 @@ function blockAt(blocks: Interval[], t: number, endInclusive: boolean): number {
  * is the UNION of asleep values across sources — a Watch and a Fitbit on
  * the same night never add up to fourteen hours. Stages come from the one
  * source that staged the most of the night (two stagers would double
- * count); a night nobody staged has null stages, never zeros. Oxygen and
- * breathing rate count only inside the night's asleep blocks. Naps (blocks
- * starting 14:00–18:00) are not nights and are dropped.
+ * count); a night nobody staged has null stages, never zeros. Awake time,
+ * oxygen and breathing count from first asleep to final wake plus
+ * SPOT_AFTER_WAKE_MIN. `spo2`/`resp` null = the read failed or was not
+ * made: the night then has null figures, and the writer leaves any stored
+ * ones alone (it never removes them).
  */
 export function sleepNights(
   samples: SleepSampleIn[],
-  opts: { offsetMin?: number; spo2?: SpotIn[]; resp?: SpotIn[] } = {},
+  opts: { offsetMin?: number; spo2?: SpotIn[] | null; resp?: SpotIn[] | null } = {},
 ): SleepNight[] {
-  const o = opts.offsetMin;
   const valid = samples.filter((s) => Number.isFinite(s.start) && Number.isFinite(s.end) && s.end > s.start);
-  const blocks = mergeIntervals(valid.filter((s) => ASLEEP_VALUES.has(s.value)));
-  const blockNight = blocks.map((b) => nightOf(b.start, o));
-  // A sample inside an asleep block goes with that block (a 14:10 REM
-  // segment of a block that began at 13:00); otherwise by its own start.
-  const nightFor = (t: number) => {
-    const i = blockAt(blocks, t, false);
-    return i >= 0 ? blockNight[i] : nightOf(t, o);
-  };
-
-  interface Acc {
-    blocks: Interval[];
-    sources: Set<string>;
-    stages: Map<string, Map<number, Interval[]>>;
-    spo2: number[];
-    resp: number[];
-  }
-  const nights = new Map<string, Acc>();
-  const acc = (key: string): Acc => {
-    let a = nights.get(key);
-    if (!a) {
-      a = { blocks: [], sources: new Set(), stages: new Map(), spo2: [], resp: [] };
-      nights.set(key, a);
+  const asleep = valid.filter((s) => ASLEEP_VALUES.has(s.value));
+  const groups = groupSleepBlocks(asleep, opts.offsetMin);
+  const spans = groups.map((g) => ({
+    bed: Math.min(...g.blocks.map((b) => b.start)),
+    wake: Math.max(...g.blocks.map((b) => b.end)),
+  }));
+  // The night whose [bed, wake + slack] holds t. Nights never overlap.
+  const nightAt = (t: number): number => {
+    for (let i = 0; i < spans.length; i++) {
+      if (t >= spans[i].bed && t <= spans[i].wake + SPOT_AFTER_WAKE_MIN * MIN_MS) return i;
     }
-    return a;
+    return -1;
   };
-  blocks.forEach((b, i) => {
-    const key = blockNight[i];
-    if (key) acc(key).blocks.push(b);
-  });
+  const sources = groups.map(() => new Set<string>());
+  const stages = groups.map(() => new Map<string, Map<number, Interval[]>>());
   for (const s of valid) {
-    if (ASLEEP_VALUES.has(s.value)) {
-      const key = nightFor(s.start);
-      if (key && nights.has(key)) acc(key).sources.add(s.source);
-    }
+    if (s.value !== AWAKE && !ASLEEP_VALUES.has(s.value)) continue;
+    const i = nightAt(s.start);
+    if (i < 0) continue;
+    if (ASLEEP_VALUES.has(s.value)) sources[i].add(s.source);
     if (s.value === AWAKE || s.value === CORE || s.value === DEEP || s.value === REM) {
-      const key = nightFor(s.start);
-      if (!key || !nights.has(key)) continue;
-      const bySource = acc(key).stages;
-      const byValue = bySource.get(s.source) ?? new Map<number, Interval[]>();
-      bySource.set(s.source, byValue);
+      const byValue = stages[i].get(s.source) ?? new Map<number, Interval[]>();
+      stages[i].set(s.source, byValue);
       byValue.set(s.value, [...(byValue.get(s.value) ?? []), { start: s.start, end: s.end }]);
     }
   }
-  const spot = (xs: SpotIn[] | undefined, into: (a: Acc) => number[], norm: (v: number) => number | null) => {
+  const spot = (xs: SpotIn[] | null | undefined, norm: (v: number) => number | null): number[][] => {
+    const out = groups.map((): number[] => []);
     for (const x of xs ?? []) {
       if (!Number.isFinite(x.t) || !Number.isFinite(x.value)) continue;
-      const i = blockAt(blocks, x.t, true);
-      const key = i >= 0 ? blockNight[i] : null;
+      const i = nightAt(x.t);
       const v = norm(x.value);
-      if (key && v !== null) into(acc(key)).push(v);
+      if (i >= 0 && v !== null) out[i].push(v);
     }
+    return out;
   };
   // HealthKit's percent unit is a fraction (0.95); some writers send 95.
-  spot(opts.spo2, (a) => a.spo2, (v) => {
+  const ox = spot(opts.spo2, (v) => {
     const pct = v <= 1.5 ? v * 100 : v;
     return pct >= 50 && pct <= 100 ? pct : null;
   });
-  spot(opts.resp, (a) => a.resp, (v) => (v >= 4 && v <= 60 ? v : null));
+  const br = spot(opts.resp, (v) => (v >= 4 && v <= 60 ? v : null));
 
   const minutes = (xs: Interval[] | undefined) =>
     Math.round(mergeIntervals(xs ?? []).reduce((ms, b) => ms + (b.end - b.start), 0) / MIN_MS);
 
-  const out: SleepNight[] = [];
-  for (const [wakeDay, a] of [...nights.entries()].sort(([x], [y]) => (x < y ? -1 : 1))) {
-    if (!a.blocks.length) continue;
+  return groups.map((g, i) => {
     // The source that staged the most of this night; ties go alphabetically.
     let staged: { deep: number; rem: number; core: number; awake: number } | null = null;
     let best = 0;
-    for (const source of [...a.stages.keys()].sort()) {
-      const v = a.stages.get(source)!;
+    for (const source of [...stages[i].keys()].sort()) {
+      const v = stages[i].get(source)!;
       const s = { deep: minutes(v.get(DEEP)), rem: minutes(v.get(REM)), core: minutes(v.get(CORE)), awake: minutes(v.get(AWAKE)) };
       const total = s.deep + s.rem + s.core;
       if (total > best) {
@@ -283,50 +302,86 @@ export function sleepNights(
         staged = s;
       }
     }
-    out.push({
-      wakeDay,
-      asleepMin: minutes(a.blocks),
+    return {
+      wakeDay: g.wakeDay,
+      asleepMin: minutes(g.blocks),
       deepMin: staged ? staged.deep : null,
       remMin: staged ? staged.rem : null,
       coreMin: staged ? staged.core : null,
       awakeMin: staged ? staged.awake : null,
-      bedISO: new Date(Math.min(...a.blocks.map((b) => b.start))).toISOString(),
-      wakeISO: new Date(Math.max(...a.blocks.map((b) => b.end))).toISOString(),
-      sources: [...a.sources].sort(),
-      spo2Low: a.spo2.length ? round1(Math.min(...a.spo2)) : null,
-      spo2Avg: a.spo2.length ? round1(mean(a.spo2)) : null,
-      respRate: a.resp.length ? round1(mean(a.resp)) : null,
-    });
-  }
-  return out;
+      bedISO: new Date(spans[i].bed).toISOString(),
+      wakeISO: new Date(spans[i].wake).toISOString(),
+      sources: [...sources[i]].sort(),
+      spo2Low: ox[i].length ? round1(Math.min(...ox[i])) : null,
+      spo2Avg: ox[i].length ? round1(mean(ox[i])) : null,
+      respRate: br[i].length ? round1(mean(br[i])) : null,
+    };
+  });
 }
 
 // ── The sync walk ────────────────────────────────────────────
 
 /**
- * The first run: read backwards from now in SLEEP_CHUNK_DAYS chunks until
- * one comes back empty, never past SLEEP_BACKFILL_MAX_DAYS. `fromMs` is the
- * start of the last chunk read — nothing before it was looked at.
+ * Read [fromMs, toMs] in SLEEP_CHUNK_DAYS chunks, newest first. One failed
+ * chunk fails the whole read (it throws): a night is only ever built from a
+ * read that succeeded end to end.
  */
-export async function walkSleepBackfill<T>(
+export async function readChunked<T>(
   query: (startISO: string, endISO: string) => Promise<T[]>,
-  now: number,
-): Promise<{ samples: T[]; fromMs: number; chunks: number }> {
-  const floor = now - SLEEP_BACKFILL_MAX_DAYS * DAY_MS;
-  const samples: T[] = [];
-  let end = now;
-  let fromMs = now;
-  let chunks = 0;
-  while (end > floor) {
-    const start = Math.max(end - SLEEP_CHUNK_DAYS * DAY_MS, floor);
-    const got = await query(new Date(start).toISOString(), new Date(end).toISOString());
-    chunks += 1;
-    fromMs = start;
-    if (!got.length) break;
-    samples.push(...got);
-    end = start;
+  fromMs: number,
+  toMs: number,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let end = toMs; end > fromMs; end -= SLEEP_CHUNK_DAYS * DAY_MS) {
+    const start = Math.max(fromMs, end - SLEEP_CHUNK_DAYS * DAY_MS);
+    out.push(...(await query(new Date(start).toISOString(), new Date(end).toISOString())));
   }
-  return { samples, fromMs, chunks };
+  return out;
+}
+
+/** How far past a chunk's newer edge it is read, so a night whose window
+ *  opens just inside the chunk is read whole. */
+const CHUNK_OVERLAP_MS = 2 * DAY_MS;
+
+/**
+ * The backfill: walk BACKWARDS from `cursor` (or now, on the first run) in
+ * SLEEP_CHUNK_DAYS chunks to the 5-year floor, across empty chunks — a
+ * broken band for four months must not hide the nights before it. Each
+ * chunk writes the nights whose window opens inside it, then stores the
+ * cursor, so an interrupted walk resumes where it stopped on the next run,
+ * independently of the forward incremental cursor. A read that fails stops
+ * the walk with the cursor where it was: nothing is written or removed from
+ * a failed read.
+ */
+export async function walkSleepBackfill(o: {
+  cursor: number | null;
+  now: number;
+  offsetMin?: number;
+  /** Nights grouped from a SUCCESSFUL read of [startMs, endMs]; throws on failure. */
+  read: (startMs: number, endMs: number) => Promise<SleepNight[]>;
+  write: (nights: SleepNight[]) => Promise<void>;
+  setCursor: (ms: number) => Promise<void>;
+}): Promise<{ chunks: number; cursor: number; done: boolean }> {
+  const floor = o.now - SLEEP_BACKFILL_MAX_DAYS * DAY_MS;
+  let cursor = o.cursor ?? o.now;
+  let chunks = 0;
+  while (cursor > floor) {
+    const start = Math.max(cursor - SLEEP_CHUNK_DAYS * DAY_MS, floor);
+    let nights: SleepNight[];
+    try {
+      nights = await o.read(start, Math.min(cursor + CHUNK_OVERLAP_MS, o.now));
+    } catch {
+      return { chunks, cursor, done: false };
+    }
+    chunks += 1;
+    const mine = nightsToWrite(nights, start, o.now, o.offsetMin).filter(
+      (n) => nightWindowStart(n.wakeDay, o.offsetMin) < cursor,
+    );
+    if (mine.length) await o.write(mine);
+    await o.setCursor(start);
+    cursor = start;
+  }
+  return { chunks, cursor, done: true };
 }
 
 export function batches<T>(xs: T[], size: number): T[][] {
@@ -342,8 +397,16 @@ export interface SleepRow { type: string; date: Date; value: number; unit: strin
 /**
  * The rows one night becomes, keyed at UTC midnight of the wake day. The
  * hours row carries bed, wake, sources and the exact minutes as JSON in
- * `meta`. A figure the night lacks is listed in `removes`, so a re-sync
- * clears an old value instead of leaving it standing.
+ * `meta`. The sync only ever ADDS or CORRECTS a figure from a successful
+ * read:
+ *  · oxygen and breathing come from separate queries that can fail or time
+ *    out — a null there is "unknown", so they are upserted when present and
+ *    NEVER removed;
+ *  · stage rows are removed when null. That is safe because a night is only
+ *    built from a sleepAnalysis read that succeeded over the night's whole
+ *    window (readChunked throws on any failed chunk; nightsToWrite drops a
+ *    night cut by the window's edge) — so null stages mean that read
+ *    carried stage data from no source for that night.
  */
 export function sleepNightRows(n: SleepNight): { date: Date; upserts: SleepRow[]; removes: string[] } {
   const date = new Date(`${n.wakeDay}T00:00:00.000Z`);
@@ -357,29 +420,38 @@ export function sleepNightRows(n: SleepNight): { date: Date; upserts: SleepRow[]
     },
   ];
   const removes: string[] = [];
-  const add = (type: string, value: number | null, unit: string) => {
-    if (value === null) removes.push(type);
-    else upserts.push({ type, date, value, unit, meta: null });
+  const add = (type: string, value: number | null, unit: string, removable: boolean) => {
+    if (value !== null) upserts.push({ type, date, value, unit, meta: null });
+    else if (removable) removes.push(type);
   };
-  add(SLEEP_TYPES.deep, n.deepMin, 'min');
-  add(SLEEP_TYPES.rem, n.remMin, 'min');
-  add(SLEEP_TYPES.core, n.coreMin, 'min');
-  add(SLEEP_TYPES.awake, n.awakeMin, 'min');
-  add(SLEEP_TYPES.spo2Low, n.spo2Low, '%');
-  add(SLEEP_TYPES.spo2Avg, n.spo2Avg, '%');
-  add(SLEEP_TYPES.resp, n.respRate, 'count/min');
+  add(SLEEP_TYPES.deep, n.deepMin, 'min', true);
+  add(SLEEP_TYPES.rem, n.remMin, 'min', true);
+  add(SLEEP_TYPES.core, n.coreMin, 'min', true);
+  add(SLEEP_TYPES.awake, n.awakeMin, 'min', true);
+  add(SLEEP_TYPES.spo2Low, n.spo2Low, '%', false);
+  add(SLEEP_TYPES.spo2Avg, n.spo2Avg, '%', false);
+  add(SLEEP_TYPES.resp, n.respRate, 'count/min', false);
   return { date, upserts, removes };
 }
 
-/** A night as it arrives over the wire, checked; null when malformed. */
-export function parseSleepNight(raw: unknown): SleepNight | null {
+/**
+ * A night as it arrives over the wire, checked against `todayKey` (the
+ * owner's day on the server); null when malformed. The key must be a real
+ * day (2026-02-31 is refused, not stored as 3 Mar) no later than tomorrow —
+ * a 2099 row would become the sync cursor and stop every later write; bed
+ * and wake must sit around that day; the stages must fit the night.
+ */
+export function parseSleepNight(raw: unknown, todayKey: string): SleepNight | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
   const num = (v: unknown, lo: number, hi: number): number | null | undefined => {
     if (v === null || v === undefined) return null;
     return typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi ? v : undefined;
   };
-  if (typeof r.wakeDay !== 'string' || !DAY_RE.test(r.wakeDay) || Number.isNaN(Date.parse(`${r.wakeDay}T00:00:00Z`))) return null;
+  if (typeof r.wakeDay !== 'string' || !DAY_RE.test(r.wakeDay)) return null;
+  const dayMs = Date.parse(`${r.wakeDay}T00:00:00Z`);
+  if (Number.isNaN(dayMs) || new Date(dayMs).toISOString().slice(0, 10) !== r.wakeDay) return null;
+  if (!DAY_RE.test(todayKey) || r.wakeDay > shiftDay(todayKey, 1)) return null;
   const asleep = num(r.asleepMin, 1, 24 * 60);
   if (asleep == null) return null;
   const stage = [r.deepMin, r.remMin, r.coreMin, r.awakeMin].map((v) => num(v, 0, 24 * 60));
@@ -389,6 +461,12 @@ export function parseSleepNight(raw: unknown): SleepNight | null {
   const bed = typeof r.bedISO === 'string' ? Date.parse(r.bedISO) : NaN;
   const wake = typeof r.wakeISO === 'string' ? Date.parse(r.wakeISO) : NaN;
   if (!Number.isFinite(bed) || !Number.isFinite(wake) || wake <= bed) return null;
+  // Around the key in any zone (UTC−12…+14): a night keyed D starts after
+  // noon of D−1 local and ends before 18:00 of D local.
+  if (bed < dayMs - 2 * DAY_MS || wake > dayMs + 33 * 3_600_000) return null;
+  const spanMin = (wake - bed) / MIN_MS;
+  if (asleep > spanMin + 1) return null;
+  if (stage.reduce((s: number, v) => s + (v ?? 0), 0) > spanMin + SPOT_AFTER_WAKE_MIN + 1) return null;
   const sources = Array.isArray(r.sources)
     ? r.sources.filter((s): s is string => typeof s === 'string').slice(0, 10).map((s) => s.slice(0, 100))
     : [];
@@ -409,10 +487,10 @@ export function parseSleepNight(raw: unknown): SleepNight | null {
   };
 }
 
-/** The two writes the import needs — prisma on the server, a Map in the suite. */
+/** One night's rows and removals as ONE write — prisma.$transaction on the
+ *  server, a Map in the suite — so a failure half-way leaves it untouched. */
 export interface SleepDb {
-  upsert(row: SleepRow & { source: string }): Promise<void>;
-  remove(types: string[], date: Date, source: string): Promise<void>;
+  writeNight(date: Date, rows: SleepRow[], removes: string[], source: string): Promise<void>;
 }
 
 /**
@@ -424,6 +502,7 @@ export interface SleepDb {
 export async function writeSleepNights(
   raw: unknown,
   db: SleepDb,
+  todayKey: string,
 ): Promise<{ nights: number; rows: number; skipped: number } | { error: string }> {
   if (!Array.isArray(raw)) return { error: 'expected a list of nights' };
   if (raw.length > SLEEP_IMPORT_MAX_NIGHTS) return { error: `at most ${SLEEP_IMPORT_MAX_NIGHTS} nights per call` };
@@ -431,14 +510,13 @@ export async function writeSleepNights(
   let rows = 0;
   let skipped = 0;
   for (const item of raw) {
-    const night = parseSleepNight(item);
+    const night = parseSleepNight(item, todayKey);
     if (!night) {
       skipped += 1;
       continue;
     }
     const { date, upserts, removes } = sleepNightRows(night);
-    for (const row of upserts) await db.upsert({ ...row, source: SLEEP_SOURCE });
-    if (removes.length) await db.remove(removes, date, SLEEP_SOURCE);
+    await db.writeNight(date, upserts, removes, SLEEP_SOURCE);
     nights += 1;
     rows += upserts.length;
   }
@@ -531,6 +609,16 @@ export function sleepAverage(nights: StoredNight[], todayKey: string, days: numb
     remMin: rem.length >= MIN_AVG_NIGHTS ? Math.round(mean(rem)) : null,
     remNights: rem.length,
   };
+}
+
+/** The Averages row's words: the average with its count once there are
+ *  enough nights, otherwise how many there are and that 3 are needed. */
+export function sleepAverageText(a: SleepAverage): { value: string; count: string | null } {
+  if (a.hours === null) return { value: `${a.nights} night${a.nights === 1 ? '' : 's'} · ${MIN_AVG_NIGHTS} needed`, count: null };
+  const value = [`${a.hours} h`, a.deepMin !== null ? `deep ${a.deepMin}` : null, a.remMin !== null ? `REM ${a.remMin}` : null]
+    .filter(Boolean)
+    .join(' · ');
+  return { value, count: `× ${a.nights}` };
 }
 
 export interface CpapNightIn { night: Date | string; usageHours: number }

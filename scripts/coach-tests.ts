@@ -145,6 +145,7 @@ import {
   OWN_BUNDLE_ID,
   coveredByExisting,
   parseHealthPayload,
+  dropSleepSamples,
 } from '../src/lib/health';
 
 interface HistoryFile {
@@ -5368,48 +5369,103 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   // 5 — across a Riyadh midnight (no DST there): 22:30 → 06:30 is the 7th's night.
   const n5 = SL.sleepNights([smp('2026-10-06', '22:30', '2026-10-07', '06:30', ASLEEP)], { offsetMin: RIY });
   assert(n5.length === 1 && n5[0].wakeDay === '2026-10-07' && n5[0].asleepMin === 480, `a night across midnight is keyed by the morning (got ${n5[0]?.wakeDay} ${n5[0]?.asleepMin})`);
-  assert(SL.nightOf(R('2026-10-06', '17:59'), RIY) === null && SL.nightOf(R('2026-10-06', '18:00'), RIY) === '2026-10-07' && SL.nightOf(R('2026-10-07', '13:59'), RIY) === '2026-10-07' && SL.nightOf(R('2026-10-07', '14:00'), RIY) === null, 'the night runs from 18:00 the evening before to 14:00 on the wake day');
 
-  // 6 — overnight oxygen and breathing: only inside the night's asleep blocks.
+  // 5b — the night rule (review, 2026-10-05): a nap is a run that starts at
+  // or after 14:00, ends before 20:00 the same day and lasts under 3 h. Any
+  // other run — blocks joined across awake gaps under 90 min — belongs to
+  // the wake day of its END (an end from 18:00 on is the night ending
+  // tomorrow). Continuity keeps one night together either side of 14:00.
+  {
+    const key = (xs: ReturnType<typeof smp>[]) => SL.sleepNights(xs, { offsetMin: RIY }).map((n) => `${n.wakeDay}:${n.asleepMin}`).join();
+    assert(key([smp('2026-10-04', '17:30', '2026-10-05', '05:00', ASLEEP)]) === '2026-10-05:690', `asleep 17:30 → 05:00 after a bad night is one night of 11 h 30, not nothing (got ${key([smp('2026-10-04', '17:30', '2026-10-05', '05:00', ASLEEP)])})`);
+    const awakeAt20 = [smp('2026-10-04', '17:30', '2026-10-04', '20:00', CORE), smp('2026-10-04', '20:00', '2026-10-04', '20:10', AWAKE), smp('2026-10-04', '20:10', '2026-10-05', '05:00', CORE)];
+    assert(key(awakeAt20) === '2026-10-05:680', `an awake spell at 20:00 does not cut 17:30–20:00 off the night (got ${key(awakeAt20)})`);
+    const pastTwo = [smp('2026-10-05', '03:00', '2026-10-05', '13:55', ASLEEP), smp('2026-10-05', '14:05', '2026-10-05', '16:00', ASLEEP)];
+    assert(key(pastTwo) === '2026-10-05:770', `sleeping on past 14:00 after a 10-minute wake keeps the 115 minutes (got ${key(pastTwo)})`);
+    assert(key([smp('2026-10-05', '18:30', '2026-10-05', '19:30', ASLEEP)]) === '' && key([smp('2026-10-05', '14:00', '2026-10-05', '16:59', ASLEEP)]) === '', 'an afternoon or early-evening doze under 3 h that ends before 20:00 is a nap');
+    assert(key([smp('2026-10-05', '15:00', '2026-10-05', '18:30', ASLEEP)]) === '2026-10-06:210' && key([smp('2026-10-05', '12:00', '2026-10-05', '15:00', ASLEEP)]) === '2026-10-05:180', 'three hours or more is not a nap: keyed by where it ends');
+    assert(key([smp('2026-10-05', '23:00', '2026-10-06', '01:00', ASLEEP)]) === '2026-10-06:120', 'a short run after 14:00 that crosses midnight is not a nap');
+    const H = (ms: number) => Math.round((ms / 3_600_000) * 10) / 10;
+    assert(H(nightAsleepMs([{ start: R('2026-10-04', '17:30'), end: R('2026-10-05', '05:00') }], R('2026-10-05', '09:00'), RIY)) === 11.5, 'readiness reads the same rule');
+  }
+
+  // 6 — overnight oxygen and breathing: inside the whole night, first asleep
+  // to final wake plus 30 minutes (a Fitbit may stamp its reading at the
+  // session's end, after a trailing awake spell).
   const spo2 = [
     { t: R(d3, '01:00'), value: 80 }, // before he fell asleep
     { t: R(d3, '03:00'), value: 0.93 }, // HealthKit's percent is a fraction
     { t: R(d3, '05:00'), value: 90 },
-    { t: R(d3, '08:00'), value: 85 }, // awake between the two blocks
+    { t: R(d3, '08:00'), value: 85 }, // the awake gap is inside the night
     { t: R(d3, '10:00'), value: 94 },
-    { t: R(d3, '14:00'), value: 84 }, // after the final wake
+    { t: R(d3, '14:10'), value: 84 }, // 40 minutes after the final wake
   ];
-  const resp = [{ t: R(d3, '04:30'), value: 15 }, { t: R(d3, '08:00'), value: 20 }, { t: R(d3, '10:00'), value: 14 }];
+  const resp = [{ t: R(d3, '04:30'), value: 15 }, { t: R(d3, '08:00'), value: 20 }, { t: R(d3, '10:00'), value: 14 }, { t: R(d3, '01:00'), value: 30 }];
   const n6 = SL.sleepNights(split, { offsetMin: RIY, spo2, resp });
-  assert(n6[0]?.spo2Low === 90 && n6[0].spo2Avg === 92.3 && n6[0].respRate === 14.5, `SpO2 and breathing rate inside the asleep span only (got low ${n6[0]?.spo2Low} avg ${n6[0]?.spo2Avg} resp ${n6[0]?.respRate})`);
+  assert(n6[0]?.spo2Low === 85 && n6[0].spo2Avg === 90.5 && n6[0].respRate === 16.3, `SpO2 and breathing rate from first asleep to final wake + 30 min (got low ${n6[0]?.spo2Low} avg ${n6[0]?.spo2Avg} resp ${n6[0]?.respRate})`);
   assert(n1[0]?.spo2Low === null && n1[0].respRate === null, 'no oxygen samples: null, never zero');
+  const trailing = [smp('2026-10-04', '23:00', '2026-10-05', '06:00', CORE), smp('2026-10-05', '06:00', '2026-10-05', '06:20', AWAKE)];
+  assert(SL.sleepNights(trailing, { offsetMin: RIY, spo2: [{ t: R('2026-10-05', '06:20'), value: 0.94 }] })[0]?.spo2Low === 94, 'a reading stamped at the end of a trailing awake spell is the night\'s');
 
-  // 7 — the first run walks back from now in 60-day chunks until one is empty.
+  // 7 — the first run walks back to the 5-year floor, across empty chunks,
+  // and resumes BACKWARDS from a stored cursor; a failed read moves nothing.
   {
     const now = R('2026-10-05', '12:00');
-    const starts: number[] = [];
-    const fake = (has: (start: number) => boolean) => async (startISO: string, endISO: string) => {
-      starts.push(T(startISO));
-      return has(T(startISO)) ? [{ startISO, endISO }] : [];
+    const mkNight = (wake: number): SL.SleepNight => ({ wakeDay: SL.localDayKey(wake, RIY), asleepMin: 420, deepMin: null, remMin: null, coreMin: null, awakeMin: null, bedISO: new Date(wake - 7 * 3_600_000).toISOString(), wakeISO: new Date(wake).toISOString(), sources: ['Fitbit'], spo2Low: null, spo2Avg: null, respRate: null });
+    // Watch nights Jan–May, a broken band, Fitbit from 2 Oct.
+    const health: number[] = [];
+    for (let t = R('2026-01-02', '06:30'); t < R('2026-05-20', '00:00'); t += DAY) health.push(t);
+    for (let t = R('2026-10-03', '06:30'); t < now; t += DAY) health.push(t);
+    const run = async (cursor: number | null, failAt = -1) => {
+      const written: string[] = [];
+      let cur: number | null = cursor;
+      let reads = 0;
+      const out = await SL.walkSleepBackfill({
+        cursor, now, offsetMin: RIY,
+        read: async (startMs, endMs) => {
+          if (reads++ === failAt) throw new Error('timeout');
+          return health.filter((w) => w - 7 * 3_600_000 >= startMs && w <= endMs).map(mkNight);
+        },
+        write: async (ns) => { written.push(...ns.map((n) => n.wakeDay)); },
+        setCursor: async (ms) => { cur = ms; },
+      });
+      return { out, written: [...new Set(written)], cur };
     };
     pendingAsync.push((async () => {
-      const w = await SL.walkSleepBackfill(fake((st) => st > now - 130 * DAY), now);
-      assert(w.chunks === 3 && w.samples.length === 2 && w.fromMs === now - 180 * DAY && starts[0] === now - 60 * DAY, `the walk stops at the first empty chunk (got ${w.chunks} chunks, from ${new Date(w.fromMs).toISOString()})`);
-      starts.length = 0;
-      const cap = await SL.walkSleepBackfill(fake(() => true), now);
-      assert(cap.chunks === 31 && cap.fromMs === now - 1826 * DAY && Math.min(...starts) === now - 1826 * DAY, `…and at 5 years however much there is (got ${cap.chunks} chunks back to ${new Date(cap.fromMs).toISOString()})`);
+      const all = await run(null);
+      assert(all.out.chunks === 31 && all.out.done && all.cur === now - 1826 * DAY, `the first run reads every chunk back to 5 years, not stopping at an empty one (got ${all.out.chunks} chunks, done ${all.out.done})`);
+      assert(all.written.length === health.length, `a 4-month gap does not hide the nights before it (got ${all.written.length} of ${health.length})`);
+      const cut = await run(null, 2);
+      assert(cut.out.done === false && cut.cur === now - 120 * DAY && cut.out.chunks === 2, `a read that fails stops the walk and leaves the cursor at the last chunk written (got cursor ${cut.cur === null ? null : (now - cut.cur) / DAY} days back)`);
+      const resumed = await run(now - 120 * DAY);
+      assert(resumed.out.done && resumed.out.chunks === 29 && resumed.written.every((d) => d < '2026-06-08'), `the next run resumes BACKWARDS from the cursor (got ${resumed.out.chunks} chunks)`);
+      const finished = await run(now - 1826 * DAY);
+      assert(finished.out.chunks === 0 && finished.out.done, 'a finished walk reads nothing');
     })());
   }
 
-  // 8 — later runs re-read from the newest stored night minus 3 days.
+  // 8 — later runs re-read from the newest stored night minus 3 days, in
+  // 60-day chunks; a night still in progress is not stored.
   {
     const from = SL.incrementalSleepStart('2026-10-05', RIY);
-    assert(from === R('2026-10-01', '18:00'), `newest stored night 5 Oct → re-read from the evening that opens the night of 2 Oct (got ${new Date(from).toISOString()})`);
-    const mk = (day: string) => ({ ...n5[0], wakeDay: day });
-    const now = R('2026-10-05', '20:00');
-    const kept = SL.nightsToWrite(['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06'].map(mk), from, now, RIY).map((n) => n.wakeDay);
-    assert(kept.join() === '2026-10-02,2026-10-05', `a night cut by the window's edge, and a night that has not ended yet, are never written (got ${kept.join()})`);
+    assert(from === R('2026-10-01', '12:00'), `newest stored night 5 Oct → re-read from noon before the night of 2 Oct (got ${new Date(from).toISOString()})`);
+    const mk = (day: string, wakeHm = '06:30') => {
+      const wake = R(day, wakeHm);
+      return { ...n5[0], wakeDay: day, bedISO: new Date(wake - 7.5 * 3_600_000).toISOString(), wakeISO: new Date(wake).toISOString() };
+    };
+    const kept = (now: number, ns: SL.SleepNight[]) => SL.nightsToWrite(ns, from, now, RIY).map((n) => n.wakeDay).join();
+    assert(kept(R('2026-10-05', '20:00'), ['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06'].map((d) => mk(d))) === '2026-10-02,2026-10-05', 'a night cut by the window\'s edge, and a night that has not ended yet, are never written');
+    assert(kept(R('2026-10-05', '07:00'), [mk('2026-10-05')]) === '' && kept(R('2026-10-05', '07:31'), [mk('2026-10-05')]) === '2026-10-05', 'this morning\'s night waits until an hour after its last block');
+    assert(kept(R('2026-10-05', '04:45'), [mk('2026-10-05', '03:00')]) === '' && kept(R('2026-10-05', '05:01'), [mk('2026-10-05', '03:00')]) === '2026-10-05', '…and until 05:00: an open at 03:00 is the middle of the night');
     assert(SL.batches([1, 2, 3, 4, 5], 2).map((b) => b.length).join() === '2,2,1' && SL.SLEEP_IMPORT_MAX_NIGHTS === 20, 'nights go to the server 20 at a time');
+    const spans: string[] = [];
+    pendingAsync.push((async () => {
+      const got = await SL.readChunked(async (s, e) => { spans.push(`${s}|${e}`); return [1]; }, R('2026-01-01', '00:00'), R('2026-10-05', '12:00'));
+      assert(got.length === spans.length && spans.length === 5 && spans.every((x) => Date.parse(x.split('|')[1]) - Date.parse(x.split('|')[0]) <= 60 * DAY), `a long incremental read goes in 60-day chunks, never one call over months (got ${spans.length})`);
+      let threw = false;
+      try { await SL.readChunked(async (s) => { if (s < new Date(R('2026-06-01', '00:00')).toISOString()) throw new Error('timeout'); return [1]; }, R('2026-01-01', '00:00'), R('2026-10-05', '12:00')); } catch { threw = true; }
+      assert(threw, 'one failed chunk fails the whole read: no night is written from part of it');
+    })());
   }
 
   // 9 — what one night stores: the hours row (Stats' sleep debt reads it) plus a row per figure.
@@ -5418,42 +5474,67 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
     const rows = SL.sleepNightRows(night);
     const at = rows.upserts.map((r) => `${r.type}=${r.value}${r.unit}`).join(' ');
     assert(rows.date.toISOString() === '2026-10-03T00:00:00.000Z' && rows.upserts.every((r) => r.date.toISOString() === '2026-10-03T00:00:00.000Z'), 'every row is keyed at UTC midnight of the wake day, like the other day rows');
-    assert(at === 'sleep_asleep_h=8.07h sleep_deep_min=40min sleep_rem_min=78min sleep_core_min=366min sleep_awake_min=32min sleep_spo2_low=90% sleep_spo2_avg=92.3% sleep_resp_rate=14.5count/min', `the rows of one night (got ${at})`);
+    assert(at === 'sleep_asleep_h=8.07h sleep_deep_min=40min sleep_rem_min=78min sleep_core_min=366min sleep_awake_min=32min sleep_spo2_low=85% sleep_spo2_avg=90.5% sleep_resp_rate=16.3count/min', `the rows of one night (got ${at})`);
     const meta = JSON.parse(rows.upserts[0]?.meta ?? '{}');
     assert(meta.bed === night?.bedISO && meta.wake === night?.wakeISO && meta.sources?.join() === 'Fitbit' && meta.asleepMin === 484 && rows.upserts.slice(1).every((r) => r.meta === null), `bed, wake, sources and exact minutes ride on the hours row (got ${rows.upserts[0]?.meta})`);
     assert(rows.upserts.length > 0 && rows.removes.length === 0, 'nothing to clear when every figure is present');
     const bare = SL.sleepNightRows(n2[1]);
-    assert(bare.upserts.length === 1 && bare.removes.sort().join() === 'sleep_awake_min,sleep_core_min,sleep_deep_min,sleep_rem_min,sleep_resp_rate,sleep_spo2_avg,sleep_spo2_low', 'a night without stages or oxygen clears those rows rather than leaving an old figure');
+    assert(bare.upserts.length === 1 && bare.removes.sort().join() === 'sleep_awake_min,sleep_core_min,sleep_deep_min,sleep_rem_min', `a night the read shows unstaged clears its stage rows; oxygen and breathing are never removed by the sync (got ${bare.removes.join()})`);
   }
 
-  // 10 — the import is an idempotent upsert, and a late block corrects the night.
+  // 10 — the import: one night is one atomic write, an idempotent upsert; a
+  // late block corrects the night; a failed oxygen read never deletes oxygen.
   {
     const store = new Map<string, { value: number; meta: string | null }>();
+    let writes = 0;
     const db: SL.SleepDb = {
-      async upsert(r) { store.set(`${r.type}|${r.date.toISOString()}|${r.source}`, { value: r.value, meta: r.meta }); },
-      async remove(types, date, source) { for (const t of types) store.delete(`${t}|${date.toISOString()}|${source}`); },
+      async writeNight(date, rows, removes, source) {
+        writes += 1;
+        for (const r of rows) store.set(`${r.type}|${r.date.toISOString()}|${source}`, { value: r.value, meta: r.meta });
+        for (const t of removes) store.delete(`${t}|${date.toISOString()}|${source}`);
+      },
     };
     const k = (t: string) => store.get(`${t}|2026-10-03T00:00:00.000Z|apple-health`);
+    const today = '2026-10-05';
     pendingAsync.push((async () => {
-      const first = SL.sleepNights(split.slice(0, 6), { offsetMin: RIY }); // the morning block only, synced at 07:00
-      await SL.writeSleepNights(first, db);
+      const first = SL.sleepNights(split.slice(0, 6), { offsetMin: RIY }); // the morning block only, synced at 08:00
+      await SL.writeSleepNights(first, db, today);
       const once = store.size;
-      await SL.writeSleepNights(JSON.parse(JSON.stringify(first)), db);
-      assert(once === 5 && store.size === once && k('sleep_asleep_h')?.value === 4.38, `re-importing the same night changes nothing (got ${store.size} rows, ${k('sleep_asleep_h')?.value} h)`);
-      await SL.writeSleepNights(SL.sleepNights(split, { offsetMin: RIY }), db);
-      assert(store.size === 5 && k('sleep_asleep_h')?.value === 8.07 && k('sleep_core_min')?.value === 366, `the 09:49 block arriving later REPLACES the night's values, never adds a row (got ${k('sleep_asleep_h')?.value} h, ${store.size} rows)`);
-      const tooMany = await SL.writeSleepNights(Array.from({ length: 21 }, () => first[0]), db);
+      await SL.writeSleepNights(JSON.parse(JSON.stringify(first)), db, today);
+      assert(once === 5 && store.size === once && k('sleep_asleep_h')?.value === 4.38 && writes === 2, `re-importing the same night changes nothing, one write per night (got ${store.size} rows, ${k('sleep_asleep_h')?.value} h, ${writes} writes)`);
+      await SL.writeSleepNights(SL.sleepNights(split, { offsetMin: RIY, spo2, resp }), db, today);
+      assert(store.size === 8 && k('sleep_asleep_h')?.value === 8.07 && k('sleep_core_min')?.value === 366, `the 09:49 block arriving later REPLACES the night's values, never adds a row (got ${k('sleep_asleep_h')?.value} h, ${store.size} rows)`);
+      await SL.writeSleepNights(SL.sleepNights(split, { offsetMin: RIY, spo2: null, resp: null }), db, today);
+      assert(k('sleep_spo2_low')?.value === 85 && k('sleep_resp_rate')?.value === 16.3, 'an oxygen or breathing read that failed (null) leaves the stored figures alone');
+      await SL.writeSleepNights(SL.sleepNights(split, { offsetMin: RIY, spo2: [], resp: [] }), db, today);
+      assert(k('sleep_spo2_low')?.value === 85, '…and so does a read that came back empty');
+      const tooMany = await SL.writeSleepNights(Array.from({ length: 21 }, () => first[0]), db, today);
       assert('error' in tooMany, 'more than 20 nights in one call is refused, not half-written');
-      const bad = await SL.writeSleepNights([{ ...first[0], wakeDay: 'tomorrow' }, { ...first[0], asleepMin: 2000 }, { ...first[0], deepMin: -5 }], db);
-      assert(!('error' in bad) && bad.nights === 0 && bad.skipped === 3, `malformed nights are skipped (got ${JSON.stringify(bad)})`);
+      const n0 = first[0];
+      const bad = await SL.writeSleepNights([
+        { ...n0, wakeDay: 'tomorrow' }, { ...n0, asleepMin: 2000 }, { ...n0, deepMin: -5 },
+        { ...n0, wakeDay: '2026-02-31' }, { ...n0, wakeDay: '2099-01-01' }, { ...n0, wakeDay: '2026-09-01' },
+        { ...n0, deepMin: 400, remMin: 400 },
+      ], db, today);
+      assert(!('error' in bad) && bad.nights === 0 && bad.skipped === 7, `malformed nights are skipped: a day that does not exist, a day after tomorrow, bed and wake outside the night, stages longer than the night (got ${JSON.stringify(bad)})`);
+      assert(SL.parseSleepNight({ ...n0, wakeDay: '2026-10-06', bedISO: new Date(R('2026-10-05', '23:00')).toISOString(), wakeISO: new Date(R('2026-10-06', '06:00')).toISOString(), deepMin: 60, remMin: 60, coreMin: 200, awakeMin: 30 }, today)?.wakeDay === '2026-10-06', 'tomorrow\'s key from a phone ahead of the server is still accepted');
     })());
+  }
+
+  // 10b — the generic importer may no longer write a night.
+  {
+    const parsed = parseHealthPayload([{ type: 'sleep_analysis', value: 8 }, { type: 'sleep_deep_min', value: 40 }, { type: 'weight', value: 120 }]).samples;
+    const { kept, dropped } = dropSleepSamples(parsed);
+    assert(kept.length === 1 && kept[0].type === 'weight' && dropped === 2, 'importHealthSamples refuses every sleep type: the night sync is the only sleep writer');
+    assert(/dropSleepSamples\(/.test(src('src/lib/health-import.ts')) && /\$transaction\(/.test(src('src/lib/health-import.ts')), 'the importer drops them, and a night is written in one transaction');
+    assert(/date:\s*\{\s*lte:\s*new Date\(ownerTodayUtc\(now\)\.getTime\(\) \+ DAY_MS\)/.test(src('src/lib/health-import.ts')), 'the sync cursor ignores rows dated after tomorrow');
   }
 
   // 11 — reading the store back, and mask coverage.
   {
     const rowsOf = (n: SL.SleepNight | undefined) => (n ? SL.sleepNightRows(n).upserts : []);
     const stored = SL.nightsFromRows([...rowsOf(n6[0]), ...rowsOf(n2[1]), { type: 'sleep_asleep_h', date: '2026-09-20T00:00:00.000Z', value: 6.5, meta: null }]);
-    assert(stored.map((n) => `${n.day}:${n.hours}`).join() === '2026-09-20:6.5,2026-10-03:8.07,2026-10-04:7.67' && stored[1].deepMin === 40 && stored[1].spo2Low === 90 && stored[1].bedISO === n6[0]?.bedISO && stored[0].bedISO === null, `stored rows fold back into nights, oldest first; a row from before this sync is a night with hours only (got ${stored.map((n) => `${n.day}:${n.hours}`).join()})`);
+    assert(stored.map((n) => `${n.day}:${n.hours}`).join() === '2026-09-20:6.5,2026-10-03:8.07,2026-10-04:7.67' && stored[1].deepMin === 40 && stored[1].spo2Low === 85 && stored[1].bedISO === n6[0]?.bedISO && stored[0].bedISO === null, `stored rows fold back into nights, oldest first; a row from before this sync is a night with hours only (got ${stored.map((n) => `${n.day}:${n.hours}`).join()})`);
     assert(SL.maskCoverage(8, 6) === 0.75 && SL.maskCoverage(6, 8) === 1 && SL.maskCoverage(0, 5) === null, 'mask coverage = min(mask, asleep) ÷ asleep');
     const g = SL.sleepGlance(stored, [{ night: new Date('2026-10-03T00:00:00.000Z'), usageHours: 6 }], '2026-10-04');
     assert(g?.night.day === '2026-10-04' && g.isLastNight && g.maskHours === null, 'last night without a CPAP night: no mask line');
@@ -5476,6 +5557,9 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
     assert(a7.nights === 7 && a7.hours === 6.9 && a7.deepMin === 60 && a7.deepNights === 4 && a7.remMin === 90, `7 nights: averages with their counts (got ${JSON.stringify(a7)})`);
     const thin = SL.sleepAverage(nights.slice(-2), today, 7);
     assert(thin.nights === 2 && thin.hours === null, 'two nights: not enough data yet, never an average of two');
+    const one = SL.sleepAverageText(SL.sleepAverage(nights.slice(-1), today, 7));
+    const full = SL.sleepAverageText(a7);
+    assert(one.value === '1 night · 3 needed' && one.count === null && full.value === '6.9 h · deep 60 · REM 90' && full.count === '× 7', `the Averages row: a count of what is still needed, then the average with its count (got ${JSON.stringify(one)} ${JSON.stringify(full)})`);
     const chart = SL.sleepHoursChart(nights, today);
     assert(chart?.series[0].kind === 'bar' && chart.series[0].points.length === 30 && chart.xLabels?.length === 30 && chart.xLabels[29].label === '5 Oct', `hours per night: the last 30 nights as bars, one label per bar (got ${chart?.series[0].points.length})`);
     assert(SL.sleepHoursChart(nights.slice(-3), today) === null, 'three nights: no chart');
@@ -5505,6 +5589,7 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   {
     const read = (f: string) => (fs.existsSync(path.join(__dirname, '..', f)) ? src(f) : '');
     const page = read('src/app/health/sleep/page.tsx');
+    assert(/sleepAverageText\(/.test(page) && !/of 3 nights/.test(page), 'the Averages card says what is still needed, in words');
     assert(/sleepGlance\(/.test(page) && /sleepAverage\(/.test(page) && /sleepHoursChart\(/.test(page) && /sleepSpo2Chart\(/.test(page) && /sleepMonths\(/.test(page) && /<ReportChart/.test(page) && /<details/.test(page), 'the Sleep room renders the shared helpers: glance, averages, chart, oxygen, months behind a tap');
     assert(/wrist reading, not a medical oxygen test/.test(page), 'the oxygen line says what it is');
     assert(/Not enough data yet/.test(page) && /ownerDayKey\(/.test(page) && !/setHours|getDate\(\)/.test(page), 'thin data says so; "last night" is his day, never the server\'s');

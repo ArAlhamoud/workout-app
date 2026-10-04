@@ -520,3 +520,14 @@ export function pairBpSamples(
   }
   return pairs;
 }
+
+/**
+ * The night sync (src/lib/sleep.ts → importSleepNights) is the ONLY sleep
+ * writer. normalizeSampleType maps any name containing "sleep" to
+ * sleep_asleep_h, so the generic importer would otherwise overwrite a
+ * stored night with whatever number arrived; it drops them and counts them.
+ */
+export function dropSleepSamples(samples: ParsedSample[]): { kept: ParsedSample[]; dropped: number } {
+  const kept = samples.filter((s) => s.type !== 'sleep_asleep_h');
+  return { kept, dropped: samples.length - kept.length };
+}

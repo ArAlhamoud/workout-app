@@ -32,13 +32,14 @@ import {
   type QuantityIdentifier,
 } from '@/lib/native-health';
 import {
-  SLEEP_CHUNK_DAYS,
   SLEEP_IMPORT_MAX_NIGHTS,
   batches,
   incrementalSleepStart,
   nightsToWrite,
+  readChunked,
   sleepNights,
   walkSleepBackfill,
+  type SleepNight,
   type SpotIn,
 } from '@/lib/sleep';
 import { pushWorkoutsToHealth, type HealthPushCandidate } from '@/lib/health-push';
@@ -54,7 +55,7 @@ import {
 import { armGapGuard, notifySickRest, notifyComeback, refreshLadderCopy } from '@/lib/gap-guard';
 import { cancelLocalNotifications, scheduleLocalNotifications } from '@/lib/native-feedback';
 import { flushOutbox, retryDead } from '@/lib/outbox';
-import { importHealth, getWeeklyDigest, getWorkoutsToPush, markWorkoutsPushed, getSleepSyncState, importSleepNights } from '@/app/health-actions';
+import { importHealth, getWeeklyDigest, getWorkoutsToPush, markWorkoutsPushed, getSleepSyncState, importSleepNights, saveSleepBackfillCursor } from '@/app/health-actions';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { runCloudBackup } from '@/lib/native-cloud-backup';
 import { readReadinessReadings, readSickSignal } from '@/lib/health-metrics';
@@ -213,73 +214,78 @@ async function runGapGuard(): Promise<void> {
   }
 }
 
-/** Point readings (oxygen, breathing rate) over [from, to], read in the
- *  same 60-day chunks as the sleep walk so no single bridge call spans
- *  years. A type the source never writes, or a failed read, is just empty. */
-async function readSpots(id: QuantityIdentifier, fromMs: number, toMs: number): Promise<SpotIn[]> {
-  const out: SpotIn[] = [];
-  for (let end = toMs; end > fromMs; end -= SLEEP_CHUNK_DAYS * 86_400_000) {
-    const start = Math.max(fromMs, end - SLEEP_CHUNK_DAYS * 86_400_000);
-    try {
-      const { samples } = await queryQuantity(id, { startISO: new Date(start).toISOString(), endISO: new Date(end).toISOString() });
-      for (const s of samples) out.push({ t: new Date(s.dateISO).getTime(), value: s.value });
-    } catch { /* oxygen and breathing are extras; the night still stores */ }
+/** Point readings (oxygen, breathing rate) over [from, to] in 60-day
+ *  chunks. null when any chunk failed or timed out: unknown, never "none" —
+ *  the writer then leaves any stored figure alone. */
+async function readSpots(id: QuantityIdentifier, fromMs: number, toMs: number): Promise<SpotIn[] | null> {
+  try {
+    const samples = await readChunked(
+      async (startISO, endISO) => (await queryQuantity(id, { startISO, endISO })).samples,
+      fromMs,
+      toMs,
+    );
+    return samples.map((s) => ({ t: new Date(s.dateISO).getTime(), value: s.value }));
+  } catch {
+    return null;
   }
-  return out;
+}
+
+/** The nights of [fromMs, toMs], from a sleepAnalysis read that succeeded
+ *  end to end (readChunked throws on any failed chunk — no night is ever
+ *  built from part of a read), with oxygen and breathing when they read. */
+async function readNights(fromMs: number, toMs: number): Promise<SleepNight[]> {
+  const raw = await readChunked((startISO, endISO) => queryCategory('sleepAnalysis', { startISO, endISO }), fromMs, toMs);
+  if (!raw.length) return [];
+  const [spo2, resp] = await Promise.all([
+    readSpots('oxygenSaturation', fromMs, toMs),
+    readSpots('respiratoryRate', fromMs, toMs),
+  ]);
+  return sleepNights(
+    raw.map((s) => ({ start: new Date(s.startISO).getTime(), end: new Date(s.endISO).getTime(), value: s.value, source: s.sourceName })),
+    { spo2, resp },
+  );
+}
+
+/** Nights to the server, SLEEP_IMPORT_MAX_NIGHTS per call; throws when the
+ *  server refuses, so a cursor is never advanced past unwritten nights. */
+async function sendNights(nights: SleepNight[]): Promise<void> {
+  for (const batch of batches(nights, SLEEP_IMPORT_MAX_NIGHTS)) {
+    const out = await importSleepNights(batch);
+    if ('error' in out) throw new Error(out.error);
+  }
 }
 
 /**
  * Every sleep night Apple Health holds, stored per wake day (src/lib/sleep.ts
- * has the rule and docs/HEALTH.md the contract). The FIRST run (nothing
- * stored by this sync yet) walks back from now in 60-day chunks until one
- * is empty, at most 5 years; later runs re-read from the newest stored
- * night minus 3 days, so a late Fitbit sync corrects the nights it lands
- * in. Grouping happens HERE, on the phone, in his local time. Nights go to
- * the server oldest first, SLEEP_IMPORT_MAX_NIGHTS per call: a first run
- * cut short leaves the oldest nights stored, and the next run carries on
- * from the newest of them.
+ * has the rule, docs/HEALTH.md the contract). Grouping happens HERE, on the
+ * phone, in his local time. Two independent cursors:
+ *  · forward — once any night is stored, re-read from the newest stored
+ *    night minus 3 days to now (60-day chunks), so a late Fitbit sync
+ *    corrects the nights it lands in;
+ *  · backward — the backfill walks from its stored cursor (now, the first
+ *    time) to 5 years back, across empty chunks, storing the cursor after
+ *    each chunk so an interrupted walk resumes where it stopped.
+ * A failed read writes nothing and moves no cursor.
  */
 async function syncSleepNights(): Promise<void> {
   const now = Date.now();
-  const { newestWakeDay } = await getSleepSyncState();
-  let fromMs: number;
-  let raw: Awaited<ReturnType<typeof queryCategory>>;
-  if (newestWakeDay === null) {
-    const walk = await walkSleepBackfill(
-      (startISO, endISO) => queryCategory('sleepAnalysis', { startISO, endISO }),
-      now,
-    );
-    fromMs = walk.fromMs;
-    raw = walk.samples;
-  } else {
-    fromMs = incrementalSleepStart(newestWakeDay);
-    raw = await queryCategory('sleepAnalysis', {
-      startISO: new Date(fromMs).toISOString(),
-      endISO: new Date(now).toISOString(),
-    });
+  const { newestWakeDay, backfillFromMs } = await getSleepSyncState();
+  if (newestWakeDay !== null) {
+    const fromMs = incrementalSleepStart(newestWakeDay);
+    try {
+      await sendNights(nightsToWrite(await readNights(fromMs, now), fromMs, now));
+    } catch { /* next open retries; nothing was removed */ }
   }
-  if (!raw.length) return;
-  const [spo2, resp] = await Promise.all([
-    readSpots('oxygenSaturation', fromMs, now),
-    readSpots('respiratoryRate', fromMs, now),
-  ]);
-  const nights = nightsToWrite(
-    sleepNights(
-      raw.map((s) => ({
-        start: new Date(s.startISO).getTime(),
-        end: new Date(s.endISO).getTime(),
-        value: s.value,
-        source: s.sourceName,
-      })),
-      { spo2, resp },
-    ),
-    fromMs,
+  await walkSleepBackfill({
+    cursor: backfillFromMs,
     now,
-  );
-  for (const batch of batches(nights, SLEEP_IMPORT_MAX_NIGHTS)) {
-    const out = await importSleepNights(batch);
-    if ('error' in out) return;
-  }
+    read: readNights,
+    write: sendNights,
+    setCursor: async (ms) => {
+      const out = await saveSleepBackfillCursor(ms);
+      if (!out.ok) throw new Error('cursor refused');
+    },
+  });
 }
 
 /** The heavier, throttled half: weight, recovery metrics, workout push. */

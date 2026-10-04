@@ -179,40 +179,66 @@ rate) into Apple Health. The Apple Watch is NOT worn at night. The CPAP
 is separate: mask hours and AHI come from the weekly prisma report
 (CpapNight) — Apple Health never has them.
 
+- **The guiding rule (review, 2026-10-05).** The sync only ever ADDS or
+  CORRECTS a figure from a successful read. A failure, a timeout, a
+  missing query or an unknown never deletes anything.
 - **Source.** HealthAutoPilot (`syncSleepNights`, inside the throttled
   autopilot run) reads `sleepAnalysis`, `oxygenSaturation` and
-  `respiratoryRate` through the existing bridge — no native change. The
-  FIRST run (no row written by this sync yet; old rows without `meta` do
-  not count) walks back from now in 60-day chunks until one is empty, at
-  most 5 years (`walkSleepBackfill`). Later runs re-read from the newest
-  stored night minus 3 days (`incrementalSleepStart`), so a late sync
-  corrects the nights it lands in. The one-number-per-open push it
-  replaced lost every night the app was not opened.
-- **The night rule** (`src/lib/sleep.ts`, ONE rule — `nightAsleepMs` in
-  health-metrics reads it too): every asleep block STARTING between 18:00
-  the evening before and 14:00 on the wake day is one night, keyed by
-  that wake day in the phone's local time (his Riyadh day). A block from
-  14:00 to 18:00 is a nap and is not stored; a doze from 18:00 belongs to
-  the night ending tomorrow. Asleep = values 1/3/4/5; in-bed (0) is never
-  sleep. Sources are UNIONED, never summed. Stages come from the one
-  source that staged the most of the night; a night nobody staged has
-  null stages, never zeros. Oxygen and breathing count only inside the
-  night's asleep blocks. A night cut by the read window's edge, or one
-  ending after today, is not written (`nightsToWrite`).
+  `respiratoryRate` through the existing bridge — no native change — every
+  read in 60-day chunks (`readChunked`; one failed chunk fails the read,
+  and no night is built from part of one). Two independent cursors:
+  forward, once any night is stored, re-reads from the newest stored night
+  minus 3 days (`incrementalSleepStart`), so a late sync corrects the
+  nights it lands in; backward, the backfill (`walkSleepBackfill`) walks
+  from its own cursor — a `sleep_backfill_from` HealthSample row keyed at
+  the epoch, value = ms — to 5 years back, ACROSS empty chunks (a broken
+  band for four months must not hide the nights before it), storing the
+  cursor after each chunk so an interrupted walk resumes where it
+  stopped. Neither cursor moves on a failed read. The one-number-per-open
+  push it replaced lost every night the app was not opened, and the
+  generic importer now refuses every sleep-named sample
+  (`dropSleepSamples`): the night sync is the only sleep writer.
+- **The night rule** (`src/lib/sleep.ts` `groupSleepBlocks`, ONE rule —
+  `nightAsleepMs` in health-metrics reads it too). Asleep = values
+  1/3/4/5 (in-bed, 0, is never sleep), UNIONED across sources, never
+  summed. Blocks separated by an awake gap under 90 min are one run, so a
+  night holds together whatever side of 14:00 it falls. A run is a NAP —
+  not stored — only when it starts at or after 14:00, ends before 20:00
+  the same day and lasts under 3 h. Every other run belongs to the wake
+  day of its END, in the phone's local time (his Riyadh day); an end from
+  18:00 on is the night ending the next morning. So 17:30 → 05:00 after a
+  bad night is one night of 11 h 30, a 20:00 doze joins tonight, and
+  sleeping on past 14:00 after a ten-minute wake keeps the minutes (the
+  first rule keyed by a block's START and lost all three). Stages come
+  from the one source that staged the most of the night; a night nobody
+  staged has null stages, never zeros. Awake time, oxygen and breathing
+  count from first asleep to final wake plus 30 minutes — the whole night,
+  not only the asleep blocks: a Fitbit may stamp its reading at the
+  session's end, after a trailing awake spell. A night cut by the read
+  window's edge, one ending after today, and this morning's night before
+  it has settled (its last block ended under 60 minutes ago, or it is
+  before 05:00) are not written (`nightsToWrite`) — until then every
+  reader keeps showing the previous complete night.
 - **What is stored** (HealthSample, source `apple-health`, date = UTC
   midnight of the wake day, upsert on the existing unique key — no schema
   change): `sleep_asleep_h` (hours, 2 dp — the row Stats' sleep debt has
   always read; `meta` = JSON {bed, wake, sources, asleepMin}),
   `sleep_deep_min`, `sleep_rem_min`, `sleep_core_min`, `sleep_awake_min`,
   `sleep_spo2_low`, `sleep_spo2_avg` (%), `sleep_resp_rate` (count/min).
-  A re-sync replaces the night; a figure the night no longer has is
-  deleted. At most 20 nights (≤160 rows) per `importSleepNights` call;
-  nights go up oldest first, so a first run cut short resumes from where
-  it stopped.
+  A re-sync replaces the night, in ONE transaction per night. Oxygen and
+  breathing are upserted when the read gave a value and NEVER deleted by
+  the sync. Stage rows are deleted only when the night's sleepAnalysis read
+  succeeded and carried stage data from no source. The server checks every
+  night: a real day (2026-02-31 is refused), no later than tomorrow (a
+  future row would become the cursor and stop every write — the cursor
+  also ignores rows after tomorrow), bed and wake around that day, stages
+  that fit the night. At most 20 nights (≤160 rows) per
+  `importSleepNights` call.
 - **What is shown.** `/health/sleep` (Rooms → Body): last night's hours
   and bed → wake, deep/REM, and "mask N h of it" when the CPAP night for
   that morning exists (min(mask, asleep) — coverage, never compliance);
-  7- and 30-night averages with counts; hours per night (30 bars);
+  7- and 30-night averages with counts ("1 night · 3 needed" until
+  then); hours per night (30 bars);
   lowest overnight oxygen per night as a line once 4 nights have one;
   every month behind a tap. Patterns' "Sleep and the next day" splits on
   hours ASLEEP (7 h or more vs under 7 h — readiness's existing 7 h), with

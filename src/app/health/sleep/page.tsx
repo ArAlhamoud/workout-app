@@ -7,6 +7,7 @@ import { ownerDayKey } from '@/lib/health-insights';
 import { monthLabel, shortDay } from '@/lib/health-format';
 import {
   sleepAverage,
+  sleepAverageText,
   sleepGlance,
   sleepHoursChart,
   sleepMonths,
@@ -64,20 +65,11 @@ export default async function SleepPage() {
   const months = sleepMonths(nights, today);
   const tracked = nights.filter((x) => x.day <= today);
 
-  const avgRow = (label: string, a: SleepAverage) =>
-    a.hours === null ? (
-      <Row label={label} value="—" count={`${a.nights} of 3 nights`} />
-    ) : (
-      <Row
-        label={label}
-        value={[
-          `${a.hours} h`,
-          a.deepMin !== null ? `deep ${a.deepMin}` : null,
-          a.remMin !== null ? `REM ${a.remMin}` : null,
-        ].filter(Boolean).join(' · ')}
-        count={`× ${a.nights}`}
-      />
-    );
+  // "1 night · 3 needed" until an average exists, then the average with its count.
+  const avgRow = (label: string, a: SleepAverage) => {
+    const t = sleepAverageText(a);
+    return <Row label={label} value={t.value} count={t.count ?? undefined} />;
+  };
 
   const n = glance?.night;
   const stageLine = n
