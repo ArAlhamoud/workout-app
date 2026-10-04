@@ -33,8 +33,9 @@ import {
 } from '@/lib/native-health';
 import {
   SLEEP_IMPORT_MAX_NIGHTS,
+  SLEEP_READ_OVERLAP_MS,
   batches,
-  incrementalSleepStart,
+  forwardSleepStart,
   nightsToWrite,
   readChunked,
   sleepNights,
@@ -246,38 +247,45 @@ async function readNights(fromMs: number, toMs: number): Promise<SleepNight[]> {
   );
 }
 
-/** Nights to the server, SLEEP_IMPORT_MAX_NIGHTS per call; throws when the
- *  server refuses, so a cursor is never advanced past unwritten nights. */
-async function sendNights(nights: SleepNight[]): Promise<void> {
+/** Nights to the server, SLEEP_IMPORT_MAX_NIGHTS per call. Resolves with
+ *  the wake days the server REFUSED (reported, never stepped over — the
+ *  backfill keeps its cursor and retries them next run); throws when a call
+ *  fails outright. */
+async function sendNights(nights: SleepNight[]): Promise<string[]> {
+  const refused: string[] = [];
   for (const batch of batches(nights, SLEEP_IMPORT_MAX_NIGHTS)) {
     const out = await importSleepNights(batch);
     if ('error' in out) throw new Error(out.error);
+    refused.push(...out.skippedDays);
   }
+  if (refused.length) console.warn('sleep sync: nights refused by the server, retried next run:', refused.join(', '));
+  return refused;
 }
 
 /**
  * Every sleep night Apple Health holds, stored per wake day (src/lib/sleep.ts
  * has the rule, docs/HEALTH.md the contract). Grouping happens HERE, on the
- * phone, in his local time. Two independent cursors:
- *  · forward — once any night is stored, re-read from the newest stored
- *    night minus 3 days to now (60-day chunks), so a late Fitbit sync
- *    corrects the nights it lands in;
- *  · backward — the backfill walks from its stored cursor (now, the first
- *    time) to 5 years back, across empty chunks, storing the cursor after
- *    each chunk so an interrupted walk resumes where it stopped.
+ * phone, in his local time. Every read starts SLEEP_READ_OVERLAP_MS before
+ * the nights it may write, so a run that began earlier is read whole.
+ *  · forward — ALWAYS: from the newest stored night minus 3 days, or the
+ *    last 14 days while none is stored (forwardSleepStart), so a backfill
+ *    that found nothing (a denied read is EMPTY, not an error) can never
+ *    leave the sync stopped for good;
+ *  · backward — the backfill walks from its stored cursor to 5 years back,
+ *    across empty chunks, storing the cursor after each chunk the server
+ *    accepted whole. While no night is stored it starts over from now each
+ *    run, so history granted later is still found.
  * A failed read writes nothing and moves no cursor.
  */
 async function syncSleepNights(): Promise<void> {
   const now = Date.now();
   const { newestWakeDay, backfillFromMs } = await getSleepSyncState();
-  if (newestWakeDay !== null) {
-    const fromMs = incrementalSleepStart(newestWakeDay);
-    try {
-      await sendNights(nightsToWrite(await readNights(fromMs, now), fromMs, now));
-    } catch { /* next open retries; nothing was removed */ }
-  }
+  const fromMs = forwardSleepStart(newestWakeDay, now);
+  try {
+    await sendNights(nightsToWrite(await readNights(fromMs - SLEEP_READ_OVERLAP_MS, now), fromMs, now));
+  } catch { /* next open retries; nothing was removed */ }
   await walkSleepBackfill({
-    cursor: backfillFromMs,
+    cursor: newestWakeDay === null ? null : backfillFromMs,
     now,
     read: readNights,
     write: sendNights,

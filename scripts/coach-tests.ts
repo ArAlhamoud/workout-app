@@ -5383,7 +5383,15 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
     const pastTwo = [smp('2026-10-05', '03:00', '2026-10-05', '13:55', ASLEEP), smp('2026-10-05', '14:05', '2026-10-05', '16:00', ASLEEP)];
     assert(key(pastTwo) === '2026-10-05:770', `sleeping on past 14:00 after a 10-minute wake keeps the 115 minutes (got ${key(pastTwo)})`);
     assert(key([smp('2026-10-05', '18:30', '2026-10-05', '19:30', ASLEEP)]) === '' && key([smp('2026-10-05', '14:00', '2026-10-05', '16:59', ASLEEP)]) === '', 'an afternoon or early-evening doze under 3 h that ends before 20:00 is a nap');
-    assert(key([smp('2026-10-05', '15:00', '2026-10-05', '18:30', ASLEEP)]) === '2026-10-06:210' && key([smp('2026-10-05', '12:00', '2026-10-05', '15:00', ASLEEP)]) === '2026-10-05:180', 'three hours or more is not a nap: keyed by where it ends');
+    assert(key([smp('2026-10-05', '15:00', '2026-10-05', '18:30', ASLEEP)]) === '2026-10-05:210' && key([smp('2026-10-05', '12:00', '2026-10-05', '15:00', ASLEEP)]) === '2026-10-05:180', 'three hours or more is not a nap: a sleep that ends before 20:00 is its own day\'s, never rolled to the next morning');
+    // Second review: a non-nap sleep was SUMMED onto the next night, and a
+    // sick day joined to the night before moved it whole to the next day.
+    const afternoon = key([smp('2026-10-03', '13:30', '2026-10-03', '18:30', ASLEEP), smp('2026-10-03', '23:00', '2026-10-04', '06:00', ASLEEP)]);
+    assert(afternoon === '2026-10-03:300,2026-10-04:420', `13:30–18:30 is not added onto the night of the 4th (got ${afternoon})`);
+    const sickDay = key([smp('2026-10-03', '23:00', '2026-10-04', '08:00', ASLEEP), smp('2026-10-04', '09:20', '2026-10-04', '18:10', ASLEEP)]);
+    assert(sickDay === '2026-10-04:540', `a night and a long sleep 80 minutes later are not chained past 16 h, not moved to the 5th, not counted twice: the longer stands (got ${sickDay})`);
+    const daySleep = key([smp('2026-10-03', '23:00', '2026-10-04', '06:00', ASLEEP), smp('2026-10-04', '11:00', '2026-10-04', '18:30', ASLEEP)]);
+    assert(daySleep === '2026-10-04:420', `a day sleep (from 10:00, ending 18:00–20:00) never displaces that day's night (got ${daySleep})`);
     assert(key([smp('2026-10-05', '23:00', '2026-10-06', '01:00', ASLEEP)]) === '2026-10-06:120', 'a short run after 14:00 that crosses midnight is not a nap');
     const H = (ms: number) => Math.round((ms / 3_600_000) * 10) / 10;
     assert(H(nightAsleepMs([{ start: R('2026-10-04', '17:30'), end: R('2026-10-05', '05:00') }], R('2026-10-05', '09:00'), RIY)) === 11.5, 'readiness reads the same rule');
@@ -5439,6 +5447,16 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
       assert(cut.out.done === false && cut.cur === now - 120 * DAY && cut.out.chunks === 2, `a read that fails stops the walk and leaves the cursor at the last chunk written (got cursor ${cut.cur === null ? null : (now - cut.cur) / DAY} days back)`);
       const resumed = await run(now - 120 * DAY);
       assert(resumed.out.done && resumed.out.chunks === 29 && resumed.written.every((d) => d < '2026-06-08'), `the next run resumes BACKWARDS from the cursor (got ${resumed.out.chunks} chunks)`);
+      let cur2: number | null = null;
+      const refused = await SL.walkSleepBackfill({ cursor: null, now, offsetMin: RIY, read: async (a, b) => health.filter((w) => w - 7 * 3_600_000 >= a && w <= b).map(mkNight), write: async () => ['2026-10-04'], setCursor: async (ms) => { cur2 = ms; } });
+      assert(refused.done === false && refused.chunks === 1 && cur2 === null, 'a chunk with a night the server refused does not move the cursor: the next run retries it');
+      // A sick run straddling a chunk's start (10:00 on 6 Aug): read with 24 h before it, owned by one chunk.
+      const now2 = R('2026-10-05', '10:00');
+      const sick = [smp('2026-08-06', '09:00', '2026-08-06', '16:00', ASLEEP), smp('2026-08-06', '17:00', '2026-08-07', '06:00', ASLEEP), smp('2026-08-07', '23:00', '2026-08-08', '06:00', ASLEEP)];
+      const got: string[] = [];
+      await SL.walkSleepBackfill({ cursor: null, now: now2, offsetMin: RIY, read: async (a, b) => SL.sleepNights(sick.filter((x) => x.start >= a && x.start <= b), { offsetMin: RIY }), write: async (ns) => { got.push(...ns.map((n) => `${n.wakeDay}:${n.asleepMin}`)); }, setCursor: async () => {} });
+      assert(got.sort().join() === '2026-08-06:420,2026-08-07:780,2026-08-08:420', `a run that began before the chunk is read whole and written once (got ${got.sort().join()})`);
+      assert(SL.forwardSleepStart(null, now2, RIY) === now2 - 14 * DAY && SL.forwardSleepStart('2026-10-05', now2, RIY) === SL.incrementalSleepStart('2026-10-05', RIY), 'with no night stored yet the forward read covers the last 14 days, every run');
       const finished = await run(now - 1826 * DAY);
       assert(finished.out.chunks === 0 && finished.out.done, 'a finished walk reads nothing');
     })());
@@ -5517,7 +5535,14 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
         { ...n0, deepMin: 400, remMin: 400 },
       ], db, today);
       assert(!('error' in bad) && bad.nights === 0 && bad.skipped === 7, `malformed nights are skipped: a day that does not exist, a day after tomorrow, bed and wake outside the night, stages longer than the night (got ${JSON.stringify(bad)})`);
-      assert(SL.parseSleepNight({ ...n0, wakeDay: '2026-10-06', bedISO: new Date(R('2026-10-05', '23:00')).toISOString(), wakeISO: new Date(R('2026-10-06', '06:00')).toISOString(), deepMin: 60, remMin: 60, coreMin: 200, awakeMin: 30 }, today)?.wakeDay === '2026-10-06', 'tomorrow\'s key from a phone ahead of the server is still accepted');
+      const watch = SL.sleepNights([smp('2026-10-03', '23:00', '2026-10-04', '02:00', CORE, 'Watch'), smp('2026-10-04', '02:00', '2026-10-04', '03:00', DEEP, 'Watch'), smp('2026-10-04', '03:00', '2026-10-04', '06:00', REM, 'Watch'), smp('2026-10-04', '06:00', '2026-10-04', '06:45', AWAKE, 'Watch')], { offsetMin: RIY });
+      const fb = SL.sleepNights([smp('2026-09-02', '23:00', '2026-09-03', '02:00', CORE), smp('2026-09-03', '02:00', '2026-09-03', '02:20', AWAKE), smp('2026-09-03', '02:20', '2026-09-03', '06:30', DEEP), smp('2026-09-03', '06:30', '2026-09-03', '07:05', AWAKE)], { offsetMin: RIY });
+      assert(watch[0]?.awakeMin === 0 && fb[0]?.awakeMin === 20, `awake time is clipped to first asleep → final wake (got ${watch[0]?.awakeMin}, ${fb[0]?.awakeMin})`);
+      const real = await SL.writeSleepNights(JSON.parse(JSON.stringify([...watch, ...fb])), db, today);
+      assert(!('error' in real) && real.nights === 2 && real.skipped === 0, `a real night is never refused for its own awake time (got ${JSON.stringify(real)})`);
+      const refused = await SL.writeSleepNights([{ ...n0, wakeDay: '2026-02-31' }, n0], db, today);
+      assert(!('error' in refused) && refused.skippedDays.join() === '2026-02-31', `a refused night is reported by its day, never stepped over in silence (got ${JSON.stringify(refused)})`);
+      assert(SL.parseSleepNight({ ...n0, wakeDay: '2026-10-06', bedISO: new Date(R('2026-10-05', '23:00')).toISOString(), wakeISO: new Date(R('2026-10-06', '06:00')).toISOString(), asleepMin: 320, deepMin: 60, remMin: 60, coreMin: 200, awakeMin: 30 }, today)?.wakeDay === '2026-10-06', 'tomorrow\'s key from a phone ahead of the server is still accepted');
     })());
   }
 
@@ -5600,7 +5625,8 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
     assert(/href: '\/health\/sleep', label: 'Sleep'/.test(body), 'Sleep is a room in the Body group');
     assert(/'\/health\/sleep':/.test(src('src/app/nav-actions.ts')) && /sleepRoomGlance\(/.test(src('src/app/nav-actions.ts')) && /ownerDayKey\(now\)/.test(src('src/lib/health-import.ts')), 'and has a glance line');
     const auto = src('src/components/HealthAutoPilot.tsx');
-    assert(/walkSleepBackfill\(/.test(auto) && /incrementalSleepStart\(/.test(auto) && /nightsToWrite\(/.test(auto) && /importSleepNights\(/.test(auto), 'the autopilot syncs every night: backfill once, then from the newest night minus 3 days');
+    assert(/walkSleepBackfill\(/.test(auto) && /forwardSleepStart\(/.test(auto) && /nightsToWrite\(/.test(auto) && /importSleepNights\(/.test(auto), 'the autopilot syncs every night: backfill once, then from the newest night minus 3 days');
+    assert(/forwardSleepStart\(/.test(auto) && /SLEEP_READ_OVERLAP_MS/.test(auto) && /newestWakeDay === null \? null : backfillFromMs/.test(auto), 'the forward read always runs (14 days until a night lands), reads 24 h early, and an empty backfill starts over until one does');
     assert(!/type: 'sleep_asleep_h'/.test(auto), 'the one-number-per-open push is gone: a night is written by the night sync, keyed by its wake day');
     const metrics = src('src/lib/health-metrics.ts');
     assert(!/NIGHT_FROM_HOUR\s*=|NAP_FROM_HOUR\s*=/.test(metrics) && /from '\.\/sleep'/.test(metrics), 'one night rule: health-metrics reads it from sleep.ts, never a copy');

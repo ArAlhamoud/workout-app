@@ -186,39 +186,51 @@ is separate: mask hours and AHI come from the weekly prisma report
   autopilot run) reads `sleepAnalysis`, `oxygenSaturation` and
   `respiratoryRate` through the existing bridge — no native change — every
   read in 60-day chunks (`readChunked`; one failed chunk fails the read,
-  and no night is built from part of one). Two independent cursors:
-  forward, once any night is stored, re-reads from the newest stored night
-  minus 3 days (`incrementalSleepStart`), so a late sync corrects the
-  nights it lands in; backward, the backfill (`walkSleepBackfill`) walks
-  from its own cursor — a `sleep_backfill_from` HealthSample row keyed at
-  the epoch, value = ms — to 5 years back, ACROSS empty chunks (a broken
-  band for four months must not hide the nights before it), storing the
-  cursor after each chunk so an interrupted walk resumes where it
-  stopped. Neither cursor moves on a failed read. The one-number-per-open
-  push it replaced lost every night the app was not opened, and the
-  generic importer now refuses every sleep-named sample
-  (`dropSleepSamples`): the night sync is the only sleep writer.
+  and no night is built from part of one), each starting 24 h before the
+  nights it may write (a run that began earlier is read whole; a night is
+  written by the read that owns its first asleep instant). Two
+  independent cursors: forward, ALWAYS — from the newest stored night
+  minus 3 days, or the last 14 days while none is stored
+  (`forwardSleepStart`; HealthKit answers a denied read with EMPTY, so a
+  first backfill can find nothing and must not stop the sync for good);
+  backward, the backfill (`walkSleepBackfill`) walks from its own cursor —
+  a `sleep_backfill_from` HealthSample row keyed at the epoch, value = ms
+  — to 5 years back, ACROSS empty chunks (a broken band for four months
+  must not hide the nights before it), storing the cursor after each chunk
+  the server accepted whole, so an interrupted walk resumes where it
+  stopped; while no night is stored it starts over from now each run.
+  Neither cursor moves on a failed read, and a night the server refuses is
+  reported by its day (`skippedDays`) and retried next run, never stepped
+  over. The one-number-per-open push it replaced lost every night the app
+  was not opened, and the generic importer now refuses every sleep-named
+  sample (`dropSleepSamples`): the night sync is the only sleep writer.
 - **The night rule** (`src/lib/sleep.ts` `groupSleepBlocks`, ONE rule —
   `nightAsleepMs` in health-metrics reads it too). Asleep = values
   1/3/4/5 (in-bed, 0, is never sleep), UNIONED across sources, never
-  summed. Blocks separated by an awake gap under 90 min are one run, so a
-  night holds together whatever side of 14:00 it falls. A run is a NAP —
-  not stored — only when it starts at or after 14:00, ends before 20:00
-  the same day and lasts under 3 h. Every other run belongs to the wake
-  day of its END, in the phone's local time (his Riyadh day); an end from
-  18:00 on is the night ending the next morning. So 17:30 → 05:00 after a
-  bad night is one night of 11 h 30, a 20:00 doze joins tonight, and
-  sleeping on past 14:00 after a ten-minute wake keeps the minutes (the
-  first rule keyed by a block's START and lost all three). Stages come
-  from the one source that staged the most of the night; a night nobody
-  staged has null stages, never zeros. Awake time, oxygen and breathing
-  count from first asleep to final wake plus 30 minutes — the whole night,
-  not only the asleep blocks: a Fitbit may stamp its reading at the
-  session's end, after a trailing awake spell. A night cut by the read
-  window's edge, one ending after today, and this morning's night before
-  it has settled (its last block ended under 60 minutes ago, or it is
-  before 05:00) are not written (`nightsToWrite`) — until then every
-  reader keeps showing the previous complete night.
+  summed. Blocks separated by an awake gap under 90 min are one run (capped
+  at 16 h: a longer run splits at its largest gap, so a night is never
+  chained onto a long sleep the next day). A run is a NAP — not stored —
+  only when it starts at or after 14:00, ends before 20:00 the same day
+  and lasts under 3 h. Otherwise, in the phone's local time (his Riyadh
+  day): a run ending at or after 20:00 is the night ending the NEXT
+  morning (a 20:00 doze before bed); ending before 14:00, that morning's
+  night; ending 14:00–20:00, that day's own sleep — a "day sleep" when it
+  began at or after 10:00. The night runs of one wake day are ONE night,
+  summed (the split Fitbit night, 8 h 4 min). Any other run keyed to the
+  same day competes and the LONGER stands — never a sum (a sick day added
+  onto the night counted it twice); a day sleep stands only when that day
+  has no other sleep. So 17:30 → 05:00 after a bad night is one night of
+  11 h 30, and sleeping on past 14:00 after a ten-minute wake keeps the
+  minutes. Stages come from the one source that staged the most of the
+  night; a night nobody staged has null stages, never zeros. Awake time
+  counts only between first asleep and final wake (a trailing awake spell
+  once made a real night longer than itself and the server refused it);
+  oxygen and breathing count from first asleep to final wake plus 30
+  minutes — a Fitbit may stamp its reading at the session's end. A night
+  that began before the read's owned window, one ending after today, and
+  this morning's night before it has settled (its last block ended under
+  60 minutes ago, or it is before 05:00) are not written (`nightsToWrite`)
+  — until then every reader keeps showing the previous complete night.
 - **What is stored** (HealthSample, source `apple-health`, date = UTC
   midnight of the wake day, upsert on the existing unique key — no schema
   change): `sleep_asleep_h` (hours, 2 dp — the row Stats' sleep debt has
@@ -232,7 +244,8 @@ is separate: mask hours and AHI come from the weekly prisma report
   night: a real day (2026-02-31 is refused), no later than tomorrow (a
   future row would become the cursor and stop every write — the cursor
   also ignores rows after tomorrow), bed and wake around that day, stages
-  that fit the night. At most 20 nights (≤160 rows) per
+  that fit the night (deep + REM + core within the minutes asleep, awake
+  within the night's span). At most 20 nights (≤160 rows) per
   `importSleepNights` call.
 - **What is shown.** `/health/sleep` (Rooms → Body): last night's hours
   and bed → wake, deep/REM, and "mask N h of it" when the CPAP night for

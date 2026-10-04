@@ -40,25 +40,41 @@ const DEEP = 4;
 const REM = 5;
 
 /**
- * The night rule (owner, 2026-10-03; review, 2026-10-05). Asleep intervals
- * from every source are unioned into blocks, and blocks separated by an
- * awake gap under RUN_GAP_MIN are one RUN — continuity keeps a night
- * together whatever side of 14:00 it falls (his first Fitbit night was
- * 02:00–06:55 then 09:49–13:30; counting one block reported 3.7 h of 8).
+ * The night rule (owner, 2026-10-03; reviews, 2026-10-05). Asleep intervals
+ * from every source are unioned into blocks; blocks separated by an awake
+ * gap under RUN_GAP_MIN are one RUN, capped at RUN_MAX_H (a longer run is
+ * split at its largest gap, so a night is never chained onto a long sleep
+ * the next day).
  *
- * A run is a NAP — not stored, not a night — only when it starts at or
- * after 14:00, ends before 20:00 the same day and lasts under 3 h. Every
- * other run belongs to the wake day of its END; an end from 18:00 on is the
- * night ending the next morning (a 20:00 doze, or 17:30 → 05:00 after a
- * bad night). The old start-keyed rule called anything starting 14:00–18:00
- * a nap and dropped a whole 17:30 → 05:00 night.
+ * A run is a NAP — not stored — only when it starts at or after 14:00,
+ * ends before 20:00 the same day and lasts under 3 h. Otherwise:
+ *  · ending at or after 20:00 → the night ending the NEXT morning (a 20:00
+ *    doze before bed, 17:30 → 05:00 after a bad night ends next morning
+ *    anyway);
+ *  · ending before 14:00 → that morning's night;
+ *  · ending 14:00–20:00 → that day's, and a DAY SLEEP when it started at or
+ *    after 10:00 the same day.
+ * The night runs of one wake day (ending before 14:00, or rolled from the
+ * evening) are ONE night, summed — his split Fitbit night 02:00–06:55 +
+ * 09:49–13:30 is 8 h 4 min. Any other run keyed to the same day competes:
+ * the LONGER stands, never a sum (a sick day added onto the night counted
+ * it twice). A day sleep stands only when that day has no other sleep.
  */
 export const NAP_FROM_HOUR = 14;
 export const NAP_ENDS_BEFORE_HOUR = 20;
 export const NAP_MAX_MIN = 180;
 export const RUN_GAP_MIN = 90;
-/** A run ending at or after this hour belongs to tomorrow's night. */
-export const EVENING_HOUR = 18;
+export const RUN_MAX_H = 16;
+/** A run ending at or after this hour belongs to the next morning's night. */
+export const ROLL_FROM_HOUR = 20;
+/** A run ending after this hour (and before ROLL_FROM_HOUR) is a day's sleep. */
+export const MORNING_ENDS_HOUR = 14;
+/** …a DAY SLEEP when it began at or after this hour that day. */
+export const DAY_SLEEP_FROM_HOUR = 10;
+/** Every read starts this much before the nights it may write, so a run
+ *  that began before the window is read whole; a night is written by the
+ *  read whose owned window holds its first asleep instant. */
+export const SLEEP_READ_OVERLAP_MS = 24 * 3_600_000;
 /** Oxygen and breathing readings count from first asleep to final wake
  *  plus this much: a Fitbit may stamp its reading at the session's end. */
 export const SPOT_AFTER_WAKE_MIN = 30;
@@ -159,6 +175,18 @@ export function localDayKey(t: number, offsetMin?: number): string {
   return keyOf(p.y, p.m, p.d);
 }
 
+/** A run longer than RUN_MAX_H split at its largest awake gap, repeatedly. */
+function capRun(run: Interval[]): Interval[][] {
+  if (run.length < 2 || run[run.length - 1].end - run[0].start <= RUN_MAX_H * 3_600_000) return [run];
+  let at = 1;
+  for (let i = 2; i < run.length; i++) {
+    if (run[i].start - run[i - 1].end > run[at].start - run[at - 1].end) at = i;
+  }
+  return [...capRun(run.slice(0, at)), ...capRun(run.slice(at))];
+}
+
+const runMs = (run: Interval[]) => run.reduce((ms, b) => ms + (b.end - b.start), 0);
+
 /**
  * Asleep blocks grouped into nights by the rule above: { wakeDay, blocks }
  * oldest first. Naps are dropped. ONE implementation for the stored nights
@@ -166,27 +194,38 @@ export function localDayKey(t: number, offsetMin?: number): string {
  */
 export function groupSleepBlocks(intervals: Interval[], offsetMin?: number): Array<{ wakeDay: string; blocks: Interval[] }> {
   const blocks = mergeIntervals(intervals);
-  const runs: Interval[][] = [];
+  const joined: Interval[][] = [];
   for (const b of blocks) {
-    const run = runs[runs.length - 1];
+    const run = joined[joined.length - 1];
     if (run && b.start - run[run.length - 1].end < RUN_GAP_MIN * MIN_MS) run.push(b);
-    else runs.push([b]);
+    else joined.push([b]);
   }
-  const nights = new Map<string, Interval[]>();
+  const runs = joined.flatMap(capRun);
+  // Per wake day: the night runs (summed into one), and every other run.
+  const byDay = new Map<string, { night: Interval[]; others: Interval[][]; daySleeps: Interval[][] }>();
   for (const run of runs) {
     const start = run[0].start;
     const end = run[run.length - 1].end;
     const s = localParts(start, offsetMin);
     const e = localParts(end, offsetMin);
     const sameDay = s.y === e.y && s.m === e.m && s.d === e.d;
-    const nap = s.h >= NAP_FROM_HOUR && sameDay && e.h < NAP_ENDS_BEFORE_HOUR && end - start < NAP_MAX_MIN * MIN_MS;
-    if (nap) continue;
-    const wakeDay = e.h >= EVENING_HOUR ? keyOf(e.y, e.m, e.d + 1) : keyOf(e.y, e.m, e.d);
-    nights.set(wakeDay, [...(nights.get(wakeDay) ?? []), ...run]);
+    if (s.h >= NAP_FROM_HOUR && sameDay && e.h < NAP_ENDS_BEFORE_HOUR && end - start < NAP_MAX_MIN * MIN_MS) continue;
+    const roll = e.h >= ROLL_FROM_HOUR;
+    const key = roll ? keyOf(e.y, e.m, e.d + 1) : keyOf(e.y, e.m, e.d);
+    const day = byDay.get(key) ?? { night: [], others: [], daySleeps: [] };
+    byDay.set(key, day);
+    if (roll || e.h < MORNING_ENDS_HOUR) day.night.push(...run);
+    else if (sameDay && s.h >= DAY_SLEEP_FROM_HOUR) day.daySleeps.push(run);
+    else day.others.push(run);
   }
-  return [...nights.entries()]
+  const longest = (xs: Interval[][]) => xs.reduce((a, b) => (runMs(b) > runMs(a) ? b : a));
+  return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([wakeDay, bs]) => ({ wakeDay, blocks: bs }));
+    .map(([wakeDay, d]) => {
+      const candidates = [...(d.night.length ? [d.night] : []), ...d.others];
+      const chosen = candidates.length ? longest(candidates) : longest(d.daySleeps);
+      return { wakeDay, blocks: [...chosen].sort((a, b) => a.start - b.start) };
+    });
 }
 
 /**
@@ -208,10 +247,19 @@ export function incrementalSleepStart(newestWakeDay: string, offsetMin?: number)
   return nightWindowStart(back, offsetMin);
 }
 
+/** Where the forward read starts: the newest stored night minus
+ *  SLEEP_RESYNC_DAYS, or — while no night is stored yet (a first backfill
+ *  that found nothing: HealthKit answers a denied read with EMPTY, not an
+ *  error) — the last 14 days, every run, until a night lands. */
+export function forwardSleepStart(newestWakeDay: string | null, now: number, offsetMin?: number): number {
+  return newestWakeDay === null ? now - 14 * DAY_MS : incrementalSleepStart(newestWakeDay, offsetMin);
+}
+
 /**
- * The nights a run may write: only those whose whole window lies inside
- * what was read (a night cut by the window's edge would overwrite a stored
- * night with part of it), none that ends after today, and this morning's
+ * The nights a run may write: only those whose first asleep instant lies at
+ * or after `fromMs` — every read starts SLEEP_READ_OVERLAP_MS earlier, so
+ * such a night was read whole, and a night that began before belongs to
+ * the read that owns that instant — none that ends after today, and this morning's
  * night only once it has settled — its last block ended SETTLE_MIN ago and
  * it is past SETTLE_FROM_HOUR. An open at 03:00 would otherwise store
  * three hours as "last night" for Stats, the glance and the room.
@@ -220,7 +268,7 @@ export function nightsToWrite(nights: SleepNight[], fromMs: number, now: number,
   const today = localDayKey(now, offsetMin);
   const settled = localParts(now, offsetMin).h >= SETTLE_FROM_HOUR;
   return nights.filter((n) => {
-    if (nightWindowStart(n.wakeDay, offsetMin) < fromMs || Date.parse(n.bedISO) < fromMs) return false;
+    if (Date.parse(n.bedISO) < fromMs) return false;
     if (n.wakeDay > today) return false;
     if (n.wakeDay === today) return settled && Date.parse(n.wakeISO) <= now - SETTLE_MIN * MIN_MS;
     return true;
@@ -264,9 +312,16 @@ export function sleepNights(
     if (i < 0) continue;
     if (ASLEEP_VALUES.has(s.value)) sources[i].add(s.source);
     if (s.value === AWAKE || s.value === CORE || s.value === DEEP || s.value === REM) {
+      // Awake counts only between first asleep and final wake: a trailing
+      // "awake in bed" spell made a real night longer than itself and the
+      // server refused it (second review, 2026-10-05).
+      const iv = s.value === AWAKE
+        ? { start: Math.max(s.start, spans[i].bed), end: Math.min(s.end, spans[i].wake) }
+        : { start: s.start, end: s.end };
+      if (iv.end <= iv.start) continue;
       const byValue = stages[i].get(s.source) ?? new Map<number, Interval[]>();
       stages[i].set(s.source, byValue);
-      byValue.set(s.value, [...(byValue.get(s.value) ?? []), { start: s.start, end: s.end }]);
+      byValue.set(s.value, [...(byValue.get(s.value) ?? []), iv]);
     }
   }
   const spot = (xs: SpotIn[] | null | undefined, norm: (v: number) => number | null): number[][] => {
@@ -339,15 +394,16 @@ export async function readChunked<T>(
   return out;
 }
 
-/** How far past a chunk's newer edge it is read, so a night whose window
- *  opens just inside the chunk is read whole. */
+/** How far past a chunk's newer edge it is read, so a night that begins
+ *  just inside the chunk is read to its end. */
 const CHUNK_OVERLAP_MS = 2 * DAY_MS;
 
 /**
  * The backfill: walk BACKWARDS from `cursor` (or now, on the first run) in
  * SLEEP_CHUNK_DAYS chunks to the 5-year floor, across empty chunks — a
  * broken band for four months must not hide the nights before it. Each
- * chunk writes the nights whose window opens inside it, then stores the
+ * chunk is read from SLEEP_READ_OVERLAP_MS before its start, writes the
+ * nights whose first asleep instant lies inside it, then stores the
  * cursor, so an interrupted walk resumes where it stopped on the next run,
  * independently of the forward incremental cursor. A read that fails stops
  * the walk with the cursor where it was: nothing is written or removed from
@@ -359,7 +415,8 @@ export async function walkSleepBackfill(o: {
   offsetMin?: number;
   /** Nights grouped from a SUCCESSFUL read of [startMs, endMs]; throws on failure. */
   read: (startMs: number, endMs: number) => Promise<SleepNight[]>;
-  write: (nights: SleepNight[]) => Promise<void>;
+  /** Resolves with the wake days the server REFUSED (none: all stored). */
+  write: (nights: SleepNight[]) => Promise<string[] | void>;
   setCursor: (ms: number) => Promise<void>;
 }): Promise<{ chunks: number; cursor: number; done: boolean }> {
   const floor = o.now - SLEEP_BACKFILL_MAX_DAYS * DAY_MS;
@@ -369,15 +426,20 @@ export async function walkSleepBackfill(o: {
     const start = Math.max(cursor - SLEEP_CHUNK_DAYS * DAY_MS, floor);
     let nights: SleepNight[];
     try {
-      nights = await o.read(start, Math.min(cursor + CHUNK_OVERLAP_MS, o.now));
+      nights = await o.read(start - SLEEP_READ_OVERLAP_MS, Math.min(cursor + CHUNK_OVERLAP_MS, o.now));
     } catch {
       return { chunks, cursor, done: false };
     }
     chunks += 1;
-    const mine = nightsToWrite(nights, start, o.now, o.offsetMin).filter(
-      (n) => nightWindowStart(n.wakeDay, o.offsetMin) < cursor,
-    );
-    if (mine.length) await o.write(mine);
+    // This chunk owns the nights whose first asleep instant lies in
+    // [start, cursor); one that began earlier is the next chunk's.
+    const mine = nightsToWrite(nights, start, o.now, o.offsetMin).filter((n) => Date.parse(n.bedISO) < cursor);
+    if (mine.length) {
+      const refused = await o.write(mine);
+      // A refused night is never stepped over: the cursor stays, and the
+      // next run retries this chunk.
+      if (refused && refused.length) return { chunks, cursor, done: false };
+    }
     await o.setCursor(start);
     cursor = start;
   }
@@ -466,7 +528,9 @@ export function parseSleepNight(raw: unknown, todayKey: string): SleepNight | nu
   if (bed < dayMs - 2 * DAY_MS || wake > dayMs + 33 * 3_600_000) return null;
   const spanMin = (wake - bed) / MIN_MS;
   if (asleep > spanMin + 1) return null;
-  if (stage.reduce((s: number, v) => s + (v ?? 0), 0) > spanMin + SPOT_AFTER_WAKE_MIN + 1) return null;
+  // Deep + REM + core come from one source's asleep time, so they fit the
+  // minutes asleep; awake (clipped to the night) fits the night's span.
+  if ((stage[0] ?? 0) + (stage[1] ?? 0) + (stage[2] ?? 0) > asleep + 1 || (stage[3] ?? 0) > spanMin + 1) return null;
   const sources = Array.isArray(r.sources)
     ? r.sources.filter((s): s is string => typeof s === 'string').slice(0, 10).map((s) => s.slice(0, 100))
     : [];
@@ -503,16 +567,19 @@ export async function writeSleepNights(
   raw: unknown,
   db: SleepDb,
   todayKey: string,
-): Promise<{ nights: number; rows: number; skipped: number } | { error: string }> {
+): Promise<{ nights: number; rows: number; skipped: number; skippedDays: string[] } | { error: string }> {
   if (!Array.isArray(raw)) return { error: 'expected a list of nights' };
   if (raw.length > SLEEP_IMPORT_MAX_NIGHTS) return { error: `at most ${SLEEP_IMPORT_MAX_NIGHTS} nights per call` };
   let nights = 0;
   let rows = 0;
   let skipped = 0;
+  const skippedDays: string[] = [];
   for (const item of raw) {
     const night = parseSleepNight(item, todayKey);
     if (!night) {
       skipped += 1;
+      const day = item && typeof item === 'object' ? (item as { wakeDay?: unknown }).wakeDay : undefined;
+      skippedDays.push(typeof day === 'string' ? day.slice(0, 10) : '?');
       continue;
     }
     const { date, upserts, removes } = sleepNightRows(night);
@@ -520,7 +587,7 @@ export async function writeSleepNights(
     nights += 1;
     rows += upserts.length;
   }
-  return { nights, rows, skipped };
+  return { nights, rows, skipped, skippedDays };
 }
 
 // ── Reading the store back ───────────────────────────────────
@@ -745,3 +812,4 @@ export function sleepReportRows(r: SleepReport): Array<{ label: string; value: s
   }
   return rows;
 }
+
