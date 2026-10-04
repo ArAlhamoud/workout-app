@@ -5447,9 +5447,16 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
       assert(cut.out.done === false && cut.cur === now - 120 * DAY && cut.out.chunks === 2, `a read that fails stops the walk and leaves the cursor at the last chunk written (got cursor ${cut.cur === null ? null : (now - cut.cur) / DAY} days back)`);
       const resumed = await run(now - 120 * DAY);
       assert(resumed.out.done && resumed.out.chunks === 29 && resumed.written.every((d) => d < '2026-06-08'), `the next run resumes BACKWARDS from the cursor (got ${resumed.out.chunks} chunks)`);
-      let cur2: number | null = null;
-      const refused = await SL.walkSleepBackfill({ cursor: null, now, offsetMin: RIY, read: async (a, b) => health.filter((w) => w - 7 * 3_600_000 >= a && w <= b).map(mkNight), write: async () => ['2026-10-04'], setCursor: async (ms) => { cur2 = ms; } });
-      assert(refused.done === false && refused.chunks === 1 && cur2 === null, 'a chunk with a night the server refused does not move the cursor: the next run retries it');
+      // A refused night: the chunk is retried on up to 3 runs, then the walk
+      // moves past it and the refused day is recorded on the cursor row.
+      const saved: Array<{ ms: number; tries: number; refused: string[] }> = [];
+      const refusing = (tries: number) => SL.walkSleepBackfill({ cursor: null, now, offsetMin: RIY, tries, read: async (a, b) => health.filter((w) => w - 7 * 3_600_000 >= a && w <= b).map(mkNight), write: async (ns) => (ns.some((n) => n.wakeDay === '2026-10-04') ? ['2026-10-04'] : []), setCursor: async (ms, st) => { saved.push({ ms, tries: st?.tries ?? -1, refused: st?.refused ?? [] }); } });
+      const r1 = await refusing(0);
+      assert(r1.done === false && r1.chunks === 1 && saved.length === 1 && saved[0].ms === now && saved[0].tries === 1, `a refused night keeps the cursor and counts the try (got ${JSON.stringify(saved)})`);
+      saved.length = 0;
+      const r3 = await refusing(2);
+      assert(r3.done === true && saved[0].ms === now - 60 * DAY && saved[0].tries === 0 && saved[0].refused.join() === '2026-10-04' && saved.slice(1).every((x) => x.refused.length === 0), `on the third run the walk moves past it and records the refused day (got ${JSON.stringify(saved.slice(0, 2))})`);
+      assert(/tries:\s*backfillTries/.test(src('src/components/HealthAutoPilot.tsx')) && /refused/.test(src('src/lib/health-import.ts')), 'the try count and the refused days live in the cursor row');
       // A sick run straddling a chunk's start (10:00 on 6 Aug): read with 24 h before it, owned by one chunk.
       const now2 = R('2026-10-05', '10:00');
       const sick = [smp('2026-08-06', '09:00', '2026-08-06', '16:00', ASLEEP), smp('2026-08-06', '17:00', '2026-08-07', '06:00', ASLEEP), smp('2026-08-07', '23:00', '2026-08-08', '06:00', ASLEEP)];

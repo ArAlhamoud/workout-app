@@ -394,6 +394,9 @@ export async function readChunked<T>(
   return out;
 }
 
+/** Runs a chunk with a refused night is retried before the walk moves on. */
+export const SLEEP_REFUSED_TRIES = 3;
+
 /** How far past a chunk's newer edge it is read, so a night that begins
  *  just inside the chunk is read to its end. */
 const CHUNK_OVERLAP_MS = 2 * DAY_MS;
@@ -411,16 +414,19 @@ const CHUNK_OVERLAP_MS = 2 * DAY_MS;
  */
 export async function walkSleepBackfill(o: {
   cursor: number | null;
+  /** Runs this cursor's chunk has already been retried for a refused night. */
+  tries?: number;
   now: number;
   offsetMin?: number;
   /** Nights grouped from a SUCCESSFUL read of [startMs, endMs]; throws on failure. */
   read: (startMs: number, endMs: number) => Promise<SleepNight[]>;
   /** Resolves with the wake days the server REFUSED (none: all stored). */
   write: (nights: SleepNight[]) => Promise<string[] | void>;
-  setCursor: (ms: number) => Promise<void>;
+  setCursor: (ms: number, state?: { tries: number; refused: string[] }) => Promise<void>;
 }): Promise<{ chunks: number; cursor: number; done: boolean }> {
   const floor = o.now - SLEEP_BACKFILL_MAX_DAYS * DAY_MS;
   let cursor = o.cursor ?? o.now;
+  let tries = o.tries ?? 0;
   let chunks = 0;
   while (cursor > floor) {
     const start = Math.max(cursor - SLEEP_CHUNK_DAYS * DAY_MS, floor);
@@ -434,13 +440,19 @@ export async function walkSleepBackfill(o: {
     // This chunk owns the nights whose first asleep instant lies in
     // [start, cursor); one that began earlier is the next chunk's.
     const mine = nightsToWrite(nights, start, o.now, o.offsetMin).filter((n) => Date.parse(n.bedISO) < cursor);
-    if (mine.length) {
-      const refused = await o.write(mine);
-      // A refused night is never stepped over: the cursor stays, and the
-      // next run retries this chunk.
-      if (refused && refused.length) return { chunks, cursor, done: false };
+    let refused: string[] = [];
+    if (mine.length) refused = (await o.write(mine)) || [];
+    // A refused night is never stepped over in silence: the cursor stays and
+    // the next run retries this chunk — up to SLEEP_REFUSED_TRIES runs. A
+    // night the server refuses for good must not block the walk forever, so
+    // then the cursor moves on and the refused day is RECORDED on the cursor
+    // row (visible in the export).
+    if (refused.length && tries + 1 < SLEEP_REFUSED_TRIES) {
+      await o.setCursor(cursor, { tries: tries + 1, refused: [] });
+      return { chunks, cursor, done: false };
     }
-    await o.setCursor(start);
+    await o.setCursor(start, { tries: 0, refused });
+    tries = 0;
     cursor = start;
   }
   return { chunks, cursor, done: true };

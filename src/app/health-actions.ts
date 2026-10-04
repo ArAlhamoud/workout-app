@@ -593,8 +593,8 @@ export async function getSleepSyncState() {
 }
 
 /** The backfill walk's progress, stored after each chunk it writes. */
-export async function saveSleepBackfillCursor(ms: number) {
-  return setSleepBackfillCursor(ms);
+export async function saveSleepBackfillCursor(ms: number, state?: { tries: number; refused: string[] }) {
+  return setSleepBackfillCursor(ms, state ?? {});
 }
 
 /** Every stored sleep night, oldest first — the Sleep room, Patterns, the report. */

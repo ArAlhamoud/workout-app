@@ -200,8 +200,10 @@ is separate: mask hours and AHI come from the weekly prisma report
   the server accepted whole, so an interrupted walk resumes where it
   stopped; while no night is stored it starts over from now each run.
   Neither cursor moves on a failed read, and a night the server refuses is
-  reported by its day (`skippedDays`) and retried next run, never stepped
-  over. The one-number-per-open push it replaced lost every night the app
+  reported by its day (`skippedDays`) and its chunk retried on up to 3
+  runs; after that the walk moves on and the day is recorded in the cursor
+  row's meta ({at, tries, refused[]}, in the export) — a night refused for
+  good must not block the backfill forever. The one-number-per-open push it replaced lost every night the app
   was not opened, and the generic importer now refuses every sleep-named
   sample (`dropSleepSamples`): the night sync is the only sleep writer.
 - **The night rule** (`src/lib/sleep.ts` `groupSleepBlocks`, ONE rule —

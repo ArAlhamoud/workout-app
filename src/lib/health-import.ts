@@ -271,7 +271,7 @@ export async function importSleepNightRows(nights: unknown) {
  * the cursor and stop every later write. `backfillFromMs`: how far back the
  * backfill walk has reached (null before its first chunk).
  */
-export async function sleepSyncState(now: Date = new Date()): Promise<{ newestWakeDay: string | null; backfillFromMs: number | null }> {
+export async function sleepSyncState(now: Date = new Date()): Promise<{ newestWakeDay: string | null; backfillFromMs: number | null; backfillTries: number }> {
   const [newest, cursor] = await Promise.all([
     prisma.healthSample.findFirst({
       where: { type: SLEEP_TYPES.asleep, source: SLEEP_SOURCE, meta: { not: null }, date: { lte: new Date(ownerTodayUtc(now).getTime() + DAY_MS) } },
@@ -280,27 +280,53 @@ export async function sleepSyncState(now: Date = new Date()): Promise<{ newestWa
     }),
     prisma.healthSample.findUnique({
       where: { type_date_source: { type: SLEEP_BACKFILL_TYPE, date: new Date(0), source: SLEEP_SOURCE } },
-      select: { value: true },
+      select: { value: true, meta: true },
     }),
   ]);
   return {
     newestWakeDay: newest ? newest.date.toISOString().slice(0, 10) : null,
     backfillFromMs: cursor && Number.isFinite(cursor.value) ? cursor.value : null,
+    backfillTries: backfillMeta(cursor?.meta ?? null).tries,
   };
 }
 
+/** The cursor row's meta: {at, tries, refused[]} — older rows held a bare ISO string. */
+function backfillMeta(raw: string | null): { tries: number; refused: string[] } {
+  try {
+    const m = raw ? JSON.parse(raw) : null;
+    if (m && typeof m === 'object') {
+      return {
+        tries: Number.isInteger(m.tries) && m.tries >= 0 ? m.tries : 0,
+        refused: Array.isArray(m.refused) ? m.refused.filter((d: unknown): d is string => typeof d === 'string') : [],
+      };
+    }
+  } catch { /* a bare ISO string */ }
+  return { tries: 0, refused: [] };
+}
+
 /** Store how far back the backfill walk has reached: one row of its own
- *  type, keyed at the epoch, value = the instant in ms. A cursor in the
- *  future or more than six years back is refused. */
-export async function setSleepBackfillCursor(ms: unknown, now: Date = new Date()): Promise<{ ok: boolean }> {
+ *  type, keyed at the epoch, value = the instant in ms. Its meta keeps the
+ *  retry count for a chunk with a refused night and every wake day the walk
+ *  finally moved past as refused, so they show in the export. A cursor in
+ *  the future or more than six years back is refused. */
+export async function setSleepBackfillCursor(
+  ms: unknown,
+  state: { tries?: unknown; refused?: unknown } = {},
+  now: Date = new Date(),
+): Promise<{ ok: boolean }> {
   if (typeof ms !== 'number' || !Number.isFinite(ms) || ms > now.getTime() + DAY_MS || ms < now.getTime() - 6 * 366 * DAY_MS) {
     return { ok: false };
   }
   const key = { type: SLEEP_BACKFILL_TYPE, date: new Date(0), source: SLEEP_SOURCE };
+  const prior = await prisma.healthSample.findUnique({ where: { type_date_source: key }, select: { meta: true } });
+  const newly = Array.isArray(state.refused) ? state.refused.filter((d): d is string => typeof d === 'string').map((d) => d.slice(0, 10)) : [];
+  const refused = [...new Set([...backfillMeta(prior?.meta ?? null).refused, ...newly])].slice(-200);
+  const tries = typeof state.tries === 'number' && Number.isInteger(state.tries) && state.tries >= 0 && state.tries < 100 ? state.tries : 0;
+  const meta = JSON.stringify({ at: new Date(ms).toISOString(), tries, refused });
   await prisma.healthSample.upsert({
     where: { type_date_source: key },
-    update: { value: ms, meta: new Date(ms).toISOString() },
-    create: { ...key, value: ms, unit: 'ms', meta: new Date(ms).toISOString() },
+    update: { value: ms, meta },
+    create: { ...key, value: ms, unit: 'ms', meta },
   });
   return { ok: true };
 }

@@ -279,18 +279,19 @@ async function sendNights(nights: SleepNight[]): Promise<string[]> {
  */
 async function syncSleepNights(): Promise<void> {
   const now = Date.now();
-  const { newestWakeDay, backfillFromMs } = await getSleepSyncState();
+  const { newestWakeDay, backfillFromMs, backfillTries } = await getSleepSyncState();
   const fromMs = forwardSleepStart(newestWakeDay, now);
   try {
     await sendNights(nightsToWrite(await readNights(fromMs - SLEEP_READ_OVERLAP_MS, now), fromMs, now));
   } catch { /* next open retries; nothing was removed */ }
   await walkSleepBackfill({
     cursor: newestWakeDay === null ? null : backfillFromMs,
+    tries: backfillTries,
     now,
     read: readNights,
     write: sendNights,
-    setCursor: async (ms) => {
-      const out = await saveSleepBackfillCursor(ms);
+    setCursor: async (ms, state) => {
+      const out = await saveSleepBackfillCursor(ms, state);
       if (!out.ok) throw new Error('cursor refused');
     },
   });
