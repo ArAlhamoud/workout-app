@@ -339,6 +339,14 @@ the save moment, so a dose logged the next morning landed a day late
 (fixed twice by script, 22 and 29 Sep); it now carries "Taken: Now /
 Earlier" (2026-10-02).
 
+**5 mg until the next endocrinology visit (owner, 2026-10-04).** The
+week-7 checkpoint was the 30 Sep visit; its answer is "keep 5 mg until the
+full check-up", about three months after 20 Aug (~20 Nov). The stored
+plan is 2.5×4, 5 mg for weeks 5–13, then a week-14 checkpoint "Endo
+review (~20 Nov)" (`scripts/set-dose-plan-2026-10-04.js`). The checkpoint
+still prescribes nothing; the doctor's next answer is written in as plan
+data the same way. Never extend 5 mg past it, or suggest a step up.
+
 **Ongoing side effects live on the profile, not as episodes (owner,
 2026-09-30).** He has had mild constipation throughout and never logged a
 single episode. `HealthProfile.ongoingSymptoms` holds [{kind, severity}]
