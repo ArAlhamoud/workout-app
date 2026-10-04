@@ -9,7 +9,7 @@ import { healthPushable } from '@/lib/logger-draft';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, ownerTodayUtc, weightPace, injectionTimeOk } from '@/lib/health-insights';
-import { importHealthSamples } from '@/lib/health-import';
+import { importHealthSamples, importSleepNightRows, readSleepNights, setSleepBackfillCursor, sleepSyncState } from '@/lib/health-import';
 import { checkInDayTotals, stackMacros } from '@/lib/health-entry';
 import { detectUnloggedWorkouts } from '@/lib/health-detect';
 import { storeHrSeries } from '@/lib/health-hr';
@@ -578,6 +578,38 @@ const KCAL_PER_MIN = 7;
 /** Apple Health samples → BodyStats, HealthSamples, and workout enrichment. */
 export async function importHealth(payload: unknown) {
   return importHealthSamples(payload);
+}
+
+/** Sleep nights grouped on the phone (src/lib/sleep.ts), at most
+ *  SLEEP_IMPORT_MAX_NIGHTS per call. */
+export async function importSleepNights(nights: unknown) {
+  return importSleepNightRows(nights);
+}
+
+/** Where the phone's sleep sync stands: the forward cursor (newest night)
+ *  and the backfill cursor (how far back the walk has reached). */
+export async function getSleepSyncState() {
+  return sleepSyncState();
+}
+
+/** The backfill walk's progress, stored after each chunk it writes. */
+export async function saveSleepBackfillCursor(ms: number, state?: { tries: number; refused: string[] }) {
+  return setSleepBackfillCursor(ms, state ?? {});
+}
+
+/** Every stored sleep night, oldest first — the Sleep room, Patterns, the report. */
+export async function getSleepNights() {
+  return readSleepNights();
+}
+
+/** The Sleep room: every stored night plus the CPAP nights (mask hours
+ *  only — the coverage line), both keyed by the morning they ended. */
+export async function getSleepRoom() {
+  const [nights, cpap] = await Promise.all([
+    readSleepNights(),
+    prisma.cpapNight.findMany({ orderBy: { night: 'desc' }, take: 400, select: { night: true, usageHours: true } }),
+  ]);
+  return { nights, cpap };
 }
 
 /** HealthKit sessions the log doesn't have yet. */

@@ -15,6 +15,7 @@
 // which runs under plain ts-node with no path-alias resolution.
 import type { ReadinessSignal } from './coach';
 import { isNativeApp, queryCategory, queryDailyStats } from './native-health';
+import { ASLEEP_VALUES, groupSleepBlocks, localDayKey, mergeIntervals } from './sleep';
 
 const HOUR_MS = 3_600_000;
 
@@ -140,67 +141,32 @@ export async function restingHeartRateTrend(days = 28): Promise<RestingHeartRate
 
 // ── Sleep ────────────────────────────────────────────────────
 
-/**
- * HKCategoryValueSleepAnalysis values that mean actually asleep.
- * 0 = inBed is deliberately excluded: lying in bed reading for two hours is
- * not recovery, and counting it would inflate every night on an iPhone-only
- * setup where inBed is the only value ever written.
- */
-const ASLEEP_VALUES = new Set([
-  1, // asleepUnspecified
-  3, // asleepCore
-  4, // asleepDeep
-  5, // asleepREM
-]);
-
 /** How far back to look for "last night" — long enough to catch a late lie-in. */
 const SLEEP_WINDOW_HOURS = 36;
 
 /**
- * The night a block of sleep belongs to runs from 18:00 the evening before to
- * 14:00 on the morning he wakes. Everything that STARTS inside that window is
- * one night, however many times he woke: his first Fitbit night was 02:00–
- * 06:55 then 09:49–13:30, and counting only the last block reported 3.7 h of
- * an 8 h night (owner, 2026-10-03; Apple Health scores it the same way). A
- * block starting at 14:00 or later is a nap and never joins a night.
- */
-const NIGHT_FROM_HOUR = 18;
-const NAP_FROM_HOUR = 14;
-
-/**
  * Milliseconds asleep in the most recent night. Pure, in the device's local
- * time. Overlapping intervals from several sources are unioned first, so the
- * Watch and a Fitbit writing the same night never add up to eleven hours.
- * With no night on record (only a nap), the most recent block is reported.
+ * time. The night rule (blocks joined across short awake gaps; a nap is a
+ * run from 14:00 that ends before 20:00 and lasts under 3 h; every other
+ * run is keyed by where it ends) and the union of sources live in
+ * src/lib/sleep.ts (groupSleepBlocks) — ONE rule for this readiness read and
+ * the stored nights. The newest night that has ended by today is reported:
+ * an evening doze belongs to tomorrow's night or is a nap, never "last
+ * night". With no night on record (only a nap), the most recent block is
+ * reported.
  */
-export function nightAsleepMs(intervals: Array<{ start: number; end: number }>, now: number = Date.now()): number {
-  const sorted = intervals
-    .filter((i) => Number.isFinite(i.start) && Number.isFinite(i.end) && i.end > i.start)
-    .sort((a, b) => a.start - b.start);
-  if (!sorted.length) return 0;
-  const merged: { start: number; end: number }[] = [];
-  for (const next of sorted) {
-    const last = merged[merged.length - 1];
-    if (last && next.start <= last.end) last.end = Math.max(last.end, next.end);
-    else merged.push({ ...next });
-  }
-  // The window of the newest night: wake day D, from D−1 18:00 to D 14:00.
-  // A block that starts after 18:00 belongs to the night ending TOMORROW: on
-  // the evening he trains, an 18:30 doze is not "last night" (he lifts in the
-  // evening, and the readiness check would read one hour of sleep).
-  const n = new Date(now);
-  const today = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
-  const wakeDay = (t: number) => {
-    const d = new Date(t);
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate() + (d.getHours() >= NIGHT_FROM_HOUR ? 1 : 0));
-  };
-  const inNight = (t: number) => new Date(t).getHours() < NAP_FROM_HOUR || new Date(t).getHours() >= NIGHT_FROM_HOUR;
-  const night = [...merged].reverse().find((b) => inNight(b.start) && wakeDay(b.start).getTime() <= today);
-  if (!night) return merged[merged.length - 1].end - merged[merged.length - 1].start;
-  const wake = wakeDay(night.start);
-  const from = new Date(wake.getFullYear(), wake.getMonth(), wake.getDate() - 1, NIGHT_FROM_HOUR).getTime();
-  const to = new Date(wake.getFullYear(), wake.getMonth(), wake.getDate(), NAP_FROM_HOUR).getTime();
-  return merged.filter((b) => b.start >= from && b.start < to).reduce((ms, b) => ms + (b.end - b.start), 0);
+export function nightAsleepMs(
+  intervals: Array<{ start: number; end: number }>,
+  now: number = Date.now(),
+  offsetMin?: number,
+): number {
+  const blocks = mergeIntervals(intervals);
+  if (!blocks.length) return 0;
+  const today = localDayKey(now, offsetMin);
+  const nights = groupSleepBlocks(blocks, offsetMin).filter((n) => n.wakeDay <= today);
+  const latest = nights[nights.length - 1];
+  if (!latest) return blocks[blocks.length - 1].end - blocks[blocks.length - 1].start;
+  return latest.blocks.reduce((ms, b) => ms + (b.end - b.start), 0);
 }
 
 /**

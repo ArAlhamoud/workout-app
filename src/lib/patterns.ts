@@ -10,7 +10,8 @@
 //   · an injection, a weigh-in: an instant → HIS calendar day (ownerDayKey);
 //   · a diet row, a session: UTC midnight of his 04:00 activity day → the
 //     key is the ISO date itself;
-//   · a CPAP night: UTC midnight of the morning the night ENDED → same;
+//   · a CPAP night, a stored sleep night: UTC midnight of the morning the
+//     night ENDED → same;
 //   · a BP reading: an instant → for "the day after a night" it is filed
 //     under his activity day, so a 01:00 reading stays with the evening
 //     it was part of.
@@ -18,9 +19,10 @@
 // and every number carries its count. A day without a weigh-in is missing;
 // nothing here fills one in.
 
-import { bpWeightStory, CPAP_ADHERENT_HOURS, ownerActivityDayUtc, ownerDayKey, ownerMonthKey } from './health-insights';
+import { bpWeightStory, ownerActivityDayUtc, ownerDayKey, ownerMonthKey } from './health-insights';
 import { monthLabel, shortDay, signedKg } from './health-format';
 import { MIN_TREND_POINTS, type ChartSpec } from './report-charts';
+import { maskCoverage } from './sleep';
 
 const DAY_MS = 86_400_000;
 
@@ -32,7 +34,8 @@ export const MIN_SHARE_ITEMS = 5;
 export const MIN_WEEK_DAYS = 5;
 /** A change on the scale is read off two weigh-ins at least this far apart. */
 export const MIN_WEIGH_SPAN_DAYS = 5;
-/** Fewest nights on each side of the 4-hour line. */
+/** Fewest nights on each side of the sleep split (and with a CPAP night,
+ *  for the mask coverage line). */
 export const MIN_SIDE_NIGHTS = 4;
 
 type When = Date | string;
@@ -378,6 +381,11 @@ export function foodAndScaleCharts(r: FoodAndScale): { kcal: ChartSpec | null; w
 
 // ── 4 · Sleep and the next day ───────────────────────────────
 
+/** The split: 7 h or more asleep against under 7 h — the same 7 h the
+ *  readiness check already reads as a full night (SLEEP_GREEN_H). */
+export const SLEEP_SPLIT_HOURS = 7;
+
+export interface SleepIn { night: When; asleepHours: number }
 export interface SleepSide {
   nights: number;
   /** Average of the day-after readings; null under 3 days with one. */
@@ -385,16 +393,21 @@ export interface SleepSide {
   /** Share of rated sets at Hard or above in that day's session; null
    *  under 3 sessions or 5 rated sets. */
   hard: { pct: number; sets: number; sessions: number } | null;
+  /** Average mask coverage of the hours asleep (min(mask, asleep) ÷
+   *  asleep), over this side's nights that have a CPAP night. Null on BOTH
+   *  sides unless each has MIN_SIDE_NIGHTS such nights. */
+  coverage: { pct: number; nights: number } | null;
 }
 export interface SleepNextDay { long: SleepSide; short: SleepSide }
 
 /**
- * Nights of 4 h or more on the mask against nights under 4 h: the BP of
- * the day the night ended, and that day's session. A night row is keyed
- * by the morning it ended, so "the next day" is the row's own day. Null
- * until each side has four nights.
+ * Nights of 7 h or more ASLEEP (the stored wearable nights, src/lib/sleep.ts)
+ * against nights under 7 h: the BP of the day the night ended, and that
+ * day's session. A night is keyed by the morning it ended, so "the next
+ * day" is the row's own day — the same key as a CPAP night, which adds the
+ * mask coverage line. Null until each side has four nights.
  */
-export function sleepAndNextDay(nights: NightIn[], bp: BpIn[], sessions: SessionIn[], now: Date = new Date()): SleepNextDay | null {
+export function sleepAndNextDay(sleep: SleepIn[], cpap: NightIn[], bp: BpIn[], sessions: SessionIn[], now: Date = new Date()): SleepNextDay | null {
   const today = instantDay(now);
   const bpByDay = new Map<number, BpIn[]>();
   for (const r of bp) {
@@ -408,7 +421,14 @@ export function sleepAndNextDay(nights: NightIn[], bp: BpIn[], sessions: Session
     const day = storedDay(s.date);
     ratedByDay.set(day, [...(ratedByDay.get(day) ?? []), ...rated]);
   }
-  const side = (rows: NightIn[]): SleepSide => {
+  const maskByDay = new Map<number, number>();
+  for (const c of cpap) maskByDay.set(storedDay(c.night), c.usageHours);
+  const coverageOf = (rows: SleepIn[]): number[] =>
+    rows
+      .filter((n) => maskByDay.has(storedDay(n.night)))
+      .map((n) => maskCoverage(n.asleepHours, maskByDay.get(storedDay(n.night)) as number))
+      .filter((c): c is number => c !== null);
+  const side = (rows: SleepIn[], withCoverage: boolean): SleepSide => {
     const sys: number[] = [];
     const dia: number[] = [];
     let sets = 0;
@@ -428,17 +448,20 @@ export function sleepAndNextDay(nights: NightIn[], bp: BpIn[], sessions: Session
         hard += rated.filter((v) => v >= 3).length;
       }
     }
+    const cov = coverageOf(rows);
     return {
       nights: rows.length,
       bp: sys.length >= MIN_AVG ? { systolic: Math.round(mean(sys)), diastolic: Math.round(mean(dia)), n: sys.length } : null,
       hard: sessionDays >= MIN_AVG && sets >= MIN_SHARE_ITEMS ? { pct: Math.round((hard / sets) * 100), sets, sessions: sessionDays } : null,
+      coverage: withCoverage ? { pct: Math.round(mean(cov) * 100), nights: cov.length } : null,
     };
   };
-  const reported = nights.filter((n) => storedDay(n.night) <= today);
-  const long = reported.filter((n) => n.usageHours >= CPAP_ADHERENT_HOURS);
-  const short = reported.filter((n) => n.usageHours < CPAP_ADHERENT_HOURS);
+  const reported = sleep.filter((n) => storedDay(n.night) <= today && n.asleepHours > 0);
+  const long = reported.filter((n) => n.asleepHours >= SLEEP_SPLIT_HOURS);
+  const short = reported.filter((n) => n.asleepHours < SLEEP_SPLIT_HOURS);
   if (long.length < MIN_SIDE_NIGHTS || short.length < MIN_SIDE_NIGHTS) return null;
-  return { long: side(long), short: side(short) };
+  const withCoverage = coverageOf(long).length >= MIN_SIDE_NIGHTS && coverageOf(short).length >= MIN_SIDE_NIGHTS;
+  return { long: side(long, withCoverage), short: side(short, withCoverage) };
 }
 
 // ── 5 · Pressure and apnea as the weight falls ───────────────

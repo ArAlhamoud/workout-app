@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { getHealthData } from '@/app/health-actions';
+import { getHealthData, getSleepNights } from '@/app/health-actions';
+import { sleepReportRows, sleepReportSummary } from '@/lib/sleep';
 import { cpapAdherenceLabel, pdfSafe, reportAge, weightChangeLabel, wrapLines } from '@/lib/health-format';
 import {
   afStats,
@@ -9,6 +10,7 @@ import {
   doseLedger,
   ledgerByDose,
   labRefLabel,
+  ownerDayKey,
   ongoingSymptoms,
   sideEffectRows,
   reportLabs,
@@ -61,7 +63,7 @@ export async function GET(request: Request) {
   const since = new Date(Date.now() - RANGES[range] * DAY_MS);
   const rangeLabel = range === '4w' ? 'Last 4 weeks' : range === '3m' ? 'Last 3 months' : 'All data';
 
-  const data = await getHealthData();
+  const [data, sleepNights] = await Promise.all([getHealthData(), getSleepNights()]);
   const inRange = <T,>(rows: T[], at: (r: T) => Date | string) =>
     rows.filter((r) => new Date(at(r)) >= since);
 
@@ -124,6 +126,11 @@ export async function GET(request: Request) {
     cpapDeep.length >= 2
       ? Math.round(cpapDeep.reduce((s, n) => s + n.deepSleepMin, 0) / cpapDeep.length)
       : null;
+  // Sleep from the wearable — the page's own function and words; the
+  // oxygen row is labelled a wrist reading there.
+  const sleepRows = sleepReportRows(
+    sleepReportSummary(sleepNights, data.cpapNights, ownerDayKey(since), ownerDayKey(new Date())),
+  );
   const firstCpapNight = data.cpapNights.length
     ? [...data.cpapNights].sort((a, b) => new Date(a.night).getTime() - new Date(b.night).getTime())[0].night
     : null;
@@ -351,6 +358,10 @@ export async function GET(request: Request) {
   if (pulseAvg != null) row('Average pulse', `${pulseAvg} bpm`);
   if (bpSplit.before) row('Before treatment', `${bpSplit.before.systolic}/${bpSplit.before.diastolic} (${bpSplit.before.n} readings)`);
   if (bpSplit.since) row('Since treatment', `${bpSplit.since.systolic}/${bpSplit.since.diastolic} (${bpSplit.since.n} readings)`);
+
+  section('Sleep (wearable)');
+  if (sleepRows.length) for (const r of sleepRows) row(r.label, r.value);
+  else note('No sleep nights tracked in this range.');
 
   section('CPAP');
   if (cpap.length) {

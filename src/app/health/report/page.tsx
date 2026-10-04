@@ -5,7 +5,8 @@ import PrintButton from '@/components/health/PrintButton';
 import PdfShareButton from '@/components/health/PdfShareButton';
 import ReportChart from '@/components/health/ReportChart';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, weightChart } from '@/lib/report-charts';
-import { getHealthData } from '../../health-actions';
+import { getHealthData, getSleepNights } from '../../health-actions';
+import { sleepReportRows, sleepReportSummary } from '@/lib/sleep';
 import { cpapAdherenceLabel, reportAge, signedKg, weightChangeAr, weightChangeLabel } from '@/lib/health-format';
 import {
   afStats,
@@ -14,6 +15,7 @@ import {
   bpSplitAroundAnchor,
   doseLedger,
   labRefLabel,
+  ownerDayKey,
   ongoingSymptoms,
   sideEffectRows,
   reportLabs,
@@ -71,7 +73,7 @@ export default async function DoctorReportPage({
     : '4w';
   const since = new Date(Date.now() - RANGES[range] * DAY_MS);
 
-  const data = await getHealthData();
+  const [data, sleepNights] = await Promise.all([getHealthData(), getSleepNights()]);
   const inRange = <T,>(rows: T[], at: (r: T) => Date | string) =>
     rows.filter((r) => new Date(at(r)) >= since);
 
@@ -174,6 +176,12 @@ export default async function DoctorReportPage({
     cpapAhi: cpapAhiChart(cpap),
     dose: doseChart(ledger),
   };
+  // Sleep from the wearable, over the same range — ONE function for this
+  // page and the PDF (sleepReportSummary / sleepReportRows). Nights are
+  // keyed by the morning he woke, so the range is compared in HIS days.
+  const sleep = sleepReportSummary(sleepNights, data.cpapNights, ownerDayKey(since), ownerDayKey(new Date()));
+  const sleepRows = sleepReportRows(sleep);
+
   const tooFew = (
     <p className="mt-1 text-xs text-app-tx3 print:text-gray-600">Not enough data yet for a chart.</p>
   );
@@ -412,6 +420,14 @@ export default async function DoctorReportPage({
           {bp.length > 0 && (charts.bp ? <ReportChart spec={charts.bp} /> : tooFew)}
         </Section>
 
+        <Section title="Sleep (wearable)">
+          {sleepRows.length ? (
+            sleepRows.map((r) => <Row key={r.label} label={r.label} value={r.value} />)
+          ) : (
+            <p className="text-sm text-app-tx3 print:text-gray-600">No sleep nights tracked in this range.</p>
+          )}
+        </Section>
+
         <Section title="CPAP">
           {cpap.length ? (
             <>
@@ -476,6 +492,9 @@ export default async function DoctorReportPage({
             <p>
               جهاز التنفس (CPAP): {cpap.length ? `متوسط الاستخدام ${cpapAvgH ?? '—'} ساعة/ليلة${cpapAvgAhi != null ? ` · مؤشر AHI ${cpapAvgAhi}` : ''}` : 'لا يوجد تسجيل'}
             </p>
+            {sleep.avgHours !== null && (
+              <p>النوم: متوسط {sleep.avgHours} ساعة/ليلة · {sleep.nights} ليلة</p>
+            )}
             {labs.length > 0 && (
               <p>التحاليل: {labs.map((l) => `${l.test.toUpperCase()} ‏${l.value} ${l.unit}`).join(' · ')}</p>
             )}

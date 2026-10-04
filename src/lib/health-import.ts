@@ -4,11 +4,13 @@ import {
   dayKey,
   matchSamplesToWorkout,
   pairBpSamples,
+  dropSleepSamples,
   parseHealthPayload,
   type ParsedSample,
 } from '@/lib/health';
 import { BP_IMPORT_NOTE, BP_SAME_READING_MS, bpImportTwin, ownerDayWindow, weightImportPlan } from '@/lib/health-entry';
-import { ownerDayKey } from '@/lib/health-insights';
+import { ownerDayKey, ownerTodayUtc } from '@/lib/health-insights';
+import { SLEEP_BACKFILL_TYPE, SLEEP_ROW_TYPES, SLEEP_SOURCE, SLEEP_TYPES, nightsFromRows, sleepNavGlance, writeSleepNights } from '@/lib/sleep';
 
 const HEALTH_SOURCE = 'apple-health';
 
@@ -185,7 +187,11 @@ async function importBpReadings(samples: ParsedSample[]): Promise<number> {
  * The revamp's BP pairing (importBpReadings above) rides the same entry.
  */
 export async function importHealthSamples(payload: unknown) {
-  const { samples, skipped } = parseHealthPayload(payload);
+  const parsed = parseHealthPayload(payload);
+  // Sleep is written by the night sync alone (importSleepNightRows): any
+  // sleep-named sample here is refused and counted in `skipped`.
+  const { kept: samples, dropped } = dropSleepSamples(parsed.samples);
+  const skipped = parsed.skipped + dropped;
 
   let imported = 0;
   for (const sample of samples) {
@@ -219,4 +225,132 @@ export async function importHealthSamples(payload: unknown) {
   }
 
   return { imported, skipped, bodyStatsUpserted, workoutsEnriched, bpImported };
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Store a batch of sleep nights (src/lib/sleep.ts: grouped on the phone,
+ * keyed by wake day). Each night is ONE transaction: its upserts on the
+ * existing unique (type, date, source) — the update writing `meta` too — and
+ * the stage rows the read showed absent, so a failure half-way leaves the
+ * night as it was. Oxygen and breathing are never deleted here (a failed
+ * read is not an absence). At most SLEEP_IMPORT_MAX_NIGHTS nights per call;
+ * a bigger batch is refused whole. Keys are checked against HIS today.
+ */
+export async function importSleepNightRows(nights: unknown) {
+  const out = await writeSleepNights(
+    nights,
+    {
+      async writeNight(date, rows, removes, source) {
+        await prisma.$transaction([
+          ...rows.map((r) =>
+            prisma.healthSample.upsert({
+              where: { type_date_source: { type: r.type, date: r.date, source } },
+              update: { value: r.value, unit: r.unit, meta: r.meta },
+              create: { type: r.type, date: r.date, value: r.value, unit: r.unit, source, meta: r.meta },
+            }),
+          ),
+          ...(removes.length ? [prisma.healthSample.deleteMany({ where: { type: { in: removes }, date, source } })] : []),
+        ]);
+      },
+    },
+    ownerDayKey(new Date()),
+  );
+  if (!('error' in out) && out.nights > 0) {
+    revalidatePath('/health/sleep');
+    revalidatePath('/stats');
+  }
+  return out;
+}
+
+/**
+ * Where the phone's sync stands. `newestWakeDay`: the newest night the night
+ * sync wrote (rows from the old one-number push carry no `meta` and do not
+ * count), never one dated after tomorrow — a bad future row must not become
+ * the cursor and stop every later write. `backfillFromMs`: how far back the
+ * backfill walk has reached (null before its first chunk).
+ */
+export async function sleepSyncState(now: Date = new Date()): Promise<{ newestWakeDay: string | null; backfillFromMs: number | null; backfillTries: number }> {
+  const [newest, cursor] = await Promise.all([
+    prisma.healthSample.findFirst({
+      where: { type: SLEEP_TYPES.asleep, source: SLEEP_SOURCE, meta: { not: null }, date: { lte: new Date(ownerTodayUtc(now).getTime() + DAY_MS) } },
+      orderBy: { date: 'desc' },
+      select: { date: true },
+    }),
+    prisma.healthSample.findUnique({
+      where: { type_date_source: { type: SLEEP_BACKFILL_TYPE, date: new Date(0), source: SLEEP_SOURCE } },
+      select: { value: true, meta: true },
+    }),
+  ]);
+  return {
+    newestWakeDay: newest ? newest.date.toISOString().slice(0, 10) : null,
+    backfillFromMs: cursor && Number.isFinite(cursor.value) ? cursor.value : null,
+    backfillTries: backfillMeta(cursor?.meta ?? null).tries,
+  };
+}
+
+/** The cursor row's meta: {at, tries, refused[]} — older rows held a bare ISO string. */
+function backfillMeta(raw: string | null): { tries: number; refused: string[] } {
+  try {
+    const m = raw ? JSON.parse(raw) : null;
+    if (m && typeof m === 'object') {
+      return {
+        tries: Number.isInteger(m.tries) && m.tries >= 0 ? m.tries : 0,
+        refused: Array.isArray(m.refused) ? m.refused.filter((d: unknown): d is string => typeof d === 'string') : [],
+      };
+    }
+  } catch { /* a bare ISO string */ }
+  return { tries: 0, refused: [] };
+}
+
+/** Store how far back the backfill walk has reached: one row of its own
+ *  type, keyed at the epoch, value = the instant in ms. Its meta keeps the
+ *  retry count for a chunk with a refused night and every wake day the walk
+ *  finally moved past as refused, so they show in the export. A cursor in
+ *  the future or more than six years back is refused. */
+export async function setSleepBackfillCursor(
+  ms: unknown,
+  state: { tries?: unknown; refused?: unknown } = {},
+  now: Date = new Date(),
+): Promise<{ ok: boolean }> {
+  if (typeof ms !== 'number' || !Number.isFinite(ms) || ms > now.getTime() + DAY_MS || ms < now.getTime() - 6 * 366 * DAY_MS) {
+    return { ok: false };
+  }
+  const key = { type: SLEEP_BACKFILL_TYPE, date: new Date(0), source: SLEEP_SOURCE };
+  const prior = await prisma.healthSample.findUnique({ where: { type_date_source: key }, select: { meta: true } });
+  const newly = Array.isArray(state.refused) ? state.refused.filter((d): d is string => typeof d === 'string').map((d) => d.slice(0, 10)) : [];
+  const refused = [...new Set([...backfillMeta(prior?.meta ?? null).refused, ...newly])].slice(-200);
+  const tries = typeof state.tries === 'number' && Number.isInteger(state.tries) && state.tries >= 0 && state.tries < 100 ? state.tries : 0;
+  const meta = JSON.stringify({ at: new Date(ms).toISOString(), tries, refused });
+  await prisma.healthSample.upsert({
+    where: { type_date_source: key },
+    update: { value: ms, meta },
+    create: { ...key, value: ms, unit: 'ms', meta },
+  });
+  return { ok: true };
+}
+
+/** Every stored night, oldest first. */
+export async function readSleepNights() {
+  const rows = await prisma.healthSample.findMany({
+    where: { type: { in: SLEEP_ROW_TYPES }, source: SLEEP_SOURCE },
+    orderBy: { date: 'asc' },
+    select: { type: true, date: true, value: true, meta: true },
+  });
+  return nightsFromRows(rows);
+}
+
+/**
+ * The Rooms glance for Sleep: the newest night up to HIS today. A night is
+ * keyed by the calendar morning he woke, so this is his calendar day — not
+ * the 04:00 activity day the diet glance in nav-actions uses.
+ */
+export async function sleepRoomGlance(now: Date = new Date()): Promise<string> {
+  const latest = await prisma.healthSample.findFirst({
+    where: { type: SLEEP_TYPES.asleep, source: SLEEP_SOURCE, date: { lte: ownerTodayUtc(now) } },
+    orderBy: { date: 'desc' },
+    select: { date: true, value: true },
+  });
+  return sleepNavGlance(latest ? { day: latest.date.toISOString().slice(0, 10), hours: latest.value } : null, ownerDayKey(now));
 }
