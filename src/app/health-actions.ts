@@ -9,7 +9,7 @@ import { healthPushable } from '@/lib/logger-draft';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, ownerTodayUtc, weightPace, injectionTimeOk } from '@/lib/health-insights';
-import { importHealthSamples } from '@/lib/health-import';
+import { importHealthSamples, importSleepNightRows, readSleepNights, sleepSyncState } from '@/lib/health-import';
 import { checkInDayTotals, stackMacros } from '@/lib/health-entry';
 import { detectUnloggedWorkouts } from '@/lib/health-detect';
 import { storeHrSeries } from '@/lib/health-hr';
@@ -578,6 +578,22 @@ const KCAL_PER_MIN = 7;
 /** Apple Health samples → BodyStats, HealthSamples, and workout enrichment. */
 export async function importHealth(payload: unknown) {
   return importHealthSamples(payload);
+}
+
+/** Sleep nights grouped on the phone (src/lib/sleep.ts), at most
+ *  SLEEP_IMPORT_MAX_NIGHTS per call. */
+export async function importSleepNights(nights: unknown) {
+  return importSleepNightRows(nights);
+}
+
+/** Where the phone's sleep sync starts: null → walk back to the first night. */
+export async function getSleepSyncState() {
+  return sleepSyncState();
+}
+
+/** Every stored sleep night, oldest first — the Sleep room, Patterns, the report. */
+export async function getSleepNights() {
+  return readSleepNights();
 }
 
 /** HealthKit sessions the log doesn't have yet. */

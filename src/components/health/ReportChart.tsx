@@ -21,6 +21,8 @@ const TONE: Record<string, string> = {
   kcal: 'text-acc-teal',
   kg: 'text-acc-violet',
   pressure: 'text-acc-cyan',
+  // Sleep room (src/lib/sleep.ts)
+  spo2: 'text-acc-cyan',
 };
 
 const fmtV = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));

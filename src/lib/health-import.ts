@@ -9,6 +9,7 @@ import {
 } from '@/lib/health';
 import { BP_IMPORT_NOTE, BP_SAME_READING_MS, bpImportTwin, ownerDayWindow, weightImportPlan } from '@/lib/health-entry';
 import { ownerDayKey } from '@/lib/health-insights';
+import { SLEEP_ROW_TYPES, SLEEP_SOURCE, SLEEP_TYPES, nightsFromRows, writeSleepNights } from '@/lib/sleep';
 
 const HEALTH_SOURCE = 'apple-health';
 
@@ -219,4 +220,55 @@ export async function importHealthSamples(payload: unknown) {
   }
 
   return { imported, skipped, bodyStatsUpserted, workoutsEnriched, bpImported };
+}
+
+/**
+ * Store a batch of sleep nights (src/lib/sleep.ts: grouped on the phone,
+ * keyed by wake day). Upserts on the existing unique (type, date, source),
+ * the update writing `meta` too — a re-sync replaces the night, and a
+ * figure the night no longer has is deleted. At most
+ * SLEEP_IMPORT_MAX_NIGHTS nights per call; a bigger batch is refused whole.
+ */
+export async function importSleepNightRows(nights: unknown) {
+  const out = await writeSleepNights(nights, {
+    async upsert(r) {
+      await prisma.healthSample.upsert({
+        where: { type_date_source: { type: r.type, date: r.date, source: r.source } },
+        update: { value: r.value, unit: r.unit, meta: r.meta },
+        create: { type: r.type, date: r.date, value: r.value, unit: r.unit, source: r.source, meta: r.meta },
+      });
+    },
+    async remove(types, date, source) {
+      await prisma.healthSample.deleteMany({ where: { type: { in: types }, date, source } });
+    },
+  });
+  if (!('error' in out) && out.nights > 0) {
+    revalidatePath('/health/sleep');
+    revalidatePath('/stats');
+  }
+  return out;
+}
+
+/**
+ * The newest night the night sync has written, or null before its first
+ * run. Rows from the old one-number-per-open push carry no `meta`, so they
+ * do not count: the first run still walks back to the earliest night.
+ */
+export async function sleepSyncState(): Promise<{ newestWakeDay: string | null }> {
+  const newest = await prisma.healthSample.findFirst({
+    where: { type: SLEEP_TYPES.asleep, source: SLEEP_SOURCE, meta: { not: null } },
+    orderBy: { date: 'desc' },
+    select: { date: true },
+  });
+  return { newestWakeDay: newest ? newest.date.toISOString().slice(0, 10) : null };
+}
+
+/** Every stored night, oldest first. */
+export async function readSleepNights() {
+  const rows = await prisma.healthSample.findMany({
+    where: { type: { in: SLEEP_ROW_TYPES }, source: SLEEP_SOURCE },
+    orderBy: { date: 'asc' },
+    select: { type: true, date: true, value: true, meta: true },
+  });
+  return nightsFromRows(rows);
 }

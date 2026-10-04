@@ -5081,10 +5081,13 @@ console.log('Patterns — dose week, dose levels, food and scale, sleep, monthly
     assert(PT.foodAndScale(diet, weights, at('2026-09-28', '02:00'))?.weeks.length === 4, 'rows after his activity day are a plan, not a week eaten');
   }
 
-  // 4 — sleep and the next day.
+  // 4 — sleep and the next day: split on hours ASLEEP from the stored
+  // nights (7 h or more against under 7 h), not on mask hours (2026-10-05).
   {
-    const hours = [5, 6, 7, 5, 3, 2, 0, 3.9];
-    const nights = hours.map((h, i) => ({ night: bare(key('2026-09-01', i)), usageHours: h }));
+    const hours = [7, 8, 9, 7.5, 6, 5, 4, 6.9];
+    const sleep = hours.map((h, i) => ({ night: bare(key('2026-09-01', i)), asleepHours: h }));
+    const mask = [7, 8, 4.5, 7.5, 6, 2, 4, 6.9];
+    const cpap = mask.map((h, i) => ({ night: bare(key('2026-09-01', i)), usageHours: h }));
     const bpOn = (k: string, hhmm: string, s: number, d: number) => ({ at: at(k, hhmm), systolic: s, diastolic: d });
     const bp = [
       bpOn('2026-09-01', '08:00', 120, 80), bpOn('2026-09-02', '08:00', 122, 82), bpOn('2026-09-03', '08:00', 118, 78),
@@ -5097,12 +5100,16 @@ console.log('Patterns — dose week, dose levels, food and scale, sleep, monthly
       { date: bare('2026-09-05'), rpes: [3, 3, 3] }, { date: bare('2026-09-06'), rpes: [3, 3, 3] },
     ];
     const now = at('2026-09-09', '12:00');
-    const r = PT.sleepAndNextDay(nights, bp, sessions, now);
-    assert(r?.long.nights === 4 && r.short.nights === 4, 'nights of 4 h or more against nights under 4 h; a night at 0 h is a reported night');
+    const r = PT.sleepAndNextDay(sleep, cpap, bp, sessions, now);
+    assert(r?.long.nights === 4 && r.short.nights === 4, `nights of 7 h or more asleep against nights under 7 h — 7.0 is on the long side, 6.9 on the short (got ${r?.long.nights}/${r?.short.nights})`);
     assert(r?.long.bp?.systolic === 128 && r.long.bp.diastolic === 85 && r.long.bp.n === 4 && r?.short.bp?.systolic === 130 && r.short.bp.diastolic === 85 && r.short.bp.n === 3, `the reading of the day the night ended; one at 01:00 stays with the day before (got ${JSON.stringify(r?.long.bp)} ${JSON.stringify(r?.short.bp)})`);
     assert(r?.long.hard?.pct === 38 && r.long.hard.sets === 8 && r.long.hard.sessions === 3 && r?.short.hard === null, `share of rated sets at Hard or above: three sessions and five rated sets, or nothing (got ${JSON.stringify(r?.long.hard)})`);
-    assert(PT.sleepAndNextDay(nights.slice(0, 7), bp, sessions, now) === null, 'three nights on one side: not enough data yet');
-    assert(PT.sleepAndNextDay(nights, bp, sessions, at('2026-09-07', '12:00')) === null, 'a night keyed after today is not counted');
+    assert(r?.long.coverage?.pct === 88 && r.long.coverage.nights === 4 && r?.short.coverage?.pct === 85 && r.short.coverage.nights === 4, `mask coverage of the hours asleep, per side, once each side has 4 nights with a CPAP night (got ${JSON.stringify(r?.long.coverage)} ${JSON.stringify(r?.short.coverage)})`);
+    const fewMask = PT.sleepAndNextDay(sleep, cpap.filter((_, i) => i !== 2), bp, sessions, now);
+    assert(fewMask !== null && fewMask.long.coverage === null && fewMask.short.coverage === null, 'three long nights with a CPAP night: no coverage line on either side');
+    assert(PT.sleepAndNextDay(sleep, [], bp, sessions, now)?.long.nights === 4, 'the split needs no CPAP night at all');
+    assert(PT.sleepAndNextDay(sleep.slice(0, 7), cpap, bp, sessions, now) === null, 'three nights on one side: not enough data yet');
+    assert(PT.sleepAndNextDay(sleep, cpap, bp, sessions, at('2026-09-07', '12:00')) === null, 'a night keyed after today is not counted');
   }
 
   // 5 — pressure and apnea by month.
@@ -5146,8 +5153,11 @@ console.log('Patterns — dose week, dose levels, food and scale, sleep, monthly
       assert(wad !== null && wad.weeks >= 5 && wad.days.every((d) => (d.kcal === null || d.nKcal >= 3) && (d.kgChange === null || d.nKg >= 3)), `real export: the dose week has an average only where three weeks gave one (got ${JSON.stringify(wad?.days)})`);
       const lv = PT.doseLevels(hx.health.injection, hx.health.nutritionLog, hx.bodyStats, now);
       assert(lv?.length === 2 && lv[0].doseMg === 2.5 && lv[0].weeks === 4 && lv[0].kgPerWeek !== null && lv[1].doseMg === 5 && lv[1].weeks === 2 && lv[1].kgPerWeek === null, `real export: 2.5 mg × 4 weeks with a weekly change, 5 mg × 2 weeks without one yet (got ${JSON.stringify(lv)})`);
-      const sl = PT.sleepAndNextDay(hx.health.cpapNight, hx.health.bpReading, hx.workouts.map((x) => ({ date: x.date, rpes: x.sets.map((s) => s.rpe) })), now);
-      assert(sl !== null && sl.long.nights + sl.short.nights === hx.health.cpapNight.length && sl.long.hard === null && sl.short.hard === null, `real export: every reported night is on one side; too few sessions for a share (got ${JSON.stringify(sl)})`);
+      const hsx = (data as unknown as { healthSamples?: Array<{ type: string; date: string; value: number; meta?: string | null }> }).healthSamples ?? [];
+      const asleep = hsx.filter((x) => x.type === 'sleep_asleep_h').map((x) => ({ night: x.date, asleepHours: x.value }));
+      const sl = PT.sleepAndNextDay(asleep, hx.health.cpapNight, hx.health.bpReading, hx.workouts.map((x) => ({ date: x.date, rpes: x.sets.map((s) => s.rpe) })), now);
+      const sides = [asleep.filter((x) => x.asleepHours >= 7).length, asleep.filter((x) => x.asleepHours < 7).length];
+      assert(sides.some((n) => n < 4) ? sl === null : sl !== null && sl.long.nights + sl.short.nights === asleep.length, `real export: the sleep card splits the stored nights asleep, and says not enough data yet below 4 a side (got ${asleep.length} nights, ${JSON.stringify(sl)})`);
       const mt = PT.monthTrends(hx.health.bpReading, hx.health.cpapNight, hx.bodyStats, now);
       assert(mt?.bp?.length === 2 && mt.apnea?.length === 2 && PT.monthTrendCharts(mt).bp === null, 'real export: two months of pressure and apnea — rows, not a line');
       const fc1 = fs1 ? PT.foodAndScaleCharts(fs1) : null;
@@ -5303,6 +5313,218 @@ console.log('Sleep — the night is every block from evening to early afternoon'
   // After midnight that night is the current one.
   const late = [iv(L(10, 23, 30), L(11, 6, 30))];
   assert(H(nightAsleepMs(late, L(11, 7))) === 7, 'the night just slept is the one reported in the morning');
+}
+
+// ── Sleep tracking: every night from the first one Health holds (2026-10-05) ──
+// The owner: "track all", "i only use [Fitbit]", "why 14 days only i want
+// from [when] i began tracking sleep". Every instant is written with its
+// offset and the night rule is told the zone (+180, Riyadh), so the block
+// reads the same on the Mac and under TZ=UTC.
+import * as SL from '../src/lib/sleep';
+console.log('Sleep tracking — every night, grouped once on the phone, stored per wake day');
+{
+  const src = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const RIY = 180;
+  const DAY = 86_400_000;
+  const T = (iso: string) => Date.parse(iso);
+  const R = (d: string, hm: string) => T(`${d}T${hm}:00+03:00`);
+  const smp = (d1: string, h1: string, d2: string, h2: string, value: number, source = 'Fitbit') => ({ start: R(d1, h1), end: R(d2, h2), value, source });
+  const CORE = 3, DEEP = 4, REM = 5, AWAKE = 2, ASLEEP = 1, INBED = 0;
+
+  // 1 — his first Fitbit night, split: asleep 02:00–06:55 (an awake spell
+  // inside it) then 09:49–13:30. Apple Health: 8 h 4 min asleep.
+  const d3 = '2026-10-03';
+  const split = [
+    smp('2026-10-03', '01:50', d3, '13:30', INBED),
+    smp(d3, '02:00', d3, '03:00', CORE), smp(d3, '03:00', d3, '03:40', DEEP), smp(d3, '03:40', d3, '04:12', AWAKE),
+    smp(d3, '04:12', d3, '05:00', REM), smp(d3, '05:00', d3, '06:55', CORE),
+    smp(d3, '09:49', d3, '11:00', CORE), smp(d3, '11:00', d3, '11:30', REM), smp(d3, '11:30', d3, '13:30', CORE),
+  ];
+  const nap = [smp(d3, '15:00', d3, '16:00', ASLEEP)];
+  const n1 = SL.sleepNights([...split, ...nap], { offsetMin: RIY });
+  assert(n1.length === 1 && n1[0].wakeDay === '2026-10-03', `a split night is ONE night, keyed by the day he woke; the 15:00 nap is not a night (got ${n1.map((n) => n.wakeDay).join()})`);
+  assert(n1[0]?.asleepMin === 484, `split night: 4 h 23 + 3 h 41 = 8 h 4 min asleep, the awake spell and in-bed time left out (got ${n1[0]?.asleepMin})`);
+  assert(n1[0]?.deepMin === 40 && n1[0].remMin === 78 && n1[0].coreMin === 366 && n1[0].awakeMin === 32, `stages from the source that staged the night (got deep ${n1[0]?.deepMin} REM ${n1[0]?.remMin} core ${n1[0]?.coreMin} awake ${n1[0]?.awakeMin})`);
+  assert(n1[0]?.bedISO === new Date(R(d3, '02:00')).toISOString() && n1[0].wakeISO === new Date(R(d3, '13:30')).toISOString(), `first asleep 02:00, final wake 13:30 (got ${n1[0]?.bedISO} → ${n1[0]?.wakeISO})`);
+  assert(n1[0]?.sources.join() === 'Fitbit', 'the night names its source');
+  assert(SL.sleepNights(nap, { offsetMin: RIY }).length === 0, 'a nap on its own makes no night');
+
+  // 2 — an evening doze at 20:00 belongs to the NEXT night.
+  const doze = [smp(d3, '20:00', d3, '20:40', ASLEEP, 'iPhone'), smp(d3, '23:30', '2026-10-04', '06:30', ASLEEP, 'iPhone')];
+  const n2 = SL.sleepNights([...split, ...doze], { offsetMin: RIY });
+  assert(n2.map((n) => `${n.wakeDay}:${n.asleepMin}`).join() === '2026-10-03:484,2026-10-04:460', `a 20:00 doze joins the night that ends the next morning (got ${n2.map((n) => `${n.wakeDay}:${n.asleepMin}`).join()})`);
+  // 3 — stages absent: an iPhone-only night has hours and no stages.
+  assert(n2[1]?.deepMin === null && n2[1].remMin === null && n2[1].coreMin === null && n2[1].awakeMin === null, 'no source staged the night: deep, REM, core and awake are null, never zero');
+  assert(n2[1]?.bedISO === new Date(R(d3, '20:00')).toISOString(), 'the doze opens the night it joined');
+
+  // 4 — two sources writing the same night are unioned, never summed.
+  const two = [smp('2026-10-04', '23:00', '2026-10-05', '06:00', ASLEEP, 'Apple Watch'), smp('2026-10-04', '23:30', '2026-10-05', '06:30', CORE, 'Fitbit')];
+  const n4 = SL.sleepNights(two, { offsetMin: RIY });
+  assert(n4.length === 1 && n4[0].asleepMin === 450, `overlapping sources: 23:00–06:30 is 7 h 30, not 13 h 30 (got ${n4[0]?.asleepMin})`);
+  assert(n4[0]?.sources.join() === 'Apple Watch,Fitbit' && n4[0].coreMin === 420 && n4[0].deepMin === 0, `both sources named; stages from the one that staged (got ${n4[0]?.sources.join()} core ${n4[0]?.coreMin})`);
+  const dup = SL.sleepNights([...split, ...split], { offsetMin: RIY });
+  assert(dup[0]?.asleepMin === 484 && dup[0].deepMin === 40 && dup[0].awakeMin === 32, 'the same samples twice (a chunk overlap) count once, stages too');
+
+  // 5 — across a Riyadh midnight (no DST there): 22:30 → 06:30 is the 7th's night.
+  const n5 = SL.sleepNights([smp('2026-10-06', '22:30', '2026-10-07', '06:30', ASLEEP)], { offsetMin: RIY });
+  assert(n5.length === 1 && n5[0].wakeDay === '2026-10-07' && n5[0].asleepMin === 480, `a night across midnight is keyed by the morning (got ${n5[0]?.wakeDay} ${n5[0]?.asleepMin})`);
+  assert(SL.nightOf(R('2026-10-06', '17:59'), RIY) === null && SL.nightOf(R('2026-10-06', '18:00'), RIY) === '2026-10-07' && SL.nightOf(R('2026-10-07', '13:59'), RIY) === '2026-10-07' && SL.nightOf(R('2026-10-07', '14:00'), RIY) === null, 'the night runs from 18:00 the evening before to 14:00 on the wake day');
+
+  // 6 — overnight oxygen and breathing: only inside the night's asleep blocks.
+  const spo2 = [
+    { t: R(d3, '01:00'), value: 80 }, // before he fell asleep
+    { t: R(d3, '03:00'), value: 0.93 }, // HealthKit's percent is a fraction
+    { t: R(d3, '05:00'), value: 90 },
+    { t: R(d3, '08:00'), value: 85 }, // awake between the two blocks
+    { t: R(d3, '10:00'), value: 94 },
+    { t: R(d3, '14:00'), value: 84 }, // after the final wake
+  ];
+  const resp = [{ t: R(d3, '04:30'), value: 15 }, { t: R(d3, '08:00'), value: 20 }, { t: R(d3, '10:00'), value: 14 }];
+  const n6 = SL.sleepNights(split, { offsetMin: RIY, spo2, resp });
+  assert(n6[0]?.spo2Low === 90 && n6[0].spo2Avg === 92.3 && n6[0].respRate === 14.5, `SpO2 and breathing rate inside the asleep span only (got low ${n6[0]?.spo2Low} avg ${n6[0]?.spo2Avg} resp ${n6[0]?.respRate})`);
+  assert(n1[0]?.spo2Low === null && n1[0].respRate === null, 'no oxygen samples: null, never zero');
+
+  // 7 — the first run walks back from now in 60-day chunks until one is empty.
+  {
+    const now = R('2026-10-05', '12:00');
+    const starts: number[] = [];
+    const fake = (has: (start: number) => boolean) => async (startISO: string, endISO: string) => {
+      starts.push(T(startISO));
+      return has(T(startISO)) ? [{ startISO, endISO }] : [];
+    };
+    pendingAsync.push((async () => {
+      const w = await SL.walkSleepBackfill(fake((st) => st > now - 130 * DAY), now);
+      assert(w.chunks === 3 && w.samples.length === 2 && w.fromMs === now - 180 * DAY && starts[0] === now - 60 * DAY, `the walk stops at the first empty chunk (got ${w.chunks} chunks, from ${new Date(w.fromMs).toISOString()})`);
+      starts.length = 0;
+      const cap = await SL.walkSleepBackfill(fake(() => true), now);
+      assert(cap.chunks === 31 && cap.fromMs === now - 1826 * DAY && Math.min(...starts) === now - 1826 * DAY, `…and at 5 years however much there is (got ${cap.chunks} chunks back to ${new Date(cap.fromMs).toISOString()})`);
+    })());
+  }
+
+  // 8 — later runs re-read from the newest stored night minus 3 days.
+  {
+    const from = SL.incrementalSleepStart('2026-10-05', RIY);
+    assert(from === R('2026-10-01', '18:00'), `newest stored night 5 Oct → re-read from the evening that opens the night of 2 Oct (got ${new Date(from).toISOString()})`);
+    const mk = (day: string) => ({ ...n5[0], wakeDay: day });
+    const now = R('2026-10-05', '20:00');
+    const kept = SL.nightsToWrite(['2026-10-01', '2026-10-02', '2026-10-05', '2026-10-06'].map(mk), from, now, RIY).map((n) => n.wakeDay);
+    assert(kept.join() === '2026-10-02,2026-10-05', `a night cut by the window's edge, and a night that has not ended yet, are never written (got ${kept.join()})`);
+    assert(SL.batches([1, 2, 3, 4, 5], 2).map((b) => b.length).join() === '2,2,1' && SL.SLEEP_IMPORT_MAX_NIGHTS === 20, 'nights go to the server 20 at a time');
+  }
+
+  // 9 — what one night stores: the hours row (Stats' sleep debt reads it) plus a row per figure.
+  {
+    const night = n6[0];
+    const rows = SL.sleepNightRows(night);
+    const at = rows.upserts.map((r) => `${r.type}=${r.value}${r.unit}`).join(' ');
+    assert(rows.date.toISOString() === '2026-10-03T00:00:00.000Z' && rows.upserts.every((r) => r.date.toISOString() === '2026-10-03T00:00:00.000Z'), 'every row is keyed at UTC midnight of the wake day, like the other day rows');
+    assert(at === 'sleep_asleep_h=8.07h sleep_deep_min=40min sleep_rem_min=78min sleep_core_min=366min sleep_awake_min=32min sleep_spo2_low=90% sleep_spo2_avg=92.3% sleep_resp_rate=14.5count/min', `the rows of one night (got ${at})`);
+    const meta = JSON.parse(rows.upserts[0]?.meta ?? '{}');
+    assert(meta.bed === night?.bedISO && meta.wake === night?.wakeISO && meta.sources?.join() === 'Fitbit' && meta.asleepMin === 484 && rows.upserts.slice(1).every((r) => r.meta === null), `bed, wake, sources and exact minutes ride on the hours row (got ${rows.upserts[0]?.meta})`);
+    assert(rows.upserts.length > 0 && rows.removes.length === 0, 'nothing to clear when every figure is present');
+    const bare = SL.sleepNightRows(n2[1]);
+    assert(bare.upserts.length === 1 && bare.removes.sort().join() === 'sleep_awake_min,sleep_core_min,sleep_deep_min,sleep_rem_min,sleep_resp_rate,sleep_spo2_avg,sleep_spo2_low', 'a night without stages or oxygen clears those rows rather than leaving an old figure');
+  }
+
+  // 10 — the import is an idempotent upsert, and a late block corrects the night.
+  {
+    const store = new Map<string, { value: number; meta: string | null }>();
+    const db: SL.SleepDb = {
+      async upsert(r) { store.set(`${r.type}|${r.date.toISOString()}|${r.source}`, { value: r.value, meta: r.meta }); },
+      async remove(types, date, source) { for (const t of types) store.delete(`${t}|${date.toISOString()}|${source}`); },
+    };
+    const k = (t: string) => store.get(`${t}|2026-10-03T00:00:00.000Z|apple-health`);
+    pendingAsync.push((async () => {
+      const first = SL.sleepNights(split.slice(0, 6), { offsetMin: RIY }); // the morning block only, synced at 07:00
+      await SL.writeSleepNights(first, db);
+      const once = store.size;
+      await SL.writeSleepNights(JSON.parse(JSON.stringify(first)), db);
+      assert(once === 5 && store.size === once && k('sleep_asleep_h')?.value === 4.38, `re-importing the same night changes nothing (got ${store.size} rows, ${k('sleep_asleep_h')?.value} h)`);
+      await SL.writeSleepNights(SL.sleepNights(split, { offsetMin: RIY }), db);
+      assert(store.size === 5 && k('sleep_asleep_h')?.value === 8.07 && k('sleep_core_min')?.value === 366, `the 09:49 block arriving later REPLACES the night's values, never adds a row (got ${k('sleep_asleep_h')?.value} h, ${store.size} rows)`);
+      const tooMany = await SL.writeSleepNights(Array.from({ length: 21 }, () => first[0]), db);
+      assert('error' in tooMany, 'more than 20 nights in one call is refused, not half-written');
+      const bad = await SL.writeSleepNights([{ ...first[0], wakeDay: 'tomorrow' }, { ...first[0], asleepMin: 2000 }, { ...first[0], deepMin: -5 }], db);
+      assert(!('error' in bad) && bad.nights === 0 && bad.skipped === 3, `malformed nights are skipped (got ${JSON.stringify(bad)})`);
+    })());
+  }
+
+  // 11 — reading the store back, and mask coverage.
+  {
+    const rowsOf = (n: SL.SleepNight | undefined) => (n ? SL.sleepNightRows(n).upserts : []);
+    const stored = SL.nightsFromRows([...rowsOf(n6[0]), ...rowsOf(n2[1]), { type: 'sleep_asleep_h', date: '2026-09-20T00:00:00.000Z', value: 6.5, meta: null }]);
+    assert(stored.map((n) => `${n.day}:${n.hours}`).join() === '2026-09-20:6.5,2026-10-03:8.07,2026-10-04:7.67' && stored[1].deepMin === 40 && stored[1].spo2Low === 90 && stored[1].bedISO === n6[0]?.bedISO && stored[0].bedISO === null, `stored rows fold back into nights, oldest first; a row from before this sync is a night with hours only (got ${stored.map((n) => `${n.day}:${n.hours}`).join()})`);
+    assert(SL.maskCoverage(8, 6) === 0.75 && SL.maskCoverage(6, 8) === 1 && SL.maskCoverage(0, 5) === null, 'mask coverage = min(mask, asleep) ÷ asleep');
+    const g = SL.sleepGlance(stored, [{ night: new Date('2026-10-03T00:00:00.000Z'), usageHours: 6 }], '2026-10-04');
+    assert(g?.night.day === '2026-10-04' && g.isLastNight && g.maskHours === null, 'last night without a CPAP night: no mask line');
+    const g2 = SL.sleepGlance(stored, [{ night: new Date('2026-10-04T00:00:00.000Z'), usageHours: 9 }], '2026-10-04');
+    assert(g2?.maskHours === 7.7, `a CPAP night for that morning: mask hours capped at the hours asleep (got ${g2?.maskHours})`);
+    const g3 = SL.sleepGlance(stored, [], '2026-10-06');
+    assert(g3?.night.day === '2026-10-04' && g3.isLastNight === false, 'no night stored for this morning yet: the latest one, named by its date');
+    assert(SL.sleepGlance(stored, [], '2026-10-03')?.night.day === '2026-10-03', 'a night keyed after today is never "last night"');
+    assert(SL.sleepNavGlance({ day: '2026-10-04', hours: 7.67 }, '2026-10-04') === '7.7 h last night' && SL.sleepNavGlance(null, '2026-10-04') === 'no nights yet' && SL.sleepNavGlance({ day: '2026-10-02', hours: 7 }, '2026-10-04') === '7 h · 2 Oct', 'the Rooms glance');
+  }
+
+  // 12 — averages, the chart, oxygen, the months: thin data says so.
+  {
+    const nights: SL.StoredNight[] = Array.from({ length: 40 }, (_, i) => {
+      const day = new Date(Date.parse('2026-08-27T00:00:00Z') + i * DAY).toISOString().slice(0, 10);
+      return { day, hours: 6 + (i % 3), deepMin: i % 2 ? 60 : null, remMin: 90, coreMin: 200, awakeMin: 20, spo2Low: i >= 36 ? 90 + (i % 3) : null, spo2Avg: null, respRate: null, bedISO: null, wakeISO: null, sources: ['Fitbit'] };
+    });
+    const today = '2026-10-05'; // the 40th night
+    const a7 = SL.sleepAverage(nights, today, 7);
+    assert(a7.nights === 7 && a7.hours === 6.9 && a7.deepMin === 60 && a7.deepNights === 4 && a7.remMin === 90, `7 nights: averages with their counts (got ${JSON.stringify(a7)})`);
+    const thin = SL.sleepAverage(nights.slice(-2), today, 7);
+    assert(thin.nights === 2 && thin.hours === null, 'two nights: not enough data yet, never an average of two');
+    const chart = SL.sleepHoursChart(nights, today);
+    assert(chart?.series[0].kind === 'bar' && chart.series[0].points.length === 30 && chart.xLabels?.length === 30 && chart.xLabels[29].label === '5 Oct', `hours per night: the last 30 nights as bars, one label per bar (got ${chart?.series[0].points.length})`);
+    assert(SL.sleepHoursChart(nights.slice(-3), today) === null, 'three nights: no chart');
+    const ox = SL.sleepSpo2Chart(nights, today);
+    assert(ox?.series[0].points.length === 4 && ox.series[0].kind === 'line' && /wrist/i.test(ox.title), `lowest oxygen per night: a line from 4 nights (got ${ox?.series[0].points.length})`);
+    assert(SL.sleepSpo2Chart(nights.slice(0, 38), today) === null, 'two oxygen nights: no line');
+    const months = SL.sleepMonths(nights, today);
+    assert(months.map((m) => `${m.month}:${m.nights}:${m.hours}`).join() === '2026-10:5:7,2026-09:30:7,2026-08:5:6.8', `the full history by month, newest first (got ${months.map((m) => `${m.month}:${m.nights}:${m.hours}`).join()})`);
+  }
+
+  // 13 — the doctor report: one function for the page and the PDF.
+  {
+    const nights: SL.StoredNight[] = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02'].map((day, i) => ({
+      day, hours: [7, 8, 6, 7, 5][i], deepMin: null, remMin: null, coreMin: null, awakeMin: null, spo2Low: [null, 91, 88, null, null][i], spo2Avg: null, respRate: null, bedISO: null, wakeISO: null, sources: [],
+    }));
+    const cpap = [{ night: '2026-09-29T00:00:00.000Z', usageHours: 8 }, { night: '2026-09-30T00:00:00.000Z', usageHours: 3 }, { night: '2026-10-01T00:00:00.000Z', usageHours: 7 }];
+    const r = SL.sleepReportSummary(nights, cpap, '2026-09-29', '2026-10-05');
+    assert(r.nights === 4 && r.avgHours === 6.5 && r.coverage?.pct === 83 && r.coverage.nights === 3 && r.spo2Low === 88 && r.spo2Nights === 2, `report: nights in range, average asleep, mask coverage over the nights with both, lowest wrist oxygen (got ${JSON.stringify(r)})`);
+    const noMask = SL.sleepReportSummary(nights, [], '2026-09-29', '2026-10-05');
+    assert(noMask.nights === 4 && noMask.coverage === null && SL.sleepReportSummary(nights.slice(0, 2), cpap, '2026-09-01', '2026-10-05').avgHours === null, 'no CPAP nights: no coverage; two nights: no average');
+  }
+
+  // 14 — the screens read the stored nights, in tracker words.
+  {
+    const read = (f: string) => (fs.existsSync(path.join(__dirname, '..', f)) ? src(f) : '');
+    const page = read('src/app/health/sleep/page.tsx');
+    assert(/sleepGlance\(/.test(page) && /sleepAverage\(/.test(page) && /sleepHoursChart\(/.test(page) && /sleepSpo2Chart\(/.test(page) && /sleepMonths\(/.test(page) && /<ReportChart/.test(page) && /<details/.test(page), 'the Sleep room renders the shared helpers: glance, averages, chart, oxygen, months behind a tap');
+    assert(/wrist reading, not a medical oxygen test/.test(page), 'the oxygen line says what it is');
+    assert(/Not enough data yet/.test(page) && /ownerDayKey\(/.test(page) && !/setHours|getDate\(\)/.test(page), 'thin data says so; "last night" is his day, never the server\'s');
+    const banned = /\b(should|must|aim|target|goal|poor|bad|good|apnea|apnoea|compliance|compliant)\b|text-(red|rose)-/i;
+    assert(page !== '' && banned.exec(page) === null, `no grading, no advice, no red, no apnea read from the wrist (found ${banned.exec(page)?.[0]})`);
+    const nav = src('src/components/JourneyNavClient.tsx');
+    const body = nav.slice(nav.indexOf("title: 'Body'"), nav.indexOf("title: 'Training'"));
+    assert(/href: '\/health\/sleep', label: 'Sleep'/.test(body), 'Sleep is a room in the Body group');
+    assert(/'\/health\/sleep':/.test(src('src/app/nav-actions.ts')) && /sleepNavGlance\(/.test(src('src/app/nav-actions.ts')), 'and has a glance line');
+    const auto = src('src/components/HealthAutoPilot.tsx');
+    assert(/walkSleepBackfill\(/.test(auto) && /incrementalSleepStart\(/.test(auto) && /nightsToWrite\(/.test(auto) && /importSleepNights\(/.test(auto), 'the autopilot syncs every night: backfill once, then from the newest night minus 3 days');
+    assert(!/type: 'sleep_asleep_h'/.test(auto), 'the one-number-per-open push is gone: a night is written by the night sync, keyed by its wake day');
+    const metrics = src('src/lib/health-metrics.ts');
+    assert(!/NIGHT_FROM_HOUR\s*=|NAP_FROM_HOUR\s*=/.test(metrics) && /from '\.\/sleep'/.test(metrics), 'one night rule: health-metrics reads it from sleep.ts, never a copy');
+    for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
+      assert(/sleepReportSummary\(/.test(src(f)) && /wrist/.test(src(f)), `${f}: the sleep row comes from sleepReportSummary, oxygen labelled a wrist reading`);
+    }
+    const analytics = src('src/app/health/analytics/page.tsx');
+    assert(/7 h or more asleep/.test(analytics) && /getSleepNights\(/.test(analytics), 'Patterns splits on hours asleep, from the stored nights');
+    const schema = src('prisma/schema.prisma');
+    const hsModel = schema.slice(schema.indexOf('model HealthSample'), schema.indexOf('}', schema.indexOf('model HealthSample')));
+    assert(/meta\s+String\?/.test(hsModel) && !/sleep/i.test(hsModel), 'no schema change: the nights ride HealthSample');
+  }
 }
 
 Promise.all(pendingAsync).then(() => {

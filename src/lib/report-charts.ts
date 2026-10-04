@@ -38,8 +38,9 @@ export interface ChartSpec {
    *  point, drawn centred under it. The layout drops some only when they
    *  would print over each other (`thinLabels`). */
   xLabels?: Array<{ t: number; label: string }>;
-  /** The five report charts, or a Patterns chart (src/lib/patterns.ts). */
-  key: 'weight' | 'bp' | 'cpap-hours' | 'cpap-ahi' | 'dose' | `pattern-${string}`;
+  /** The five report charts, a Patterns chart (src/lib/patterns.ts), or
+   *  a Sleep room chart (src/lib/sleep.ts). */
+  key: 'weight' | 'bp' | 'cpap-hours' | 'cpap-ahi' | 'dose' | 'sleep-hours' | 'sleep-spo2' | `pattern-${string}`;
   title: string;
   unit: string;
   series: ChartSeries[];

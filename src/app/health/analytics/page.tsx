@@ -3,7 +3,7 @@ import { Fragment, type ReactNode } from 'react';
 import Link from 'next/link';
 import BackLink from '@/components/BackLink';
 import ReportChart from '@/components/health/ReportChart';
-import { getHealthData, getPatternSessions } from '../../health-actions';
+import { getHealthData, getPatternSessions, getSleepNights } from '../../health-actions';
 import { monthLabel, weightChangeLabel } from '@/lib/health-format';
 import {
   afCorrelates,
@@ -70,7 +70,7 @@ const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
 // collapsed line for the cards still waiting on symptom and AF logs. Every
 // number comes from src/lib/patterns.ts — this file fetches and renders.
 export default async function HealthAnalyticsPage() {
-  const [data, sessions] = await Promise.all([getHealthData(), getPatternSessions()]);
+  const [data, sessions, sleepNights] = await Promise.all([getHealthData(), getPatternSessions(), getSleepNights()]);
   const injections = data.injections.map((i) => ({ at: i.at, doseMg: i.doseMg, site: i.site }));
   const symptoms = data.symptoms.map((s) => ({ at: s.at, kind: s.kind, severity: s.severity }));
   const diet = data.nutrition.map((n) => ({ day: n.day, kcal: n.kcal, proteinG: n.proteinG }));
@@ -85,7 +85,12 @@ export default async function HealthAnalyticsPage() {
   const food = foodAndScale(diet, data.bodyStats);
   const foodCharts = food ? foodAndScaleCharts(food) : null;
   const delivery = deliveryDayPattern(diet);
-  const sleep = sleepAndNextDay(nights, data.bpReadings, sessions);
+  const sleep = sleepAndNextDay(
+    sleepNights.map((n) => ({ night: `${n.day}T00:00:00.000Z`, asleepHours: n.hours })),
+    nights,
+    data.bpReadings,
+    sessions,
+  );
   const months = monthTrends(data.bpReadings, nights, data.bodyStats);
   const monthCharts = months ? monthTrendCharts(months) : null;
 
@@ -254,6 +259,11 @@ export default async function HealthAnalyticsPage() {
       <p className="metric-label">next-day BP{s.bp ? ` × ${s.bp.n}` : ''}</p>
       <p className="metric-value mt-2">{s.hard ? `${s.hard.pct}%` : '—'}</p>
       <p className="metric-label">sets Hard or above{s.hard ? ` × ${s.hard.sets}` : ''}</p>
+      {s.coverage && (
+        <p className="mt-2 text-[11px] font-semibold text-app-tx3">
+          mask on {s.coverage.pct}% of it × {s.coverage.nights}
+        </p>
+      )}
     </div>
   );
 
@@ -430,22 +440,24 @@ export default async function HealthAnalyticsPage() {
         {sleep ? (
           <>
             <div className="grid grid-cols-2 gap-2 text-center">
-              {sleepCell('4 h or more', sleep.long)}
-              {sleepCell('Under 4 h', sleep.short)}
+              {sleepCell('7 h or more asleep', sleep.long)}
+              {sleepCell('Under 7 h', sleep.short)}
             </div>
             <More summary="What is counted">
               <p>
-                Nights are split by mask time: 4 h or more, and under 4 h; × is the nights. The
-                pressure is the average reading on the day the night ended, × the days that had
-                one. The share is of rated working sets in a session on that day, × the sets. A
-                pressure needs 3 days; a share needs 3 sessions and 5 rated sets — until then it
-                shows a dash.
+                Nights are split by hours asleep as the wearable recorded them: 7 h or more, and
+                under 7 h; × is the nights. The pressure is the average reading on the day the
+                night ended, × the days that had one. The share is of rated working sets in a
+                session on that day, × the sets. A pressure needs 3 days; a share needs 3 sessions
+                and 5 rated sets — until then it shows a dash. The mask line is the part of the
+                hours asleep the CPAP was on, × the nights with a CPAP night; it shows once each
+                side has 4 of them.
               </p>
               <p>Seen together in your logs — not a reason.</p>
             </More>
           </>
         ) : (
-          notYet('4 nights on each side of 4 h')
+          notYet('4 nights on each side of 7 h asleep')
         )}
       </div>
 
