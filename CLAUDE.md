@@ -239,6 +239,9 @@ laws). Tracker, not diagnostic: correlation language only, "not enough
 data yet" over thin charts, nothing ever suggests a dose. The treatment
 clock anchors at the first LOGGED injection; checkpoint weeks prescribe
 nothing. Weight stays ONE store (BodyStat) shared by both domains.
+Sleep is every night Apple Health holds (his Fitbit), grouped once on the
+phone by `src/lib/sleep.ts` and stored per wake day as HealthSample rows —
+docs/HEALTH.md "Sleep"; the wrist never reads apnea, the CPAP report does.
 
 ## The program, in one paragraph
 

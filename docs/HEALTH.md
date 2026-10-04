@@ -65,7 +65,7 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
   133 kg / goal 103, dose plan 2.5×4 → 5×2 → doctor review, Nebilet +
   Mounjaro, baseline LDL 4.54), bounded writes for every entity.
 - `/health` hub · `/health/injection` (rotation assistant + after-dose
-  pass) · `/health/timeline` · `/health/analytics` · `/health/report`
+  pass) · `/health/timeline` · `/health/analytics` · `/health/sleep` · `/health/report`
   (printable, English + Arabic RTL, `/api/health/export` CSV).
 - Reminders: local notification ids **3001** (injection day 18:00),
   **3002** (missed, next day 10:00), **3003** (day-1 symptom check
@@ -169,6 +169,62 @@ AF episodes, CPAP, blood pressure and labs are correlated around it.
 - The injection form carries its time: "Taken: Now / Earlier". An earlier
   time is accepted from the last 14 days, never the future
   (`injectionTimeOk`).
+
+## Sleep (2026-10-05)
+
+The owner: "track all", "i only use [Fitbit]", "why 14 days only i want
+from [when] i began tracking sleep". He wears a Fitbit to bed from about
+2026-10-02; it writes sleep (and, when it has them, oxygen and breathing
+rate) into Apple Health. The Apple Watch is NOT worn at night. The CPAP
+is separate: mask hours and AHI come from the weekly prisma report
+(CpapNight) — Apple Health never has them.
+
+- **Source.** HealthAutoPilot (`syncSleepNights`, inside the throttled
+  autopilot run) reads `sleepAnalysis`, `oxygenSaturation` and
+  `respiratoryRate` through the existing bridge — no native change. The
+  FIRST run (no row written by this sync yet; old rows without `meta` do
+  not count) walks back from now in 60-day chunks until one is empty, at
+  most 5 years (`walkSleepBackfill`). Later runs re-read from the newest
+  stored night minus 3 days (`incrementalSleepStart`), so a late sync
+  corrects the nights it lands in. The one-number-per-open push it
+  replaced lost every night the app was not opened.
+- **The night rule** (`src/lib/sleep.ts`, ONE rule — `nightAsleepMs` in
+  health-metrics reads it too): every asleep block STARTING between 18:00
+  the evening before and 14:00 on the wake day is one night, keyed by
+  that wake day in the phone's local time (his Riyadh day). A block from
+  14:00 to 18:00 is a nap and is not stored; a doze from 18:00 belongs to
+  the night ending tomorrow. Asleep = values 1/3/4/5; in-bed (0) is never
+  sleep. Sources are UNIONED, never summed. Stages come from the one
+  source that staged the most of the night; a night nobody staged has
+  null stages, never zeros. Oxygen and breathing count only inside the
+  night's asleep blocks. A night cut by the read window's edge, or one
+  ending after today, is not written (`nightsToWrite`).
+- **What is stored** (HealthSample, source `apple-health`, date = UTC
+  midnight of the wake day, upsert on the existing unique key — no schema
+  change): `sleep_asleep_h` (hours, 2 dp — the row Stats' sleep debt has
+  always read; `meta` = JSON {bed, wake, sources, asleepMin}),
+  `sleep_deep_min`, `sleep_rem_min`, `sleep_core_min`, `sleep_awake_min`,
+  `sleep_spo2_low`, `sleep_spo2_avg` (%), `sleep_resp_rate` (count/min).
+  A re-sync replaces the night; a figure the night no longer has is
+  deleted. At most 20 nights (≤160 rows) per `importSleepNights` call;
+  nights go up oldest first, so a first run cut short resumes from where
+  it stopped.
+- **What is shown.** `/health/sleep` (Rooms → Body): last night's hours
+  and bed → wake, deep/REM, and "mask N h of it" when the CPAP night for
+  that morning exists (min(mask, asleep) — coverage, never compliance);
+  7- and 30-night averages with counts; hours per night (30 bars);
+  lowest overnight oxygen per night as a line once 4 nights have one;
+  every month behind a tap. Patterns' "Sleep and the next day" splits on
+  hours ASLEEP (7 h or more vs under 7 h — readiness's existing 7 h), with
+  mask coverage as a second line only when each side has 4 nights with a
+  CPAP night. The doctor report (page and PDF, `sleepReportSummary` /
+  `sleepReportRows`) prints average asleep and nights tracked, average
+  mask coverage, and the lowest overnight oxygen labelled a wrist reading.
+- **Wording limits.** Hours, minutes and counts only: no grade, no
+  "should", no sleep target beyond the readiness thresholds that already
+  existed, no red. Oxygen is "wrist reading, not a medical oxygen test".
+  Nothing reads apnea from the wrist data — the CPAP report owns that.
+  An average needs 3 nights, a chart 4; below that, "not enough data yet".
 
 ## Pipe limits (2026-09-18)
 
