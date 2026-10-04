@@ -8,8 +8,8 @@ import {
   type ParsedSample,
 } from '@/lib/health';
 import { BP_IMPORT_NOTE, BP_SAME_READING_MS, bpImportTwin, ownerDayWindow, weightImportPlan } from '@/lib/health-entry';
-import { ownerDayKey } from '@/lib/health-insights';
-import { SLEEP_ROW_TYPES, SLEEP_SOURCE, SLEEP_TYPES, nightsFromRows, writeSleepNights } from '@/lib/sleep';
+import { ownerDayKey, ownerTodayUtc } from '@/lib/health-insights';
+import { SLEEP_ROW_TYPES, SLEEP_SOURCE, SLEEP_TYPES, nightsFromRows, sleepNavGlance, writeSleepNights } from '@/lib/sleep';
 
 const HEALTH_SOURCE = 'apple-health';
 
@@ -271,4 +271,18 @@ export async function readSleepNights() {
     select: { type: true, date: true, value: true, meta: true },
   });
   return nightsFromRows(rows);
+}
+
+/**
+ * The Rooms glance for Sleep: the newest night up to HIS today. A night is
+ * keyed by the calendar morning he woke, so this is his calendar day — not
+ * the 04:00 activity day the diet glance in nav-actions uses.
+ */
+export async function sleepRoomGlance(now: Date = new Date()): Promise<string> {
+  const latest = await prisma.healthSample.findFirst({
+    where: { type: SLEEP_TYPES.asleep, source: SLEEP_SOURCE, date: { lte: ownerTodayUtc(now) } },
+    orderBy: { date: 'desc' },
+    select: { date: true, value: true },
+  });
+  return sleepNavGlance(latest ? { day: latest.date.toISOString().slice(0, 10), hours: latest.value } : null, ownerDayKey(now));
 }

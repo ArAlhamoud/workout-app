@@ -596,6 +596,16 @@ export async function getSleepNights() {
   return readSleepNights();
 }
 
+/** The Sleep room: every stored night plus the CPAP nights (mask hours
+ *  only — the coverage line), both keyed by the morning they ended. */
+export async function getSleepRoom() {
+  const [nights, cpap] = await Promise.all([
+    readSleepNights(),
+    prisma.cpapNight.findMany({ orderBy: { night: 'desc' }, take: 400, select: { night: true, usageHours: true } }),
+  ]);
+  return { nights, cpap };
+}
+
 /** HealthKit sessions the log doesn't have yet. */
 export async function detectUnlogged(payload: unknown) {
   return detectUnloggedWorkouts(payload);

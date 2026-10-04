@@ -5510,7 +5510,7 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
     const nav = src('src/components/JourneyNavClient.tsx');
     const body = nav.slice(nav.indexOf("title: 'Body'"), nav.indexOf("title: 'Training'"));
     assert(/href: '\/health\/sleep', label: 'Sleep'/.test(body), 'Sleep is a room in the Body group');
-    assert(/'\/health\/sleep':/.test(src('src/app/nav-actions.ts')) && /sleepNavGlance\(/.test(src('src/app/nav-actions.ts')), 'and has a glance line');
+    assert(/'\/health\/sleep':/.test(src('src/app/nav-actions.ts')) && /sleepRoomGlance\(/.test(src('src/app/nav-actions.ts')) && /ownerDayKey\(now\)/.test(src('src/lib/health-import.ts')), 'and has a glance line');
     const auto = src('src/components/HealthAutoPilot.tsx');
     assert(/walkSleepBackfill\(/.test(auto) && /incrementalSleepStart\(/.test(auto) && /nightsToWrite\(/.test(auto) && /importSleepNights\(/.test(auto), 'the autopilot syncs every night: backfill once, then from the newest night minus 3 days');
     assert(!/type: 'sleep_asleep_h'/.test(auto), 'the one-number-per-open push is gone: a night is written by the night sync, keyed by its wake day');

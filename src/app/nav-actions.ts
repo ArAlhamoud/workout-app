@@ -8,12 +8,13 @@
 import prisma from '@/lib/prisma';
 import { calendarDaysBetween, getDynamicPlan, isTrainingSession, queuedDay } from '@/lib/program';
 import { DEFAULT_DOSE_PLAN, ownerActivityDayUtc, treatmentClock } from '@/lib/health-insights';
+import { sleepRoomGlance } from '@/lib/health-import';
 
 export async function getRoomGlances(): Promise<Record<string, string>> {
   try {
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 86400000);
-    const [lastWorkouts, sessionCount, exerciseCount, latestLab, latestDose, bpWeek, latestBp, latestInjection, latestFuel] =
+    const [lastWorkouts, sessionCount, exerciseCount, latestLab, latestDose, bpWeek, latestBp, latestInjection, latestFuel, sleepGlance] =
       await Promise.all([
         prisma.workout.findMany({ orderBy: { date: 'desc' }, take: 12, select: { date: true, name: true, duration: true, sets: { select: { rpe: true, isWarmup: true } } } }),
         prisma.workout.count(),
@@ -31,6 +32,7 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
           orderBy: { day: 'desc' },
           select: { day: true, kcal: true, proteinG: true },
         }),
+        sleepRoomGlance(now),
       ]);
 
     const lastTraining = lastWorkouts.filter(isTrainingSession)[0];
@@ -49,6 +51,7 @@ export async function getRoomGlances(): Promise<Record<string, string>> {
       '/health/report': latestLab
         ? `labs ${latestLab.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`
         : 'no labs yet',
+      '/health/sleep': sleepGlance,
       '/health/bp': latestBp ? `last ${latestBp.systolic}/${latestBp.diastolic}` : 'no reading yet',
       '/health/injection': latestInjection
         ? `last ${latestInjection.at.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'Asia/Riyadh' })}`
