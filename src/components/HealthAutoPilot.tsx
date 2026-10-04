@@ -12,6 +12,7 @@
 // What runs at most every SYNC_THROTTLE_MIN (heavier, idempotent):
 //   - Health bodyMass → body stats (silent weigh-ins)
 //   - daily recovery metrics → HealthSample rows (owned history)
+//   - every sleep night → HealthSample rows per wake day (syncSleepNights)
 //   - unsynced app workouts → HealthKit write-through
 //
 // Everything here is fire-and-forget with errors swallowed: this is
@@ -26,9 +27,20 @@ import {
   queryWeight,
   queryQuantity,
   queryDailyStats,
+  queryCategory,
   windowStartISO,
   type QuantityIdentifier,
 } from '@/lib/native-health';
+import {
+  SLEEP_CHUNK_DAYS,
+  SLEEP_IMPORT_MAX_NIGHTS,
+  batches,
+  incrementalSleepStart,
+  nightsToWrite,
+  sleepNights,
+  walkSleepBackfill,
+  type SpotIn,
+} from '@/lib/sleep';
 import { pushWorkoutsToHealth, type HealthPushCandidate } from '@/lib/health-push';
 import {
   registerRestActions,
@@ -42,10 +54,10 @@ import {
 import { armGapGuard, notifySickRest, notifyComeback, refreshLadderCopy } from '@/lib/gap-guard';
 import { cancelLocalNotifications, scheduleLocalNotifications } from '@/lib/native-feedback';
 import { flushOutbox, retryDead } from '@/lib/outbox';
-import { importHealth, getWeeklyDigest, getWorkoutsToPush, markWorkoutsPushed } from '@/app/health-actions';
+import { importHealth, getWeeklyDigest, getWorkoutsToPush, markWorkoutsPushed, getSleepSyncState, importSleepNights } from '@/app/health-actions';
 import { durableGet, durableSet, durableRemove } from '@/lib/native-store';
 import { runCloudBackup } from '@/lib/native-cloud-backup';
-import { lastNightSleepHours, readReadinessReadings, readSickSignal } from '@/lib/health-metrics';
+import { readReadinessReadings, readSickSignal } from '@/lib/health-metrics';
 import { reportReadiness } from '@/app/actions';
 import type { DayId } from '@/lib/program';
 
@@ -201,6 +213,75 @@ async function runGapGuard(): Promise<void> {
   }
 }
 
+/** Point readings (oxygen, breathing rate) over [from, to], read in the
+ *  same 60-day chunks as the sleep walk so no single bridge call spans
+ *  years. A type the source never writes, or a failed read, is just empty. */
+async function readSpots(id: QuantityIdentifier, fromMs: number, toMs: number): Promise<SpotIn[]> {
+  const out: SpotIn[] = [];
+  for (let end = toMs; end > fromMs; end -= SLEEP_CHUNK_DAYS * 86_400_000) {
+    const start = Math.max(fromMs, end - SLEEP_CHUNK_DAYS * 86_400_000);
+    try {
+      const { samples } = await queryQuantity(id, { startISO: new Date(start).toISOString(), endISO: new Date(end).toISOString() });
+      for (const s of samples) out.push({ t: new Date(s.dateISO).getTime(), value: s.value });
+    } catch { /* oxygen and breathing are extras; the night still stores */ }
+  }
+  return out;
+}
+
+/**
+ * Every sleep night Apple Health holds, stored per wake day (src/lib/sleep.ts
+ * has the rule and docs/HEALTH.md the contract). The FIRST run (nothing
+ * stored by this sync yet) walks back from now in 60-day chunks until one
+ * is empty, at most 5 years; later runs re-read from the newest stored
+ * night minus 3 days, so a late Fitbit sync corrects the nights it lands
+ * in. Grouping happens HERE, on the phone, in his local time. Nights go to
+ * the server oldest first, SLEEP_IMPORT_MAX_NIGHTS per call: a first run
+ * cut short leaves the oldest nights stored, and the next run carries on
+ * from the newest of them.
+ */
+async function syncSleepNights(): Promise<void> {
+  const now = Date.now();
+  const { newestWakeDay } = await getSleepSyncState();
+  let fromMs: number;
+  let raw: Awaited<ReturnType<typeof queryCategory>>;
+  if (newestWakeDay === null) {
+    const walk = await walkSleepBackfill(
+      (startISO, endISO) => queryCategory('sleepAnalysis', { startISO, endISO }),
+      now,
+    );
+    fromMs = walk.fromMs;
+    raw = walk.samples;
+  } else {
+    fromMs = incrementalSleepStart(newestWakeDay);
+    raw = await queryCategory('sleepAnalysis', {
+      startISO: new Date(fromMs).toISOString(),
+      endISO: new Date(now).toISOString(),
+    });
+  }
+  if (!raw.length) return;
+  const [spo2, resp] = await Promise.all([
+    readSpots('oxygenSaturation', fromMs, now),
+    readSpots('respiratoryRate', fromMs, now),
+  ]);
+  const nights = nightsToWrite(
+    sleepNights(
+      raw.map((s) => ({
+        start: new Date(s.startISO).getTime(),
+        end: new Date(s.endISO).getTime(),
+        value: s.value,
+        source: s.sourceName,
+      })),
+      { spo2, resp },
+    ),
+    fromMs,
+    now,
+  );
+  for (const batch of batches(nights, SLEEP_IMPORT_MAX_NIGHTS)) {
+    const out = await importSleepNights(batch);
+    if ('error' in out) return;
+  }
+}
+
 /** The heavier, throttled half: weight, recovery metrics, workout push. */
 // The throttle stamp below is read asynchronously, so two near-simultaneous
 // calls could both pass it before either wrote it. One run at a time — but
@@ -297,13 +378,16 @@ async function runSyncsOnce(): Promise<void> {
         }
       } catch { /* a type with no data (or iOS 15 wrist temp) just skips */ }
     }
-    const sleepH = await lastNightSleepHours();
-    if (sleepH !== null) {
-      rows.push({ type: 'sleep_asleep_h', value: sleepH, unit: 'h', date: localDay(new Date()) });
-    }
     if (rows.length) {
       await importHealth(rows);
     }
+  } catch { /* next open retries */ }
+
+  // 2a — every sleep night, keyed by the day he woke (syncSleepNights).
+  // It replaced the one hours-asleep row this step pushed per open, which
+  // lost every night he did not open the app.
+  try {
+    await syncSleepNights();
   } catch { /* next open retries */ }
 
   // 2b — today's readiness, TOLD to the server so the Watch plan and /train
