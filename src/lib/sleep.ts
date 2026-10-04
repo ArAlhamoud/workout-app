@@ -635,3 +635,25 @@ export function sleepReportSummary(nights: StoredNight[], cpap: CpapNightIn[], s
     spo2Nights: ox.length,
   };
 }
+
+/**
+ * The report's sleep rows, worded ONCE for the page and the PDF (the PDF
+ * passes each through pdfSafe). No nights: no rows, and the caller says so.
+ * The oxygen row always says it is a wrist reading.
+ */
+export function sleepReportRows(r: SleepReport): Array<{ label: string; value: string }> {
+  if (r.nights === 0) return [];
+  const nightsWord = (n: number) => `${n} night${n === 1 ? '' : 's'}`;
+  const rows = [
+    r.avgHours !== null
+      ? { label: `Average asleep · ${nightsWord(r.nights)}`, value: `${r.avgHours} h/night` }
+      : { label: 'Nights tracked', value: `${r.nights} — too few for an average` },
+  ];
+  if (r.coverage) {
+    rows.push({ label: `Mask on, of the hours asleep · ${nightsWord(r.coverage.nights)}`, value: `${r.coverage.pct}%` });
+  }
+  if (r.spo2Low !== null) {
+    rows.push({ label: 'Lowest overnight oxygen (wrist reading)', value: `${r.spo2Low}% · ${nightsWord(r.spo2Nights)}` });
+  }
+  return rows;
+}

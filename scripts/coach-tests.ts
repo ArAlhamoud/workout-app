@@ -5495,6 +5495,9 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
     const r = SL.sleepReportSummary(nights, cpap, '2026-09-29', '2026-10-05');
     assert(r.nights === 4 && r.avgHours === 6.5 && r.coverage?.pct === 83 && r.coverage.nights === 3 && r.spo2Low === 88 && r.spo2Nights === 2, `report: nights in range, average asleep, mask coverage over the nights with both, lowest wrist oxygen (got ${JSON.stringify(r)})`);
     const noMask = SL.sleepReportSummary(nights, [], '2026-09-29', '2026-10-05');
+    const rows = SL.sleepReportRows(r).map((x) => `${x.label} = ${x.value}`).join(' | ');
+    assert(rows === 'Average asleep · 4 nights = 6.5 h/night | Mask on, of the hours asleep · 3 nights = 83% | Lowest overnight oxygen (wrist reading) = 88% · 2 nights', `the report's sleep rows, worded once for the page and the PDF (got ${rows})`);
+    assert(SL.sleepReportRows(SL.sleepReportSummary(nights.slice(0, 2), [], '2026-09-01', '2026-10-05')).map((x) => x.value).join(' | ') === '2 — too few for an average | 91% · 1 night' && SL.sleepReportRows(SL.sleepReportSummary([], [], '2026-09-01', '2026-10-05')).length === 0, 'two nights: counted, not averaged; none: no rows');
     assert(noMask.nights === 4 && noMask.coverage === null && SL.sleepReportSummary(nights.slice(0, 2), cpap, '2026-09-01', '2026-10-05').avgHours === null, 'no CPAP nights: no coverage; two nights: no average');
   }
 
@@ -5517,7 +5520,7 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
     const metrics = src('src/lib/health-metrics.ts');
     assert(!/NIGHT_FROM_HOUR\s*=|NAP_FROM_HOUR\s*=/.test(metrics) && /from '\.\/sleep'/.test(metrics), 'one night rule: health-metrics reads it from sleep.ts, never a copy');
     for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
-      assert(/sleepReportSummary\(/.test(src(f)) && /wrist/.test(src(f)), `${f}: the sleep row comes from sleepReportSummary, oxygen labelled a wrist reading`);
+      assert(/sleepReportSummary\(/.test(src(f)) && /sleepReportRows\(/.test(src(f)), `${f}: the sleep rows come from sleepReportSummary + sleepReportRows, where the oxygen row is labelled a wrist reading`);
     }
     const analytics = src('src/app/health/analytics/page.tsx');
     assert(/7 h or more asleep/.test(analytics) && /getSleepNights\(/.test(analytics), 'Patterns splits on hours asleep, from the stored nights');
