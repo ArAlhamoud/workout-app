@@ -5419,7 +5419,7 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   // and resumes BACKWARDS from a stored cursor; a failed read moves nothing.
   {
     const now = R('2026-10-05', '12:00');
-    const mkNight = (wake: number): SL.SleepNight => ({ wakeDay: SL.localDayKey(wake, RIY), asleepMin: 420, deepMin: null, remMin: null, coreMin: null, awakeMin: null, wakeUps: null, bedISO: new Date(wake - 7 * 3_600_000).toISOString(), wakeISO: new Date(wake).toISOString(), sources: ['Fitbit'], spo2Low: null, spo2Avg: null, respRate: null });
+    const mkNight = (wake: number): SL.SleepNight => ({ wakeDay: SL.localDayKey(wake, RIY), asleepMin: 420, deepMin: null, remMin: null, coreMin: null, awakeMin: null, wakeUps: null, mainBedISO: null, mainAsleepMin: null, bedISO: new Date(wake - 7 * 3_600_000).toISOString(), wakeISO: new Date(wake).toISOString(), sources: ['Fitbit'], spo2Low: null, spo2Avg: null, respRate: null });
     // Watch nights Jan–May, a broken band, Fitbit from 2 Oct.
     const health: number[] = [];
     for (let t = R('2026-01-02', '06:30'); t < R('2026-05-20', '00:00'); t += DAY) health.push(t);
@@ -5582,7 +5582,7 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   {
     const nights: SL.StoredNight[] = Array.from({ length: 40 }, (_, i) => {
       const day = new Date(Date.parse('2026-08-27T00:00:00Z') + i * DAY).toISOString().slice(0, 10);
-      return { day, hours: 6 + (i % 3), deepMin: i % 2 ? 60 : null, remMin: 90, coreMin: 200, awakeMin: 20, spo2Low: i >= 36 ? 90 + (i % 3) : null, spo2Avg: null, respRate: null, wakeUps: null, bedISO: null, wakeISO: null, sources: ['Fitbit'] };
+      return { day, hours: 6 + (i % 3), deepMin: i % 2 ? 60 : null, remMin: 90, coreMin: 200, awakeMin: 20, spo2Low: i >= 36 ? 90 + (i % 3) : null, spo2Avg: null, respRate: null, wakeUps: null, mainBedISO: null, mainAsleepMin: null, bedISO: null, wakeISO: null, sources: ['Fitbit'] };
     });
     const today = '2026-10-05'; // the 40th night
     const a7 = SL.sleepAverage(nights, today, 7);
@@ -5605,7 +5605,7 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   // 13 — the doctor report: one function for the page and the PDF.
   {
     const nights: SL.StoredNight[] = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02'].map((day, i) => ({
-      day, hours: [7, 8, 6, 7, 5][i], deepMin: null, remMin: null, coreMin: null, awakeMin: null, spo2Low: [null, 91, 88, null, null][i], spo2Avg: null, respRate: null, wakeUps: null, bedISO: null, wakeISO: null, sources: [],
+      day, hours: [7, 8, 6, 7, 5][i], deepMin: null, remMin: null, coreMin: null, awakeMin: null, spo2Low: [null, 91, 88, null, null][i], spo2Avg: null, respRate: null, wakeUps: null, mainBedISO: null, mainAsleepMin: null, bedISO: null, wakeISO: null, sources: [],
     }));
     const cpap = [{ night: '2026-09-29T00:00:00.000Z', usageHours: 8 }, { night: '2026-09-30T00:00:00.000Z', usageHours: 3 }, { night: '2026-10-01T00:00:00.000Z', usageHours: 7 }];
     const r = SL.sleepReportSummary(nights, cpap, '2026-09-29', '2026-10-05');
@@ -5657,7 +5657,7 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   const { wakeUps: _w, ...older } = wire;
   void _w;
   assert(SL.parseSleepNight(older, '2026-10-05')?.wakeUps === null, 'a night sent without wake-ups (an older phone build) is kept, wake-ups unknown');
-  assert(SL.parseSleepNight({ ...wire, wakeUps: -1 }, '2026-10-05') === null && SL.parseSleepNight({ ...wire, wakeUps: 1.5 }, '2026-10-05') === null, 'a negative or fractional wake-up count is refused');
+  assert(SL.parseSleepNight({ ...wire, wakeUps: -1 }, '2026-10-05')?.wakeUps === null, 'a negative wake-up count is dropped, never the night');
   const rows9 = SL.sleepNightRows(n1[0]!).upserts;
   const stored9 = SL.nightsFromRows(rows9.map((r) => ({ type: r.type, date: r.date, value: r.value, meta: r.meta })));
   assert(stored9[0]?.wakeUps === 2, `stored in the hours row's meta, read back (got ${stored9[0]?.wakeUps})`);
@@ -5665,9 +5665,9 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   assert(legacy[0]?.wakeUps === null, 'a night stored before wake-ups existed reads as unknown, never zero');
   const eff = SL.sleepEfficiency(stored9[0]!);
   assert(eff === 70, `split night: 8 h 4 asleep of 02:00 → 13:30 is 70% (got ${eff})`);
-  assert(SL.sleepEfficiency({ ...stored9[0]!, bedISO: null }) === null, 'no bed and wake, no share');
+  assert(SL.sleepEfficiency({ ...stored9[0]!, bedISO: null, mainBedISO: null, mainAsleepMin: null }) === null, 'no bed and wake, no share');
   const at = (day: string, bedLocal: string, prevDay: string) => ({
-    ...stored9[0]!, day, bedISO: new Date(R(prevDay, bedLocal)).toISOString(), wakeISO: new Date(R(day, '07:00')).toISOString(),
+    ...stored9[0]!, day, mainBedISO: null, mainAsleepMin: null, bedISO: new Date(R(prevDay, bedLocal)).toISOString(), wakeISO: new Date(R(day, '07:00')).toISOString(),
   });
   const week = [at('2026-10-10', '23:30', '2026-10-09'), at('2026-10-11', '00:30', '2026-10-11'), at('2026-10-12', '01:30', '2026-10-12')];
   const bt = SL.bedtimeSpread(week, '2026-10-12');
@@ -5676,6 +5676,18 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   assert(SL.bedtimeSpread([at('2026-10-01', '22:00', '2026-09-30'), ...week], '2026-10-12')?.nights === 3, 'only the last 7 nights count');
   const avgEff = SL.efficiencyAverage([stored9[0]!, ...week], '2026-10-12', 7);
   assert(avgEff?.nights === 3 && avgEff.pct === Math.round((3 * SL.sleepEfficiency(week[0])!) / 3), `the 7-night share averages the nights inside the window (got ${JSON.stringify(avgEff)})`);
+  // Review (data steward): a 20:00 doze joins the night, but it is not his
+  // bedtime and the gap before the real night is not time awake.
+  const dozeNight = SL.sleepNights([smp('2026-10-13', '20:00', '2026-10-13', '20:40', ASLEEP), smp('2026-10-13', '23:30', '2026-10-14', '06:00', ASLEEP)], { offsetMin: RIY });
+  assert(dozeNight.length === 1 && dozeNight[0].mainBedISO === new Date(R('2026-10-13', '23:30')).toISOString(), `the main sleep starts at 23:30, not at the doze (got ${dozeNight[0]?.mainBedISO})`);
+  assert(dozeNight[0]?.wakeUps === 0 && dozeNight[0].mainAsleepMin === 390, `no wake-up before the main sleep; 6 h 30 asleep in it (got ${dozeNight[0]?.wakeUps}, ${dozeNight[0]?.mainAsleepMin})`);
+  const dozeStored = SL.nightsFromRows(SL.sleepNightRows(dozeNight[0]!).upserts.map((r) => ({ type: r.type, date: r.date, value: r.value, meta: r.meta })))[0]!;
+  assert(SL.sleepEfficiency(dozeStored) === 100, `the share asleep runs from the main sleep (got ${SL.sleepEfficiency(dozeStored)})`);
+  assert(SL.bedtimeSpread([dozeStored, { ...dozeStored, day: '2026-10-13' }, { ...dozeStored, day: '2026-10-12' }], '2026-10-14')?.typical === '23:30', 'bedtime is the main sleep, not the doze');
+  assert(n1[0]?.mainBedISO === n1[0]?.bedISO && n1[0]?.mainAsleepMin === 484, 'the split night keeps 02:00 as its start: the later block came after it');
+  // A derived count never costs the night: out of range, it is dropped.
+  const huge = SL.parseSleepNight({ ...wire, wakeUps: 1.5, mainBedISO: '1999-01-01T00:00:00.000Z', mainAsleepMin: 99999 }, '2026-10-05');
+  assert(huge?.asleepMin === 484 && huge.wakeUps === null && huge.mainBedISO === null && huge.mainAsleepMin === null, `a bad wake-up count or main start is dropped, the night kept (got ${JSON.stringify(huge && { w: huge.wakeUps, m: huge.mainBedISO })})`);
   const page = src('src/app/health/sleep/page.tsx');
   assert(/wakeUps/.test(page) && /bedtimeSpread\(/.test(page) && /efficiencyAverage\(/.test(page), 'the Sleep room shows wake-ups, the share asleep and bedtime regularity');
   assert(!/text-(red|rose)-|rpe-grind|\bshould\b|\bpoor\b/i.test(page), 'no grade and no red on the Sleep room');
