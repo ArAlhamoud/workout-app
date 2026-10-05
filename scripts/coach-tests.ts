@@ -5598,6 +5598,20 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
     const ox = SL.sleepSpo2Chart(nights, today);
     assert(ox?.series[0].points.length === 4 && ox.series[0].kind === 'line' && /wrist/i.test(ox.title), `lowest oxygen per night: a line from 4 nights (got ${ox?.series[0].points.length})`);
     assert(SL.sleepSpo2Chart(nights.slice(0, 38), today) === null, 'two oxygen nights: no line');
+    // His real history (2026-10-05): two Fitbit nights this month and eleven
+    // older iPhone/Watch nights back to Dec 2024. "The last 30 nights" drew
+    // all thirteen at their dates — bars bunched across 22 months under the
+    // labels "4 Dec · 6 Feb · 4 Oct", and the oxygen axis read "4 Dec ·
+    // 12 Aug · 21 Apr" with no years. A 30-night chart is the last 30 DAYS.
+    const sparse = ['2024-12-04', '2025-02-10', '2025-07-01', '2025-12-04', '2026-02-06', '2026-02-07', '2026-02-08', '2026-02-09', '2026-04-21', '2026-10-03', '2026-10-04']
+      .map((day, i) => ({ ...nights[0], day, spo2Low: 90 + i }));
+    assert(SL.sleepHoursChart(sparse, '2026-10-05') === null, 'nights from other years never fill the 30-night chart: two nights this month is not enough for one');
+    const recent = Array.from({ length: 6 }, (_, i) => ({ ...nights[0], day: `2026-10-0${i + 1}`, spo2Low: 91 + i }));
+    const both = [...sparse, ...recent.filter((n) => !sparse.some((x) => x.day === n.day))];
+    const hc = SL.sleepHoursChart(both, '2026-10-06');
+    assert(hc !== null && hc.series[0].points.every((p) => p.t >= Date.parse('2026-09-07T00:00:00Z')), 'the hours chart holds only the last 30 days');
+    const oc = SL.sleepSpo2Chart(both, '2026-10-06');
+    assert(oc !== null && oc.series[0].points.every((p) => p.t >= Date.parse('2026-09-07T00:00:00Z')) && (oc.xLabels?.length ?? 0) === oc.series[0].points.length, 'the oxygen line holds only the last 30 days, a label under every point');
     const months = SL.sleepMonths(nights, today);
     assert(months.map((m) => `${m.month}:${m.nights}:${m.hours}`).join() === '2026-10:5:7,2026-09:30:7,2026-08:5:6.8', `the full history by month, newest first (got ${months.map((m) => `${m.month}:${m.nights}:${m.hours}`).join()})`);
   }
