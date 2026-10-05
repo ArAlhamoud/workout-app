@@ -149,7 +149,7 @@ export default async function SleepPage() {
             devices on the same night count once. Deep and REM are minutes, averaged over the
             nights that had them. A wake-up is a break in sleep of 5 minutes or more; “% asleep”
             is the share of the time from first falling asleep to final waking. Bedtime is the
-            typical time he first fell asleep over the last 7 nights, with the earliest and
+            typical time you first fell asleep over the last 7 nights, with the earliest and
             latest. An average needs 3 nights; × is the nights.
           </p>
         </More>
