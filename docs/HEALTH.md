@@ -236,7 +236,10 @@ is separate: mask hours and AHI come from the weekly prisma report
 - **What is stored** (HealthSample, source `apple-health`, date = UTC
   midnight of the wake day, upsert on the existing unique key — no schema
   change): `sleep_asleep_h` (hours, 2 dp — the row Stats' sleep debt has
-  always read; `meta` = JSON {bed, wake, sources, asleepMin}),
+  always read; `meta` = JSON {bed, wake, sources, asleepMin, wakeUps,
+  mainBed, mainAsleepMin} — the last three are derived and display-only:
+  out of range they are dropped, never the night; older rows lack them and
+  read null, never 0),
   `sleep_deep_min`, `sleep_rem_min`, `sleep_core_min`, `sleep_awake_min`,
   `sleep_spo2_low`, `sleep_spo2_avg` (%), `sleep_resp_rate` (count/min).
   A re-sync replaces the night, in ONE transaction per night. Oxygen and
@@ -255,7 +258,14 @@ is separate: mask hours and AHI come from the weekly prisma report
   7- and 30-night averages with counts ("1 night · 3 needed" until
   then); hours per night (30 bars);
   lowest overnight oxygen per night as a line once 4 nights have one;
-  every month behind a tap. Patterns' "Sleep and the next day" splits on
+  every month behind a tap. Last night also reads "N wake-ups · awake N
+  min · N% asleep", and Averages carries the 7-night share asleep and the
+  7-night bedtime (typical, earliest–latest; Riyadh time on a clock from
+  18:00 so midnight does not split it), each from 3 nights (owner,
+  2026-10-05). All three start at the MAIN sleep — the run with the most
+  minutes asleep — so a 20:00 doze that joins the night is neither his
+  bedtime nor time awake; a later block (the split night) still counts:
+  a wake-up is a break of 5 min or more after the main sleep began. Patterns' "Sleep and the next day" splits on
   hours ASLEEP (7 h or more vs under 7 h — readiness's existing 7 h), with
   mask coverage as a second line only when each side has 4 nights with a
   CPAP night. The doctor report (page and PDF, `sleepReportSummary` /
