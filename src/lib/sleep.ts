@@ -110,6 +110,9 @@ export const SLEEP_TYPES = {
   spo2Avg: 'sleep_spo2_avg',
   resp: 'sleep_resp_rate',
 } as const;
+/** A break in sleep this long or longer is a wake-up; a shorter blip is not. */
+export const WAKE_UP_MIN = 5;
+
 export const SLEEP_ROW_TYPES: string[] = Object.values(SLEEP_TYPES);
 
 export interface Interval { start: number; end: number }
@@ -127,6 +130,9 @@ export interface SleepNight {
   remMin: number | null;
   coreMin: number | null;
   awakeMin: number | null;
+  /** Breaks of WAKE_UP_MIN or more between first asleep and final wake,
+   *  across the union of every source; null when not sent (older build). */
+  wakeUps: number | null;
   /** First asleep instant and final wake. */
   bedISO: string;
   wakeISO: string;
@@ -364,6 +370,10 @@ export function sleepNights(
       remMin: staged ? staged.rem : null,
       coreMin: staged ? staged.core : null,
       awakeMin: staged ? staged.awake : null,
+      wakeUps: mergeIntervals(g.blocks).reduce(
+        (n, b, j, all) => (j > 0 && b.start - all[j - 1].end >= WAKE_UP_MIN * MIN_MS ? n + 1 : n),
+        0,
+      ),
       bedISO: new Date(spans[i].bed).toISOString(),
       wakeISO: new Date(spans[i].wake).toISOString(),
       sources: [...sources[i]].sort(),
@@ -490,7 +500,13 @@ export function sleepNightRows(n: SleepNight): { date: Date; upserts: SleepRow[]
       date,
       value: round2(n.asleepMin / 60),
       unit: 'h',
-      meta: JSON.stringify({ bed: n.bedISO, wake: n.wakeISO, sources: n.sources, asleepMin: n.asleepMin }),
+      meta: JSON.stringify({
+        bed: n.bedISO,
+        wake: n.wakeISO,
+        sources: n.sources,
+        asleepMin: n.asleepMin,
+        ...(n.wakeUps !== null ? { wakeUps: n.wakeUps } : {}),
+      }),
     },
   ];
   const removes: string[] = [];
@@ -531,7 +547,9 @@ export function parseSleepNight(raw: unknown, todayKey: string): SleepNight | nu
   const stage = [r.deepMin, r.remMin, r.coreMin, r.awakeMin].map((v) => num(v, 0, 24 * 60));
   const spo2 = [r.spo2Low, r.spo2Avg].map((v) => num(v, 50, 100));
   const resp = num(r.respRate, 1, 80);
-  if ([...stage, ...spo2, resp].some((v) => v === undefined)) return null;
+  const wakeUps = num(r.wakeUps, 0, 200);
+  if ([...stage, ...spo2, resp, wakeUps].some((v) => v === undefined)) return null;
+  if (wakeUps != null && !Number.isInteger(wakeUps)) return null;
   const bed = typeof r.bedISO === 'string' ? Date.parse(r.bedISO) : NaN;
   const wake = typeof r.wakeISO === 'string' ? Date.parse(r.wakeISO) : NaN;
   if (!Number.isFinite(bed) || !Number.isFinite(wake) || wake <= bed) return null;
@@ -554,6 +572,7 @@ export function parseSleepNight(raw: unknown, todayKey: string): SleepNight | nu
     remMin: whole(stage[1]),
     coreMin: whole(stage[2]),
     awakeMin: whole(stage[3]),
+    wakeUps: wakeUps ?? null,
     bedISO: new Date(bed).toISOString(),
     wakeISO: new Date(wake).toISOString(),
     sources,
@@ -615,6 +634,8 @@ export interface StoredNight {
   spo2Low: number | null;
   spo2Avg: number | null;
   respRate: number | null;
+  /** null on a night stored before wake-ups were counted. */
+  wakeUps: number | null;
   /** null on a row written before the night sync (hours only). */
   bedISO: string | null;
   wakeISO: string | null;
@@ -634,7 +655,7 @@ export function nightsFromRows(rows: Array<{ type: string; date: Date | string; 
   for (const [day, m] of byDay) {
     const h = m.get(SLEEP_TYPES.asleep);
     if (!h) continue;
-    let meta: { bed?: unknown; wake?: unknown; sources?: unknown } = {};
+    let meta: { bed?: unknown; wake?: unknown; sources?: unknown; wakeUps?: unknown } = {};
     try {
       meta = h.meta ? JSON.parse(h.meta) : {};
     } catch {
@@ -651,6 +672,7 @@ export function nightsFromRows(rows: Array<{ type: string; date: Date | string; 
       spo2Low: v(SLEEP_TYPES.spo2Low),
       spo2Avg: v(SLEEP_TYPES.spo2Avg),
       respRate: v(SLEEP_TYPES.resp),
+      wakeUps: typeof meta.wakeUps === 'number' && Number.isInteger(meta.wakeUps) && meta.wakeUps >= 0 ? meta.wakeUps : null,
       bedISO: typeof meta.bed === 'string' ? meta.bed : null,
       wakeISO: typeof meta.wake === 'string' ? meta.wake : null,
       sources: Array.isArray(meta.sources) ? meta.sources.filter((s): s is string => typeof s === 'string') : [],
@@ -687,6 +709,65 @@ export function sleepAverage(nights: StoredNight[], todayKey: string, days: numb
     deepNights: deep.length,
     remMin: rem.length >= MIN_AVG_NIGHTS ? Math.round(mean(rem)) : null,
     remNights: rem.length,
+  };
+}
+
+/** Percent of first-asleep → final-wake spent asleep; null without both
+ *  times. Not "in bed": a wearable rarely records getting into bed. */
+export function sleepEfficiency(n: StoredNight): number | null {
+  if (!n.bedISO || !n.wakeISO) return null;
+  const spanMin = (Date.parse(n.wakeISO) - Date.parse(n.bedISO)) / MIN_MS;
+  if (!(spanMin > 0)) return null;
+  return Math.min(100, Math.round(((n.hours * 60) / spanMin) * 100));
+}
+
+/** The mean share asleep over the last `days` wake days; null under three. */
+export function efficiencyAverage(nights: StoredNight[], todayKey: string, days: number): { pct: number; nights: number } | null {
+  const from = shiftDay(todayKey, -(days - 1));
+  const pcts = upTo(nights, todayKey)
+    .filter((n) => n.day >= from)
+    .map(sleepEfficiency)
+    .filter((p): p is number => p !== null);
+  return pcts.length >= MIN_AVG_NIGHTS ? { pct: Math.round(mean(pcts)), nights: pcts.length } : null;
+}
+
+/** Riyadh has no daylight saving: his bedtime is UTC + 3 h, on any server. */
+const RIYADH_OFFSET_MIN = 180;
+/** Bedtimes are compared on a clock that starts at 18:00, so 23:30 and
+ *  00:30 are an hour apart, not 23 hours. */
+const BED_CLOCK_FROM_MIN = 18 * 60;
+const hhmm = (min: number) => {
+  const m = ((Math.round(min) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
+/**
+ * How regular his bedtime was over the last `days` wake days: the median
+ * (typical), earliest and latest first-asleep times and the minutes between
+ * them; null under three nights. Read in Riyadh time, never the server's.
+ */
+export function bedtimeSpread(
+  nights: StoredNight[],
+  todayKey: string,
+  days = 7,
+): { typical: string; earliest: string; latest: string; spreadMin: number; nights: number } | null {
+  const from = shiftDay(todayKey, -(days - 1));
+  const clock = upTo(nights, todayKey)
+    .filter((n) => n.day >= from && n.bedISO)
+    .map((n) => {
+      const local = (Date.parse(n.bedISO as string) / MIN_MS + RIYADH_OFFSET_MIN) % 1440;
+      return (local - BED_CLOCK_FROM_MIN + 1440) % 1440;
+    })
+    .sort((a, b) => a - b);
+  if (clock.length < MIN_AVG_NIGHTS) return null;
+  const mid = clock.length % 2 ? clock[(clock.length - 1) / 2] : (clock[clock.length / 2 - 1] + clock[clock.length / 2]) / 2;
+  const back = (c: number) => hhmm(c + BED_CLOCK_FROM_MIN);
+  return {
+    typical: back(mid),
+    earliest: back(clock[0]),
+    latest: back(clock[clock.length - 1]),
+    spreadMin: Math.round(clock[clock.length - 1] - clock[0]),
+    nights: clock.length,
   };
 }
 

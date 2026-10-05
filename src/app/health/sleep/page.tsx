@@ -6,7 +6,10 @@ import { getSleepRoom } from '../../health-actions';
 import { ownerDayKey } from '@/lib/health-insights';
 import { monthLabel, shortDay } from '@/lib/health-format';
 import {
+  bedtimeSpread,
+  efficiencyAverage,
   sleepAverage,
+  sleepEfficiency,
   sleepAverageText,
   sleepGlance,
   sleepHoursChart,
@@ -25,6 +28,8 @@ export const dynamic = 'force-dynamic';
 
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh' });
+const shiftKey = (key: string, days: number) =>
+  new Date(Date.parse(`${key}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 const h1 = (h: number) => String(Math.round(h * 10) / 10);
 const notYet = (what: string) => <p className="text-sm text-app-tx3">Not enough data yet · {what}</p>;
 
@@ -64,6 +69,10 @@ export default async function SleepPage() {
   const hasOxygen = nights.some((n) => n.spo2Low !== null);
   const months = sleepMonths(nights, today);
   const tracked = nights.filter((x) => x.day <= today);
+  const eff7 = efficiencyAverage(nights, today, 7);
+  const bed7 = bedtimeSpread(nights, today, 7);
+  const recent7 = nights.filter((x) => x.day <= today && x.day >= shiftKey(today, -6));
+  const needed = (have: number) => `${have} night${have === 1 ? '' : 's'} · 3 needed`;
 
   // "1 night · 3 needed" until an average exists, then the average with its count.
   const avgRow = (label: string, a: SleepAverage) => {
@@ -77,6 +86,16 @@ export default async function SleepPage() {
         n.deepMin !== null ? `deep ${n.deepMin} min` : null,
         n.remMin !== null ? `REM ${n.remMin} min` : null,
         glance.maskHours !== null ? `mask ${h1(glance.maskHours)} h of it` : null,
+      ].filter(Boolean).join(' · ')
+    : '';
+  // How broken the night was: wake-ups, minutes awake, and the share of
+  // first-asleep → final-wake spent asleep. Counts only, no grade.
+  const eff = n ? sleepEfficiency(n) : null;
+  const wakeLine = n
+    ? [
+        n.wakeUps !== null ? `${n.wakeUps} wake-up${n.wakeUps === 1 ? '' : 's'}` : null,
+        n.awakeMin !== null ? `awake ${n.awakeMin} min` : null,
+        eff !== null ? `${eff}% asleep` : null,
       ].filter(Boolean).join(' · ')
     : '';
 
@@ -98,6 +117,7 @@ export default async function SleepPage() {
               {n.bedISO && n.wakeISO ? ` · ${time(n.bedISO)} → ${time(n.wakeISO)}` : ''}
             </p>
             {stageLine && <p className="mt-1.5 text-sm font-semibold tabular-nums text-app-tx2">{stageLine}</p>}
+            {wakeLine && <p key={wakeLine} className="mt-0.5 text-xs font-semibold tabular-nums text-app-tx3">{wakeLine}</p>}
           </>
         ) : (
           <p className="text-sm text-app-tx3">
@@ -112,12 +132,25 @@ export default async function SleepPage() {
         <div className="space-y-1.5 text-sm">
           {avgRow('Last 7 nights', avg7)}
           {avgRow('Last 30 nights', avg30)}
+          <Row
+            label="Asleep of bed → wake"
+            value={eff7 ? `${eff7.pct}%` : needed(recent7.filter((x) => sleepEfficiency(x) !== null).length)}
+            count={eff7 ? `× ${eff7.nights}` : undefined}
+          />
+          <Row
+            label="Bedtime"
+            value={bed7 ? `${bed7.typical} · ${bed7.earliest}–${bed7.latest}` : needed(recent7.filter((x) => x.bedISO).length)}
+            count={bed7 ? `× ${bed7.nights}` : undefined}
+          />
         </div>
         <More summary="What is counted">
           <p>
             Hours asleep as the wearable recorded them — time in bed awake is left out, and two
             devices on the same night count once. Deep and REM are minutes, averaged over the
-            nights that had them. An average needs 3 nights; × is the nights.
+            nights that had them. A wake-up is a break in sleep of 5 minutes or more; “% asleep”
+            is the share of the time from first falling asleep to final waking. Bedtime is the
+            typical time he first fell asleep over the last 7 nights, with the earliest and
+            latest. An average needs 3 nights; × is the nights.
           </p>
         </More>
       </div>
