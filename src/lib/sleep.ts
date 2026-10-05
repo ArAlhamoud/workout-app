@@ -860,12 +860,21 @@ export function sleepNavGlance(latest: { day: string; hours: number } | null, to
 }
 
 const CHART_NIGHTS = 30;
+
+/** The nights of the last CHART_NIGHTS calendar days, oldest first. Not the
+ *  last 30 nights stored: his history reaches back through old iPhone and
+ *  Watch nights, and "the last 30 nights" drew thirteen nights spread over
+ *  22 months at their dates (2026-10-05). */
+const lastDays = (nights: StoredNight[], todayKey: string) => {
+  const from = shiftDay(todayKey, -(CHART_NIGHTS - 1));
+  return upTo(nights, todayKey).filter((n) => n.day >= from);
+};
 const dayT = (key: string) => Date.parse(`${key}T00:00:00Z`);
 
 /** Hours asleep per night: the last 30 nights as bars, one label per bar
  *  (thinned only on collision). No reference line — no target is drawn. */
 export function sleepHoursChart(nights: StoredNight[], todayKey: string): ChartSpec | null {
-  const rows = upTo(nights, todayKey).slice(-CHART_NIGHTS);
+  const rows = lastDays(nights, todayKey);
   if (rows.length < MIN_TREND_POINTS) return null;
   return {
     key: 'sleep-hours',
@@ -880,7 +889,7 @@ export function sleepHoursChart(nights: StoredNight[], todayKey: string): ChartS
 
 /** Lowest wrist oxygen per night, over the last 30 nights that have one. */
 export function sleepSpo2Chart(nights: StoredNight[], todayKey: string): ChartSpec | null {
-  const rows = upTo(nights, todayKey).slice(-CHART_NIGHTS).filter((n) => n.spo2Low !== null);
+  const rows = lastDays(nights, todayKey).filter((n) => n.spo2Low !== null);
   if (rows.length < MIN_TREND_POINTS) return null;
   return {
     key: 'sleep-spo2',
@@ -889,6 +898,7 @@ export function sleepSpo2Chart(nights: StoredNight[], todayKey: string): ChartSp
     series: [{ key: 'spo2', label: 'Lowest', kind: 'line', points: rows.map((n) => ({ t: dayT(n.day), v: n.spo2Low as number })) }],
     refs: [],
     zeroBased: false,
+    xLabels: rows.map((n) => ({ t: dayT(n.day), label: dayLabel(n.day) })),
   };
 }
 
