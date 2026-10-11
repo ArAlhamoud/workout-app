@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-10-10T11:00:12.136Z",
+  "exportedAt": "2026-10-11T11:17:13.124Z",
   "totalWorkouts": 18,
   "totalBodyStats": 39,
   "totalExercises": 21,
@@ -14656,6 +14656,20 @@
         "flags": null,
         "notes": "Lunch out at Tashas, shared (estimated): third of sea bass 250 g with lemon-butter sauce, caper berries, almonds 242, half its buttered baby potatoes 135, half Savva chicken pasta (cream, mushrooms) + garlic bread 550, half chicken schnitzel + mustard sauce + slaw 365, half green salad 50. Drink not · Dinner: light chicken burger (multigrain bun, grilled chicken breast, avocado, light sauce, side salad) 469/35/52/13 from the menu label",
         "createdAt": "2026-10-09T14:58:51.489Z"
+      },
+      {
+        "id": "cmv2w9xbz0000d483n5engu75",
+        "day": "2026-10-10T00:00:00.000Z",
+        "proteinG": 100,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1649,
+        "carbsG": 147,
+        "fatG": 73,
+        "flags": null,
+        "notes": "Lunch out, shared (menu kcal): majboos sharqawi, most of the meat + 1/3 of the rice ~411, 1/3 hawari wedges no sauce ~180, 1/2 kibbeh makawia 400, 1/4 white jareesh with chicken 188. Dinner: BK grilled chicken sandwich, no cheese ~470/37/38/19. No breakfast or snack.",
+        "createdAt": "2026-10-10T21:16:45.696Z"
       },
       {
         "id": "cmuwcbrmn00003fdzj3ae9wap",
