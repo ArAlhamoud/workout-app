@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-10-15T09:39:27.656Z",
+  "exportedAt": "2026-10-16T09:32:53.832Z",
   "totalWorkouts": 19,
   "totalBodyStats": 47,
   "totalExercises": 21,
@@ -14806,6 +14806,18 @@
         "createdAt": "2026-09-11T20:57:12.364Z"
       },
       {
+        "id": "cmtxft2sg00095f2jew9547q5",
+        "date": "2022-10-31T00:00:00.000Z",
+        "test": "wbc",
+        "value": 10.78,
+        "unit": "10^9/L",
+        "refLow": 4,
+        "refHigh": 11,
+        "lab": "Dr Sulaiman Al Habib",
+        "notes": null,
+        "createdAt": "2026-09-11T20:57:12.545Z"
+      },
+      {
         "id": "cmtxft2so000a5f2jfwokuqy8",
         "date": "2022-10-31T00:00:00.000Z",
         "test": "platelets",
@@ -14878,18 +14890,6 @@
         "createdAt": "2026-09-11T20:57:11.845Z"
       },
       {
-        "id": "cmtxft2sg00095f2jew9547q5",
-        "date": "2022-10-31T00:00:00.000Z",
-        "test": "wbc",
-        "value": 10.78,
-        "unit": "10^9/L",
-        "refLow": 4,
-        "refHigh": 11,
-        "lab": "Dr Sulaiman Al Habib",
-        "notes": null,
-        "createdAt": "2026-09-11T20:57:12.545Z"
-      },
-      {
         "id": "cmtxft2bs00055f2jawkduutp",
         "date": "2022-10-31T00:00:00.000Z",
         "test": "sodium",
@@ -14938,6 +14938,18 @@
         "createdAt": "2026-09-11T20:57:12.587Z"
       },
       {
+        "id": "cmtxft2tu000g5f2jwzkg4972",
+        "date": "2023-05-23T00:00:00.000Z",
+        "test": "potassium",
+        "value": 4.1,
+        "unit": "mmol/L",
+        "refLow": 3.5,
+        "refHigh": 5.1,
+        "lab": "Dr Sulaiman Al Habib — Endocrine",
+        "notes": null,
+        "createdAt": "2026-09-11T20:57:12.594Z"
+      },
+      {
         "id": "cmtxft2u0000h5f2jtpp84hmy",
         "date": "2023-05-23T00:00:00.000Z",
         "test": "sodium",
@@ -14950,6 +14962,18 @@
         "createdAt": "2026-09-11T20:57:12.600Z"
       },
       {
+        "id": "cmtxft2ta000d5f2j83bgdwjx",
+        "date": "2023-05-23T00:00:00.000Z",
+        "test": "tsh",
+        "value": 1.7861,
+        "unit": "mIU/L",
+        "refLow": 0.3,
+        "refHigh": 4.2,
+        "lab": "Dr Sulaiman Al Habib — Endocrine",
+        "notes": "NORMAL — thyroid already excluded as an AF driver, though this predates the AF episode by 3 years.",
+        "createdAt": "2026-09-11T20:57:12.574Z"
+      },
+      {
         "id": "cmtxft2tg000e5f2j73zv5omc",
         "date": "2023-05-23T00:00:00.000Z",
         "test": "aldosterone",
@@ -14960,18 +14984,6 @@
         "lab": "Dr Sulaiman Al Habib — Endocrine",
         "notes": "Normal. With renin, this was a workup for primary aldosteronism as a cause of his hypertension.",
         "createdAt": "2026-09-11T20:57:12.581Z"
-      },
-      {
-        "id": "cmtxft2tu000g5f2jwzkg4972",
-        "date": "2023-05-23T00:00:00.000Z",
-        "test": "potassium",
-        "value": 4.1,
-        "unit": "mmol/L",
-        "refLow": 3.5,
-        "refHigh": 5.1,
-        "lab": "Dr Sulaiman Al Habib — Endocrine",
-        "notes": null,
-        "createdAt": "2026-09-11T20:57:12.594Z"
       },
       {
         "id": "cmtxft2sw000b5f2jvqmip7qb",
@@ -14998,30 +15010,6 @@
         "createdAt": "2026-09-11T20:57:12.568Z"
       },
       {
-        "id": "cmtxft2ta000d5f2j83bgdwjx",
-        "date": "2023-05-23T00:00:00.000Z",
-        "test": "tsh",
-        "value": 1.7861,
-        "unit": "mIU/L",
-        "refLow": 0.3,
-        "refHigh": 4.2,
-        "lab": "Dr Sulaiman Al Habib — Endocrine",
-        "notes": "NORMAL — thyroid already excluded as an AF driver, though this predates the AF episode by 3 years.",
-        "createdAt": "2026-09-11T20:57:12.574Z"
-      },
-      {
-        "id": "cmtxezgpl00018l624oyxkh1m",
-        "date": "2026-08-20T00:00:00.000Z",
-        "test": "ldl",
-        "value": 4.54,
-        "unit": "mmol/L",
-        "refLow": null,
-        "refHigh": 2.59,
-        "lab": null,
-        "notes": "Lab app shows the draw as 20 Aug 2026 (the app had recorded 25 Aug) and the lab reference ceiling as 2.59 mmol/L, not 3.4.",
-        "createdAt": "2026-09-11T20:34:10.905Z"
-      },
-      {
         "id": "cmtxf0dfx0000f0lftt31ohhy",
         "date": "2026-08-20T00:00:00.000Z",
         "test": "lp(a)",
@@ -15034,16 +15022,16 @@
         "createdAt": "2026-09-11T20:34:53.325Z"
       },
       {
-        "id": "cmu7n0qbv000ku31xbnqes62q",
-        "date": "2026-09-17T00:00:00.000Z",
-        "test": "magnesium",
-        "value": 0.78,
+        "id": "cmtxezgpl00018l624oyxkh1m",
+        "date": "2026-08-20T00:00:00.000Z",
+        "test": "ldl",
+        "value": 4.54,
         "unit": "mmol/L",
-        "refLow": 0.65,
-        "refHigh": 1.07,
-        "lab": "Biolab",
-        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
-        "createdAt": "2026-09-19T00:16:48.716Z"
+        "refLow": null,
+        "refHigh": 2.59,
+        "lab": null,
+        "notes": "Lab app shows the draw as 20 Aug 2026 (the app had recorded 25 Aug) and the lab reference ceiling as 2.59 mmol/L, not 3.4.",
+        "createdAt": "2026-09-11T20:34:10.905Z"
       },
       {
         "id": "cmu7n0qc2000lu31xpwtz79ho",
@@ -15104,6 +15092,18 @@
         "lab": "Biolab",
         "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
         "createdAt": "2026-09-19T00:16:48.746Z"
+      },
+      {
+        "id": "cmu7n0qcw000qu31xoxx4lepw",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "tsh",
+        "value": 3.7,
+        "unit": "mIU/L",
+        "refLow": 0.55,
+        "refHigh": 4.78,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.752Z"
       },
       {
         "id": "cmu7n0qd2000ru31xxlb2ajm7",
@@ -15238,16 +15238,16 @@
         "createdAt": "2026-09-19T00:16:48.821Z"
       },
       {
-        "id": "cmu7n0qcw000qu31xoxx4lepw",
+        "id": "cmu7n0qb7000gu31xacnl4ulr",
         "date": "2026-09-17T00:00:00.000Z",
-        "test": "tsh",
-        "value": 3.7,
-        "unit": "mIU/L",
-        "refLow": 0.55,
-        "refHigh": 4.78,
+        "test": "albumin",
+        "value": 45,
+        "unit": "g/L",
+        "refLow": 35,
+        "refHigh": 52,
         "lab": "Biolab",
         "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
-        "createdAt": "2026-09-19T00:16:48.752Z"
+        "createdAt": "2026-09-19T00:16:48.692Z"
       },
       {
         "id": "cmu7n0q890000u31xe8c7p9ep",
@@ -15442,18 +15442,6 @@
         "createdAt": "2026-09-19T00:16:48.685Z"
       },
       {
-        "id": "cmu7n0qb7000gu31xacnl4ulr",
-        "date": "2026-09-17T00:00:00.000Z",
-        "test": "albumin",
-        "value": 45,
-        "unit": "g/L",
-        "refLow": 35,
-        "refHigh": 52,
-        "lab": "Biolab",
-        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
-        "createdAt": "2026-09-19T00:16:48.692Z"
-      },
-      {
         "id": "cmu7n0qbd000hu31xnftac1j5",
         "date": "2026-09-17T00:00:00.000Z",
         "test": "protein-total",
@@ -15490,6 +15478,18 @@
         "createdAt": "2026-09-19T00:16:48.710Z"
       },
       {
+        "id": "cmu7n0qbv000ku31xbnqes62q",
+        "date": "2026-09-17T00:00:00.000Z",
+        "test": "magnesium",
+        "value": 0.78,
+        "unit": "mmol/L",
+        "refLow": 0.65,
+        "refHigh": 1.07,
+        "lab": "Biolab",
+        "notes": "Biolab panel, drawn 17 Sep 23:01, non-fasting (random glucose ordered; no triglycerides or LDL in this panel).",
+        "createdAt": "2026-09-19T00:16:48.716Z"
+      },
+      {
         "id": "cmv5jy4oj0000xb25h21mbuf1",
         "date": "2026-10-12T00:00:00.000Z",
         "test": "troponin-i-hs",
@@ -15524,6 +15524,450 @@
         "lab": "AlGhadeer Medical Center (cardiology, Dr Magdi Mahgoub)",
         "notes": "Raised (baseline 2.7 on 17 Sep). Drawn with ESR (8, normal) and troponin (0.8, normal) for chest pain after workout, ECG variability, flu shot 11 Oct.",
         "createdAt": "2026-10-13T06:56:31.248Z"
+      },
+      {
+        "id": "cmv9ugr190000174xjc77lq70",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "crp",
+        "value": 27.2,
+        "unit": "mg/L",
+        "refLow": null,
+        "refHigh": 5,
+        "lab": "Biolab (personal reference)",
+        "notes": "3 days after 33.8 (12 Oct, AlGhadeer); flu shot 11 Oct. Different lab.",
+        "createdAt": "2026-10-15T18:00:28.126Z"
+      },
+      {
+        "id": "cmv9ugr1o0001174x6l77zon2",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "ldl",
+        "value": 3.4,
+        "unit": "mmol/L",
+        "refLow": null,
+        "refHigh": 2.59,
+        "lab": "Biolab (personal reference)",
+        "notes": "Drawn while CRP raised (27.2); inflammation can lower lipids. Likely calculated.",
+        "createdAt": "2026-10-15T18:00:28.140Z"
+      },
+      {
+        "id": "cmv9ugr1t0002174xkki3uoyi",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "total-chol",
+        "value": 5.23,
+        "unit": "mmol/L",
+        "refLow": null,
+        "refHigh": 5.18,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.146Z"
+      },
+      {
+        "id": "cmv9ugr1y0003174xz4qaw8qu",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "hdl",
+        "value": 1,
+        "unit": "mmol/L",
+        "refLow": 1.42,
+        "refHigh": null,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.151Z"
+      },
+      {
+        "id": "cmv9ugr240004174xqoao1y98",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "non-hdl-chol",
+        "value": 4.22,
+        "unit": "mmol/L",
+        "refLow": null,
+        "refHigh": 3.36,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.156Z"
+      },
+      {
+        "id": "cmv9ugr290005174xavvdobye",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "chol-hdl-ratio",
+        "value": 5.2,
+        "unit": "ratio",
+        "refLow": null,
+        "refHigh": 4,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.161Z"
+      },
+      {
+        "id": "cmv9ugr2d0006174x2hgbe17o",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "triglycerides",
+        "value": 1.62,
+        "unit": "mmol/L",
+        "refLow": null,
+        "refHigh": 1.65,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.166Z"
+      },
+      {
+        "id": "cmv9ugr2i0007174xz1nb0nqf",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "glucose",
+        "value": 4.36,
+        "unit": "mmol/L",
+        "refLow": 3.92,
+        "refHigh": 7.84,
+        "lab": "Biolab (personal reference)",
+        "notes": "Random",
+        "createdAt": "2026-10-15T18:00:28.170Z"
+      },
+      {
+        "id": "cmv9ugr2m0008174xlsyh5ovg",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "urea",
+        "value": 4.7,
+        "unit": "mmol/L",
+        "refLow": 2.7,
+        "refHigh": 8,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.174Z"
+      },
+      {
+        "id": "cmv9ugr2r0009174xcc24gekx",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "creatinine",
+        "value": 95,
+        "unit": "umol/L",
+        "refLow": 62,
+        "refHigh": 115,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.179Z"
+      },
+      {
+        "id": "cmv9ugr2v000a174xl40mxvx5",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "egfr",
+        "value": 91,
+        "unit": "mL/min/1.73m2",
+        "refLow": 60,
+        "refHigh": null,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.183Z"
+      },
+      {
+        "id": "cmv9ugr30000b174xd83738my",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "uric-acid",
+        "value": 422.6,
+        "unit": "umol/L",
+        "refLow": 220.2,
+        "refHigh": 547.6,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.188Z"
+      },
+      {
+        "id": "cmv9ugr34000c174xaq3xaiyn",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "sodium",
+        "value": 141,
+        "unit": "mmol/L",
+        "refLow": 135,
+        "refHigh": 145,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.193Z"
+      },
+      {
+        "id": "cmv9ugr38000d174x0esmm1r2",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "potassium",
+        "value": 4.2,
+        "unit": "mmol/L",
+        "refLow": 3.5,
+        "refHigh": 5.3,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.197Z"
+      },
+      {
+        "id": "cmv9ugr3d000e174xqybnqxs5",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "chloride",
+        "value": 102,
+        "unit": "mmol/L",
+        "refLow": 98,
+        "refHigh": 110,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.201Z"
+      },
+      {
+        "id": "cmv9ugr3h000f174xsbztx0df",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "calcium",
+        "value": 2.5,
+        "unit": "mmol/L",
+        "refLow": 2.15,
+        "refHigh": 2.6,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.206Z"
+      },
+      {
+        "id": "cmv9ugr3m000g174xdedr5xv8",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "magnesium",
+        "value": 0.78,
+        "unit": "mmol/L",
+        "refLow": 0.65,
+        "refHigh": 1.07,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.210Z"
+      },
+      {
+        "id": "cmv9ugr3r000h174xfk5jn8i9",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "alt",
+        "value": 38,
+        "unit": "U/L",
+        "refLow": null,
+        "refHigh": 41,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.216Z"
+      },
+      {
+        "id": "cmv9ugr3w000i174xkh208ni0",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "ast",
+        "value": 22,
+        "unit": "U/L",
+        "refLow": null,
+        "refHigh": 40,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.220Z"
+      },
+      {
+        "id": "cmv9ugr40000j174xrtosqf55",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "iron",
+        "value": 6.6,
+        "unit": "umol/L",
+        "refLow": 10.5,
+        "refHigh": 28.2,
+        "lab": "Biolab (personal reference)",
+        "notes": "Low again; drawn while CRP raised (iron falls with inflammation).",
+        "createdAt": "2026-10-15T18:00:28.224Z"
+      },
+      {
+        "id": "cmv9ugr44000k174xrw3na2sv",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "folate",
+        "value": 12.9,
+        "unit": "nmol/L",
+        "refLow": 6.7,
+        "refHigh": 38.5,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.229Z"
+      },
+      {
+        "id": "cmv9ugr49000l174xosbycp6g",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "tsh",
+        "value": 1.92,
+        "unit": "mIU/L",
+        "refLow": 0.55,
+        "refHigh": 4.78,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.233Z"
+      },
+      {
+        "id": "cmv9ugr4d000m174xtvz92f5j",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "haemoglobin",
+        "value": 165,
+        "unit": "g/L",
+        "refLow": 138,
+        "refHigh": 170,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.238Z"
+      },
+      {
+        "id": "cmv9ugr4i000n174xvm0792ro",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "haematocrit",
+        "value": 47.1,
+        "unit": "%",
+        "refLow": 42,
+        "refHigh": 49,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.242Z"
+      },
+      {
+        "id": "cmv9ugr4m000o174xjbe0ir6d",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "rbc",
+        "value": 6.1,
+        "unit": "10^12/L",
+        "refLow": 4.7,
+        "refHigh": 6.1,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.247Z"
+      },
+      {
+        "id": "cmv9ugr4r000p174xar4jkpca",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "mcv",
+        "value": 76.3,
+        "unit": "fL",
+        "refLow": 80,
+        "refHigh": 99,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.251Z"
+      },
+      {
+        "id": "cmv9ugr4v000q174xfybw6p0j",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "mch",
+        "value": 26.7,
+        "unit": "pg",
+        "refLow": 27,
+        "refHigh": 32,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.256Z"
+      },
+      {
+        "id": "cmv9ugr50000r174x7gcuypxk",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "mchc",
+        "value": 35,
+        "unit": "g/dL",
+        "refLow": 32,
+        "refHigh": 36,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.260Z"
+      },
+      {
+        "id": "cmv9ugr54000s174xhvhl2vhm",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "rdw",
+        "value": 14.5,
+        "unit": "%",
+        "refLow": 11.6,
+        "refHigh": 15,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.265Z"
+      },
+      {
+        "id": "cmv9ugr58000t174xwbtm3t7i",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "platelets",
+        "value": 178,
+        "unit": "10^9/L",
+        "refLow": 150,
+        "refHigh": 450,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.269Z"
+      },
+      {
+        "id": "cmv9ugr5d000u174xp64deidi",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "mpv",
+        "value": 11.4,
+        "unit": "fL",
+        "refLow": 7.2,
+        "refHigh": 11.7,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.273Z"
+      },
+      {
+        "id": "cmv9ugr5h000v174x15objrrm",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "wbc",
+        "value": 11.83,
+        "unit": "10^9/L",
+        "refLow": 4,
+        "refHigh": 11,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.277Z"
+      },
+      {
+        "id": "cmv9ugr5l000w174xnye4ecie",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "neutrophils",
+        "value": 6.281,
+        "unit": "10^9/L",
+        "refLow": 1.8,
+        "refHigh": 7.5,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.282Z"
+      },
+      {
+        "id": "cmv9ugr5p000x174xlowt7ylr",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "lymphocytes",
+        "value": 4.329,
+        "unit": "10^9/L",
+        "refLow": 1.2,
+        "refHigh": 4,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.286Z"
+      },
+      {
+        "id": "cmv9ugr5t000y174x3ce8ab4l",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "monocytes",
+        "value": 0.721,
+        "unit": "10^9/L",
+        "refLow": 0.2,
+        "refHigh": 1,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.290Z"
+      },
+      {
+        "id": "cmv9ugr5y000z174x678g776x",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "eosinophils",
+        "value": 0.461,
+        "unit": "10^9/L",
+        "refLow": 0.04,
+        "refHigh": 0.5,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.294Z"
+      },
+      {
+        "id": "cmv9ugr620010174x4bbaerzp",
+        "date": "2026-10-15T00:00:00.000Z",
+        "test": "basophils",
+        "value": 0.035,
+        "unit": "10^9/L",
+        "refLow": 0.015,
+        "refHigh": 0.1,
+        "lab": "Biolab (personal reference)",
+        "notes": null,
+        "createdAt": "2026-10-15T18:00:28.298Z"
       }
     ],
     "medication": [
@@ -16171,6 +16615,20 @@
         "flags": null,
         "notes": "Planned: delivery 1093/62/110/45 (bell pepper and spinach eggs breakfast) + standing dinner 630/67/57/12 (200 g chicken + rice)",
         "createdAt": "2026-10-06T07:11:42.257Z"
+      },
+      {
+        "id": "cmvapq0vo000013n7ci80xdjp",
+        "day": "2026-10-16T00:00:00.000Z",
+        "proteinG": 36,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 732,
+        "carbsG": 62,
+        "fatG": 38,
+        "flags": null,
+        "notes": "Brunch shared: 1/3 The Club with grilled chicken, no fries (label 1135 incl cheesy fries) ~210; half of Your Eggs (cheese omelette, sourdough, tomato; est ~580) ~290; 1/4 gaimar and wild honey (label 929) ~232",
+        "createdAt": "2026-10-16T08:35:28.884Z"
       },
       {
         "id": "cmuzf3w9v0000lgpjky0euh9m",
