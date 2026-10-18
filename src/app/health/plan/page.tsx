@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import BackLink from '@/components/BackLink';
 import { getHealthData } from '../../health-actions';
 import { DEFAULT_DOSE_PLAN, type DosePlanStep } from '@/lib/health-insights';
+import { doctorQuestions } from '@/lib/doctor-report';
 import PlanEditor from '@/components/health/PlanEditor';
 
 export const metadata: Metadata = { title: 'Plan & Profile' };
@@ -40,6 +41,7 @@ export default async function HealthPlanPage() {
           at: e.startedAt.toISOString(),
           durationMin: e.durationMin,
         }))}
+        questions={doctorQuestions(profile.doctorQuestions)}
         labs={data.labs.slice(0, 20).map((l) => ({
           id: l.id,
           date: l.date.toISOString(),

@@ -9,6 +9,8 @@ import { healthPushable } from '@/lib/logger-draft';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, ownerTodayUtc, weightPace, injectionTimeOk } from '@/lib/health-insights';
+import { addQuestion, doctorQuestions, editQuestion, markQuestionAsked, removeQuestion, type QuestionFor } from '@/lib/doctor-report';
+import type { Prisma } from '@prisma/client';
 import { importHealthSamples, importSleepNightRows, readSleepNights, setSleepBackfillCursor, sleepSyncState } from '@/lib/health-import';
 import { checkInDayTotals, stackMacros } from '@/lib/health-entry';
 import { detectUnloggedWorkouts } from '@/lib/health-detect';
@@ -117,6 +119,48 @@ export async function updateHealthProfile(data: {
   if (data.reminders) clean.reminders = data.reminders;
   await prisma.healthProfile.update({ where: { id: PROFILE_ID }, data: clean });
   revalidateHealth();
+}
+
+// ── Questions for the doctor (owner, 2026-10-18) ─────────────
+// His own list on the profile (HealthProfile.doctorQuestions). Every read
+// names the column (explicit select); every write goes through the pure
+// list operations in src/lib/doctor-report.ts, so the app never stores a
+// shape the report cannot read.
+
+async function readDoctorQuestions() {
+  const p = await prisma.healthProfile.findUnique({ where: { id: PROFILE_ID }, select: { doctorQuestions: true } });
+  return doctorQuestions(p?.doctorQuestions);
+}
+
+async function writeDoctorQuestions(list: ReturnType<typeof doctorQuestions>) {
+  await prisma.healthProfile.update({
+    where: { id: PROFILE_ID },
+    data: { doctorQuestions: list as unknown as Prisma.InputJsonValue },
+  });
+  revalidateHealth();
+  revalidatePath('/health/report');
+  revalidatePath('/health/plan');
+}
+
+export async function addDoctorQuestion(q: { text: string; for: QuestionFor }) {
+  const list = await readDoctorQuestions();
+  const id = `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+  const next = addQuestion(list, { id, text: q.text, for: q.for });
+  if (next === list) throw new Error('Nothing to add');
+  await writeDoctorQuestions(next);
+}
+
+export async function editDoctorQuestion(id: string, patch: { text?: string; for?: QuestionFor; answer?: string | null }) {
+  await writeDoctorQuestions(editQuestion(await readDoctorQuestions(), id, patch));
+}
+
+/** Asked = his today (ownerDayKey); false re-opens the question. */
+export async function setQuestionAsked(id: string, asked: boolean) {
+  await writeDoctorQuestions(markQuestionAsked(await readDoctorQuestions(), id, asked ? new Date() : null));
+}
+
+export async function deleteDoctorQuestion(id: string) {
+  await writeDoctorQuestions(removeQuestion(await readDoctorQuestions(), id));
 }
 
 // ── Injections ───────────────────────────────────────────────
@@ -522,7 +566,7 @@ export async function getWeeklyDigest(): Promise<string | null> {
 
 export async function getHealthData() {
   const profile = await ensureHealthProfile();
-  const [injections, symptoms, afEpisodes, bpReadings, cpapNights, labs, meds, bodyStats, nutrition, firstInjection, injectionCount] =
+  const [injections, symptoms, afEpisodes, bpReadings, cpapNights, labs, meds, bodyStats, nutrition, firstInjection, injectionCount, visit] =
     await Promise.all([
       prisma.injection.findMany({ orderBy: { at: 'desc' }, take: 200 }),
       prisma.symptomLog.findMany({ orderBy: { at: 'desc' }, take: 1000 }),
@@ -538,9 +582,13 @@ export async function getHealthData() {
       // a query limit (adversary).
       prisma.injection.findFirst({ orderBy: { at: 'asc' }, select: { at: true } }),
       prisma.injection.count(),
+      // The doctor report's two newest columns, read by name (2026-10-18):
+      // the birth month and the owner's questions for the doctor.
+      prisma.healthProfile.findUnique({ where: { id: PROFILE_ID }, select: { birthDate: true, doctorQuestions: true } }),
     ]);
   return {
-    profile, injections, symptoms, afEpisodes, bpReadings, cpapNights, labs,
+    profile: { ...profile, birthDate: visit?.birthDate ?? null, doctorQuestions: visit?.doctorQuestions ?? null },
+    injections, symptoms, afEpisodes, bpReadings, cpapNights, labs,
     meds, bodyStats, nutrition,
     firstInjectionAt: firstInjection?.at ?? null,
     injectionCount,

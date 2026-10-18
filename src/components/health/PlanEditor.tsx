@@ -13,8 +13,13 @@ import {
   deleteLabResult,
   deleteInjection,
   deleteAfEpisode,
+  addDoctorQuestion,
+  editDoctorQuestion,
+  setQuestionAsked,
+  deleteDoctorQuestion,
 } from '@/app/health-actions';
 import { siteLabel, type DosePlanStep } from '@/lib/health-insights';
+import { QUESTION_FOR, QUESTION_FOR_LABEL, type DoctorQuestion, type QuestionFor } from '@/lib/doctor-report';
 import { hapticSuccess } from '@/lib/native-feedback';
 
 const inputCls =
@@ -33,6 +38,7 @@ export default function PlanEditor({
   injections,
   episodes,
   labs,
+  questions,
 }: {
   profile: {
     heightCm: number;
@@ -45,6 +51,7 @@ export default function PlanEditor({
   injections: Array<{ id: string; at: string; doseMg: number; site: string }>;
   episodes: Array<{ id: string; at: string; durationMin: number | null }>;
   labs: Array<{ id: string; date: string; test: string; value: number; unit: string }>;
+  questions: DoctorQuestion[];
 }) {
   const router = useRouter();
   const [plan, setPlan] = useState<DosePlanStep[]>(profile.dosePlan);
@@ -56,6 +63,11 @@ export default function PlanEditor({
   const [labValue, setLabValue] = useState('');
   const [labUnit, setLabUnit] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [qText, setQText] = useState('');
+  const [qFor, setQFor] = useState<QuestionFor>('cardiology');
+  const [qEdit, setQEdit] = useState<{ id: string; text: string; answer: string } | null>(null);
+  const openQs = questions.filter((q) => q.askedOn === null);
+  const askedQs = questions.filter((q) => q.askedOn !== null);
 
   const flash = (m: string) => {
     hapticSuccess();
@@ -182,6 +194,140 @@ export default function PlanEditor({
             Save
           </button>
         </div>
+      </div>
+
+      {/* Questions for the doctor — his list, printed at the end of the
+          report while open; "asked" keeps it here with a one-line answer. */}
+      <div className="card-lg space-y-2 p-4">
+        <p className="section-label">Questions for the doctor</p>
+        <textarea
+          className={`${inputCls} min-h-[72px]`}
+          placeholder="Question…"
+          value={qText}
+          onChange={(e) => setQText(e.target.value)}
+        />
+        <div className="flex gap-1.5">
+          {QUESTION_FOR.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setQFor(f)}
+              className={`flex-1 rounded-card border py-2 text-xs font-bold ${
+                qFor === f ? 'border-acc-cyan/60 bg-acc-cyan/15 text-acc-cyan' : 'border-app-border bg-app-surface2/60 text-app-tx3'
+              }`}
+            >
+              {QUESTION_FOR_LABEL[f]}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          disabled={busy || !qText.trim()}
+          onClick={() =>
+            run(async () => {
+              await addDoctorQuestion({ text: qText, for: qFor });
+              setQText('');
+            }, 'Question added')
+          }
+          className="w-full rounded-card bg-acc-cyan/15 py-2.5 text-xs font-bold text-acc-cyan disabled:text-app-tx3"
+        >
+          Add question
+        </button>
+        <div className="space-y-1.5 pt-1">
+          {openQs.map((q) =>
+            qEdit?.id === q.id ? (
+              <div key={q.id} className="space-y-1.5">
+                <textarea
+                  className={`${inputCls} min-h-[72px]`}
+                  value={qEdit.text}
+                  onChange={(e) => setQEdit({ ...qEdit, text: e.target.value })}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy || !qEdit.text.trim()}
+                    onClick={() => {
+                      const { id, text } = qEdit;
+                      setQEdit(null);
+                      void run(() => editDoctorQuestion(id, { text }), 'Question saved');
+                    }}
+                    className="flex-1 rounded-card bg-acc-cyan/15 py-2.5 text-xs font-bold text-acc-cyan disabled:text-app-tx3"
+                  >
+                    Save
+                  </button>
+                  <button type="button" onClick={() => setQEdit(null)} className="min-h-[44px] px-3 text-xs text-app-tx3">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div key={q.id} className="flex items-start justify-between gap-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setQEdit({ id: q.id, text: q.text, answer: q.answer ?? '' })}
+                  className="min-h-[44px] flex-1 py-2 text-left text-app-tx1"
+                >
+                  {q.text}
+                  <span className="text-app-tx3"> · {QUESTION_FOR_LABEL[q.for]}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => run(() => setQuestionAsked(q.id, true), 'Marked asked')}
+                  className="min-h-[44px] flex-none px-2 text-xs font-bold text-acc-teal"
+                >
+                  asked
+                </button>
+                <button
+                  type="button"
+                  aria-label="Delete this question"
+                  onClick={() => run(() => deleteDoctorQuestion(q.id), 'Question removed')}
+                  className="min-h-[44px] flex-none px-2 text-app-tx3 hover:text-rpe-grind"
+                >
+                  ✕
+                </button>
+              </div>
+            ),
+          )}
+        </div>
+        {askedQs.length > 0 && (
+          <div className="space-y-1.5 pt-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-app-tx3">asked</p>
+            {askedQs.map((q) => (
+              <div key={q.id} className="space-y-1 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="flex-1 text-app-tx2">
+                    {q.text}
+                    <span className="text-app-tx3"> · {fmtDay(q.askedOn as string)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => run(() => setQuestionAsked(q.id, false), 'Reopened')}
+                    className="min-h-[44px] flex-none px-2 text-xs text-app-tx3"
+                  >
+                    reopen
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete this question"
+                    onClick={() => run(() => deleteDoctorQuestion(q.id), 'Question removed')}
+                    className="min-h-[44px] flex-none px-2 text-app-tx3 hover:text-rpe-grind"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <input
+                  className={inputCls}
+                  placeholder="Answer (one line)"
+                  defaultValue={q.answer ?? ''}
+                  onBlur={(e) => {
+                    const answer = e.target.value.trim();
+                    if (answer !== (q.answer ?? '')) void run(() => editDoctorQuestion(q.id, { answer }), 'Answer saved');
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Labs */}
