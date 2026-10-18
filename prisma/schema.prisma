@@ -139,6 +139,17 @@ model HealthProfile {
   // 2026-09-30); the doctor report's side-effects section prints these
   // above the logged episodes. Additive, nullable.
   ongoingSymptoms Json?
+  // Birth date for the doctor report's patient block. The owner gave the
+  // month and year only (June 1988 — 2026-10-18): "day unknown" is stored
+  // as the 15th and printed as month + year ("June 1988 · 38 y"); the age
+  // respects the month, never the year alone. Additive, nullable.
+  birthDate     DateTime?
+  // Questions for the doctor — [{id, text, for: 'cardiology'|'endocrinology'
+  // |'general', askedOn?: ISO date|null, answer?: string|null, createdAt:
+  // ISO}]. The report ends with the OPEN ones (askedOn null), quoted as his
+  // own words; marking one asked keeps it in the list with its answer and
+  // takes it off the report. Additive, nullable.
+  doctorQuestions Json?
   dosePlan      Json?
   targets       Json?
   reminders     Json?
