@@ -9,7 +9,7 @@
 
 import { rgb, type PDFDocument, type PDFFont, type PDFPage } from 'pdf-lib';
 import { pdfSafe, wrapLines } from './health-format';
-import { labCellText, splitLabGrid, type LabGrid, type LabGridCell, type QuestionGroup } from './doctor-report';
+import { LAB_NOT_RECORDED, labCellText, labColumnHeader, labColumnLabel, splitLabGrid, type LabGrid, type LabGridCell, type QuestionGroup } from './doctor-report';
 
 export const A4: readonly [number, number] = [595.28, 841.89];
 export const MARGIN = 56;
@@ -159,7 +159,9 @@ export function drawLabGrid(w: PdfWriter, grid: LabGrid): number {
       w.page.drawLine({ start: { x: MARGIN, y: top + 2 }, end: { x: A4[0] - MARGIN, y: top + 2 }, thickness: 0.7, color: LINE });
       w.setY(top - 9);
       w.text('Test', 7.5, w.bold, DIM);
-      const heads = [...g.columns.map((c) => c.label), ...(g.hasPrevious ? ['Previous'] : []), 'Ref'];
+      // A draw with no lab recorded is headed by its day alone; the words
+      // sit under the cell, not truncated in a 7 pt header.
+      const heads = [...g.columns.map((c) => labColumnHeader(c)), ...(g.hasPrevious ? ['Previous'] : []), 'Ref'];
       heads.forEach((h, i) => {
         const t = truncate(w.bold, h, 7, colW - 4);
         const tw = w.bold.widthOfTextAtSize(t, 7);
@@ -210,10 +212,16 @@ export function drawLabGrid(w: PdfWriter, grid: LabGrid): number {
         }
         w.setY(w.y - 9);
         w.text(truncate(w.font, r.label, 8, nameW - 6), 8);
-        r.cells.forEach((c, i) => cell(c, i, false, r.mixedLabs && c ? c.ref : null));
+        // A cell under a day-only header says "lab not recorded" itself;
+        // in a mixed-lab row every cell carries its own range.
+        r.cells.forEach((c, i) => {
+          const parts = c ? [...(g.columns[i].lab === LAB_NOT_RECORDED ? [LAB_NOT_RECORDED] : []), ...(r.mixedLabs && c.ref ? [c.ref] : [])] : [];
+          cell(c, i, false, parts.length ? parts.join(' · ') : null);
+        });
         if (g.hasPrevious) {
           const p = r.previous;
-          cell(p, g.columns.length, true, p ? `${p.dayKey.slice(5).replace('-', '/')} · ${p.lab}${r.mixedLabs && p.ref ? ` · ${p.ref}` : ''}` : null);
+          // "17 Sep · Biolab" — the document's one day-month form.
+          cell(p, g.columns.length, true, p ? `${labColumnLabel(p.dayKey, p.lab)}${r.mixedLabs && p.ref ? ` · ${p.ref}` : ''}` : null);
         }
         if (r.ref) {
           const t = truncate(w.font, r.ref, 7, colW - 4);

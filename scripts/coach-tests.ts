@@ -5952,8 +5952,32 @@ console.log('Doctor report — the visit pack (2026-10-18)');
     assert(parts.length === 2 && parts[0].title === 'Newest 4 draws' && parts[1].title === 'Earlier draws' && parts[0].grid.columns.length === 4 && parts[1].grid.columns.length === 2, `six dates split 4 + 2 (got ${parts.map((p) => p.grid.columns.length).join('+')})`);
     assert(!parts[0].grid.hasPrevious && parts[1].grid.hasPrevious && parts[1].grid.groups.every((g) => g.rows.every((r) => r.test === 'crp')), 'the previous column rides with the last table; a row with nothing there is left out');
     assert(DR.splitLabGrid(grid, 4).length === 1 && DR.splitLabGrid(grid, 4)[0].title === '', 'three dates need no split');
-    assert(/labGrid\(labs\)/.test(read(PAGE)) && /overflow-x-auto/.test(read(PAGE)) && /sticky left-0/.test(read(PAGE)) && /<table/.test(read(PAGE)), 'the page draws the grid as a table that scrolls inside the card with the test column fixed');
-    assert(/drawLabGrid\(w, labGrid\(labs\)\)/.test(read(PDF)), 'the PDF draws the same grid');
+    assert(/drawLabGrid\(w, labGrid\(labs\)\)/.test(read(PDF)), 'the PDF draws the full multi-date grid');
+    // The PHONE (owner, simulator, 2026-10-18): the multi-date grid left
+    // most rows looking empty and Troponin's only value off-screen. The
+    // page shows two value columns per test — Newest and Previous — each
+    // with its own date · lab and, when it differs from Ref, its own
+    // range; no horizontal scroll at all. The PDF stays the full record.
+    const pairs = DR.labPairs(t4);
+    assert(pairs.map((g) => g.heading).join('|') === t4.map((g) => g.heading).join('|'), 'the pairs keep the group order');
+    const pLdl = pairs[0].rows.find((r) => r.test === 'ldl');
+    assert(pLdl?.newest.value === 3.4 && pLdl.newest.lab === 'Biolab' && pLdl.newest.dayKey === '2026-10-15' && pLdl.previous?.value === 4.54 && pLdl.previous.lab === 'lab not recorded' && pLdl.ref === 'ref ≤ 2.59', `LDL: newest in range, previous the draw before the range (got ${JSON.stringify(pLdl)})`);
+    const pCrp = pairs[1].rows.find((r) => r.test === 'crp');
+    assert(pCrp?.newest.value === 27.2 && pCrp.previous?.value === 33.8 && pCrp.previous.lab === 'AlGhadeer', 'CRP: previous is the next most recent draw IN range when there is one');
+    const pTrop = pairs[2].rows[0];
+    assert(pTrop.test === 'troponin-i-hs' && pTrop.newest.value === 0.8 && pTrop.previous === null && pTrop.ref === 'ref ≤ 34.2', 'a single draw fills Newest and Ref, Previous stays empty');
+    assert(DR.labCellLabel(pLdl!.newest) === '15 Oct · Biolab' && DR.labCellLabel(pLdl!.previous!) === '20 Aug · lab not recorded', 'each cell carries its own date · lab');
+    const pAll = DR.labPairs(tAll);
+    assert(pAll[0].rows[0].newest.value === 3.4 && pAll[0].rows[0].previous?.value === 4.54, 'under All the page still shows newest and previous');
+    const page2 = read(PAGE);
+    assert(/labPairs\(labs\)/.test(page2) && !/overflow-x-auto/.test(page2) && !/sticky left-0/.test(page2) && !/labGrid\(/.test(page2), 'the page draws the pairs, with no horizontal scroll and no sticky column');
+    assert(/w-\[34%\]/.test(page2) && (page2.match(/w-\[24%\]/g) ?? []).length === 2 && /w-\[18%\]/.test(page2) && /text-\[12px\] tabular-nums/.test(page2) && !/whitespace-nowrap/.test(page2.slice(page2.indexOf('title="Laboratory"'), page2.indexOf('title="Current medications"'))), 'test name 34%, two value columns 24%, ref 18%, 12px tabular, names wrap');
+    assert(/labCellLabel\(/.test(page2) && /c\.ref !== r\.ref/.test(page2), 'a cell shows its own range only when it differs from the Ref column');
+    assert(/<tr className="border-t border-ink\/10 bg-app-surface2[^"]*">/.test(page2), 'the group row is ruled and shaded like the PDF');
+    // PDF headers: a draw with no lab recorded is headed by its day alone;
+    // the Previous sub-line uses the document's day-month form.
+    assert(DR.labColumnHeader({ key: 'k', dayKey: '2026-10-12', lab: 'lab not recorded', label: '12 Oct · lab not recorded' }) === '12 Oct' && DR.labColumnHeader(grid.columns[0]) === '15 Oct · Biolab', 'a column with no lab recorded is headed by its day');
+    assert(/labColumnHeader\(c\)/.test(read('src/lib/report-pdf.ts')) && /labColumnLabel\(p\.dayKey, p\.lab\)/.test(read('src/lib/report-pdf.ts')) && !/dayKey\.slice\(5\)/.test(read('src/lib/report-pdf.ts')), 'the PDF heads columns through labColumnHeader and dates the previous cell as 17 Sep, never 09/17');
   }
 
   // D. Weight in clinical terms.

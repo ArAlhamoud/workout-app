@@ -652,3 +652,50 @@ export function splitLabGrid(grid: LabGrid, max: number): Array<{ title: string;
 export function labCellText(c: LabGridCell): string {
   return `${c.value} ${c.unit}${c.flag ? ` ${c.flag}` : ''}`;
 }
+
+/** "15 Oct · Biolab" under a cell; the lab's absence said in words. */
+export function labCellLabel(c: { dayKey: string; lab: string }): string {
+  return labColumnLabel(c.dayKey, c.lab);
+}
+
+/** A PDF column header: the day alone when no lab was recorded — the
+ *  words belong under the cell, not truncated in a 7 pt header. */
+export function labColumnHeader(c: LabGridColumn): string {
+  return c.lab === LAB_NOT_RECORDED ? shortDay(`${c.dayKey}T00:00:00Z`, 'UTC') : c.label;
+}
+
+// ── The page's PAIRS (owner, simulator, 2026-10-18) ──────────
+// The multi-date grid does not fit a phone: most rows showed one value
+// then white space and Troponin's only value sat off-screen. The page
+// shows TWO value columns per test — Newest (the most recent draw in
+// range) and Previous (the next most recent, in range or before it) —
+// each cell with its own date · lab, and its own range when it differs
+// from the Ref column (the newest value's lab). No horizontal scroll. The
+// PDF keeps the full grid: it is the record, the page is the glance.
+
+export interface LabPairRow {
+  test: string;
+  label: string;
+  newest: LabGridCell;
+  previous: LabGridCell | null;
+  /** The newest value's own range. */
+  ref: string;
+}
+
+export function labPairs(table: LabTableGroup[]): Array<{ heading: string; rows: LabPairRow[] }> {
+  const toCell = (r: LabTableRow, newest: boolean): LabGridCell => ({
+    id: r.id, dayKey: r.dayKey, lab: r.lab, value: r.value, unit: r.unit, flag: r.flag, ref: r.ref, newest,
+  });
+  return table.map((g) => ({
+    heading: g.heading,
+    rows: g.tests.map((t): LabPairRow => {
+      // t.rows is oldest first: [previous?, ...in range]. The newest is
+      // the last; the one before it is in range when there are two, else
+      // the draw before the range.
+      const rows = t.rows;
+      const newest = rows[rows.length - 1];
+      const prev = rows.length >= 2 ? rows[rows.length - 2] : null;
+      return { test: t.test, label: t.label, newest: toCell(newest, true), previous: prev ? toCell(prev, false) : null, ref: newest.ref };
+    }),
+  }));
+}

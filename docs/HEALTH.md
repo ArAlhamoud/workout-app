@@ -384,12 +384,16 @@ row per test, one column per draw (day · lab, newest first, newest bold),
 the previous draw as the last, dimmed column, and a Ref column with the
 newest value's own range (a row drawn at more than one lab puts each
 value's range under it instead — never a comparison across labs). The
-page scrolls the date columns INSIDE the card with the test name fixed —
-the one allowed horizontal scroll; the page itself never scrolls
-sideways. The PDF caps 4 date columns per table (`splitLabGrid`: "Newest
-4 draws" / "Earlier draws"), repeats the header on every page, shades the
-group rows and never leaves a group or section heading alone at a page
-foot (`LAB_SECTION_NEED`).
+PDF is the full record: it caps 4 date columns per table (`splitLabGrid`:
+"Newest 4 draws" / "Earlier draws"), repeats the header on every page,
+shades the group rows and never leaves a group or section heading alone
+at a page foot (`LAB_SECTION_NEED`). The PHONE is the glance (owner,
+simulator, 2026-10-18 — the multi-date grid left rows looking empty and
+Troponin's only value off-screen): `labPairs` — two value columns per
+test, Newest and Previous (the next most recent draw, in range or before
+it), each cell with its own date · lab and its own range when it differs
+from Ref; 34/24/24/18% columns, names wrap, NO horizontal scroll; the
+"All" range shows the same two columns.
 The report also carries trend charts for weight, BP, CPAP and dose
 (`src/lib/report-charts.ts`, one geometry for the page and the PDF).
 

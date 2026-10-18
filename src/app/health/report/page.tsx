@@ -29,9 +29,9 @@ import {
   bpControlRows,
   bpWindowAverage,
   doctorQuestions,
+  labCellLabel,
   labCellText,
-  labColumnLabel,
-  labGrid,
+  labPairs,
   labTable,
   openQuestionCount,
   openQuestionGroups,
@@ -98,7 +98,9 @@ export default async function DoctorReportPage({
   // Every draw in the range, per test, with ITS lab's range; the most
   // recent earlier draw as "previous" (owner, 2026-10-18).
   const labs = labTable(data.labs, since);
-  const grid = labGrid(labs);
+  // The phone shows two value columns per test (newest / previous); the
+  // PDF carries the full multi-date grid (labGrid) and is the record.
+  const pairs = labPairs(labs);
   const weights = data.bodyStats.filter((b) => b.weight != null);
   const weightsInRange = inRange(weights, (b) => b.date);
   const questionList = doctorQuestions(data.profile.doctorQuestions);
@@ -486,62 +488,53 @@ export default async function DoctorReportPage({
                   The dates scroll INSIDE the card — the page never scrolls
                   sideways (owner, 2026-10-18: "like a table"). */}
               <p className="text-xs text-app-tx3 print:text-gray-600">
-                ▲ above · ▼ below the lab&apos;s own range · bold = newest · previous = last draw before the range
+                ▲ above · ▼ below the lab&apos;s own range · Ref = the newest value&apos;s lab · the PDF carries every draw
               </p>
-              <div className="-mx-1 mt-2 overflow-x-auto print:overflow-visible">
-                <table className="w-full border-collapse text-[12px] tabular-nums">
-                  <thead>
-                    <tr className="text-left text-[10px] uppercase tracking-wide text-app-tx3 print:text-gray-600">
-                      <th className="sticky left-0 z-10 bg-app-surface px-1 py-1 font-semibold print:bg-white">Test</th>
-                      {grid.columns.map((c) => (
-                        <th key={c.key} className="min-w-[76px] whitespace-nowrap px-1 py-1 text-right font-semibold">{c.label}</th>
-                      ))}
-                      {grid.hasPrevious && <th className="min-w-[76px] px-1 py-1 text-right font-semibold">Previous</th>}
-                      <th className="min-w-[64px] px-1 py-1 text-right font-semibold">Ref</th>
+              {/* Two value columns per test, no horizontal scroll (owner,
+                  simulator, 2026-10-18); each cell says its own date · lab
+                  and its own range when it differs from Ref. */}
+              <table className="mt-2 w-full table-fixed border-collapse text-[12px] tabular-nums">
+                <colgroup>
+                  <col className="w-[34%]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[24%]" />
+                  <col className="w-[18%]" />
+                </colgroup>
+                <thead>
+                  <tr className="text-left text-[10px] uppercase tracking-wide text-app-tx3 print:text-gray-600">
+                    <th className="px-1 py-1 font-semibold">Test</th>
+                    <th className="px-1 py-1 text-right font-semibold">Newest</th>
+                    <th className="px-1 py-1 text-right font-semibold">Previous</th>
+                    <th className="px-1 py-1 text-right font-semibold">Ref</th>
+                  </tr>
+                </thead>
+                {pairs.map((g) => (
+                  <tbody key={g.heading}>
+                    <tr className="border-t border-ink/10 bg-app-surface2 print:border-gray-300 print:bg-gray-100">
+                      <td colSpan={4} className="px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-app-tx3 print:text-gray-600">
+                        {g.heading}
+                      </td>
                     </tr>
-                  </thead>
-                  {grid.groups.map((g) => (
-                    <tbody key={g.heading}>
-                      <tr>
-                        <td
-                          colSpan={grid.columns.length + (grid.hasPrevious ? 1 : 0) + 2}
-                          className="border-t border-ink/10 bg-app-surface2/60 px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-app-tx3 print:border-gray-300 print:bg-gray-100 print:text-gray-600"
-                        >
-                          {g.heading}
-                        </td>
+                    {g.rows.map((r) => (
+                      <tr key={r.test} className="border-t border-ink/5 align-top print:border-gray-200">
+                        <td className="break-words px-1 py-1 text-app-tx1 print:text-black">{r.label}</td>
+                        {[r.newest, r.previous].map((c, i) => (
+                          <td key={i} className="break-words px-1 py-1 text-right">
+                            {c && (
+                              <>
+                                <span className={c.newest ? 'font-bold text-app-tx1 print:text-black' : 'text-app-tx2 print:text-gray-700'}>{labCellText(c)}</span>
+                                <span className="block text-[10px] text-app-tx3 print:text-gray-600">{labCellLabel(c)}</span>
+                                {c.ref && c.ref !== r.ref && <span className="block text-[10px] text-app-tx3 print:text-gray-600">{c.ref}</span>}
+                              </>
+                            )}
+                          </td>
+                        ))}
+                        <td className="break-words px-1 py-1 text-right text-[10px] text-app-tx3 print:text-gray-600">{r.ref}</td>
                       </tr>
-                      {g.rows.map((r) => (
-                        <tr key={r.test} className="border-t border-ink/5 align-top print:border-gray-200">
-                          <td className="sticky left-0 z-10 bg-app-surface px-1 py-1 text-app-tx1 print:bg-white print:text-black">{r.label}</td>
-                          {r.cells.map((c, i) => (
-                            <td key={grid.columns[i].key} className="whitespace-nowrap px-1 py-1 text-right">
-                              {c && (
-                                <>
-                                  <span className={c.newest ? 'font-bold text-app-tx1 print:text-black' : 'text-app-tx2 print:text-gray-700'}>{labCellText(c)}</span>
-                                  {r.mixedLabs && c.ref && <span className="block text-[10px] text-app-tx3 print:text-gray-600">{c.ref}</span>}
-                                </>
-                              )}
-                            </td>
-                          ))}
-                          {grid.hasPrevious && (
-                            <td className="whitespace-nowrap px-1 py-1 text-right text-app-tx3 print:text-gray-600">
-                              {r.previous && (
-                                <>
-                                  {labCellText(r.previous)}
-                                  <span className="block text-[10px]">
-                                    {labColumnLabel(r.previous.dayKey, r.previous.lab)}{r.mixedLabs && r.previous.ref ? ` · ${r.previous.ref}` : ''}
-                                  </span>
-                                </>
-                              )}
-                            </td>
-                          )}
-                          <td className="whitespace-nowrap px-1 py-1 text-right text-[10px] text-app-tx3 print:text-gray-600">{r.ref}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  ))}
-                </table>
-              </div>
+                    ))}
+                  </tbody>
+                ))}
+              </table>
             </>
           )}
         </Section>
