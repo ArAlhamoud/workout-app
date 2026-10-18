@@ -132,7 +132,6 @@ import {
   doseLedger,
   bpSplitAroundAnchor,
   labRefLabel,
-  reportLabs,
   ledgerByDose,
   ongoingSymptoms,
   sideEffectRows,
@@ -3790,11 +3789,12 @@ console.log('Doctor report — trend charts');
     }
   }
   const pdfSrc = src('src/app/api/health/report-pdf/route.ts');
-  assert(/y = top - H - 16;/.test(pdfSrc), 'the PDF leaves room under a chart for its date labels');
-  assert(/const section = \(title: string\) => \{[\s\S]{0,300}ensure\((5\d|6\d)\)/.test(pdfSrc), 'a PDF section heading needs room for its first rows before a page ends');
-  // Two pages: the written report, then every chart together.
+  assert(/setY\(top - H - 16\)/.test(pdfSrc), 'the PDF leaves room under a chart for its date labels');
+  // The writer lives in src/lib/report-pdf.ts since 2026-10-18.
+  assert(/section: \(title\) => \{[\s\S]{0,300}ensure\((5\d|6\d)\)/.test(src('src/lib/report-pdf.ts')), 'a PDF section heading needs room for its first rows before a page ends');
+  // The written report, then every chart together on a page of its own.
   const trendsAt = pdfSrc.indexOf("text('Trends'");
-  assert(trendsAt > 0 && pdfSrc.lastIndexOf('doc.addPage(A4)', trendsAt) > pdfSrc.indexOf("section('Current medications')"), 'the charts start on their own page after the written report');
+  assert(trendsAt > 0 && pdfSrc.lastIndexOf('w.newPage()', trendsAt) > pdfSrc.indexOf("section('Current medications')"), 'the charts start on their own page after the written report');
   const chartCalls = [...pdfSrc.matchAll(/\bchart\(/g)].map((m) => m.index ?? 0);
   assert(chartCalls.every((i) => i < pdfSrc.indexOf("section('Weight')") || i > trendsAt), 'no chart is drawn inside the written sections');
   assert(src('src/components/health/ReportChart.tsx').includes('layoutChart') && src('src/app/api/health/report-pdf/route.ts').includes('layoutChart'), 'page and PDF lay out through the same layoutChart');
@@ -3808,30 +3808,24 @@ console.log('Doctor report — lab reference ranges');
   assert(labRefLabel({ refLow: 60, refHigh: null }) === 'ref ≥ 60', 'a floor-only range (eGFR) prints ≥');
   assert(labRefLabel({ refLow: null, refHigh: null }) === '', 'no range, no bracket');
   const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  // Since 2026-10-18 the range rides on each lab-table row (doctor-report.ts).
+  assert(read('src/lib/doctor-report.ts').includes('ref: labRefLabel(l)'), 'the lab table prints each draw\'s range through labRefLabel');
   for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
-    assert(read(f).includes('labRefLabel(l)') && !/ref (≤|<=) \$\{l\.refHigh\}/.test(read(f)), `${f} prints the lab range through labRefLabel`);
+    assert(!/ref (≤|<=) \$\{l\.refHigh\}/.test(read(f)), `${f} builds no lab range of its own`);
   }
   assert(pdfSafe('ref ≤ 2.59') === 'ref <= 2.59' && /pdfSafe/.test(read('src/app/api/health/report-pdf/route.ts')), 'the PDF font swaps ≤ for <= (WinAnsi has no ≤)');
 }
 
-// ── Doctor report: only LDL and Lp(a) print (owner, 2026-09-30) ──
-console.log('Doctor report — labs limited to LDL and Lp(a)');
+// ── Doctor report: the lab table superseded "LDL and Lp(a) only" (owner, 2026-10-18) ──
+// The 2026-09-30 rule ("only LDL and Lp(a), latest of each") is gone with
+// its function: every draw in the range now prints, per test, with its
+// own lab's range (the visit-pack block near the end of this file).
+console.log('Doctor report — labs: the table replaced the latest-only pair');
 {
-  const rows = [
-    { test: 'alt', date: '2023-05-23', value: 86 },
-    { test: 'ldl', date: '2026-08-20', value: 4.54 },
-    { test: 'vitamin-d', date: '2026-09-17', value: 25 },
-    { test: 'lp(a)', date: '2026-08-20', value: 18.9 },
-    { test: 'LDL', date: '2025-01-10', value: 4.9 },
-  ];
-  const kept = reportLabs(rows);
-  assert(kept.map((r) => r.test.toLowerCase()).every((t) => t === 'ldl' || t === 'lp(a)'), 'nothing but LDL and Lp(a) reaches the report');
-  assert(kept.length === 2, `one row per test (got ${kept.length})`);
-  assert(kept.find((r) => r.test.toLowerCase() === 'ldl')?.date === '2026-08-20', 'the LATEST LDL prints, the older one does not (owner: remove the Jul 2022 LDL)');
-  assert(reportLabs([{ test: 'ldl', date: '2022-07-18' }, { test: 'ldl', date: '2026-08-20' }]).length === 1, 'an older LDL never prints beside the newer one');
   const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  assert(!/reportLabs|REPORT_LAB_TESTS/.test(read('src/lib/health-insights.ts')), 'the latest-only lab filter no longer exists');
   for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
-    assert(/const labs = reportLabs\(data\.labs\)/.test(read(f)), `${f} filters labs through reportLabs, not the date range`);
+    assert(/const labs = labTable\(data\.labs, since\)/.test(read(f)), `${f} prints the lab table over the selected range`);
   }
 }
 
@@ -4488,7 +4482,7 @@ console.log('Health screens — Riyadh calendar, shared definitions, report hone
     assert(/pdfSafe/.test(pdf) && !/const clean = /.test(pdf), 'the PDF route encodes text through pdfSafe');
     const rawDraws = [...pdf.matchAll(/drawText\(([^,]+),/g)].map((m) => m[1].trim()).filter((a) => !/^pdfSafe\(/.test(a));
     assert(rawDraws.length === 0, `every drawText argument goes through pdfSafe (raw: ${rawDraws.join(' | ')})`);
-    assert(/wrapLines\(/.test(pdf), 'the PDF wraps long notes');
+    assert(/wrapLines\(/.test(src('src/lib/report-pdf.ts')) && /\bnote\(/.test(pdf), 'the PDF wraps long notes');
   }
 
   // 6. Law 5: "a chart from 3 points is a lie with axes" — and the report
@@ -4559,8 +4553,10 @@ console.log('Health screens — Riyadh calendar, shared definitions, report hone
     assert(reportAge(null, now) === '37–38 y', `without a birth date the age is not printed as exact (got "${reportAge(null, now)}")`);
     assert(reportAge('1988-11-05', now) === '37 y' && reportAge('1988-10-02', now) === '38 y' && reportAge('1988-03-01', now) === '38 y', 'with a birth date the age respects the birthday');
     assert(reportAge('not a date', now) === '37–38 y', 'a junk birth date falls back to the year');
+    // Since 2026-10-18 the Born row is bornLabel, which prints the age through reportAge.
+    assert(/reportAge\(b, now\)/.test(src('src/lib/health-format.ts')), 'bornLabel prints the age through reportAge');
     for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
-      assert(/reportAge\(/.test(src(f)) && !/getFullYear\(\) - 1988/.test(src(f)), `${f} prints the age through reportAge`);
+      assert(/bornLabel\(/.test(src(f)) && !/getFullYear\(\) - 1988/.test(src(f)), `${f} prints the age through bornLabel`);
     }
   }
 }
@@ -5864,7 +5860,7 @@ console.log('Doctor report — the visit pack (2026-10-18)');
     assert(crp?.rows.map((r) => `${r.value}@${r.lab}${r.previous ? '*' : ''}`).join(',') === '2.7@Biolab*,33.8@AlGhadeer,27.2@Biolab', `CRP oldest first with its labs (got ${crp?.rows.map((r) => `${r.value}@${r.lab}${r.previous ? '*' : ''}`).join(',')})`);
     assert(t4[0].tests.map((t) => t.test).join() === 'ldl,hdl', 'tests in the fixed order within a group');
     const hb = t4[3].tests.find((t) => t.test === 'haemoglobin');
-    assert(hb?.rows.every((r) => r.unit === 'g/L') && hb.rows.length === 2, 'units are shown as stored, never converted');
+    assert(hb != null && hb.rows.every((r) => r.unit === 'g/L') && hb.rows.length === 2, 'units are shown as stored, never converted');
     const trop = t4[2].tests[0];
     assert(trop.test === 'troponin-i-hs' && trop.rows.length === 1 && trop.rows[0].flag === '' && !trop.rows[0].previous, 'a test with one value in range and no previous is a single row');
     assert(t4[4].tests[0].test === 'mystery-marker' && t4[4].tests[0].label === 'MYSTERY-MARKER', 'anything unlisted lands under Other with its slug');

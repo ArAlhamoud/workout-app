@@ -216,27 +216,9 @@ export const DEFAULT_ROTATION: string[] = [
   'thigh-left',
 ];
 
-/**
- * The doctor report prints only these tests (owner, 2026-09-30: "don't
- * include any new or old lab tests except LDL and Lp(a)"), latest result
- * of each. The rest stay stored and in the export. Not range-scoped: both
- * are treatment baselines, like the dose ledger, and a 4-week window
- * would hide them.
- */
-export const REPORT_LAB_TESTS = ['ldl', 'lp(a)'] as const;
-
-export function reportLabs<T extends { test: string; date: Date | string }>(labs: T[]): T[] {
-  // Only the LATEST result per test (owner, 2026-09-30: "remove the Jul
-  // 2022 LDL"). Older results stay stored and in the export.
-  const latest = new Map<string, T>();
-  for (const l of labs) {
-    const key = l.test.trim().toLowerCase();
-    if (!(REPORT_LAB_TESTS as readonly string[]).includes(key)) continue;
-    const cur = latest.get(key);
-    if (!cur || new Date(l.date).getTime() > new Date(cur.date).getTime()) latest.set(key, l);
-  }
-  return REPORT_LAB_TESTS.map((k) => latest.get(k)).filter((l): l is T => l != null);
-}
+// The doctor report's lab table — every draw in the range, per test, with
+// its own lab's range — lives in src/lib/doctor-report.ts (owner,
+// 2026-10-18; it replaced the 2026-09-30 "LDL and Lp(a) only" pair).
 
 /**
  * A lab's reference range as the report prints it. Both bounds when the lab

@@ -101,6 +101,23 @@ export function reportAge(birthDate: unknown, now: Date = new Date()): string {
   return `${y - BIRTH_YEAR - 1}–${y - BIRTH_YEAR} y`;
 }
 
+const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/**
+ * The Born row: "June 1988 · 38 y". The owner gave his birth month and
+ * year, not the day (2026-10-18), so the profile stores the 15th and this
+ * prints month + year — never a day it does not know — with the age from
+ * reportAge, which turns with the month. Without a stored date the honest
+ * pair stays ("1988 · 37–38 y").
+ */
+export function bornLabel(birthDate: unknown, now: Date = new Date()): string {
+  const b = typeof birthDate === 'string' || birthDate instanceof Date ? new Date(birthDate) : null;
+  if (b && !Number.isNaN(b.getTime())) {
+    return `${MONTHS_LONG[b.getUTCMonth()]} ${b.getUTCFullYear()} · ${reportAge(b, now)}`;
+  }
+  return `${BIRTH_YEAR} · ${reportAge(null, now)}`;
+}
+
 /** "23 of 25 reported (92%) · through 29 Sep" — the denominator is named
  *  and dated so a doctor does not read unreported nights as unused. */
 export function cpapAdherenceLabel(a: {
@@ -121,7 +138,7 @@ export function cpapAdherenceLabel(a: {
 const PDF_MAP: Record<string, string> = {
   '−': '-', '‐': '-', '‑': '-', '‒': '-', '–': '-', '—': '-', '―': '-',
   '≥': '>=', '≤': '<=', '≠': '!=', '≈': '~', '∼': '~',
-  '→': '->', '←': '<-', '↑': '^', '↓': 'v',
+  '→': '->', '←': '<-', '↑': '^', '↓': 'v', '▲': '^', '▼': 'v',
   'μ': 'µ', // Greek mu → the micro sign, which WinAnsi has (µmol/L)
   '′': "'", '″': '"', '⁄': '/', '∕': '/',
   '\t': ' ', ' ': ' ', ' ': ' ', ' ': ' ', ' ': ' ', ' ': ' ',
