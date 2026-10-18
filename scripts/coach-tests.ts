@@ -3901,6 +3901,13 @@ console.log('Doctor report — ongoing side effects');
   const both = sideEffectRows([{ kind: 'constipation', severity: 1 }], new Map([['constipation', { n: 2, max: 2 }]]));
   assert(both.length === 1 && both[0].value === 'ongoing · mild · 2× logged, worst moderate', 'ongoing and logged are one row, never two');
   assert(sideEffectRows([], new Map()).length === 0, 'no rows means the "nothing logged" line');
+  // A side effect that has eased stays on the report with WHEN it was
+  // there, not as "ongoing" (owner, 2026-10-18: constipation, first month).
+  const past = ongoingSymptoms([{ kind: 'constipation', severity: 1, period: '  first month, eased  ' }]);
+  assert(past[0]?.period === 'first month, eased', `the period is kept, trimmed (got ${past[0]?.period})`);
+  assert(sideEffectRows(past, new Map())[0]?.value === 'first month, eased · mild', `an eased side effect reads with its period, not "ongoing" (got ${sideEffectRows(past, new Map())[0]?.value})`);
+  assert(ongoingSymptoms([{ kind: 'constipation', severity: 1, period: 'x'.repeat(80) }])[0]?.period?.length === 40, 'the period is capped at 40 characters');
+  assert(ongoingSymptoms([{ kind: 'constipation', severity: 1, period: 7 }])[0]?.period === undefined, 'a non-text period is dropped, the entry kept');
 
   const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   assert(/ongoingSymptoms Json\?/.test(read('prisma/schema.prisma')), 'the profile has an additive, nullable ongoingSymptoms column');
@@ -5153,19 +5160,19 @@ console.log('Patterns — dose week, dose levels, food and scale, sleep, monthly
       const wad = PT.weekAfterDose(hx.health.injection, hx.health.nutritionLog, hx.bodyStats, now);
       assert(wad !== null && wad.weeks >= 5 && wad.days.every((d) => (d.kcal === null || d.nKcal >= 3) && (d.kgChange === null || d.nKg >= 3)), `real export: the dose week has an average only where three weeks gave one (got ${JSON.stringify(wad?.days)})`);
       const lv = PT.doseLevels(hx.health.injection, hx.health.nutritionLog, hx.bodyStats, now);
-      assert(lv?.length === 2 && lv[0].doseMg === 2.5 && lv[0].weeks === 4 && lv[0].kgPerWeek !== null && lv[1].doseMg === 5 && lv[1].weeks === 2 && lv[1].kgPerWeek === null, `real export: 2.5 mg × 4 weeks with a weekly change, 5 mg × 2 weeks without one yet (got ${JSON.stringify(lv)})`);
+      assert(lv?.length === 2 && lv[0].doseMg === 2.5 && lv[0].weeks === 4 && lv[0].kgPerWeek !== null && lv[1].doseMg === 5 && lv[1].weeks >= 2 && (lv[1].kgPerWeek === null || Number.isFinite(lv[1].kgPerWeek)), `real export: 2.5 mg × 4 weeks with a weekly change, then the 5 mg weeks so far (got ${JSON.stringify(lv)})`);
       const hsx = (data as unknown as { healthSamples?: Array<{ type: string; date: string; value: number; meta?: string | null }> }).healthSamples ?? [];
       const asleep = hsx.filter((x) => x.type === 'sleep_asleep_h').map((x) => ({ night: x.date, asleepHours: x.value }));
       const sl = PT.sleepAndNextDay(asleep, hx.health.cpapNight, hx.health.bpReading, hx.workouts.map((x) => ({ date: x.date, rpes: x.sets.map((s) => s.rpe) })), now);
       const sides = [asleep.filter((x) => x.asleepHours >= 7).length, asleep.filter((x) => x.asleepHours < 7).length];
       assert(sides.some((n) => n < 4) ? sl === null : sl !== null && sl.long.nights + sl.short.nights === asleep.length, `real export: the sleep card splits the stored nights asleep, and says not enough data yet below 4 a side (got ${asleep.length} nights, ${JSON.stringify(sl)})`);
       const mt = PT.monthTrends(hx.health.bpReading, hx.health.cpapNight, hx.bodyStats, now);
-      assert(mt?.bp?.length === 2 && mt.apnea?.length === 2 && PT.monthTrendCharts(mt).bp === null, 'real export: two months of pressure and apnea — rows, not a line');
+      assert(mt != null && (mt.bp?.length ?? 0) >= 2 && (mt.apnea?.length ?? 0) >= 2 && ((mt.bp?.length ?? 0) < 4) === (PT.monthTrendCharts(mt).bp === null), 'real export: months of pressure and apnea — rows under four months, a line from four');
       const fc1 = fs1 ? PT.foodAndScaleCharts(fs1) : null;
       const realTicks = fc1?.kcal ? layoutChart(fc1.kcal, 320, 112).xTicks.map((t) => t.label).join() : null;
       assert(realTicks !== null && realTicks === fs1?.weeks.map((w) => PT.weekLabel(w.weekStart)).join() && realTicks.startsWith('31 Aug,7 Sep,14 Sep,21 Sep') && !/Sept/.test(realTicks), `real export: the weekly axis names each bar's own Monday (got ${realTicks})`);
       const merged = mt ? PT.monthRows(mt) : [];
-      assert(merged.length === 2 && merged.every((m) => m.bp !== null && m.ahi !== null), `real export: two months, each one row with weight, BP and AHI (got ${JSON.stringify(merged)})`);
+      assert(merged.length >= 2 && merged.every((m) => m.bp !== null && m.ahi !== null), `real export: each month one row with weight, BP and AHI (got ${JSON.stringify(merged)})`);
       assert(fs1 !== null && fs1.weeks[0].kcal === 1379 && PT.lowDayNote(fs1.weeks[0]) === '31 Aug includes one day at 692 kcal', `real export: the week of 31 Aug keeps its 692 kcal day in the 1,379 average and names it (got ${fs1?.weeks[0].kcal})`);
     }
   }

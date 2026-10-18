@@ -54,6 +54,10 @@ export const SYMPTOM_LABEL: Record<string, string> = {
 export interface OngoingSymptom {
   kind: string;
   severity: 1 | 2 | 3;
+  /** When it was there, if it has eased ("first month, eased"). Absent =
+   *  still ongoing. Keeps an eased side effect on the report (owner,
+   *  2026-10-18) without calling it current. */
+  period?: string;
 }
 
 /**
@@ -68,7 +72,9 @@ export function ongoingSymptoms(raw: unknown): OngoingSymptom[] {
     const kind = typeof (r as { kind?: unknown })?.kind === 'string' ? (r as { kind: string }).kind.trim().toLowerCase() : '';
     const sev = Math.round(Number((r as { severity?: unknown })?.severity));
     if (!(kind in SYMPTOM_LABEL) || !Number.isFinite(sev)) continue;
-    byKind.set(kind, { kind, severity: Math.min(3, Math.max(1, sev)) as 1 | 2 | 3 });
+    const p = (r as { period?: unknown })?.period;
+    const period = typeof p === 'string' && p.trim() ? p.trim().slice(0, 40) : undefined;
+    byKind.set(kind, { kind, severity: Math.min(3, Math.max(1, sev)) as 1 | 2 | 3, ...(period ? { period } : {}) });
   }
   return [...byKind.values()];
 }
@@ -89,7 +95,7 @@ export function sideEffectRows(
     return {
       kind: o.kind,
       label: label(o.kind),
-      value: `ongoing · ${WORD[o.severity]}${l ? ` · ${l.n}× logged, worst ${WORD[l.max]}` : ''}`,
+      value: `${o.period ?? 'ongoing'} · ${WORD[o.severity]}${l ? ` · ${l.n}× logged, worst ${WORD[l.max]}` : ''}`,
     };
   });
   const seen = new Set(ongoing.map((o) => o.kind));
