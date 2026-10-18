@@ -379,6 +379,17 @@ as stored (Al Habib haemoglobin in g/dL beside Biolab's g/L), never
 converted. `labTable` in `src/lib/doctor-report.ts` is the one function
 for the page and the PDF; the PDF writer (`src/lib/report-pdf.ts`)
 paginates it, and the suite draws the real export through it.
+Laid out as a GRID (owner, 2026-10-18: "like a table"): `labGrid` — one
+row per test, one column per draw (day · lab, newest first, newest bold),
+the previous draw as the last, dimmed column, and a Ref column with the
+newest value's own range (a row drawn at more than one lab puts each
+value's range under it instead — never a comparison across labs). The
+page scrolls the date columns INSIDE the card with the test name fixed —
+the one allowed horizontal scroll; the page itself never scrolls
+sideways. The PDF caps 4 date columns per table (`splitLabGrid`: "Newest
+4 draws" / "Earlier draws"), repeats the header on every page, shades the
+group rows and never leaves a group or section heading alone at a page
+foot (`LAB_SECTION_NEED`).
 The report also carries trend charts for weight, BP, CPAP and dose
 (`src/lib/report-charts.ts`, one geometry for the page and the PDF).
 
@@ -394,7 +405,15 @@ rendered by both the page and the PDF:
   the app itself still suggests none. Asked ones leave the report and
   stay in the list. Seeded once by
   `scripts/seed-doctor-questions-2026-10-18.js` (dry run by default,
-  refuses over an existing list).
+  refuses over an existing list). A question is at most
+  `QUESTION_TEXT_MAX` (500) characters, refused with "too long", never
+  cut. The parser is tolerant (an ISO `askedOn` becomes his day key) and
+  honest: a write is REFUSED while the stored column holds anything it
+  could not read, so a drop never becomes permanent.
+  **Known limitation:** a question typed in Arabic prints on the page but
+  the PDF's standard Helvetica cannot shape it, so it shows as "?"
+  (the same pdfSafe policy as med names). The fix is embedding an Arabic
+  font in pdf-lib — not done; the Plan page says so under the box.
 - *Blood pressure control* — "Readings ≥ 130/80: N of M", the highest and
   lowest reading with dates, morning vs evening averages when both
   contexts have a reading (3 for an average, else "too few"; untagged

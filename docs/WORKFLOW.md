@@ -80,6 +80,10 @@ the push ran regardless):
 2. Read the SQL. Dispatch again with `confirm_diff_sha` = that sha. The job
    recomputes the diff; if the schema or the database moved in between,
    the sha differs and the push is refused.
+3. Apply the schema BEFORE merging code that selects the new column: a
+   bare `findUnique` on a model with a column the database lacks fails
+   the whole query, and `ensureHealthProfile` runs on every health page
+   (steward, 2026-10-18 — `birthDate` / `doctorQuestions`).
 
 Two more boxes, two separate decisions, both recorded in the run:
 
