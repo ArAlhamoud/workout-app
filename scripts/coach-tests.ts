@@ -11,7 +11,9 @@ import { nextDoseCaption, initialDoseChoice, injectionTimeOk, journeyStations } 
 import { pushWorkoutsToHealth } from '../src/lib/health-push';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { cpapAdherence, ownerMonthKey } from '../src/lib/health-insights';
-import { cpapAdherenceLabel, monthLabel, pdfSafe, reportAge, signedKg, weighInLabel, weightChangeAr, weightChangeLabel, wrapLines } from '../src/lib/health-format';
+import { bornLabel, cpapAdherenceLabel, monthLabel, pdfSafe, reportAge, signedKg, weighInLabel, weightChangeAr, weightChangeLabel, wrapLines } from '../src/lib/health-format';
+import * as DR from '../src/lib/doctor-report';
+import { createPdfWriter, drawLabTable, drawQuestions } from '../src/lib/report-pdf';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
 import { adjustedTime, classifyVisit, fmtVisit, gymTimeStats, isStale } from '../src/lib/gym-visits';
@@ -5712,6 +5714,238 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   const page = src('src/app/health/sleep/page.tsx');
   assert(/wakeUps/.test(page) && /bedtimeSpread\(/.test(page) && /efficiencyAverage\(/.test(page), 'the Sleep room shows wake-ups, the share asleep and bedtime regularity');
   assert(!/text-(red|rose)-|rpe-grind|\bshould\b|\bpoor\b/i.test(page), 'no grade and no red on the Sleep room');
+}
+
+// ── Doctor report: the visit pack (owner, 2026-10-18) ──────────────────────
+// Questions for the doctor, BP control beside the average, every lab draw
+// with ITS lab's range, weight in clinical terms, the age from a birth
+// month. Pure in src/lib/doctor-report.ts; the page and the PDF only render
+// — one function per section, so the two can never disagree.
+console.log('Doctor report — the visit pack (2026-10-18)');
+{
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const PAGE = 'src/app/health/report/page.tsx';
+  const PDF = 'src/app/api/health/report-pdf/route.ts';
+  const now = new Date('2026-10-18T10:00:00+03:00');
+
+  // A. Questions for the doctor: his words, open ones only, grouped and numbered.
+  {
+    const raw = [
+      { id: 'a', text: 'What did the ECG show?', for: 'cardiology', askedOn: null, createdAt: '2026-10-18T07:00:00.000Z' },
+      { id: 'b', text: 'Keep 5 mg?', for: 'endocrinology', createdAt: '2026-10-18T07:00:01.000Z' },
+      { id: 'c', text: 'Asked already', for: 'cardiology', askedOn: '2026-10-01', answer: 'yes', createdAt: '2026-09-30T07:00:00.000Z' },
+      { id: 'd', text: 'Which method?', for: 'cardiology', createdAt: '2026-10-18T07:00:02.000Z' },
+      { id: 'junk', text: '', for: 'cardiology', createdAt: '2026-10-18T07:00:03.000Z' },
+      { id: 'e', text: 'Who?', for: 'dentist', createdAt: '2026-10-18T07:00:04.000Z' },
+      { id: 'f', text: 'Gym?', for: 'general', createdAt: '2026-10-18T07:00:05.000Z' },
+    ];
+    const qs = DR.doctorQuestions(raw);
+    assert(qs.length === 5 && qs.every((q) => q.askedOn === null || typeof q.askedOn === 'string'), `the parser keeps well-formed questions only (got ${qs.length})`);
+    assert(DR.doctorQuestions(null).length === 0 && DR.doctorQuestions('x').length === 0, 'no column, no questions');
+    const groups = DR.openQuestionGroups(qs);
+    assert(groups.map((g) => g.for).join() === 'cardiology,endocrinology,general', `groups in the fixed order, empty ones dropped (got ${groups.map((g) => g.for).join()})`);
+    assert(groups[0].items.map((q) => q.n).join() === '1,2' && groups[1].items[0].n === 3 && groups[2].items[0].n === 4, 'numbered straight through the groups');
+    assert(groups[0].items.every((q) => q.id !== 'c'), 'an asked question is off the report');
+    assert(DR.openQuestionCount(qs) === 4, `the Arabic line counts the open ones (got ${DR.openQuestionCount(qs)})`);
+    const added = DR.addQuestion(qs, { id: 'g', text: '  Stroke risk?  ', for: 'cardiology' }, now);
+    assert(added.length === 6 && added[5].text === 'Stroke risk?' && added[5].askedOn === null && added[5].createdAt === now.toISOString(), 'add trims and stamps');
+    assert(DR.addQuestion(qs, { id: 'h', text: '   ', for: 'cardiology' }, now).length === 5, 'an empty question is not added');
+    const asked = DR.markQuestionAsked(added, 'g', now);
+    assert(asked.find((q) => q.id === 'g')?.askedOn === '2026-10-18', `asked = his today, as a day key (got ${asked.find((q) => q.id === 'g')?.askedOn})`);
+    assert(DR.openQuestionCount(asked) === 4 && DR.markQuestionAsked(asked, 'g', null).find((q) => q.id === 'g')?.askedOn === null, 'marking asked hides it; unmarking brings it back');
+    const edited = DR.editQuestion(asked, 'g', { text: 'Stroke-risk score?', answer: ' CHA2DS2-VASc 1 ' });
+    assert(edited.find((q) => q.id === 'g')?.text === 'Stroke-risk score?' && edited.find((q) => q.id === 'g')?.answer === 'CHA2DS2-VASc 1', 'edit changes the text and the one-line answer');
+    assert(DR.editQuestion(asked, 'g', { text: '' }).find((q) => q.id === 'g')?.text === 'Stroke risk?', 'an empty edit keeps the text');
+    assert(DR.removeQuestion(edited, 'g').length === 5 && DR.removeQuestion(edited, 'zz').length === 6, 'delete by id');
+    const page = read(PAGE);
+    const pdf = read(PDF);
+    for (const f of [page, pdf]) {
+      assert(/openQuestionGroups\(/.test(f), 'the page and the PDF print the questions through openQuestionGroups');
+    }
+    assert(page.indexOf('Questions for the doctor') > page.indexOf('title="Current medications"'), 'the questions are the LAST section of the page');
+    assert(pdf.indexOf('drawQuestions(') > pdf.indexOf("section('Current medications')"), 'and of the PDF');
+    assert(/أسئلة/.test(page) && /openQuestionCount\(/.test(page), 'the Arabic summary carries the count of open questions');
+    const plan = read('src/components/health/PlanEditor.tsx');
+    assert(/addDoctorQuestion\(/.test(plan) && /setQuestionAsked\(/.test(plan) && /deleteDoctorQuestion\(/.test(plan) && /editDoctorQuestion\(/.test(plan), 'the Plan page adds, edits, marks asked and deletes');
+    const actions = read('src/app/health-actions.ts');
+    assert(/select: \{ doctorQuestions: true \}/.test(actions) && /birthDate: true/.test(actions), 'every Prisma read of the new columns is an explicit select');
+    for (const f of ['src/lib/doctor-report.ts', PAGE, PDF]) {
+      assert(!/\b(should|recommend\w*|prescribe\w*|increase the dose|start (a|the) (drug|statin|medic))/i.test(read(f).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '')), `${f} suggests no drug, dose or test of its own`);
+    }
+  }
+
+  // B. Blood pressure control, not just the average.
+  {
+    const R = (d: string, t: string) => `${d}T${t}:00+03:00`;
+    const bp = [
+      { at: R('2026-10-01', '07:00'), systolic: 128, diastolic: 78, pulse: 70, context: 'morning' },
+      { at: R('2026-10-02', '07:00'), systolic: 131, diastolic: 76, pulse: 72, context: 'morning' },
+      { at: R('2026-10-03', '07:00'), systolic: 125, diastolic: 80, pulse: 74, context: 'morning' },
+      { at: R('2026-10-01', '21:00'), systolic: 140, diastolic: 88, pulse: 90, context: 'evening' },
+      { at: R('2026-10-02', '21:00'), systolic: 118, diastolic: 70, pulse: 95, context: 'evening' },
+      { at: R('2026-10-03', '21:00'), systolic: 140, diastolic: 90, pulse: 85, context: 'evening' },
+      { at: R('2026-10-04', '12:00'), systolic: 122, diastolic: 79, pulse: null, context: null },
+    ];
+    assert(DR.BP_CONTROL_THRESHOLD.systolic === 130 && DR.BP_CONTROL_THRESHOLD.diastolic === 80, 'the printed threshold is 130/80, one named constant');
+    assert(/common clinic target/i.test(read('src/lib/doctor-report.ts')) && /not the app/i.test(read('src/lib/doctor-report.ts')), "and its comment says it is a common clinic target, not the app's judgement");
+    const c = DR.bpControl(bp);
+    assert(c.n === 7 && c.over === 4, `readings at or over 130/80: either number counts (got ${c.over} of ${c.n})`);
+    assert(c.highest?.systolic === 140 && c.highest.diastolic === 90 && c.lowest?.systolic === 118 && c.lowest.diastolic === 70, `highest by systolic then diastolic, lowest likewise (got ${c.highest?.systolic}/${c.highest?.diastolic}, ${c.lowest?.systolic}/${c.lowest?.diastolic})`);
+    assert(c.morning.n === 3 && c.morning.systolic === 128 && c.morning.diastolic === 78 && c.evening.n === 3 && c.evening.systolic === 133 && c.evening.diastolic === 83, `morning vs evening averages over the tagged readings (got ${JSON.stringify(c.morning)} ${JSON.stringify(c.evening)})`);
+    const thin = DR.bpControl(bp.filter((r) => r.context !== 'evening' || r.systolic !== 140));
+    assert(thin.evening.n === 1 && thin.evening.systolic === null, 'an average needs 3 readings — a thin context keeps its count and no average');
+    const untagged = DR.bpControl(bp.map((r) => ({ ...r, context: null })));
+    assert(untagged.morning.n === 0 && untagged.over === 4, 'untagged readings are left out of the split, counted in the rest');
+    const fmtD = (d: Date | string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' });
+    const rows = DR.bpControlRows(c, fmtD);
+    assert(rows.some((r) => r.label === 'Readings ≥ 130/80' && r.value === '4 of 7'), `the control row reads "4 of 7" (got ${JSON.stringify(rows)})`);
+    assert(rows.some((r) => /^Highest/.test(r.label) && r.value === '140/90 · 3 Oct') && rows.some((r) => /^Lowest/.test(r.label) && r.value === '118/70 · 2 Oct'), 'highest and lowest carry their dates');
+    assert(rows.some((r) => r.label === 'Morning · 3 readings' && r.value === '128/78') && rows.some((r) => r.label === 'Evening · 3 readings' && r.value === '133/83'), 'the split prints with counts');
+    assert(DR.bpControlRows(thin, fmtD).some((r) => /^Evening/.test(r.label) && /too few/.test(r.value)), 'a thin context says too few, never an average');
+    assert(!DR.bpControlRows(untagged, fmtD).some((r) => /^(Morning|Evening)/.test(r.label)), 'no split without both contexts');
+    assert(DR.bpControlRows(DR.bpControl([]), fmtD).length === 0, 'no readings, no rows');
+    // Pulse trend: this window vs the previous same-length window, two
+    // plain numbers with their counts. No arrow, no word.
+    const pulses = [
+      ...[1, 2, 3].map((d) => ({ at: R(`2026-10-1${d}`, '08:00'), systolic: 120, diastolic: 80, pulse: 90 })),
+      ...[15, 16, 17].map((d) => ({ at: R(`2026-09-${d}`, '08:00'), systolic: 120, diastolic: 80, pulse: 70 })),
+      { at: R('2026-10-14', '08:00'), systolic: 120, diastolic: 80, pulse: null },
+    ];
+    const pt = DR.pulseTrend(pulses, 28, now);
+    assert(pt.current?.avg === 90 && pt.current.n === 3 && pt.previous?.avg === 70 && pt.previous.n === 3, `pulse this window vs the window before (got ${JSON.stringify(pt)})`);
+    assert(DR.pulseTrend(pulses.slice(0, 2), 28, now).current === null, 'fewer than 3 pulses is not an average');
+    assert(DR.pulseTrend(pulses, 100_000, now).previous === null, '"All" has no previous window');
+    const prow = DR.pulseRows(pt, 28);
+    assert(prow.length === 2 && prow[0].label === 'Pulse · 3 readings' && prow[0].value === '90 bpm' && prow[1].label === 'Pulse, previous 28 days · 3 readings' && prow[1].value === '70 bpm', `two rows, two numbers (got ${JSON.stringify(prow)})`);
+    assert(!/[→↑↓]|higher|lower|better|worse/.test(JSON.stringify(prow)), 'no arrow and no judgement on the pulse pair');
+    for (const f of [PAGE, PDF]) {
+      assert(/bpControlRows\(/.test(read(f)) && /pulseRows\(/.test(read(f)), `${f} prints BP control and the pulse pair through the shared rows`);
+      assert(!/pulses\.length >= 3/.test(read(f)), `${f} no longer averages the pulse itself`);
+    }
+  }
+
+  // C. Lab trends, differentiated by lab.
+  {
+    const L = (date: string, test: string, value: number, unit: string, refLow: number | null, refHigh: number | null, lab: string | null) => ({ id: `${test}-${date}`, date: `${date}T00:00:00.000Z`, test, value, unit, refLow, refHigh, lab });
+    assert(DR.labShortLabel('Dr Sulaiman Al Habib') === 'Al Habib' && DR.labShortLabel('Dr Sulaiman Al Habib — Endocrine') === 'Al Habib', 'Al Habib and its endocrine clinic are one label');
+    assert(DR.labShortLabel('Biolab') === 'Biolab' && DR.labShortLabel('Biolab (personal reference)') === 'Biolab', 'Biolab under either name');
+    assert(DR.labShortLabel('AlGhadeer Medical Center (cardiology, Dr Magdi Mahgoub)') === 'AlGhadeer', 'AlGhadeer without the doctor');
+    assert(DR.labShortLabel('Some Very Long Laboratory Name Nobody Knows') === 'Some Very Long…' && DR.labShortLabel(null) === '—' && DR.labShortLabel('') === '—', `unknown labs print their own name, truncated; none prints a dash (got "${DR.labShortLabel('Some Very Long Laboratory Name Nobody Knows')}")`);
+    assert(DR.labFlag({ value: 4.54, refLow: null, refHigh: 2.59 }) === '▲' && DR.labFlag({ value: 1, refLow: 1.42, refHigh: null }) === '▼' && DR.labFlag({ value: 4.1, refLow: 3.5, refHigh: 5.1 }) === '' && DR.labFlag({ value: 5.1, refLow: 3.5, refHigh: 5.1 }) === '', 'a neutral mark outside the range; the bound itself is inside');
+    assert(pdfSafe('4.6 ▲') === '4.6 ^' && pdfSafe('1 ▼') === '1 v', 'the PDF font gets a plain mark');
+    const labs = [
+      L('2022-07-18', 'ldl', 4.22, 'mmol/L', null, null, 'Dr Sulaiman Al Habib'),
+      L('2026-08-20', 'ldl', 4.54, 'mmol/L', null, 2.59, null),
+      L('2026-10-15', 'ldl', 3.4, 'mmol/L', null, 2.59, 'Biolab (personal reference)'),
+      L('2026-09-17', 'hdl', 1.08, 'mmol/L', 1.42, null, 'Biolab'),
+      L('2026-10-15', 'hdl', 1, 'mmol/L', 1.42, null, 'Biolab (personal reference)'),
+      L('2026-10-12', 'crp', 33.8, 'mg/L', null, 5, 'AlGhadeer Medical Center (cardiology, Dr Magdi Mahgoub)'),
+      L('2026-10-15', 'crp', 27.2, 'mg/L', null, 5, 'Biolab (personal reference)'),
+      L('2026-09-17', 'crp', 2.7, 'mg/L', null, 5, 'Biolab'),
+      L('2022-10-31', 'crp', 19, 'mg/L', null, 5, 'Dr Sulaiman Al Habib'),
+      L('2026-10-12', 'troponin-i-hs', 0.8, 'ng/L', null, 34.2, null),
+      L('2026-10-12', 'esr', 8, 'mm/h', null, 15, 'AlGhadeer Medical Center (cardiology, Dr Magdi Mahgoub)'),
+      L('2026-09-17', 'haemoglobin', 161, 'g/L', 138, 170, 'Biolab'),
+      L('2022-10-31', 'haemoglobin', 16.7, 'g/dL', 13, 17.4, 'Dr Sulaiman Al Habib'),
+      L('2026-10-15', 'haemoglobin', 165, 'g/L', 138, 170, 'Biolab (personal reference)'),
+      L('2023-05-23', 'renin', 21.8, 'uIU/mL', 5.3, 99.1, 'Dr Sulaiman Al Habib — Endocrine'),
+      L('2026-10-15', 'mystery-marker', 3, 'U', 1, 5, 'Biolab'),
+      L('2026-09-17', 'vitamin-d', 25, 'nmol/L', 75, 250, 'Biolab'),
+    ];
+    const since4w = DR.reportSince('4w', now);
+    assert(since4w.toISOString() === '2026-09-20T00:00:00.000Z', `the range starts 28 of his days back, at his day's midnight (got ${since4w.toISOString()})`);
+    assert(DR.reportSince('4w', new Date('2026-10-18T02:00:00+03:00')).toISOString() === '2026-09-19T00:00:00.000Z', "before 04:00 it is still yesterday's window");
+    const t4 = DR.labTable(labs, since4w);
+    assert(t4.map((g) => g.heading).join('|') === 'Lipids|Inflammation|Cardiac|Blood count|Other', `groups in the fixed order, only those with a draw in range (got ${t4.map((g) => g.heading).join('|')})`);
+    const ldl = t4[0].tests.find((t) => t.test === 'ldl');
+    assert(ldl?.rows.length === 2 && ldl.rows[0].previous && ldl.rows[0].value === 4.54 && ldl.rows[1].value === 3.4 && !ldl.rows[1].previous, `LDL: the in-range draw plus the most recent earlier one as previous (got ${JSON.stringify(ldl?.rows.map((r) => [r.value, r.previous]))})`);
+    assert(ldl?.rows[0].lab === '—' && ldl.rows[1].lab === 'Biolab' && ldl.rows[1].flag === '▲' && ldl.rows[1].ref === 'ref ≤ 2.59', 'each value carries ITS lab and ITS range');
+    const crp = t4[1].tests.find((t) => t.test === 'crp');
+    assert(crp?.rows.map((r) => `${r.value}@${r.lab}${r.previous ? '*' : ''}`).join(',') === '2.7@Biolab*,33.8@AlGhadeer,27.2@Biolab', `CRP oldest first with its labs (got ${crp?.rows.map((r) => `${r.value}@${r.lab}${r.previous ? '*' : ''}`).join(',')})`);
+    assert(t4[0].tests.map((t) => t.test).join() === 'ldl,hdl', 'tests in the fixed order within a group');
+    const hb = t4[3].tests.find((t) => t.test === 'haemoglobin');
+    assert(hb?.rows.every((r) => r.unit === 'g/L') && hb.rows.length === 2, 'units are shown as stored, never converted');
+    const trop = t4[2].tests[0];
+    assert(trop.test === 'troponin-i-hs' && trop.rows.length === 1 && trop.rows[0].flag === '' && !trop.rows[0].previous, 'a test with one value in range and no previous is a single row');
+    assert(t4[4].tests[0].test === 'mystery-marker' && t4[4].tests[0].label === 'MYSTERY-MARKER', 'anything unlisted lands under Other with its slug');
+    assert(!t4.some((g) => g.tests.some((t) => t.test === 'vitamin-d')), 'a draw outside the range with nothing in range does not print');
+    const tAll = DR.labTable(labs, DR.reportSince('all', now));
+    assert(tAll.map((g) => g.heading).join('|') === 'Lipids|Inflammation|Cardiac|Blood count|Iron & vitamins|Hormones|Other', 'All shows every group with a draw');
+    assert(tAll[0].tests[0].rows.length === 3 && tAll[0].tests[0].rows.every((r) => !r.previous) && tAll[0].tests[0].rows[0].ref === '', 'with All there is no previous; a draw with no range prints none');
+    assert(tAll.find((g) => g.heading === 'Blood count')?.tests[0].rows.map((r) => r.unit).join() === 'g/dL,g/L,g/L', 'Al Habib g/dL beside Biolab g/L, as stored');
+    assert(DR.LAB_TEST_LABEL.ldl === 'LDL' && DR.LAB_TEST_LABEL['total-chol'] === 'Total cholesterol' && DR.LAB_GROUPS.length === 11, "the groups and names are the owner's list");
+    assert(!/\b(high|low|abnormal|raised|elevated)\b/i.test(JSON.stringify(t4)), 'no judgement word in the table');
+    for (const f of [PAGE, PDF]) {
+      assert(/labTable\(/.test(read(f)) && !/reportLabs\(/.test(read(f)), `${f} prints the lab table, not the latest-only pair`);
+    }
+  }
+
+  // D. Weight in clinical terms.
+  {
+    const w = [
+      { date: '2026-09-20T00:00:00.000Z', weight: 126 },
+      { date: '2026-10-04T00:00:00.000Z', weight: 124.4 },
+      { date: '2026-10-18T00:00:00.000Z', weight: 122.5 },
+    ];
+    const p = DR.weightWindowPace(w);
+    assert(p?.n === 3 && p.weeks === 4 && p.kgPerWeek === -0.88 && p.pctPerWeek === -0.69, `pace over the window: first to last weigh-in, per week, kg and % of the first (got ${JSON.stringify(p)})`);
+    assert(DR.weightWindowPace(w.slice(0, 1)) === null && DR.weightWindowPace([w[0], { date: '2026-09-23T00:00:00.000Z', weight: 125 }]) === null, 'one weigh-in, or two within a week, is not a pace');
+    const rows = DR.weightWindowRows({ weights: w, rangeLabel: 'Last 4 weeks', treatmentWeek: 9, pctLost: 6.2 });
+    assert(rows[0].label === 'Last 4 weeks' && rows[0].value === '−3.5 kg · 3 weigh-ins', `the range change uses the shared minus sign (got "${rows[0].value}")`);
+    assert(rows.some((r) => r.label === 'Of body weight at first clinic visit' && r.value === '−6.2%'), 'the percent lost since the start, on its own line');
+    assert(rows.some((r) => r.label === 'Pace · 4 weeks' && r.value === '−0.88 kg/week · −0.69%/week'), `pace in kg and % per week (got ${JSON.stringify(rows)})`);
+    assert(rows.some((r) => r.label === 'Weeks on treatment' && r.value === '9'), 'weeks on treatment, from the clock');
+    const pdfRows = DR.weightWindowRows({ weights: w, rangeLabel: 'Last 4 weeks', treatmentWeek: null, pctLost: 6.2 }, '-');
+    assert(pdfRows[0].value === '-3.5 kg · 3 weigh-ins' && !pdfRows.some((r) => r.label === 'Weeks on treatment'), 'the PDF gets its own minus; no clock, no treatment row');
+    const regain = DR.weightWindowRows({ weights: [w[2], { date: '2026-10-25T00:00:00.000Z', weight: 123.5 }], rangeLabel: 'Last 4 weeks', treatmentWeek: null, pctLost: 0 });
+    assert(regain[0].value === '+1 kg · 2 weigh-ins' && regain.some((r) => r.value === '+1 kg/week · +0.82%/week'), `a regain is plus everywhere (got ${JSON.stringify(regain)})`);
+    assert(DR.weightWindowRows({ weights: w.slice(0, 1), rangeLabel: 'Last 4 weeks', treatmentWeek: null, pctLost: 6.2 }).every((r) => r.label !== 'Last 4 weeks' && !/^Pace/.test(r.label)), 'one weigh-in is a moment: no range change, no pace');
+    for (const f of [PAGE, PDF]) {
+      assert(/weightWindowRows\(/.test(read(f)) && !/rangeDelta > 0 \? '\+'/.test(read(f)), `${f} prints the window rows through the shared function`);
+    }
+  }
+
+  // E. Small fixes: the plural, the sign, the age from a birth month.
+  {
+    const page = read(PAGE);
+    assert(!/AF episode\{episodes\.length === 1 \? '' : 's'\} in range/.test(page), 'no "AF episode s" — JSX glues the plural to the word in one expression');
+    assert(/\{episodes\.length === 1 \? 'AF episode' : 'AF episodes'\} in range/.test(page), 'the plural is built in one expression');
+    assert(bornLabel('1988-06-15T00:00:00.000Z', now) === 'June 1988 · 38 y', `the birth month prints as month + year with the age (got "${bornLabel('1988-06-15T00:00:00.000Z', now)}")`);
+    assert(bornLabel('1988-06-15T00:00:00.000Z', new Date('2027-05-20T10:00:00+03:00')) === 'June 1988 · 38 y' && bornLabel('1988-06-15T00:00:00.000Z', new Date('2027-06-20T10:00:00+03:00')) === 'June 1988 · 39 y', 'the age turns with the month, never the year alone');
+    assert(bornLabel(null, now) === '1988 · 37–38 y', 'without a birth date the honest pair stays');
+    assert(pdfSafe(bornLabel('1988-06-15T00:00:00.000Z', now)) === 'June 1988 · 38 y', 'the PDF prints the same through pdfSafe');
+    for (const f of [PAGE, PDF]) {
+      assert(/bornLabel\(/.test(read(f)) && !/1988 · \$\{reportAge/.test(read(f)), `${f} prints the Born row through bornLabel`);
+      assert(/birthDate/.test(read(f)), `${f} reads the stored birth date`);
+    }
+    assert(/ownerActivityDayUtc|reportSince\(/.test(read(PAGE)) && /reportSince\(/.test(read(PDF)) && !/Date\.now\(\) - RANGES\[range\]/.test(read(PAGE) + read(PDF)), 'the range runs on his day clock, not the server\'s');
+  }
+
+  // The PDF's pure parts: the writer paginates the lab table from the real
+  // export (99 rows), and no string reaches pdf-lib raw.
+  {
+    const lib = read('src/lib/report-pdf.ts');
+    const rawDraws = [...lib.matchAll(/drawText\(([^,]+),/g)].map((m) => m[1].trim()).filter((a) => !/^pdfSafe\(/.test(a));
+    assert(rawDraws.length === 0, `every drawText in the PDF writer goes through pdfSafe (raw: ${rawDraws.join(' | ')})`);
+    const exportLabs = (data as unknown as { health?: { labResult?: Array<{ id: string; date: string; test: string; value: number; unit: string; refLow: number | null; refHigh: number | null; lab: string | null }> } }).health?.labResult ?? [];
+    assert(exportLabs.length >= 90, `the committed export carries the lab history (got ${exportLabs.length})`);
+    pendingAsync.push((async () => {
+      const doc = await PDFDocument.create();
+      const font = await doc.embedFont(StandardFonts.Helvetica);
+      const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+      const w = createPdfWriter(doc, font, bold);
+      w.text('Fixture', 18, bold);
+      const table = DR.labTable(exportLabs, DR.reportSince('all', now));
+      const nRows = table.reduce((s, g) => s + g.tests.reduce((t, x) => t + x.rows.length, 0), 0);
+      assert(nRows === exportLabs.length, `with All every stored draw is a row (got ${nRows} of ${exportLabs.length})`);
+      const drawn = drawLabTable(w, table, (d) => new Date(d).toISOString().slice(0, 10));
+      assert(drawn === nRows, `the writer draws every row (got ${drawn})`);
+      assert(doc.getPageCount() >= 3, `${nRows} lab rows flow onto extra pages (got ${doc.getPageCount()})`);
+      const qs = drawQuestions(w, DR.openQuestionGroups(DR.doctorQuestions([{ id: 'q', text: 'A long question that certainly needs to wrap because it goes on and on about CRP, troponin, ESR and the echo and when to repeat each of them and whether the gym is safe', for: 'cardiology', createdAt: '2026-10-18T00:00:00.000Z' }])));
+      assert(qs === 1, 'a question draws, wrapped');
+      await doc.save();
+    })());
+  }
 }
 
 Promise.all(pendingAsync).then(() => {
