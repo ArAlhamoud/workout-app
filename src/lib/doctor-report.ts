@@ -9,7 +9,7 @@
 // a dose or a test — the owner's questions below are his words, quoted.
 
 import { labRefLabel, ownerActivityDayUtc, ownerDayKey } from './health-insights';
-import { signedKg } from './health-format';
+import { shortDay, signedKg } from './health-format';
 
 const DAY_MS = 86_400_000;
 
@@ -23,6 +23,9 @@ export type ReportRange = keyof typeof REPORT_RANGES;
  * day, at that day's UTC midnight (the instant day rows sit at). The
  * report used `Date.now() − N days`, the server's clock: for three hours
  * each night the window ended on a different day than the header said.
+ * EVERY cut in the report is this one instant — the BP average once used
+ * `now − N·24h` beside a control row cut here, and a reading in the gap
+ * was in one and not the other (review, 2026-10-18).
  */
 export function reportSince(range: ReportRange, now: Date = new Date()): Date {
   return new Date(ownerActivityDayUtc(now).getTime() - REPORT_RANGES[range] * DAY_MS);
@@ -54,34 +57,64 @@ export interface DoctorQuestion {
   createdAt: string;
 }
 
-const MAX_QUESTIONS = 60;
-const MAX_TEXT = 500;
+/** Hard cap on a question's text; a longer one is refused with a message,
+ *  never cut (review, 2026-10-18). */
+export const QUESTION_TEXT_MAX = 500;
+const MAX_QUESTIONS = 200;
 
 const isFor = (v: unknown): v is QuestionFor => (QUESTION_FOR as readonly string[]).includes(v as string);
 
-/** The stored column, read tolerantly: a malformed entry is dropped, never
- *  thrown on — the report must print whatever else is there. */
-export function doctorQuestions(raw: unknown): DoctorQuestion[] {
-  if (!Array.isArray(raw)) return [];
+/** "" when the text is acceptable, else the one-line reason the UI shows. */
+export function questionTextError(text: string): string {
+  const t = text.trim();
+  if (!t) return 'empty';
+  if (t.length > QUESTION_TEXT_MAX) return `too long · ${QUESTION_TEXT_MAX} max`;
+  return '';
+}
+
+/** askedOn as the report keys it: a day key stays; any other parseable
+ *  date (an ISO instant from an older write) becomes HIS day. */
+const askedDayKey = (v: unknown): string | null => {
+  if (typeof v !== 'string' || !v.trim()) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : ownerDayKey(d);
+};
+
+/**
+ * The stored column, read tolerantly — and HONESTLY: `dropped` counts the
+ * entries the parser could not keep (no text, no id, a duplicate id, an
+ * unlisted `for`, over the cap). The report prints what it can; a WRITE
+ * must refuse while anything was dropped, or the next edit would persist
+ * the pruned list and the drop becomes permanent (two reviews, 2026-10-18).
+ */
+export function parseDoctorQuestions(raw: unknown): { questions: DoctorQuestion[]; dropped: number } {
+  if (!Array.isArray(raw)) return { questions: [], dropped: raw == null ? 0 : 1 };
   const out: DoctorQuestion[] = [];
   const seen = new Set<string>();
+  let dropped = 0;
   for (const q of raw) {
-    if (!q || typeof q !== 'object') continue;
-    const o = q as Record<string, unknown>;
-    const text = typeof o.text === 'string' ? o.text.trim().slice(0, MAX_TEXT) : '';
-    if (!text || typeof o.id !== 'string' || !o.id || seen.has(o.id) || !isFor(o.for)) continue;
+    const o = q && typeof q === 'object' ? (q as Record<string, unknown>) : null;
+    const text = o && typeof o.text === 'string' ? o.text.trim() : '';
+    if (!o || !text || typeof o.id !== 'string' || !o.id || seen.has(o.id) || !isFor(o.for) || out.length >= MAX_QUESTIONS) {
+      dropped++;
+      continue;
+    }
     seen.add(o.id);
     out.push({
       id: o.id,
       text,
       for: o.for,
-      askedOn: typeof o.askedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.askedOn) ? o.askedOn : null,
-      answer: typeof o.answer === 'string' && o.answer.trim() ? o.answer.trim().slice(0, MAX_TEXT) : null,
+      askedOn: askedDayKey(o.askedOn),
+      answer: typeof o.answer === 'string' && o.answer.trim() ? o.answer.trim() : null,
       createdAt: typeof o.createdAt === 'string' ? o.createdAt : '',
     });
-    if (out.length >= MAX_QUESTIONS) break;
   }
-  return out;
+  return { questions: out, dropped };
+}
+
+export function doctorQuestions(raw: unknown): DoctorQuestion[] {
+  return parseDoctorQuestions(raw).questions;
 }
 
 export interface QuestionGroup {
@@ -108,18 +141,21 @@ export function openQuestionCount(questions: DoctorQuestion[]): number {
   return questions.filter((q) => q.askedOn === null).length;
 }
 
+/** Unchanged list when the text is empty or over the cap (the caller
+ *  shows questionTextError), the id taken, or the list full. */
 export function addQuestion(
   list: DoctorQuestion[],
   q: { id: string; text: string; for: QuestionFor },
   now: Date = new Date(),
 ): DoctorQuestion[] {
-  const text = q.text.trim().slice(0, MAX_TEXT);
-  if (!text || !isFor(q.for) || list.length >= MAX_QUESTIONS || list.some((x) => x.id === q.id)) return list;
+  const text = q.text.trim();
+  if (questionTextError(text) || !isFor(q.for) || list.length >= MAX_QUESTIONS || list.some((x) => x.id === q.id)) return list;
   return [...list, { id: q.id, text, for: q.for, askedOn: null, answer: null, createdAt: now.toISOString() }];
 }
 
-/** Text, who it is for and the one-line answer; an empty text keeps the
- *  old one (a cleared field is not a request to lose the question). */
+/** Text, who it is for and the one-line answer; an empty or over-long text
+ *  keeps the old one (a cleared field is not a request to lose the
+ *  question; a too-long one is refused by the caller first). */
 export function editQuestion(
   list: DoctorQuestion[],
   id: string,
@@ -127,9 +163,9 @@ export function editQuestion(
 ): DoctorQuestion[] {
   return list.map((q) => {
     if (q.id !== id) return q;
-    const text = patch.text?.trim().slice(0, MAX_TEXT);
-    const answer = patch.answer === undefined ? q.answer : patch.answer?.trim().slice(0, MAX_TEXT) || null;
-    return { ...q, text: text || q.text, for: isFor(patch.for) ? patch.for : q.for, answer };
+    const text = patch.text?.trim();
+    const answer = patch.answer === undefined ? q.answer : patch.answer?.trim().slice(0, QUESTION_TEXT_MAX) || null;
+    return { ...q, text: text && !questionTextError(text) ? text : q.text, for: isFor(patch.for) ? patch.for : q.for, answer };
   });
 }
 
@@ -187,6 +223,13 @@ const contextAverage = (rows: BpReadingLite[]): ContextAverage =>
       }
     : { n: rows.length, systolic: null, diastolic: null };
 
+/** The section's average over the SAME readings every other BP row uses
+ *  (the caller cut them at `since`); three or null. */
+export function bpWindowAverage(readings: BpReadingLite[]): { systolic: number; diastolic: number; n: number } | null {
+  const a = contextAverage(readings);
+  return a.systolic != null && a.diastolic != null ? { systolic: a.systolic, diastolic: a.diastolic, n: a.n } : null;
+}
+
 /** Over the readings handed in (the caller has already cut the range). */
 export function bpControl(readings: BpReadingLite[]): BpControl {
   const higher = (a: BpReadingLite, b: BpReadingLite) =>
@@ -239,22 +282,24 @@ export interface PulseTrend {
   previous: { avg: number; n: number } | null;
 }
 
-/** Average pulse over the last `days` vs the same-length window before
- *  it. Three pulses or null on either side; "All" has no window before
- *  it. Two numbers, no verdict — the doctor reads the pair. */
-export function pulseTrend(readings: BpReadingLite[], days: number, now: Date = new Date()): PulseTrend {
-  const t = now.getTime();
-  const win = days * DAY_MS;
+/**
+ * Average pulse since `since` vs the same-length window before it
+ * (`since − days` ≤ at < `since`) — the ONE cut the section uses, never
+ * `now − N·24h`. Three pulses or null on either side; "All" has no window
+ * before it. Two numbers, no verdict — the doctor reads the pair.
+ */
+export function pulseTrend(readings: BpReadingLite[], since: Date, days: number): PulseTrend {
+  const t0 = since.getTime();
+  const tPrev = t0 - days * DAY_MS;
   const avg = (rows: number[]) =>
     rows.length >= MIN_FOR_AVERAGE ? { avg: Math.round(rows.reduce((s, p) => s + p, 0) / rows.length), n: rows.length } : null;
   const current: number[] = [];
   const previous: number[] = [];
   for (const r of readings) {
     if (r.pulse == null) continue;
-    const age = t - new Date(r.at).getTime();
-    if (age < 0) continue;
-    if (age <= win) current.push(r.pulse);
-    else if (age <= 2 * win) previous.push(r.pulse);
+    const t = new Date(r.at).getTime();
+    if (t >= t0) current.push(r.pulse);
+    else if (t >= tPrev) previous.push(r.pulse);
   }
   return { current: avg(current), previous: days >= REPORT_RANGES.all ? null : avg(previous) };
 }
@@ -277,14 +322,14 @@ export interface WeightWindowPace {
   weeks: number;
 }
 
-// Half away from zero: Math.round(-87.5) is -87, and a loss of 0.875
-// kg/week would have printed as 0.87 beside a gain of 0.875 as 0.88.
-const roundTo = (n: number, k: number) => Math.sign(n) * Math.round(Math.abs(n) * k) / k;
-const round2 = (n: number) => roundTo(n, 100);
-const round1 = (n: number) => roundTo(n, 10);
+// Half away from zero: Math.round(-8.5) is -8, and a loss of 0.85
+// kg/week would have printed as 0.8 beside a gain of 0.85 as 0.9.
+const round1 = (n: number) => (Math.sign(n) * Math.round(Math.abs(n) * 10)) / 10;
 
 /** First to last weigh-in in the window, per week. Two weigh-ins at
- *  least a week apart, or null — a shorter span is water, not a pace. */
+ *  least seven of HIS calendar days apart (weigh-ins are timestamped,
+ *  and Mon 08:00 → next Mon 07:30 is a week), or null — a shorter span
+ *  is water, not a pace. One rounding, one decimal, the range row's. */
 export function weightWindowPace(
   weights: Array<{ date: Date | string; weight: number | null }>,
 ): WeightWindowPace | null {
@@ -294,13 +339,14 @@ export function weightWindowPace(
   if (rows.length < 2) return null;
   const first = rows[0];
   const last = rows[rows.length - 1];
-  const days = (new Date(last.date).getTime() - new Date(first.date).getTime()) / DAY_MS;
+  if (!(first.weight > 0)) return null;
+  const days = (Date.parse(ownerDayKey(new Date(last.date))) - Date.parse(ownerDayKey(new Date(first.date)))) / DAY_MS;
   if (days < 7) return null;
   const weeks = days / 7;
   const kgPerWeek = (last.weight - first.weight) / weeks;
   return {
-    kgPerWeek: round2(kgPerWeek),
-    pctPerWeek: round2((kgPerWeek / first.weight) * 100),
+    kgPerWeek: round1(kgPerWeek),
+    pctPerWeek: round1((kgPerWeek / first.weight) * 100),
     n: rows.length,
     weeks: round1(weeks),
   };
@@ -311,8 +357,9 @@ const signed = (v: number, minus: string) => `${v > 0 ? '+' : v < 0 ? minus : ''
 /**
  * The Weight section's window rows: the change over the range (the one
  * signed formatter — the page printed "-3.4 kg" here beside "−8 kg"
- * above it), the share of body weight lost since the first clinic visit,
- * the pace in kg and % per week, and the weeks on treatment. Numbers
+ * above it), the pace in kg and % per week, and the weeks on treatment.
+ * The share lost since the first clinic visit is NOT repeated here: the
+ * Change row above already prints it (say each thing once). Numbers
  * only. `minus` is "−" on the page and "-" in the PDF.
  */
 export function weightWindowRows(
@@ -320,7 +367,6 @@ export function weightWindowRows(
     weights: Array<{ date: Date | string; weight: number | null }>;
     rangeLabel: string;
     treatmentWeek: number | null;
-    pctLost: number;
   },
   minus = '−',
 ): ReportRow[] {
@@ -332,11 +378,10 @@ export function weightWindowRows(
     const delta = round1(ws[ws.length - 1].weight - ws[0].weight);
     rows.push({ label: input.rangeLabel, value: `${signedKg(-delta, minus)} kg · ${ws.length} weigh-ins` });
   }
-  rows.push({ label: 'Of body weight at first clinic visit', value: `${signedKg(input.pctLost, minus)}%` });
   const pace = weightWindowPace(ws);
   if (pace) {
     rows.push({
-      label: `Pace · ${pace.weeks} weeks`,
+      label: `Pace · ${pace.weeks} week${pace.weeks === 1 ? '' : 's'}`,
       value: `${signed(pace.kgPerWeek, minus)} kg/week · ${signed(pace.pctPerWeek, minus)}%/week`,
     });
   }
@@ -354,7 +399,7 @@ export const LAB_GROUPS: ReadonlyArray<{ heading: string; tests: readonly string
   { heading: 'Cardiac', tests: ['troponin-i-hs'] },
   { heading: 'Kidney', tests: ['creatinine', 'egfr', 'urea', 'uric-acid'] },
   { heading: 'Liver', tests: ['alt', 'ast', 'ggt', 'bilirubin-total', 'albumin', 'protein-total'] },
-  { heading: 'Electrolytes & minerals', tests: ['sodium', 'potassium', 'chloride', 'calcium', 'corrected calcium', 'magnesium'] },
+  { heading: 'Electrolytes & minerals', tests: ['sodium', 'potassium', 'chloride', 'bicarbonate', 'calcium', 'corrected calcium', 'magnesium'] },
   { heading: 'Thyroid', tests: ['tsh', 'ft3', 'ft4'] },
   { heading: 'Blood count', tests: ['haemoglobin', 'haematocrit', 'rbc', 'mcv', 'mch', 'mchc', 'rdw', 'platelets', 'mpv', 'wbc', 'neutrophils', 'lymphocytes', 'monocytes', 'eosinophils', 'basophils'] },
   { heading: 'Iron & vitamins', tests: ['iron', 'ferritin', 'folate', 'vitamin-d'] },
@@ -369,7 +414,7 @@ export const LAB_TEST_LABEL: Record<string, string> = {
   'troponin-i-hs': 'Troponin I (hs)',
   creatinine: 'Creatinine', egfr: 'eGFR', urea: 'Urea', 'uric-acid': 'Uric acid',
   alt: 'ALT', ast: 'AST', ggt: 'GGT', 'bilirubin-total': 'Bilirubin (total)', albumin: 'Albumin', 'protein-total': 'Protein (total)',
-  sodium: 'Sodium', potassium: 'Potassium', chloride: 'Chloride', calcium: 'Calcium', 'corrected calcium': 'Corrected calcium', magnesium: 'Magnesium',
+  sodium: 'Sodium', potassium: 'Potassium', chloride: 'Chloride', bicarbonate: 'Bicarbonate', calcium: 'Calcium', 'corrected calcium': 'Corrected calcium', magnesium: 'Magnesium',
   tsh: 'TSH', ft3: 'FT3', ft4: 'FT4',
   haemoglobin: 'Haemoglobin', haematocrit: 'Haematocrit', rbc: 'RBC', mcv: 'MCV', mch: 'MCH', mchc: 'MCHC', rdw: 'RDW',
   platelets: 'Platelets', mpv: 'MPV', wbc: 'WBC', neutrophils: 'Neutrophils', lymphocytes: 'Lymphocytes',
@@ -379,16 +424,18 @@ export const LAB_TEST_LABEL: Record<string, string> = {
 };
 
 const LAB_LABEL_MAX = 14;
+export const LAB_NOT_RECORDED = 'lab not recorded';
 
 /**
  * The lab, short, beside every value — reference ranges differ between
  * labs, so a value without its lab is a value without its range. Three
  * known labs under whatever name the row carries; anything else prints
- * its own name, truncated; no lab prints a dash.
+ * its own name, truncated; no lab says so in words (a dash read as a
+ * bullet, review 2026-10-18).
  */
 export function labShortLabel(lab: string | null | undefined): string {
   const s = (lab ?? '').trim();
-  if (!s) return '—';
+  if (!s) return LAB_NOT_RECORDED;
   if (/al\s*habib/i.test(s)) return 'Al Habib';
   if (/biolab/i.test(s)) return 'Biolab';
   if (/al\s*ghadeer/i.test(s)) return 'AlGhadeer';
@@ -417,6 +464,8 @@ export interface LabRowLite {
 export interface LabTableRow {
   id: string;
   date: Date | string;
+  /** His calendar day of the draw (rows are stored at UTC midnight). */
+  dayKey: string;
   value: number;
   unit: string;
   lab: string;
@@ -437,6 +486,14 @@ export interface LabTableGroup {
   tests: LabTableTest[];
 }
 
+/** A lab row's day: rows are stored at UTC midnight of the draw day, so
+ *  the key is read in UTC, not Riyadh (03:00 would move nothing, but an
+ *  instant-stamped row from the Plan page is a Riyadh day). */
+const labDayKey = (d: Date | string): string => {
+  const t = new Date(d);
+  return t.getUTCHours() === 0 && t.getUTCMinutes() === 0 ? t.toISOString().slice(0, 10) : ownerDayKey(t);
+};
+
 /**
  * Every draw in the range, per test, oldest first, each with ITS lab and
  * ITS range (law 3: a range belongs to its draw) — and, behind the range,
@@ -453,7 +510,7 @@ export function labTable(labs: LabRowLite[], since: Date): LabTableGroup[] {
     byTest.set(key, list);
   }
   const toRow = (l: LabRowLite, previous: boolean): LabTableRow => ({
-    id: l.id, date: l.date, value: l.value, unit: l.unit, lab: labShortLabel(l.lab), ref: labRefLabel(l), flag: labFlag(l), previous,
+    id: l.id, date: l.date, dayKey: labDayKey(l.date), value: l.value, unit: l.unit, lab: labShortLabel(l.lab), ref: labRefLabel(l), flag: labFlag(l), previous,
   });
   const build = (key: string): LabTableTest | null => {
     const rows = [...(byTest.get(key) ?? [])].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -472,4 +529,126 @@ export function labTable(labs: LabRowLite[], since: Date): LabTableGroup[] {
   const other = [...byTest.keys()].filter((k) => !listed.has(k)).sort().map(build).filter((t): t is LabTableTest => t != null);
   if (other.length) groups.push({ heading: 'Other', tests: other });
   return groups;
+}
+
+// ── The lab GRID (owner, 2026-10-18: "like a table") ─────────
+// One row per test, one column per draw (day + lab) in the range, newest
+// first; the "previous" draw as the last, dimmed column; a Ref column with
+// the newest value's own range — or, when the row's labs differ, each
+// cell carries its own range and the Ref column stays blank. Never a
+// comparison across labs.
+
+export interface LabGridColumn {
+  key: string;
+  dayKey: string;
+  lab: string;
+  /** "15 Oct · Biolab" */
+  label: string;
+}
+
+export interface LabGridCell {
+  id: string;
+  dayKey: string;
+  lab: string;
+  value: number;
+  unit: string;
+  flag: '▲' | '▼' | '';
+  ref: string;
+  newest: boolean;
+}
+
+export interface LabGridRow {
+  test: string;
+  label: string;
+  /** One per grid column, null where the test has no draw there. */
+  cells: Array<LabGridCell | null>;
+  /** The draw before the range, for the last column. */
+  previous: LabGridCell | null;
+  /** True when the row's cells (previous included) come from more than
+   *  one lab: each cell then shows its own range. */
+  mixedLabs: boolean;
+  /** The newest value's range, shown in the Ref column — "" when mixed. */
+  ref: string;
+}
+
+export interface LabGrid {
+  columns: LabGridColumn[];
+  hasPrevious: boolean;
+  groups: Array<{ heading: string; rows: LabGridRow[] }>;
+}
+
+const columnKey = (dayKey: string, lab: string) => `${dayKey}|${lab}`;
+
+/** "15 Oct · Biolab" — the day from the row's own key, the lab short. */
+export function labColumnLabel(dayKey: string, lab: string): string {
+  return `${shortDay(`${dayKey}T00:00:00Z`, 'UTC')} · ${lab}`;
+}
+
+export function labGrid(table: LabTableGroup[]): LabGrid {
+  const cols = new Map<string, LabGridColumn>();
+  for (const g of table) for (const t of g.tests) for (const r of t.rows) {
+    if (r.previous) continue;
+    const key = columnKey(r.dayKey, r.lab);
+    if (!cols.has(key)) cols.set(key, { key, dayKey: r.dayKey, lab: r.lab, label: labColumnLabel(r.dayKey, r.lab) });
+  }
+  // Newest first; the same day at two labs keeps the lab order stable.
+  const columns = [...cols.values()].sort((a, b) => (a.dayKey === b.dayKey ? a.lab.localeCompare(b.lab) : b.dayKey.localeCompare(a.dayKey)));
+  const index = new Map(columns.map((c, i) => [c.key, i]));
+  const toCell = (r: LabTableRow, newest: boolean): LabGridCell => ({
+    id: r.id, dayKey: r.dayKey, lab: r.lab, value: r.value, unit: r.unit, flag: r.flag, ref: r.ref, newest,
+  });
+  let hasPrevious = false;
+  const groups = table.map((g) => ({
+    heading: g.heading,
+    rows: g.tests.map((t): LabGridRow => {
+      const cells: Array<LabGridCell | null> = columns.map(() => null);
+      const inRange = t.rows.filter((r) => !r.previous);
+      const newest = inRange[inRange.length - 1];
+      for (const r of inRange) {
+        const i = index.get(columnKey(r.dayKey, r.lab));
+        // Two draws of one test on one day at one lab: the later row wins.
+        if (i != null) cells[i] = toCell(r, r === newest);
+      }
+      const prevRow = t.rows.find((r) => r.previous) ?? null;
+      const previous = prevRow ? toCell(prevRow, false) : null;
+      if (previous) hasPrevious = true;
+      const labs = new Set([...t.rows.map((r) => r.lab)]);
+      const mixedLabs = labs.size > 1;
+      return { test: t.test, label: t.label, cells, previous, mixedLabs, ref: mixedLabs ? '' : newest.ref };
+    }),
+  }));
+  return { columns, hasPrevious, groups };
+}
+
+/**
+ * The PDF caps the date columns per table: the newest `max` first, then
+ * the earlier ones; the previous column rides with the LAST table, and a
+ * row with nothing in a table's columns (and no previous there) is left
+ * out of that table. The page scrolls instead.
+ */
+export function splitLabGrid(grid: LabGrid, max: number): Array<{ title: string; grid: LabGrid }> {
+  if (grid.columns.length <= max) return [{ title: '', grid }];
+  const chunks: LabGridColumn[][] = [];
+  for (let i = 0; i < grid.columns.length; i += max) chunks.push(grid.columns.slice(i, i + max));
+  return chunks.map((columns, ci) => {
+    const last = ci === chunks.length - 1;
+    const start = ci * max;
+    const groups = grid.groups
+      .map((g) => ({
+        heading: g.heading,
+        rows: g.rows
+          .map((r) => ({ ...r, cells: r.cells.slice(start, start + columns.length), previous: last ? r.previous : null }))
+          .filter((r) => r.cells.some((c) => c != null) || r.previous),
+      }))
+      .filter((g) => g.rows.length);
+    return {
+      title: ci === 0 ? `Newest ${columns.length} draw${columns.length === 1 ? '' : 's'}` : 'Earlier draws',
+      grid: { columns, hasPrevious: last && grid.hasPrevious, groups },
+    };
+  });
+}
+
+/** "4.54 mmol/L ▲" — the cell's text, one way for the page and the PDF. */
+export function labCellText(c: LabGridCell): string {
+  return `${c.value} ${c.unit}${c.flag ? ` ${c.flag}` : ''}`;
 }
