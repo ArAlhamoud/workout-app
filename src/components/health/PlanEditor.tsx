@@ -65,7 +65,7 @@ export default function PlanEditor({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [qText, setQText] = useState('');
   const [qFor, setQFor] = useState<QuestionFor>('cardiology');
-  const [qEdit, setQEdit] = useState<{ id: string; text: string; answer: string } | null>(null);
+  const [qEdit, setQEdit] = useState<{ id: string; text: string } | null>(null);
   const openQs = questions.filter((q) => q.askedOn === null);
   const askedQs = questions.filter((q) => q.askedOn !== null);
 
@@ -264,7 +264,7 @@ export default function PlanEditor({
               <div key={q.id} className="flex items-start justify-between gap-2 text-sm">
                 <button
                   type="button"
-                  onClick={() => setQEdit({ id: q.id, text: q.text, answer: q.answer ?? '' })}
+                  onClick={() => setQEdit({ id: q.id, text: q.text })}
                   className="min-h-[44px] flex-1 py-2 text-left text-app-tx1"
                 >
                   {q.text}
