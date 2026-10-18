@@ -9,7 +9,7 @@ import { healthPushable } from '@/lib/logger-draft';
 import prisma from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { DEFAULT_DOSE_PLAN, DEFAULT_ROTATION, SITES, bpAverage, fuelTargets, fuelWeek, ownerTodayUtc, weightPace, injectionTimeOk } from '@/lib/health-insights';
-import { addQuestion, doctorQuestions, editQuestion, markQuestionAsked, removeQuestion, type QuestionFor } from '@/lib/doctor-report';
+import { addQuestion, editQuestion, markQuestionAsked, parseDoctorQuestions, questionTextError, removeQuestion, type DoctorQuestion, type QuestionFor } from '@/lib/doctor-report';
 import type { Prisma } from '@prisma/client';
 import { importHealthSamples, importSleepNightRows, readSleepNights, setSleepBackfillCursor, sleepSyncState } from '@/lib/health-import';
 import { checkInDayTotals, stackMacros } from '@/lib/health-entry';
@@ -127,12 +127,17 @@ export async function updateHealthProfile(data: {
 // list operations in src/lib/doctor-report.ts, so the app never stores a
 // shape the report cannot read.
 
+/** The stored list and how many entries the parser could not keep. */
 async function readDoctorQuestions() {
   const p = await prisma.healthProfile.findUnique({ where: { id: PROFILE_ID }, select: { doctorQuestions: true } });
-  return doctorQuestions(p?.doctorQuestions);
+  return parseDoctorQuestions(p?.doctorQuestions);
 }
 
-async function writeDoctorQuestions(list: ReturnType<typeof doctorQuestions>) {
+/** Refuses while the stored column holds anything the parser dropped:
+ *  writing the pruned list back would make the drop permanent (two
+ *  reviews, 2026-10-18). The report still prints what it can read. */
+async function writeDoctorQuestions(read: { dropped: number }, list: DoctorQuestion[]) {
+  if (read.dropped > 0) throw new Error('stored questions are not in the expected shape');
   await prisma.healthProfile.update({
     where: { id: PROFILE_ID },
     data: { doctorQuestions: list as unknown as Prisma.InputJsonValue },
@@ -143,24 +148,33 @@ async function writeDoctorQuestions(list: ReturnType<typeof doctorQuestions>) {
 }
 
 export async function addDoctorQuestion(q: { text: string; for: QuestionFor }) {
-  const list = await readDoctorQuestions();
+  const err = questionTextError(q.text);
+  if (err) throw new Error(err);
+  const read = await readDoctorQuestions();
   const id = `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-  const next = addQuestion(list, { id, text: q.text, for: q.for });
-  if (next === list) throw new Error('Nothing to add');
-  await writeDoctorQuestions(next);
+  const next = addQuestion(read.questions, { id, text: q.text, for: q.for });
+  if (next === read.questions) throw new Error('Nothing to add');
+  await writeDoctorQuestions(read, next);
 }
 
 export async function editDoctorQuestion(id: string, patch: { text?: string; for?: QuestionFor; answer?: string | null }) {
-  await writeDoctorQuestions(editQuestion(await readDoctorQuestions(), id, patch));
+  if (patch.text !== undefined) {
+    const err = questionTextError(patch.text);
+    if (err) throw new Error(err);
+  }
+  const read = await readDoctorQuestions();
+  await writeDoctorQuestions(read, editQuestion(read.questions, id, patch));
 }
 
 /** Asked = his today (ownerDayKey); false re-opens the question. */
 export async function setQuestionAsked(id: string, asked: boolean) {
-  await writeDoctorQuestions(markQuestionAsked(await readDoctorQuestions(), id, asked ? new Date() : null));
+  const read = await readDoctorQuestions();
+  await writeDoctorQuestions(read, markQuestionAsked(read.questions, id, asked ? new Date() : null));
 }
 
 export async function deleteDoctorQuestion(id: string) {
-  await writeDoctorQuestions(removeQuestion(await readDoctorQuestions(), id));
+  const read = await readDoctorQuestions();
+  await writeDoctorQuestions(read, removeQuestion(read.questions, id));
 }
 
 // ── Injections ───────────────────────────────────────────────

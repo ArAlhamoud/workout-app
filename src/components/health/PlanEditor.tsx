@@ -5,7 +5,7 @@
 // fat-fingered injection is permanent. Everything here calls the bounded
 // server actions — the model never touches these, only he does.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   updateHealthProfile,
@@ -19,7 +19,7 @@ import {
   deleteDoctorQuestion,
 } from '@/app/health-actions';
 import { siteLabel, type DosePlanStep } from '@/lib/health-insights';
-import { QUESTION_FOR, QUESTION_FOR_LABEL, type DoctorQuestion, type QuestionFor } from '@/lib/doctor-report';
+import { QUESTION_FOR, QUESTION_FOR_LABEL, QUESTION_TEXT_MAX, questionTextError, type DoctorQuestion, type QuestionFor } from '@/lib/doctor-report';
 import { hapticSuccess } from '@/lib/native-feedback';
 
 const inputCls =
@@ -81,13 +81,29 @@ export default function PlanEditor({
     try {
       await fn();
       flash(m);
-    } catch {
-      setMsg('Could not save — check the values.');
+    } catch (e) {
+      // A server action's plain reason ("too long · 500 max", "stored
+      // questions are not in the expected shape") beats a generic line.
+      const reason = e instanceof Error && e.message && !/^(Server|An error)/.test(e.message) ? e.message : '';
+      setMsg(reason ? `Not saved — ${reason}` : 'Could not save — check the values.');
       setTimeout(() => setMsg(''), 3000);
     } finally {
       setBusy(false);
     }
   };
+  // An answer saved on blur must not swallow the tap that caused the blur
+  // ("reopen" / ✕ on the same question): the save runs outside the busy
+  // guard and those taps wait for it (review, 2026-10-18).
+  const pendingSave = useRef<Promise<void>>(Promise.resolve());
+  const saveAnswer = (q: DoctorQuestion, raw: string) => {
+    const answer = raw.trim();
+    if (answer === (q.answer ?? '')) return;
+    pendingSave.current = editDoctorQuestion(q.id, { answer })
+      .then(() => flash('Answer saved'))
+      .catch(() => { setMsg('Could not save the answer.'); setTimeout(() => setMsg(''), 3000); });
+  };
+  const afterSave = (fn: () => Promise<unknown>) => async () => { await pendingSave.current; await fn(); };
+  const qError = qText.trim() ? questionTextError(qText) : '';
 
   const setStepMg = (week: number, raw: string) => {
     setPlan((cur) =>
@@ -204,8 +220,19 @@ export default function PlanEditor({
           className={`${inputCls} min-h-[72px]`}
           placeholder="Question…"
           value={qText}
+          maxLength={QUESTION_TEXT_MAX}
           onChange={(e) => setQText(e.target.value)}
         />
+        <div className="flex items-baseline justify-between gap-2 text-[10px] text-app-tx3">
+          {/* Arabic prints on the page; the PDF's standard font cannot shape
+              it and shows "?" (docs/HEALTH.md) — said once, here. */}
+          <span>Arabic prints on the page; the PDF shows it as ?</span>
+          {qError ? (
+            <span className="text-rpe-grind">{qError}</span>
+          ) : qText.length >= QUESTION_TEXT_MAX - 100 ? (
+            <span className="tabular-nums">{qText.length} / {QUESTION_TEXT_MAX}</span>
+          ) : null}
+        </div>
         <div className="flex gap-1.5">
           {QUESTION_FOR.map((f) => (
             <button
@@ -222,7 +249,7 @@ export default function PlanEditor({
         </div>
         <button
           type="button"
-          disabled={busy || !qText.trim()}
+          disabled={busy || !qText.trim() || !!qError}
           onClick={() =>
             run(async () => {
               await addDoctorQuestion({ text: qText, for: qFor });
@@ -240,12 +267,18 @@ export default function PlanEditor({
                 <textarea
                   className={`${inputCls} min-h-[72px]`}
                   value={qEdit.text}
+                  maxLength={QUESTION_TEXT_MAX}
                   onChange={(e) => setQEdit({ ...qEdit, text: e.target.value })}
                 />
+                {qEdit.text.trim() && questionTextError(qEdit.text) ? (
+                  <p className="text-[10px] text-rpe-grind">{questionTextError(qEdit.text)}</p>
+                ) : qEdit.text.length >= QUESTION_TEXT_MAX - 100 ? (
+                  <p className="text-right text-[10px] tabular-nums text-app-tx3">{qEdit.text.length} / {QUESTION_TEXT_MAX}</p>
+                ) : null}
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    disabled={busy || !qEdit.text.trim()}
+                    disabled={busy || !qEdit.text.trim() || !!questionTextError(qEdit.text)}
                     onClick={() => {
                       const { id, text } = qEdit;
                       setQEdit(null);
@@ -301,7 +334,7 @@ export default function PlanEditor({
                   </span>
                   <button
                     type="button"
-                    onClick={() => run(() => setQuestionAsked(q.id, false), 'Reopened')}
+                    onClick={() => run(afterSave(() => setQuestionAsked(q.id, false)), 'Reopened')}
                     className="min-h-[44px] flex-none px-2 text-xs text-app-tx3"
                   >
                     reopen
@@ -309,7 +342,7 @@ export default function PlanEditor({
                   <button
                     type="button"
                     aria-label="Delete this question"
-                    onClick={() => run(() => deleteDoctorQuestion(q.id), 'Question removed')}
+                    onClick={() => run(afterSave(() => deleteDoctorQuestion(q.id)), 'Question removed')}
                     className="min-h-[44px] flex-none px-2 text-app-tx3 hover:text-rpe-grind"
                   >
                     ✕
@@ -319,10 +352,8 @@ export default function PlanEditor({
                   className={inputCls}
                   placeholder="Answer (one line)"
                   defaultValue={q.answer ?? ''}
-                  onBlur={(e) => {
-                    const answer = e.target.value.trim();
-                    if (answer !== (q.answer ?? '')) void run(() => editDoctorQuestion(q.id, { answer }), 'Answer saved');
-                  }}
+                  maxLength={QUESTION_TEXT_MAX}
+                  onBlur={(e) => saveAnswer(q, e.target.value)}
                 />
               </div>
             ))}
