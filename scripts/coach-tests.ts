@@ -11,7 +11,9 @@ import { nextDoseCaption, initialDoseChoice, injectionTimeOk, journeyStations } 
 import { pushWorkoutsToHealth } from '../src/lib/health-push';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { cpapAdherence, ownerMonthKey } from '../src/lib/health-insights';
-import { cpapAdherenceLabel, monthLabel, pdfSafe, reportAge, signedKg, weighInLabel, weightChangeAr, weightChangeLabel, wrapLines } from '../src/lib/health-format';
+import { bornLabel, cpapAdherenceLabel, monthLabel, pdfSafe, reportAge, signedKg, weighInLabel, weightChangeAr, weightChangeLabel, wrapLines } from '../src/lib/health-format';
+import * as DR from '../src/lib/doctor-report';
+import { createPdfWriter, drawLabGrid, drawQuestions, LAB_SECTION_NEED, QUESTIONS_SECTION_NEED } from '../src/lib/report-pdf';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
 import { adjustedTime, classifyVisit, fmtVisit, gymTimeStats, isStale } from '../src/lib/gym-visits';
@@ -130,7 +132,6 @@ import {
   doseLedger,
   bpSplitAroundAnchor,
   labRefLabel,
-  reportLabs,
   ledgerByDose,
   ongoingSymptoms,
   sideEffectRows,
@@ -3788,11 +3789,12 @@ console.log('Doctor report — trend charts');
     }
   }
   const pdfSrc = src('src/app/api/health/report-pdf/route.ts');
-  assert(/y = top - H - 16;/.test(pdfSrc), 'the PDF leaves room under a chart for its date labels');
-  assert(/const section = \(title: string\) => \{[\s\S]{0,300}ensure\((5\d|6\d)\)/.test(pdfSrc), 'a PDF section heading needs room for its first rows before a page ends');
-  // Two pages: the written report, then every chart together.
+  assert(/setY\(top - H - 16\)/.test(pdfSrc), 'the PDF leaves room under a chart for its date labels');
+  // The writer lives in src/lib/report-pdf.ts since 2026-10-18.
+  assert(/SECTION_NEED = 56/.test(src('src/lib/report-pdf.ts')) && /section: \(title, need = SECTION_NEED\) => \{[\s\S]{0,300}ensure\(Math\.max\(SECTION_NEED, need\)\)/.test(src('src/lib/report-pdf.ts')), 'a PDF section heading needs room for its first rows before a page ends');
+  // The written report, then every chart together on a page of its own.
   const trendsAt = pdfSrc.indexOf("text('Trends'");
-  assert(trendsAt > 0 && pdfSrc.lastIndexOf('doc.addPage(A4)', trendsAt) > pdfSrc.indexOf("section('Current medications')"), 'the charts start on their own page after the written report');
+  assert(trendsAt > 0 && pdfSrc.lastIndexOf('w.newPage()', trendsAt) > pdfSrc.indexOf("section('Current medications')"), 'the charts start on their own page after the written report');
   const chartCalls = [...pdfSrc.matchAll(/\bchart\(/g)].map((m) => m.index ?? 0);
   assert(chartCalls.every((i) => i < pdfSrc.indexOf("section('Weight')") || i > trendsAt), 'no chart is drawn inside the written sections');
   assert(src('src/components/health/ReportChart.tsx').includes('layoutChart') && src('src/app/api/health/report-pdf/route.ts').includes('layoutChart'), 'page and PDF lay out through the same layoutChart');
@@ -3806,30 +3808,24 @@ console.log('Doctor report — lab reference ranges');
   assert(labRefLabel({ refLow: 60, refHigh: null }) === 'ref ≥ 60', 'a floor-only range (eGFR) prints ≥');
   assert(labRefLabel({ refLow: null, refHigh: null }) === '', 'no range, no bracket');
   const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  // Since 2026-10-18 the range rides on each lab-table row (doctor-report.ts).
+  assert(read('src/lib/doctor-report.ts').includes('ref: labRefLabel(l)'), 'the lab table prints each draw\'s range through labRefLabel');
   for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
-    assert(read(f).includes('labRefLabel(l)') && !/ref (≤|<=) \$\{l\.refHigh\}/.test(read(f)), `${f} prints the lab range through labRefLabel`);
+    assert(!/ref (≤|<=) \$\{l\.refHigh\}/.test(read(f)), `${f} builds no lab range of its own`);
   }
   assert(pdfSafe('ref ≤ 2.59') === 'ref <= 2.59' && /pdfSafe/.test(read('src/app/api/health/report-pdf/route.ts')), 'the PDF font swaps ≤ for <= (WinAnsi has no ≤)');
 }
 
-// ── Doctor report: only LDL and Lp(a) print (owner, 2026-09-30) ──
-console.log('Doctor report — labs limited to LDL and Lp(a)');
+// ── Doctor report: the lab table superseded "LDL and Lp(a) only" (owner, 2026-10-18) ──
+// The 2026-09-30 rule ("only LDL and Lp(a), latest of each") is gone with
+// its function: every draw in the range now prints, per test, with its
+// own lab's range (the visit-pack block near the end of this file).
+console.log('Doctor report — labs: the table replaced the latest-only pair');
 {
-  const rows = [
-    { test: 'alt', date: '2023-05-23', value: 86 },
-    { test: 'ldl', date: '2026-08-20', value: 4.54 },
-    { test: 'vitamin-d', date: '2026-09-17', value: 25 },
-    { test: 'lp(a)', date: '2026-08-20', value: 18.9 },
-    { test: 'LDL', date: '2025-01-10', value: 4.9 },
-  ];
-  const kept = reportLabs(rows);
-  assert(kept.map((r) => r.test.toLowerCase()).every((t) => t === 'ldl' || t === 'lp(a)'), 'nothing but LDL and Lp(a) reaches the report');
-  assert(kept.length === 2, `one row per test (got ${kept.length})`);
-  assert(kept.find((r) => r.test.toLowerCase() === 'ldl')?.date === '2026-08-20', 'the LATEST LDL prints, the older one does not (owner: remove the Jul 2022 LDL)');
-  assert(reportLabs([{ test: 'ldl', date: '2022-07-18' }, { test: 'ldl', date: '2026-08-20' }]).length === 1, 'an older LDL never prints beside the newer one');
   const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  assert(!/reportLabs|REPORT_LAB_TESTS/.test(read('src/lib/health-insights.ts')), 'the latest-only lab filter no longer exists');
   for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
-    assert(/const labs = reportLabs\(data\.labs\)/.test(read(f)), `${f} filters labs through reportLabs, not the date range`);
+    assert(/const labs = labTable\(data\.labs, since\)/.test(read(f)), `${f} prints the lab table over the selected range`);
   }
 }
 
@@ -4486,7 +4482,7 @@ console.log('Health screens — Riyadh calendar, shared definitions, report hone
     assert(/pdfSafe/.test(pdf) && !/const clean = /.test(pdf), 'the PDF route encodes text through pdfSafe');
     const rawDraws = [...pdf.matchAll(/drawText\(([^,]+),/g)].map((m) => m[1].trim()).filter((a) => !/^pdfSafe\(/.test(a));
     assert(rawDraws.length === 0, `every drawText argument goes through pdfSafe (raw: ${rawDraws.join(' | ')})`);
-    assert(/wrapLines\(/.test(pdf), 'the PDF wraps long notes');
+    assert(/wrapLines\(/.test(src('src/lib/report-pdf.ts')) && /\bnote\(/.test(pdf), 'the PDF wraps long notes');
   }
 
   // 6. Law 5: "a chart from 3 points is a lie with axes" — and the report
@@ -4557,8 +4553,10 @@ console.log('Health screens — Riyadh calendar, shared definitions, report hone
     assert(reportAge(null, now) === '37–38 y', `without a birth date the age is not printed as exact (got "${reportAge(null, now)}")`);
     assert(reportAge('1988-11-05', now) === '37 y' && reportAge('1988-10-02', now) === '38 y' && reportAge('1988-03-01', now) === '38 y', 'with a birth date the age respects the birthday');
     assert(reportAge('not a date', now) === '37–38 y', 'a junk birth date falls back to the year');
+    // Since 2026-10-18 the Born row is bornLabel, which prints the age through reportAge.
+    assert(/reportAge\(b, now\)/.test(src('src/lib/health-format.ts')), 'bornLabel prints the age through reportAge');
     for (const f of ['src/app/health/report/page.tsx', 'src/app/api/health/report-pdf/route.ts']) {
-      assert(/reportAge\(/.test(src(f)) && !/getFullYear\(\) - 1988/.test(src(f)), `${f} prints the age through reportAge`);
+      assert(/bornLabel\(/.test(src(f)) && !/getFullYear\(\) - 1988/.test(src(f)), `${f} prints the age through bornLabel`);
     }
   }
 }
@@ -5712,6 +5710,395 @@ console.log('Sleep tracking — every night, grouped once on the phone, stored p
   const page = src('src/app/health/sleep/page.tsx');
   assert(/wakeUps/.test(page) && /bedtimeSpread\(/.test(page) && /efficiencyAverage\(/.test(page), 'the Sleep room shows wake-ups, the share asleep and bedtime regularity');
   assert(!/text-(red|rose)-|rpe-grind|\bshould\b|\bpoor\b/i.test(page), 'no grade and no red on the Sleep room');
+}
+
+// ── Doctor report: the visit pack (owner, 2026-10-18) ──────────────────────
+// Questions for the doctor, BP control beside the average, every lab draw
+// with ITS lab's range as a grid, weight in clinical terms, the age from a
+// birth month. Pure in src/lib/doctor-report.ts; the page and the PDF only
+// render — one function per section, so the two can never disagree.
+console.log('Doctor report — the visit pack (2026-10-18)');
+{
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const PAGE = 'src/app/health/report/page.tsx';
+  const PDF = 'src/app/api/health/report-pdf/route.ts';
+  const now = new Date('2026-10-18T10:00:00+03:00');
+
+  // A. Questions for the doctor: his words, open ones only, grouped and numbered.
+  {
+    const raw = [
+      { id: 'a', text: 'What did the ECG show?', for: 'cardiology', askedOn: null, createdAt: '2026-10-18T07:00:00.000Z' },
+      { id: 'b', text: 'Keep 5 mg?', for: 'endocrinology', createdAt: '2026-10-18T07:00:01.000Z' },
+      { id: 'c', text: 'Asked already', for: 'cardiology', askedOn: '2026-10-01', answer: 'yes', createdAt: '2026-09-30T07:00:00.000Z' },
+      { id: 'd', text: 'Which method?', for: 'cardiology', createdAt: '2026-10-18T07:00:02.000Z' },
+      { id: 'junk', text: '', for: 'cardiology', createdAt: '2026-10-18T07:00:03.000Z' },
+      { id: 'e', text: 'Who?', for: 'dentist', createdAt: '2026-10-18T07:00:04.000Z' },
+      { id: 'f', text: 'Gym?', for: 'general', createdAt: '2026-10-18T07:00:05.000Z' },
+    ];
+    const qs = DR.doctorQuestions(raw);
+    assert(qs.length === 5 && qs.every((q) => q.askedOn === null || typeof q.askedOn === 'string'), `the parser keeps well-formed questions only (got ${qs.length})`);
+    assert(DR.doctorQuestions(null).length === 0 && DR.doctorQuestions('x').length === 0, 'no column, no questions');
+    // Tolerant AND honest (two reviews): what it cannot keep is counted,
+    // an ISO askedOn becomes his day, the cap is 200, and a write over a
+    // column with drops is refused — a drop must never become permanent.
+    const parsed = DR.parseDoctorQuestions(raw);
+    assert(parsed.dropped === 2 && parsed.questions.length === 5, `the parser reports what it dropped (got ${parsed.dropped})`);
+    assert(DR.parseDoctorQuestions(null).dropped === 0 && DR.parseDoctorQuestions('x').dropped === 1 && DR.parseDoctorQuestions([]).dropped === 0, 'an empty column is clean; a non-array is a drop');
+    const iso = DR.parseDoctorQuestions([{ id: 'i', text: 'Asked, ISO stamp', for: 'general', askedOn: '2026-10-17T22:30:00.000Z', createdAt: '' }]);
+    assert(iso.dropped === 0 && iso.questions[0].askedOn === '2026-10-18', `an ISO askedOn is kept as his day key, not re-opened (got ${iso.questions[0]?.askedOn})`);
+    const many = DR.parseDoctorQuestions(Array.from({ length: 201 }, (_, i) => ({ id: `m${i}`, text: `Q ${i}`, for: 'general', createdAt: '' })));
+    assert(many.questions.length === 200 && many.dropped === 1, `the cap is 200 and the overflow is counted (got ${many.questions.length}, dropped ${many.dropped})`);
+    assert(DR.parseDoctorQuestions(Array.from({ length: 61 }, (_, i) => ({ id: `m${i}`, text: `Q ${i}`, for: 'general', createdAt: '' }))).dropped === 0, '61 stored questions all parse');
+    const groups = DR.openQuestionGroups(qs);
+    assert(groups.map((g) => g.for).join() === 'cardiology,endocrinology,general', `groups in the fixed order, empty ones dropped (got ${groups.map((g) => g.for).join()})`);
+    assert(groups[0].items.map((q) => q.n).join() === '1,2' && groups[1].items[0].n === 3 && groups[2].items[0].n === 4, 'numbered straight through the groups');
+    assert(groups[0].items.every((q) => q.id !== 'c'), 'an asked question is off the report');
+    assert(DR.openQuestionCount(qs) === 4, `the Arabic line counts the open ones (got ${DR.openQuestionCount(qs)})`);
+    const added = DR.addQuestion(qs, { id: 'g', text: '  Stroke risk?  ', for: 'cardiology' }, now);
+    assert(added.length === 6 && added[5].text === 'Stroke risk?' && added[5].askedOn === null && added[5].createdAt === now.toISOString(), 'add trims and stamps');
+    assert(DR.addQuestion(qs, { id: 'h', text: '   ', for: 'cardiology' }, now).length === 5, 'an empty question is not added');
+    // Over the cap: refused with a reason, never cut (second review).
+    const long = 'x'.repeat(DR.QUESTION_TEXT_MAX + 1);
+    assert(DR.QUESTION_TEXT_MAX === 500 && DR.questionTextError(long) === 'too long · 500 max' && DR.questionTextError('x'.repeat(500)) === '' && DR.questionTextError('  ') === 'empty', `the text error is one plain line (got "${DR.questionTextError(long)}")`);
+    assert(DR.addQuestion(qs, { id: 'h', text: long, for: 'cardiology' }, now).length === 5, 'a too-long question is not added (and not sliced)');
+    const asked = DR.markQuestionAsked(added, 'g', now);
+    assert(asked.find((q) => q.id === 'g')?.askedOn === '2026-10-18', `asked = his today, as a day key (got ${asked.find((q) => q.id === 'g')?.askedOn})`);
+    assert(DR.openQuestionCount(asked) === 4 && DR.markQuestionAsked(asked, 'g', null).find((q) => q.id === 'g')?.askedOn === null, 'marking asked hides it; unmarking brings it back');
+    const edited = DR.editQuestion(asked, 'g', { text: 'Stroke-risk score?', answer: ' CHA2DS2-VASc 1 ' });
+    assert(edited.find((q) => q.id === 'g')?.text === 'Stroke-risk score?' && edited.find((q) => q.id === 'g')?.answer === 'CHA2DS2-VASc 1', 'edit changes the text and the one-line answer');
+    assert(DR.editQuestion(asked, 'g', { text: '' }).find((q) => q.id === 'g')?.text === 'Stroke risk?' && DR.editQuestion(asked, 'g', { text: long }).find((q) => q.id === 'g')?.text === 'Stroke risk?', 'an empty or too-long edit keeps the text');
+    assert(DR.removeQuestion(edited, 'g').length === 5 && DR.removeQuestion(edited, 'zz').length === 6, 'delete by id');
+    const page = read(PAGE);
+    const pdf = read(PDF);
+    for (const f of [page, pdf]) {
+      assert(/openQuestionGroups\(/.test(f), 'the page and the PDF print the questions through openQuestionGroups');
+    }
+    assert(page.indexOf('Questions for the doctor') > page.indexOf('title="Current medications"'), 'the questions are the LAST section of the page');
+    assert(pdf.indexOf('drawQuestions(') > pdf.indexOf("section('Current medications')"), 'and of the PDF');
+    assert(/أسئلة/.test(page) && /openQuestionCount\(/.test(page), 'the Arabic summary carries the count of open questions');
+    const plan = read('src/components/health/PlanEditor.tsx');
+    assert(/addDoctorQuestion\(/.test(plan) && /setQuestionAsked\(/.test(plan) && /deleteDoctorQuestion\(/.test(plan) && /editDoctorQuestion\(/.test(plan), 'the Plan page adds, edits, marks asked and deletes');
+    assert((plan.match(/maxLength=\{QUESTION_TEXT_MAX\}/g) ?? []).length >= 2 && /questionTextError\(/.test(plan) && /\/ \{QUESTION_TEXT_MAX\}/.test(plan), 'the textareas carry the cap, the error line and a live counter');
+    assert(/Arabic prints on the page; the PDF shows it as \?/.test(plan), 'the Plan page says Arabic prints as ? in the PDF');
+    assert(/saveAnswer\(q, e\.target\.value\)/.test(plan) && /afterSave\(\(\) => setQuestionAsked\(q\.id, false\)\)/.test(plan) && /afterSave\(\(\) => deleteDoctorQuestion\(q\.id\)\)/.test(plan), 'an answer saved on blur runs outside the busy guard; reopen and delete wait for it');
+    assert(/if \(answer === \(q\.answer \?\? ''\)\) return;/.test(plan), 'the answer saves only when it changed');
+    const actions = read('src/app/health-actions.ts');
+    assert(/select: \{ doctorQuestions: true \}/.test(actions) && /birthDate: true/.test(actions), 'every Prisma read of the new columns is an explicit select');
+    assert(/if \(read\.dropped > 0\) throw new Error\('stored questions are not in the expected shape'\)/.test(actions), 'a write over a column with dropped entries is refused with a plain error');
+    assert(/questionTextError\(q\.text\)/.test(actions) && /questionTextError\(patch\.text\)/.test(actions), 'add and edit refuse an over-long text with the same reason the UI shows');
+    for (const f of ['src/lib/doctor-report.ts', PAGE, PDF]) {
+      assert(!/\b(should|recommend\w*|prescribe\w*|increase the dose|start (a|the) (drug|statin|medic))/i.test(read(f).replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '')), `${f} suggests no drug, dose or test of its own`);
+    }
+  }
+
+  // B. Blood pressure control, not just the average — ONE cut for the section.
+  {
+    const R = (d: string, t: string) => `${d}T${t}:00+03:00`;
+    const bp = [
+      { at: R('2026-10-01', '07:00'), systolic: 128, diastolic: 78, pulse: 70, context: 'morning' },
+      { at: R('2026-10-02', '07:00'), systolic: 131, diastolic: 76, pulse: 72, context: 'morning' },
+      { at: R('2026-10-03', '07:00'), systolic: 125, diastolic: 80, pulse: 74, context: 'morning' },
+      { at: R('2026-10-01', '21:00'), systolic: 140, diastolic: 88, pulse: 90, context: 'evening' },
+      { at: R('2026-10-02', '21:00'), systolic: 118, diastolic: 70, pulse: 95, context: 'evening' },
+      { at: R('2026-10-03', '21:00'), systolic: 140, diastolic: 90, pulse: 85, context: 'evening' },
+      { at: R('2026-10-04', '12:00'), systolic: 122, diastolic: 79, pulse: null, context: null },
+    ];
+    assert(DR.BP_CONTROL_THRESHOLD.systolic === 130 && DR.BP_CONTROL_THRESHOLD.diastolic === 80, 'the printed threshold is 130/80, one named constant');
+    assert(/common clinic target/i.test(read('src/lib/doctor-report.ts')) && /not the app/i.test(read('src/lib/doctor-report.ts')), "and its comment says it is a common clinic target, not the app's judgement");
+    const c = DR.bpControl(bp);
+    assert(c.n === 7 && c.over === 4, `readings at or over 130/80: either number counts (got ${c.over} of ${c.n})`);
+    assert(c.highest?.systolic === 140 && c.highest.diastolic === 90 && c.lowest?.systolic === 118 && c.lowest.diastolic === 70, `highest by systolic then diastolic, lowest likewise (got ${c.highest?.systolic}/${c.highest?.diastolic}, ${c.lowest?.systolic}/${c.lowest?.diastolic})`);
+    assert(c.morning.n === 3 && c.morning.systolic === 128 && c.morning.diastolic === 78 && c.evening.n === 3 && c.evening.systolic === 133 && c.evening.diastolic === 83, `morning vs evening averages over the tagged readings (got ${JSON.stringify(c.morning)} ${JSON.stringify(c.evening)})`);
+    const thin = DR.bpControl(bp.filter((r) => r.context !== 'evening' || r.systolic !== 140));
+    assert(thin.evening.n === 1 && thin.evening.systolic === null, 'an average needs 3 readings — a thin context keeps its count and no average');
+    const untagged = DR.bpControl(bp.map((r) => ({ ...r, context: null })));
+    assert(untagged.morning.n === 0 && untagged.over === 4, 'untagged readings are left out of the split, counted in the rest');
+    const fmtD = (d: Date | string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Riyadh' });
+    const rows = DR.bpControlRows(c, fmtD);
+    assert(rows.some((r) => r.label === 'Readings ≥ 130/80' && r.value === '4 of 7'), `the control row reads "4 of 7" (got ${JSON.stringify(rows)})`);
+    assert(rows.some((r) => /^Highest/.test(r.label) && r.value === '140/90 · 3 Oct') && rows.some((r) => /^Lowest/.test(r.label) && r.value === '118/70 · 2 Oct'), 'highest and lowest carry their dates');
+    assert(rows.some((r) => r.label === 'Morning · 3 readings' && r.value === '128/78') && rows.some((r) => r.label === 'Evening · 3 readings' && r.value === '133/83'), 'the split prints with counts');
+    assert(DR.bpControlRows(thin, fmtD).some((r) => /^Evening/.test(r.label) && /too few/.test(r.value)), 'a thin context says too few, never an average');
+    assert(!DR.bpControlRows(untagged, fmtD).some((r) => /^(Morning|Evening)/.test(r.label)), 'no split without both contexts');
+    assert(DR.bpControlRows(DR.bpControl([]), fmtD).length === 0, 'no readings, no rows');
+    // The average over the SAME readings as the rows beneath it. Probe
+    // (review): opened 18 Oct 10:00 Riyadh, 4w — since is 20 Sep 00:00Z;
+    // a reading on 20 Sep 07:00 Riyadh is after since but before
+    // now − 28·24h (20 Sep 10:00 Riyadh), so the old bpAverage left it out
+    // of the average while the control row counted it.
+    const since4w = DR.reportSince('4w', now);
+    const boundary = { at: R('2026-09-20', '07:00'), systolic: 135, diastolic: 85, pulse: 80, context: 'morning' };
+    const cut = [...bp, boundary].filter((r) => new Date(r.at) >= since4w);
+    assert(cut.length === 8, 'the boundary reading is inside the window');
+    const avg = DR.bpWindowAverage(cut);
+    assert(avg?.n === 8 && DR.bpControl(cut).n === 8 && DR.bpControl(cut).over === 5, `the average counts exactly what the control row counts (got average n ${avg?.n})`);
+    assert(DR.bpWindowAverage(cut.slice(0, 2)) === null, 'three readings for the average');
+    for (const f of [PAGE, PDF]) {
+      assert(/bpWindowAverage\(bp\)/.test(read(f)) && !/bpAverage\(/.test(read(f)), `${f} averages over the already-cut readings, never now − N·24h`);
+    }
+    // Pulse trend: since vs the same-length window before since, two
+    // plain numbers with their counts. No arrow, no word.
+    const pulses = [
+      ...[1, 2, 3].map((d) => ({ at: R(`2026-10-1${d}`, '08:00'), systolic: 120, diastolic: 80, pulse: 90 })),
+      ...[15, 16, 17].map((d) => ({ at: R(`2026-09-${d}`, '08:00'), systolic: 120, diastolic: 80, pulse: 70 })),
+      { at: R('2026-10-14', '08:00'), systolic: 120, diastolic: 80, pulse: null },
+    ];
+    const pt = DR.pulseTrend(pulses, since4w, 28);
+    assert(pt.current?.avg === 90 && pt.current.n === 3 && pt.previous?.avg === 70 && pt.previous.n === 3, `pulse this window vs the window before (got ${JSON.stringify(pt)})`);
+    const edge = DR.pulseTrend([...pulses, boundary], since4w, 28);
+    assert(edge.current?.n === 4 && edge.previous?.n === 3, `a reading between since and now − 28·24h is in THIS window, not the previous (got ${JSON.stringify(edge)})`);
+    const atPrevEdge = { at: new Date(since4w.getTime() - 28 * 86_400_000).toISOString(), systolic: 120, diastolic: 80, pulse: 50 };
+    const beyond = { at: new Date(since4w.getTime() - 28 * 86_400_000 - 1).toISOString(), systolic: 120, diastolic: 80, pulse: 50 };
+    assert(DR.pulseTrend([...pulses, atPrevEdge], since4w, 28).previous?.n === 4 && DR.pulseTrend([...pulses, beyond], since4w, 28).previous?.n === 3, 'the previous window is [since − 28 d, since)');
+    assert(DR.pulseTrend(pulses.slice(0, 2), since4w, 28).current === null, 'fewer than 3 pulses is not an average');
+    assert(DR.pulseTrend(pulses, DR.reportSince('all', now), 100_000).previous === null, '"All" has no previous window');
+    const prow = DR.pulseRows(pt, 28);
+    assert(prow.length === 2 && prow[0].label === 'Pulse · 3 readings' && prow[0].value === '90 bpm' && prow[1].label === 'Pulse, previous 28 days · 3 readings' && prow[1].value === '70 bpm', `two rows, two numbers (got ${JSON.stringify(prow)})`);
+    assert(!/[→↑↓]|higher|lower|better|worse/.test(JSON.stringify(prow)), 'no arrow and no judgement on the pulse pair');
+    for (const f of [PAGE, PDF]) {
+      assert(/bpControlRows\(/.test(read(f)) && /pulseTrend\(data\.bpReadings, since, REPORT_RANGES\[range\]\)/.test(read(f)), `${f} prints BP control and the pulse pair through the shared rows, cut at since`);
+      assert(!/pulses\.length >= 3/.test(read(f)), `${f} no longer averages the pulse itself`);
+    }
+  }
+
+  // C. Lab trends, differentiated by lab — as a grid.
+  {
+    const L = (date: string, test: string, value: number, unit: string, refLow: number | null, refHigh: number | null, lab: string | null) => ({ id: `${test}-${date}`, date: `${date}T00:00:00.000Z`, test, value, unit, refLow, refHigh, lab });
+    assert(DR.labShortLabel('Dr Sulaiman Al Habib') === 'Al Habib' && DR.labShortLabel('Dr Sulaiman Al Habib — Endocrine') === 'Al Habib', 'Al Habib and its endocrine clinic are one label');
+    assert(DR.labShortLabel('Biolab') === 'Biolab' && DR.labShortLabel('Biolab (personal reference)') === 'Biolab', 'Biolab under either name');
+    assert(DR.labShortLabel('AlGhadeer Medical Center (cardiology, Dr Magdi Mahgoub)') === 'AlGhadeer', 'AlGhadeer without the doctor');
+    assert(DR.labShortLabel('Some Very Long Laboratory Name Nobody Knows') === 'Some Very Long…' && DR.labShortLabel(null) === 'lab not recorded' && DR.labShortLabel('') === 'lab not recorded', `unknown labs print their own name, truncated; none says so in words (got "${DR.labShortLabel('Some Very Long Laboratory Name Nobody Knows')}")`);
+    assert(DR.labFlag({ value: 4.54, refLow: null, refHigh: 2.59 }) === '▲' && DR.labFlag({ value: 1, refLow: 1.42, refHigh: null }) === '▼' && DR.labFlag({ value: 4.1, refLow: 3.5, refHigh: 5.1 }) === '' && DR.labFlag({ value: 5.1, refLow: 3.5, refHigh: 5.1 }) === '', 'a neutral mark outside the range; the bound itself is inside');
+    assert(pdfSafe('4.6 ▲') === '4.6 ^' && pdfSafe('1 ▼') === '1 v', 'the PDF font gets a plain mark');
+    const labs = [
+      L('2022-07-18', 'ldl', 4.22, 'mmol/L', null, null, 'Dr Sulaiman Al Habib'),
+      L('2026-08-20', 'ldl', 4.54, 'mmol/L', null, 2.59, null),
+      L('2026-10-15', 'ldl', 3.4, 'mmol/L', null, 2.59, 'Biolab (personal reference)'),
+      L('2026-09-17', 'hdl', 1.08, 'mmol/L', 1.42, null, 'Biolab'),
+      L('2026-10-15', 'hdl', 1, 'mmol/L', 1.42, null, 'Biolab (personal reference)'),
+      L('2026-10-12', 'crp', 33.8, 'mg/L', null, 5, 'AlGhadeer Medical Center (cardiology, Dr Magdi Mahgoub)'),
+      L('2026-10-15', 'crp', 27.2, 'mg/L', null, 5, 'Biolab (personal reference)'),
+      L('2026-09-17', 'crp', 2.7, 'mg/L', null, 5, 'Biolab'),
+      L('2022-10-31', 'crp', 19, 'mg/L', null, 5, 'Dr Sulaiman Al Habib'),
+      L('2026-10-12', 'troponin-i-hs', 0.8, 'ng/L', null, 34.2, null),
+      L('2026-10-12', 'esr', 8, 'mm/h', null, 15, 'AlGhadeer Medical Center (cardiology, Dr Magdi Mahgoub)'),
+      L('2026-09-17', 'haemoglobin', 161, 'g/L', 138, 170, 'Biolab'),
+      L('2022-10-31', 'haemoglobin', 16.7, 'g/dL', 13, 17.4, 'Dr Sulaiman Al Habib'),
+      L('2026-10-15', 'haemoglobin', 165, 'g/L', 138, 170, 'Biolab (personal reference)'),
+      L('2023-05-23', 'renin', 21.8, 'uIU/mL', 5.3, 99.1, 'Dr Sulaiman Al Habib — Endocrine'),
+      L('2026-10-15', 'mystery-marker', 3, 'U', 1, 5, 'Biolab'),
+      L('2026-09-17', 'vitamin-d', 25, 'nmol/L', 75, 250, 'Biolab'),
+      L('2022-10-31', 'bicarbonate', 23, 'mmol/L', 22, 29, 'Dr Sulaiman Al Habib'),
+    ];
+    const since4w = DR.reportSince('4w', now);
+    assert(since4w.toISOString() === '2026-09-20T00:00:00.000Z', `the range starts 28 of his days back, at his day's midnight (got ${since4w.toISOString()})`);
+    assert(DR.reportSince('4w', new Date('2026-10-18T02:00:00+03:00')).toISOString() === '2026-09-19T00:00:00.000Z', "before 04:00 it is still yesterday's window");
+    const t4 = DR.labTable(labs, since4w);
+    assert(t4.map((g) => g.heading).join('|') === 'Lipids|Inflammation|Cardiac|Blood count|Other', `groups in the fixed order, only those with a draw in range (got ${t4.map((g) => g.heading).join('|')})`);
+    const ldl = t4[0].tests.find((t) => t.test === 'ldl');
+    assert(ldl?.rows.length === 2 && ldl.rows[0].previous && ldl.rows[0].value === 4.54 && ldl.rows[1].value === 3.4 && !ldl.rows[1].previous, `LDL: the in-range draw plus the most recent earlier one as previous (got ${JSON.stringify(ldl?.rows.map((r) => [r.value, r.previous]))})`);
+    assert(ldl?.rows[0].lab === 'lab not recorded' && ldl.rows[1].lab === 'Biolab' && ldl.rows[1].flag === '▲' && ldl.rows[1].ref === 'ref ≤ 2.59', 'each value carries ITS lab and ITS range');
+    const crp = t4[1].tests.find((t) => t.test === 'crp');
+    assert(crp?.rows.map((r) => `${r.value}@${r.lab}${r.previous ? '*' : ''}`).join(',') === '2.7@Biolab*,33.8@AlGhadeer,27.2@Biolab', `CRP oldest first with its labs (got ${crp?.rows.map((r) => `${r.value}@${r.lab}${r.previous ? '*' : ''}`).join(',')})`);
+    assert(t4[0].tests.map((t) => t.test).join() === 'ldl,hdl', 'tests in the fixed order within a group');
+    const hb = t4[3].tests.find((t) => t.test === 'haemoglobin');
+    assert(hb != null && hb.rows.every((r) => r.unit === 'g/L') && hb.rows.length === 2, 'units are shown as stored, never converted');
+    const trop = t4[2].tests[0];
+    assert(trop.test === 'troponin-i-hs' && trop.rows.length === 1 && trop.rows[0].flag === '' && !trop.rows[0].previous, 'a test with one value in range and no previous is a single row');
+    assert(t4[4].tests[0].test === 'mystery-marker' && t4[4].tests[0].label === 'MYSTERY-MARKER', 'anything unlisted lands under Other with its slug');
+    assert(!t4.some((g) => g.tests.some((t) => t.test === 'vitamin-d')), 'a draw outside the range with nothing in range does not print');
+    const tAll = DR.labTable(labs, DR.reportSince('all', now));
+    assert(tAll.map((g) => g.heading).join('|') === 'Lipids|Inflammation|Cardiac|Electrolytes & minerals|Blood count|Iron & vitamins|Hormones|Other', `All shows every group with a draw; bicarbonate is an electrolyte (got ${tAll.map((g) => g.heading).join('|')})`);
+    assert(tAll[0].tests[0].rows.length === 3 && tAll[0].tests[0].rows.every((r) => !r.previous) && tAll[0].tests[0].rows[0].ref === '', 'with All there is no previous; a draw with no range prints none');
+    assert(tAll.find((g) => g.heading === 'Blood count')?.tests[0].rows.map((r) => r.unit).join() === 'g/dL,g/L,g/L', 'Al Habib g/dL beside Biolab g/L, as stored');
+    assert(DR.LAB_TEST_LABEL.ldl === 'LDL' && DR.LAB_TEST_LABEL['total-chol'] === 'Total cholesterol' && DR.LAB_GROUPS.length === 11, "the groups and names are the owner's list");
+    assert(!/\b(high|low|abnormal|raised|elevated)\b/i.test(JSON.stringify(t4)), 'no judgement word in the table');
+    for (const f of [PAGE, PDF]) {
+      assert(/labTable\(/.test(read(f)) && !/reportLabs\(/.test(read(f)), `${f} prints the lab table, not the latest-only pair`);
+    }
+
+    // The grid (owner: "like a table"): a row per test, a column per draw
+    // (day · lab) newest first, the previous draw last and dimmed, the
+    // newest value's own range in Ref — each cell its own when labs mix.
+    const grid = DR.labGrid(t4);
+    assert(grid.columns.map((c) => c.label).join('|') === '15 Oct · Biolab|12 Oct · AlGhadeer|12 Oct · lab not recorded', `columns are the in-range (day, lab) pairs, newest first (got ${grid.columns.map((c) => c.label).join('|')})`);
+    assert(grid.hasPrevious && grid.groups.map((g) => g.heading).join('|') === t4.map((g) => g.heading).join('|'), 'the group headings run through as sub-headers');
+    const gLdl = grid.groups[0].rows.find((r) => r.test === 'ldl');
+    assert(gLdl?.cells.map((c) => (c ? DR.labCellText(c) : '·')).join('|') === '3.4 mmol/L ▲|·|·' && gLdl.cells[0]?.newest === true, `LDL sits under its column, the newest bold (got ${gLdl?.cells.map((c) => (c ? DR.labCellText(c) : '·')).join('|')})`);
+    assert(gLdl?.previous?.value === 4.54 && gLdl.previous.lab === 'lab not recorded' && gLdl.mixedLabs === true && gLdl.ref === '', 'a row drawn at two labs: no shared Ref column, each cell carries its own range');
+    const gCrp = grid.groups[1].rows.find((r) => r.test === 'crp');
+    assert(gCrp?.cells.map((c) => (c ? `${c.value}` : '·')).join('|') === '27.2|33.8|·' && gCrp.previous?.value === 2.7 && gCrp.mixedLabs, 'CRP: Biolab and AlGhadeer side by side, Biolab previous; mixed');
+    const gHb = grid.groups[3].rows[0];
+    assert(gHb.test === 'haemoglobin' && gHb.mixedLabs === false && gHb.ref === 'ref 138–170' && gHb.previous?.value === 161, 'one lab throughout: the Ref column shows the newest value\'s range');
+    const gTrop = grid.groups[2].rows[0];
+    assert(gTrop.cells.map((c) => (c ? '1' : '·')).join('') === '··1' && gTrop.previous === null && gTrop.ref === 'ref ≤ 34.2', 'a single draw fills one column and the Ref');
+    assert(DR.labColumnLabel('2026-10-15', 'Biolab') === '15 Oct · Biolab', 'a column header is day · lab');
+    // Three labs, two dates, a unit change, nulls — the fixture the review asked for.
+    const mix = DR.labGrid(DR.labTable([
+      L('2026-10-15', 'haemoglobin', 165, 'g/L', 138, 170, 'Biolab'),
+      L('2026-10-12', 'haemoglobin', 16.4, 'g/dL', 13, 17.4, 'AlGhadeer Medical Center'),
+      L('2026-09-25', 'haemoglobin', 16.7, 'g/dL', 13, 17.4, 'Dr Sulaiman Al Habib'),
+      L('2026-10-12', 'crp', 33.8, 'mg/L', null, 5, null),
+      L('2026-10-15', 'esr', 8, 'mm/h', null, null, 'Biolab'),
+    ], since4w));
+    assert(mix.columns.length === 4 && !mix.hasPrevious, `four (day, lab) columns, nothing previous (got ${mix.columns.length})`);
+    const mixHb = mix.groups.find((g) => g.heading === 'Blood count')?.rows[0];
+    assert(mixHb?.mixedLabs === true && mixHb.ref === '' && mixHb.cells.filter(Boolean).map((c) => `${c?.unit}:${c?.ref}`).join('|') === 'g/L:ref 138–170|g/dL:ref 13–17.4|g/dL:ref 13–17.4', `units and ranges stay with their own cells (got ${mixHb?.cells.filter(Boolean).map((c) => `${c?.unit}:${c?.ref}`).join('|')})`);
+    const mixEsr = mix.groups.find((g) => g.heading === 'Inflammation')?.rows.find((r) => r.test === 'esr');
+    assert(mixEsr?.ref === '' && mixEsr.cells.filter(Boolean).length === 1 && mixEsr.cells.filter(Boolean)[0]?.flag === '', 'a draw with no range has an empty Ref and no mark');
+    // The PDF caps 4 date columns per table; the previous column rides with the last.
+    const wide = DR.labGrid(DR.labTable(Array.from({ length: 6 }, (_, i) => L(`2026-10-${String(10 + i).padStart(2, '0')}`, 'crp', 10 + i, 'mg/L', null, 5, 'Biolab')).concat([L('2026-09-01', 'crp', 2, 'mg/L', null, 5, 'Biolab'), L('2026-10-15', 'ldl', 3.4, 'mmol/L', null, 2.59, 'Biolab')]), since4w));
+    const parts = DR.splitLabGrid(wide, 4);
+    assert(parts.length === 2 && parts[0].title === 'Newest 4 draws' && parts[1].title === 'Earlier draws' && parts[0].grid.columns.length === 4 && parts[1].grid.columns.length === 2, `six dates split 4 + 2 (got ${parts.map((p) => p.grid.columns.length).join('+')})`);
+    assert(!parts[0].grid.hasPrevious && parts[1].grid.hasPrevious && parts[1].grid.groups.every((g) => g.rows.every((r) => r.test === 'crp')), 'the previous column rides with the last table; a row with nothing there is left out');
+    assert(DR.splitLabGrid(grid, 4).length === 1 && DR.splitLabGrid(grid, 4)[0].title === '', 'three dates need no split');
+    assert(/drawLabGrid\(w, labGrid\(labs\)\)/.test(read(PDF)), 'the PDF draws the full multi-date grid');
+    // The PHONE (owner, simulator, 2026-10-18): the multi-date grid left
+    // most rows looking empty and Troponin's only value off-screen. The
+    // page shows two value columns per test — Newest and Previous — each
+    // with its own date · lab and, when it differs from Ref, its own
+    // range; no horizontal scroll at all. The PDF stays the full record.
+    const pairs = DR.labPairs(t4);
+    assert(pairs.map((g) => g.heading).join('|') === t4.map((g) => g.heading).join('|'), 'the pairs keep the group order');
+    const pLdl = pairs[0].rows.find((r) => r.test === 'ldl');
+    assert(pLdl?.newest.value === 3.4 && pLdl.newest.lab === 'Biolab' && pLdl.newest.dayKey === '2026-10-15' && pLdl.previous?.value === 4.54 && pLdl.previous.lab === 'lab not recorded' && pLdl.ref === 'ref ≤ 2.59', `LDL: newest in range, previous the draw before the range (got ${JSON.stringify(pLdl)})`);
+    const pCrp = pairs[1].rows.find((r) => r.test === 'crp');
+    assert(pCrp?.newest.value === 27.2 && pCrp.previous?.value === 33.8 && pCrp.previous.lab === 'AlGhadeer', 'CRP: previous is the next most recent draw IN range when there is one');
+    const pTrop = pairs[2].rows[0];
+    assert(pTrop.test === 'troponin-i-hs' && pTrop.newest.value === 0.8 && pTrop.previous === null && pTrop.ref === 'ref ≤ 34.2', 'a single draw fills Newest and Ref, Previous stays empty');
+    assert(DR.labCellLabel(pLdl!.newest) === '15 Oct · Biolab' && DR.labCellLabel(pLdl!.previous!) === '20 Aug · lab not recorded', 'each cell carries its own date · lab');
+    const pAll = DR.labPairs(tAll);
+    assert(pAll[0].rows[0].newest.value === 3.4 && pAll[0].rows[0].previous?.value === 4.54, 'under All the page still shows newest and previous');
+    const page2 = read(PAGE);
+    assert(/labPairs\(labs\)/.test(page2) && !/overflow-x-auto/.test(page2) && !/sticky left-0/.test(page2) && !/labGrid\(/.test(page2), 'the page draws the pairs, with no horizontal scroll and no sticky column');
+    assert(/w-\[34%\]/.test(page2) && (page2.match(/w-\[24%\]/g) ?? []).length === 2 && /w-\[18%\]/.test(page2) && /text-\[12px\] tabular-nums/.test(page2) && !/whitespace-nowrap/.test(page2.slice(page2.indexOf('title="Laboratory"'), page2.indexOf('title="Current medications"'))), 'test name 34%, two value columns 24%, ref 18%, 12px tabular, names wrap');
+    assert(/labCellLabel\(/.test(page2) && /c\.ref !== r\.ref/.test(page2), 'a cell shows its own range only when it differs from the Ref column');
+    assert(/<tr className="border-t border-ink\/10 bg-app-surface2[^"]*">/.test(page2), 'the group row is ruled and shaded like the PDF');
+    // PDF headers: a draw with no lab recorded is headed by its day alone;
+    // the Previous sub-line uses the document's day-month form.
+    assert(DR.labColumnHeader({ key: 'k', dayKey: '2026-10-12', lab: 'lab not recorded', label: '12 Oct · lab not recorded' }) === '12 Oct' && DR.labColumnHeader(grid.columns[0]) === '15 Oct · Biolab', 'a column with no lab recorded is headed by its day');
+    assert(/labColumnHeader\(c\)/.test(read('src/lib/report-pdf.ts')) && /labColumnLabel\(p\.dayKey, p\.lab\)/.test(read('src/lib/report-pdf.ts')) && !/dayKey\.slice\(5\)/.test(read('src/lib/report-pdf.ts')), 'the PDF heads columns through labColumnHeader and dates the previous cell as 17 Sep, never 09/17');
+  }
+
+  // D. Weight in clinical terms.
+  {
+    const w = [
+      { date: '2026-09-20T00:00:00.000Z', weight: 126 },
+      { date: '2026-10-04T00:00:00.000Z', weight: 124.4 },
+      { date: '2026-10-18T00:00:00.000Z', weight: 122.5 },
+    ];
+    const p = DR.weightWindowPace(w);
+    assert(p?.n === 3 && p.weeks === 4 && p.kgPerWeek === -0.9 && p.pctPerWeek === -0.7, `pace over the window: first to last weigh-in, per week, kg and % of the first, one decimal (got ${JSON.stringify(p)})`);
+    assert(DR.weightWindowPace(w.slice(0, 1)) === null && DR.weightWindowPace([w[0], { date: '2026-09-23T00:00:00.000Z', weight: 125 }]) === null, 'one weigh-in, or two within a week, is not a pace');
+    // Weigh-ins are timestamped (BodyStat.date defaults to now()): Mon
+    // 08:00 to the next Mon 07:30 is a week of HIS days, 07:00 to 07:05 is not.
+    const stamped = DR.weightWindowPace([{ date: '2026-10-05T08:00:00+03:00', weight: 125 }, { date: '2026-10-12T07:30:00+03:00', weight: 124 }]);
+    assert(stamped?.weeks === 1 && stamped.kgPerWeek === -1, `a week apart on his calendar is a pace (got ${JSON.stringify(stamped)})`);
+    assert(DR.weightWindowPace([{ date: '2026-10-05T07:00:00+03:00', weight: 125 }, { date: '2026-10-05T07:05:00+03:00', weight: 124 }]) === null, 'five minutes apart is not');
+    assert(DR.weightWindowPace([{ date: '2026-10-05T08:00:00+03:00', weight: 0 }, { date: '2026-10-12T07:30:00+03:00', weight: 124 }]) === null, 'a first weight of 0 is no pace (never Infinity)');
+    const rows = DR.weightWindowRows({ weights: w, rangeLabel: 'Last 4 weeks', treatmentWeek: 9 });
+    assert(rows[0].label === 'Last 4 weeks' && rows[0].value === '−3.5 kg · 3 weigh-ins', `the range change uses the shared minus sign (got "${rows[0].value}")`);
+    assert(!rows.some((r) => /body weight/.test(r.label)), 'the share lost since the start is not repeated (the Change row has it)');
+    assert(rows.some((r) => r.label === 'Pace · 4 weeks' && r.value === '−0.9 kg/week · −0.7%/week'), `pace in kg and % per week (got ${JSON.stringify(rows)})`);
+    assert(rows.some((r) => r.label === 'Weeks on treatment' && r.value === '9'), 'weeks on treatment, from the clock');
+    const pdfRows = DR.weightWindowRows({ weights: w, rangeLabel: 'Last 4 weeks', treatmentWeek: null }, '-');
+    assert(pdfRows[0].value === '-3.5 kg · 3 weigh-ins' && !pdfRows.some((r) => r.label === 'Weeks on treatment'), 'the PDF gets its own minus; no clock, no treatment row');
+    const regain = DR.weightWindowRows({ weights: [w[2], { date: '2026-10-25T00:00:00.000Z', weight: 123.5 }], rangeLabel: 'Last 4 weeks', treatmentWeek: null });
+    assert(regain[0].value === '+1 kg · 2 weigh-ins' && regain.some((r) => r.label === 'Pace · 1 week' && r.value === '+1 kg/week · +0.8%/week'), `a regain is plus everywhere; one week is singular (got ${JSON.stringify(regain)})`);
+    const tiny = DR.weightWindowRows({ weights: [{ date: '2026-10-04T00:00:00.000Z', weight: 124 }, { date: '2026-10-18T00:00:00.000Z', weight: 123.96 }], rangeLabel: 'Last 4 weeks', treatmentWeek: null });
+    assert(tiny[0].value === '0 kg · 2 weigh-ins' && tiny.some((r) => r.value === '0 kg/week · 0%/week'), `one rounding for the range row and the pace (got ${JSON.stringify(tiny)})`);
+    assert(DR.weightWindowRows({ weights: w.slice(0, 1), rangeLabel: 'Last 4 weeks', treatmentWeek: null }).every((r) => r.label !== 'Last 4 weeks' && !/^Pace/.test(r.label)), 'one weigh-in is a moment: no range change, no pace');
+    for (const f of [PAGE, PDF]) {
+      assert(/weightWindowRows\(/.test(read(f)) && !/rangeDelta > 0 \? '\+'/.test(read(f)) && !/pctLost: snapshot\.pctLost/.test(read(f)), `${f} prints the window rows through the shared function, without the repeated percent`);
+    }
+  }
+
+  // E. Small fixes: the plural, the sign, the age from a birth month.
+  {
+    const page = read(PAGE);
+    assert(!/AF episode\{episodes\.length === 1 \? '' : 's'\} in range/.test(page), 'no "AF episode s" — JSX glues the plural to the word in one expression');
+    assert(/\{episodes\.length === 1 \? 'AF episode' : 'AF episodes'\} in range/.test(page), 'the plural is built in one expression');
+    assert(bornLabel('1988-06-15T00:00:00.000Z', now) === 'June 1988 · 38 y', `the birth month prints as month + year with the age (got "${bornLabel('1988-06-15T00:00:00.000Z', now)}")`);
+    assert(bornLabel('1988-06-15T00:00:00.000Z', new Date('2027-05-20T10:00:00+03:00')) === 'June 1988 · 38 y' && bornLabel('1988-06-15T00:00:00.000Z', new Date('2027-06-20T10:00:00+03:00')) === 'June 1988 · 39 y', 'the age turns with the month, never the year alone');
+    assert(bornLabel(null, now) === '1988 · 37–38 y', 'without a birth date the honest pair stays');
+    assert(pdfSafe(bornLabel('1988-06-15T00:00:00.000Z', now)) === 'June 1988 · 38 y', 'the PDF prints the same through pdfSafe');
+    for (const f of [PAGE, PDF]) {
+      assert(/bornLabel\(/.test(read(f)) && !/1988 · \$\{reportAge/.test(read(f)), `${f} prints the Born row through bornLabel`);
+      assert(/birthDate/.test(read(f)), `${f} reads the stored birth date`);
+    }
+    assert(/ownerActivityDayUtc|reportSince\(/.test(read(PAGE)) && /reportSince\(/.test(read(PDF)) && !/Date\.now\(\) - RANGES\[range\]/.test(read(PAGE) + read(PDF)), 'the range runs on his day clock, not the server\'s');
+    assert(/apply the schema BEFORE merging code that selects the new column/i.test(read('docs/WORKFLOW.md')), 'WORKFLOW.md says: apply the schema before merging code that selects the column');
+    assert(/Arabic/.test(read('docs/HEALTH.md')) && /Arabic\s+font/.test(read('docs/HEALTH.md')), 'HEALTH.md records the Arabic-in-PDF limitation and its fix');
+  }
+
+  // The PDF's pure parts: the writer paginates the lab grid from the real
+  // export (99 rows) with the header repeated, never orphans a section or
+  // group heading, and no string reaches pdf-lib raw.
+  {
+    const lib = read('src/lib/report-pdf.ts');
+    const rawDraws = [...lib.matchAll(/drawText\(([^,]+),/g)].map((m) => m[1].trim()).filter((a) => !/^pdfSafe\(/.test(a) && a !== 't' && a !== 's');
+    assert(rawDraws.length === 0, `every drawText in the PDF writer goes through pdfSafe (raw: ${rawDraws.join(' | ')})`);
+    // The two local names drawn raw are pdfSafe'd where they are made.
+    assert(/const t = pdfSafe\(labCellText\(c\)\)/.test(lib) && /let t = pdfSafe\(s\)/.test(lib) && /return pdfSafe\(`\$\{t\.trimEnd\(\)\}…`\)/.test(lib), 'the grid cell text and the truncated labels are pdfSafe before drawing');
+    assert(/section\('Laboratory', LAB_SECTION_NEED\)/.test(read(PDF)) && /section\('Questions for the doctor', QUESTIONS_SECTION_NEED\)/.test(read(PDF)), 'the two growing sections ask for the room their first content needs');
+    const exportLabs = (data as unknown as { health?: { labResult?: Array<{ id: string; date: string; test: string; value: number; unit: string; refLow: number | null; refHigh: number | null; lab: string | null }> } }).health?.labResult ?? [];
+    assert(exportLabs.length >= 90, `the committed export carries the lab history (got ${exportLabs.length})`);
+    pendingAsync.push((async () => {
+      const mk = async () => {
+        const doc = await PDFDocument.create();
+        const font = await doc.embedFont(StandardFonts.Helvetica);
+        const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+        return { doc, w: createPdfWriter(doc, font, bold), bold };
+      };
+      const { doc, w, bold } = await mk();
+      w.text('Fixture', 18, bold);
+      const table = DR.labTable(exportLabs, DR.reportSince('all', now));
+      const nRows = table.reduce((s, g) => s + g.tests.reduce((t, x) => t + x.rows.length, 0), 0);
+      assert(nRows === exportLabs.length, `with All every stored draw is a row (got ${nRows} of ${exportLabs.length})`);
+      const grid = DR.labGrid(table);
+      const nTests = table.reduce((s, g) => s + g.tests.length, 0);
+      assert(grid.columns.length === 8 && !grid.hasPrevious, `the real export has eight (day, lab) columns under All (got ${grid.columns.length})`);
+      const drawn = drawLabGrid(w, grid);
+      assert(drawn >= nTests && doc.getPageCount() >= 2, `the grid draws every test across two tables and flows onto extra pages (got ${drawn} rows, ${doc.getPageCount()} pages)`);
+      const qs = drawQuestions(w, DR.openQuestionGroups(DR.doctorQuestions([{ id: 'q', text: 'A long question that certainly needs to wrap because it goes on and on about CRP, troponin, ESR and the echo and when to repeat each of them and whether the gym is safe', for: 'cardiology', createdAt: '2026-10-18T00:00:00.000Z' }])));
+      assert(qs === 1, 'a question draws, wrapped');
+      await doc.save();
+      // Orphan sweep (review): for every cursor height near a page foot,
+      // a section heading and its first content land on the SAME page.
+      const small = DR.labGrid(DR.labTable([{ id: 'x', date: '2026-10-15T00:00:00.000Z', test: 'ldl', value: 3.4, unit: 'mmol/L', refLow: null, refHigh: 2.59, lab: 'Biolab' }], DR.reportSince('4w', now)));
+      const oneQ = DR.openQuestionGroups(DR.doctorQuestions([{ id: 'q', text: 'Short?', for: 'general', createdAt: '' }]));
+      let orphans = '';
+      for (let y = 60; y <= 240; y += 2) {
+        const a = await mk();
+        a.w.setY(y);
+        a.w.section('Laboratory', LAB_SECTION_NEED);
+        const afterHeading = a.doc.getPageCount();
+        a.w.note('note');
+        drawLabGrid(a.w, small);
+        if (a.doc.getPageCount() !== afterHeading) orphans += `lab@${y} `;
+        const b = await mk();
+        b.w.setY(y);
+        b.w.section('Questions for the doctor', QUESTIONS_SECTION_NEED);
+        const afterQ = b.doc.getPageCount();
+        drawQuestions(b.w, oneQ);
+        if (b.doc.getPageCount() !== afterQ) orphans += `q@${y} `;
+      }
+      assert(orphans === '', `no section heading is left alone at a page foot (orphans: ${orphans || 'none'})`);
+      // A group heading inside the grid: the group row and its first value
+      // row move together; the header is drawn again on the new page.
+      let groupOrphans = '';
+      for (let y = 60; y <= 200; y += 2) {
+        const c = await mk();
+        c.w.setY(y);
+        const before = c.doc.getPageCount();
+        drawLabGrid(c.w, small);
+        const pages = c.doc.getPageCount();
+        // Either everything fit on the page, or the whole small grid moved.
+        if (pages > before && c.w.y > 841.89 - 56 - 50) groupOrphans += `${y} `;
+      }
+      assert(groupOrphans === '', `a group heading never sits alone at a page foot (at y: ${groupOrphans || 'none'})`);
+    })());
+  }
 }
 
 Promise.all(pendingAsync).then(() => {

@@ -153,7 +153,7 @@ async function main() {
     // both are non-null in every snapshot so far, so the restore worked by
     // luck — the day either is cleared, the profile upsert dies AFTER the
     // workouts and samples are already written (data-steward).
-    healthProfile: ['milestonesKg', 'conditions', 'familyHistory', 'investigations', 'ongoingSymptoms', 'dosePlan', 'targets', 'reminders'],
+    healthProfile: ['milestonesKg', 'conditions', 'familyHistory', 'investigations', 'ongoingSymptoms', 'doctorQuestions', 'dosePlan', 'targets', 'reminders'],
     symptomLog: ['context'],
     nutritionLog: ['flags'],
     coachNote: ['directives', 'proposal'],

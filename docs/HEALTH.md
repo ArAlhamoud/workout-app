@@ -366,13 +366,74 @@ mild", then the logged episodes. A kind that is both prints once. They are
 NOT conditions: an earlier attempt put it on the conditions line and he
 corrected it ("on the side effects").
 
-**The doctor report prints only LDL and Lp(a) from the labs (owner,
-2026-09-30).** "Don't include any new or old lab tests except LDL and
-Lp(a)." Every other result stays stored and in the export. The two are
-shown whatever the date range, oldest first, and their reference range
-prints both bounds when the lab gave both (`reportLabs`, `labRefLabel`).
+**The doctor report's lab table (owner, 2026-10-18) — supersedes the
+2026-09-30 "only LDL and Lp(a)" rule.** Every draw in the selected range
+prints, per test, oldest first, grouped in his order (Lipids, Glucose,
+Inflammation, Cardiac, Kidney, Liver, Electrolytes & minerals, Thyroid,
+Blood count, Iron & vitamins, Hormones, Other), with the most recent
+earlier draw shown dimmed as "previous". Each value carries ITS lab
+(`labShortLabel`: Al Habib / Biolab / AlGhadeer, else the raw name
+truncated) and ITS draw's range (law 3), with a neutral ▲/▼ outside it
+and no word — reference ranges differ between labs, and units are shown
+as stored (Al Habib haemoglobin in g/dL beside Biolab's g/L), never
+converted. `labTable` in `src/lib/doctor-report.ts` is the one function
+for the page and the PDF; the PDF writer (`src/lib/report-pdf.ts`)
+paginates it, and the suite draws the real export through it.
+Laid out as a GRID (owner, 2026-10-18: "like a table"): `labGrid` — one
+row per test, one column per draw (day · lab, newest first, newest bold),
+the previous draw as the last, dimmed column, and a Ref column with the
+newest value's own range (a row drawn at more than one lab puts each
+value's range under it instead — never a comparison across labs). The
+PDF is the full record: it caps 4 date columns per table (`splitLabGrid`:
+"Newest 4 draws" / "Earlier draws"), repeats the header on every page,
+shades the group rows and never leaves a group or section heading alone
+at a page foot (`LAB_SECTION_NEED`). The PHONE is the glance (owner,
+simulator, 2026-10-18 — the multi-date grid left rows looking empty and
+Troponin's only value off-screen): `labPairs` — two value columns per
+test, Newest and Previous (the next most recent draw, in range or before
+it), each cell with its own date · lab and its own range when it differs
+from Ref; 34/24/24/18% columns, names wrap, NO horizontal scroll; the
+"All" range shows the same two columns.
 The report also carries trend charts for weight, BP, CPAP and dose
 (`src/lib/report-charts.ts`, one geometry for the page and the PDF).
+
+**The visit pack (owner, 2026-10-18).** The report's sections grew for the
+cardiology visit, every one a pure function in `src/lib/doctor-report.ts`
+rendered by both the page and the PDF:
+- *Questions for the doctor* — his own list on the profile
+  (`HealthProfile.doctorQuestions`: id, text, for cardiology /
+  endocrinology / general, askedOn, answer, createdAt), edited on
+  /health/plan (add, edit, mark asked with a one-line answer, delete).
+  The report ends with the OPEN ones, numbered straight through the
+  groups, quoted as HIS words — they may ask about any drug or test;
+  the app itself still suggests none. Asked ones leave the report and
+  stay in the list. Seeded once by
+  `scripts/seed-doctor-questions-2026-10-18.js` (dry run by default,
+  refuses over an existing list). A question is at most
+  `QUESTION_TEXT_MAX` (500) characters, refused with "too long", never
+  cut. The parser is tolerant (an ISO `askedOn` becomes his day key) and
+  honest: a write is REFUSED while the stored column holds anything it
+  could not read, so a drop never becomes permanent.
+  **Known limitation:** a question typed in Arabic prints on the page but
+  the PDF's standard Helvetica cannot shape it, so it shows as "?"
+  (the same pdfSafe policy as med names). The fix is embedding an Arabic
+  font in pdf-lib — not done; the Plan page says so under the box.
+- *Blood pressure control* — "Readings ≥ 130/80: N of M", the highest and
+  lowest reading with dates, morning vs evening averages when both
+  contexts have a reading (3 for an average, else "too few"; untagged
+  readings count in the rest only), and the pulse this window vs the
+  previous same-length window as two plain numbers with counts.
+  `BP_CONTROL_THRESHOLD` is a common clinic target, named once, and not
+  the app's judgement (law 3).
+- *Weight* — the window change through the shared signed formatter, the
+  share of body weight lost since the first clinic visit, the pace over
+  the window in kg/week and %/week (first to last weigh-in, a week apart
+  at least), and the weeks on treatment from the clock.
+- *Born* — `HealthProfile.birthDate`; he gave June 1988 and no day, so
+  the 15th is stored and `bornLabel` prints "June 1988 · 38 y", the age
+  turning with the month.
+- The range starts N of HIS days back (`reportSince`, on
+  `ownerActivityDayUtc`), never `Date.now()` minus days.
 
 **Kefir is a probiotic, not a protein source (owner, 2026-09-15).** He
 buys it for the gut, knows it carries ~5 g of protein a bottle, and has

@@ -5,7 +5,7 @@
 // fat-fingered injection is permanent. Everything here calls the bounded
 // server actions — the model never touches these, only he does.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   updateHealthProfile,
@@ -13,8 +13,13 @@ import {
   deleteLabResult,
   deleteInjection,
   deleteAfEpisode,
+  addDoctorQuestion,
+  editDoctorQuestion,
+  setQuestionAsked,
+  deleteDoctorQuestion,
 } from '@/app/health-actions';
 import { siteLabel, type DosePlanStep } from '@/lib/health-insights';
+import { QUESTION_FOR, QUESTION_FOR_LABEL, QUESTION_TEXT_MAX, questionTextError, type DoctorQuestion, type QuestionFor } from '@/lib/doctor-report';
 import { hapticSuccess } from '@/lib/native-feedback';
 
 const inputCls =
@@ -33,6 +38,7 @@ export default function PlanEditor({
   injections,
   episodes,
   labs,
+  questions,
 }: {
   profile: {
     heightCm: number;
@@ -45,6 +51,7 @@ export default function PlanEditor({
   injections: Array<{ id: string; at: string; doseMg: number; site: string }>;
   episodes: Array<{ id: string; at: string; durationMin: number | null }>;
   labs: Array<{ id: string; date: string; test: string; value: number; unit: string }>;
+  questions: DoctorQuestion[];
 }) {
   const router = useRouter();
   const [plan, setPlan] = useState<DosePlanStep[]>(profile.dosePlan);
@@ -56,6 +63,11 @@ export default function PlanEditor({
   const [labValue, setLabValue] = useState('');
   const [labUnit, setLabUnit] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [qText, setQText] = useState('');
+  const [qFor, setQFor] = useState<QuestionFor>('cardiology');
+  const [qEdit, setQEdit] = useState<{ id: string; text: string } | null>(null);
+  const openQs = questions.filter((q) => q.askedOn === null);
+  const askedQs = questions.filter((q) => q.askedOn !== null);
 
   const flash = (m: string) => {
     hapticSuccess();
@@ -69,13 +81,29 @@ export default function PlanEditor({
     try {
       await fn();
       flash(m);
-    } catch {
-      setMsg('Could not save — check the values.');
+    } catch (e) {
+      // A server action's plain reason ("too long · 500 max", "stored
+      // questions are not in the expected shape") beats a generic line.
+      const reason = e instanceof Error && e.message && !/^(Server|An error)/.test(e.message) ? e.message : '';
+      setMsg(reason ? `Not saved — ${reason}` : 'Could not save — check the values.');
       setTimeout(() => setMsg(''), 3000);
     } finally {
       setBusy(false);
     }
   };
+  // An answer saved on blur must not swallow the tap that caused the blur
+  // ("reopen" / ✕ on the same question): the save runs outside the busy
+  // guard and those taps wait for it (review, 2026-10-18).
+  const pendingSave = useRef<Promise<void>>(Promise.resolve());
+  const saveAnswer = (q: DoctorQuestion, raw: string) => {
+    const answer = raw.trim();
+    if (answer === (q.answer ?? '')) return;
+    pendingSave.current = editDoctorQuestion(q.id, { answer })
+      .then(() => flash('Answer saved'))
+      .catch(() => { setMsg('Could not save the answer.'); setTimeout(() => setMsg(''), 3000); });
+  };
+  const afterSave = (fn: () => Promise<unknown>) => async () => { await pendingSave.current; await fn(); };
+  const qError = qText.trim() ? questionTextError(qText) : '';
 
   const setStepMg = (week: number, raw: string) => {
     setPlan((cur) =>
@@ -182,6 +210,155 @@ export default function PlanEditor({
             Save
           </button>
         </div>
+      </div>
+
+      {/* Questions for the doctor — his list, printed at the end of the
+          report while open; "asked" keeps it here with a one-line answer. */}
+      <div className="card-lg space-y-2 p-4">
+        <p className="section-label">Questions for the doctor</p>
+        <textarea
+          className={`${inputCls} min-h-[72px]`}
+          placeholder="Question…"
+          value={qText}
+          maxLength={QUESTION_TEXT_MAX}
+          onChange={(e) => setQText(e.target.value)}
+        />
+        <div className="flex items-baseline justify-between gap-2 text-[10px] text-app-tx3">
+          {/* Arabic prints on the page; the PDF's standard font cannot shape
+              it and shows "?" (docs/HEALTH.md) — said once, here. */}
+          <span>Arabic prints on the page; the PDF shows it as ?</span>
+          {qError ? (
+            <span className="text-rpe-grind">{qError}</span>
+          ) : qText.length >= QUESTION_TEXT_MAX - 100 ? (
+            <span className="tabular-nums">{qText.length} / {QUESTION_TEXT_MAX}</span>
+          ) : null}
+        </div>
+        <div className="flex gap-1.5">
+          {QUESTION_FOR.map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setQFor(f)}
+              className={`flex-1 rounded-card border py-2 text-xs font-bold ${
+                qFor === f ? 'border-acc-cyan/60 bg-acc-cyan/15 text-acc-cyan' : 'border-app-border bg-app-surface2/60 text-app-tx3'
+              }`}
+            >
+              {QUESTION_FOR_LABEL[f]}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          disabled={busy || !qText.trim() || !!qError}
+          onClick={() =>
+            run(async () => {
+              await addDoctorQuestion({ text: qText, for: qFor });
+              setQText('');
+            }, 'Question added')
+          }
+          className="w-full rounded-card bg-acc-cyan/15 py-2.5 text-xs font-bold text-acc-cyan disabled:text-app-tx3"
+        >
+          Add question
+        </button>
+        <div className="space-y-1.5 pt-1">
+          {openQs.map((q) =>
+            qEdit?.id === q.id ? (
+              <div key={q.id} className="space-y-1.5">
+                <textarea
+                  className={`${inputCls} min-h-[72px]`}
+                  value={qEdit.text}
+                  maxLength={QUESTION_TEXT_MAX}
+                  onChange={(e) => setQEdit({ ...qEdit, text: e.target.value })}
+                />
+                {qEdit.text.trim() && questionTextError(qEdit.text) ? (
+                  <p className="text-[10px] text-rpe-grind">{questionTextError(qEdit.text)}</p>
+                ) : qEdit.text.length >= QUESTION_TEXT_MAX - 100 ? (
+                  <p className="text-right text-[10px] tabular-nums text-app-tx3">{qEdit.text.length} / {QUESTION_TEXT_MAX}</p>
+                ) : null}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={busy || !qEdit.text.trim() || !!questionTextError(qEdit.text)}
+                    onClick={() => {
+                      const { id, text } = qEdit;
+                      setQEdit(null);
+                      void run(() => editDoctorQuestion(id, { text }), 'Question saved');
+                    }}
+                    className="flex-1 rounded-card bg-acc-cyan/15 py-2.5 text-xs font-bold text-acc-cyan disabled:text-app-tx3"
+                  >
+                    Save
+                  </button>
+                  <button type="button" onClick={() => setQEdit(null)} className="min-h-[44px] px-3 text-xs text-app-tx3">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div key={q.id} className="flex items-start justify-between gap-2 text-sm">
+                <button
+                  type="button"
+                  onClick={() => setQEdit({ id: q.id, text: q.text })}
+                  className="min-h-[44px] flex-1 py-2 text-left text-app-tx1"
+                >
+                  {q.text}
+                  <span className="text-app-tx3"> · {QUESTION_FOR_LABEL[q.for]}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => run(() => setQuestionAsked(q.id, true), 'Marked asked')}
+                  className="min-h-[44px] flex-none px-2 text-xs font-bold text-acc-teal"
+                >
+                  asked
+                </button>
+                <button
+                  type="button"
+                  aria-label="Delete this question"
+                  onClick={() => run(() => deleteDoctorQuestion(q.id), 'Question removed')}
+                  className="min-h-[44px] flex-none px-2 text-app-tx3 hover:text-rpe-grind"
+                >
+                  ✕
+                </button>
+              </div>
+            ),
+          )}
+        </div>
+        {askedQs.length > 0 && (
+          <div className="space-y-1.5 pt-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-app-tx3">asked</p>
+            {askedQs.map((q) => (
+              <div key={q.id} className="space-y-1 text-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="flex-1 text-app-tx2">
+                    {q.text}
+                    <span className="text-app-tx3"> · {fmtDay(q.askedOn as string)}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => run(afterSave(() => setQuestionAsked(q.id, false)), 'Reopened')}
+                    className="min-h-[44px] flex-none px-2 text-xs text-app-tx3"
+                  >
+                    reopen
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete this question"
+                    onClick={() => run(afterSave(() => deleteDoctorQuestion(q.id)), 'Question removed')}
+                    className="min-h-[44px] flex-none px-2 text-app-tx3 hover:text-rpe-grind"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <input
+                  className={inputCls}
+                  placeholder="Answer (one line)"
+                  defaultValue={q.answer ?? ''}
+                  maxLength={QUESTION_TEXT_MAX}
+                  onBlur={(e) => saveAnswer(q, e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Labs */}
