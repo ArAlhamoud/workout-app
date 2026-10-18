@@ -10,7 +10,6 @@ import { sleepReportRows, sleepReportSummary } from '@/lib/sleep';
 import { bornLabel, cpapAdherenceLabel, signedKg, weightChangeAr, weightChangeLabel } from '@/lib/health-format';
 import {
   afStats,
-  bpAverage,
   cpapAdherence,
   bpSplitAroundAnchor,
   doseLedger,
@@ -28,7 +27,11 @@ import {
 import {
   bpControl,
   bpControlRows,
+  bpWindowAverage,
   doctorQuestions,
+  labCellText,
+  labColumnLabel,
+  labGrid,
   labTable,
   openQuestionCount,
   openQuestionGroups,
@@ -95,6 +98,7 @@ export default async function DoctorReportPage({
   // Every draw in the range, per test, with ITS lab's range; the most
   // recent earlier draw as "previous" (owner, 2026-10-18).
   const labs = labTable(data.labs, since);
+  const grid = labGrid(labs);
   const weights = data.bodyStats.filter((b) => b.weight != null);
   const weightsInRange = inRange(weights, (b) => b.date);
   const questionList = doctorQuestions(data.profile.doctorQuestions);
@@ -133,11 +137,12 @@ export default async function DoctorReportPage({
     (data.profile.milestonesKg as number[] | null) ?? [],
     data.bodyStats,
   );
-  const bpAvg = bpAverage(bp.map((r) => ({ at: r.at, systolic: r.systolic, diastolic: r.diastolic })), REPORT_RANGES[range], now);
-  // Control beside the average, and the pulse this window vs the one
-  // before — the same rows the PDF prints (doctor-report.ts).
+  // ONE cut for the whole BP section: the average, the control rows and
+  // the pulse pair all run over the readings since `since` (the average
+  // once cut at now − N·24h and disagreed with the row beneath it).
+  const bpAvg = bpWindowAverage(bp);
   const control = bpControlRows(bpControl(bp), fmt);
-  const pulse = pulseRows(pulseTrend(data.bpReadings, REPORT_RANGES[range], now), REPORT_RANGES[range]);
+  const pulse = pulseRows(pulseTrend(data.bpReadings, since, REPORT_RANGES[range]), REPORT_RANGES[range]);
   const af = afStats(data.afEpisodes, now);
 
   // CPAP aggregates computed over the SELECTED RANGE — cpapStats' 30-day
@@ -174,7 +179,7 @@ export default async function DoctorReportPage({
   // (weightWindowRows). Honest sign everywhere: a regain prints as +N kg,
   // never as an unsigned number sitting in a "lost" position.
   const windowRows = snapshot
-    ? weightWindowRows({ weights: weightsInRange, rangeLabel, treatmentWeek: clock?.week ?? null, pctLost: snapshot.pctLost })
+    ? weightWindowRows({ weights: weightsInRange, rangeLabel, treatmentWeek: clock?.week ?? null })
     : [];
 
   // Symptom summary: max + average severity per kind in range.
@@ -474,33 +479,69 @@ export default async function DoctorReportPage({
             <p className="text-sm text-app-tx3 print:text-gray-600">No result in this range.</p>
           ) : (
             <>
-              {/* Every draw in the range per test, each against ITS lab's
-                  range (a range belongs to its draw — HEALTH.md law 3), with
-                  a neutral mark outside it; "previous" is the last draw
-                  before the range. Units as stored, never converted. */}
+              {/* One row per test, one column per draw (newest first), the
+                  previous draw dimmed last, and the newest value's own range
+                  (a range belongs to its draw — HEALTH.md law 3; when a row's
+                  labs differ each cell carries its own). Units as stored.
+                  The dates scroll INSIDE the card — the page never scrolls
+                  sideways (owner, 2026-10-18: "like a table"). */}
               <p className="text-xs text-app-tx3 print:text-gray-600">
-                ▲ above · ▼ below the lab&apos;s own range · previous = last draw before the range
+                ▲ above · ▼ below the lab&apos;s own range · bold = newest · previous = last draw before the range
               </p>
-              {labs.map((g) => (
-                <div key={g.heading} className="mt-2 break-inside-avoid">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-app-tx3 print:text-gray-600">
-                    {g.heading}
-                  </p>
-                  {g.tests.map((t) => (
-                    <div key={t.test} className="mt-1">
-                      <p className="text-sm font-bold text-app-tx1 print:text-black">{t.label}</p>
-                      {t.rows.map((r) => (
-                        <Row
-                          key={r.id}
-                          label={`${fmt(r.date)} · ${r.lab}${r.previous ? ' · previous' : ''}`}
-                          value={`${r.value} ${r.unit}${r.flag ? ` ${r.flag}` : ''}${r.ref ? ` (${r.ref})` : ''}`}
-                          dim={r.previous}
-                        />
+              <div className="-mx-1 mt-2 overflow-x-auto print:overflow-visible">
+                <table className="w-full border-collapse text-[12px] tabular-nums">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase tracking-wide text-app-tx3 print:text-gray-600">
+                      <th className="sticky left-0 z-10 bg-app-surface px-1 py-1 font-semibold print:bg-white">Test</th>
+                      {grid.columns.map((c) => (
+                        <th key={c.key} className="min-w-[76px] whitespace-nowrap px-1 py-1 text-right font-semibold">{c.label}</th>
                       ))}
-                    </div>
+                      {grid.hasPrevious && <th className="min-w-[76px] px-1 py-1 text-right font-semibold">Previous</th>}
+                      <th className="min-w-[64px] px-1 py-1 text-right font-semibold">Ref</th>
+                    </tr>
+                  </thead>
+                  {grid.groups.map((g) => (
+                    <tbody key={g.heading}>
+                      <tr>
+                        <td
+                          colSpan={grid.columns.length + (grid.hasPrevious ? 1 : 0) + 2}
+                          className="border-t border-ink/10 bg-app-surface2/60 px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-app-tx3 print:border-gray-300 print:bg-gray-100 print:text-gray-600"
+                        >
+                          {g.heading}
+                        </td>
+                      </tr>
+                      {g.rows.map((r) => (
+                        <tr key={r.test} className="border-t border-ink/5 align-top print:border-gray-200">
+                          <td className="sticky left-0 z-10 bg-app-surface px-1 py-1 text-app-tx1 print:bg-white print:text-black">{r.label}</td>
+                          {r.cells.map((c, i) => (
+                            <td key={grid.columns[i].key} className="whitespace-nowrap px-1 py-1 text-right">
+                              {c && (
+                                <>
+                                  <span className={c.newest ? 'font-bold text-app-tx1 print:text-black' : 'text-app-tx2 print:text-gray-700'}>{labCellText(c)}</span>
+                                  {r.mixedLabs && c.ref && <span className="block text-[10px] text-app-tx3 print:text-gray-600">{c.ref}</span>}
+                                </>
+                              )}
+                            </td>
+                          ))}
+                          {grid.hasPrevious && (
+                            <td className="whitespace-nowrap px-1 py-1 text-right text-app-tx3 print:text-gray-600">
+                              {r.previous && (
+                                <>
+                                  {labCellText(r.previous)}
+                                  <span className="block text-[10px]">
+                                    {labColumnLabel(r.previous.dayKey, r.previous.lab)}{r.mixedLabs && r.previous.ref ? ` · ${r.previous.ref}` : ''}
+                                  </span>
+                                </>
+                              )}
+                            </td>
+                          )}
+                          <td className="whitespace-nowrap px-1 py-1 text-right text-[10px] text-app-tx3 print:text-gray-600">{r.ref}</td>
+                        </tr>
+                      ))}
+                    </tbody>
                   ))}
-                </div>
-              ))}
+                </table>
+              </div>
             </>
           )}
         </Section>

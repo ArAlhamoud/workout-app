@@ -4,7 +4,6 @@ import { sleepReportRows, sleepReportSummary } from '@/lib/sleep';
 import { bornLabel, cpapAdherenceLabel, pdfSafe, weightChangeLabel } from '@/lib/health-format';
 import {
   afStats,
-  bpAverage,
   cpapAdherence,
   bpSplitAroundAnchor,
   doseLedger,
@@ -22,7 +21,9 @@ import {
 import {
   bpControl,
   bpControlRows,
+  bpWindowAverage,
   doctorQuestions,
+  labGrid,
   labTable,
   openQuestionGroups,
   pulseRows,
@@ -32,7 +33,9 @@ import {
   REPORT_RANGES,
   type ReportRange,
 } from '@/lib/doctor-report';
-import { A4, DIM, INK, LINE, MARGIN as M, createPdfWriter, drawLabTable, drawQuestions } from '@/lib/report-pdf';
+import {
+  A4, DIM, INK, LINE, MARGIN as M, LAB_SECTION_NEED, QUESTIONS_SECTION_NEED, createPdfWriter, drawLabGrid, drawQuestions,
+} from '@/lib/report-pdf';
 import {
   bpChart,
   cpapAhiChart,
@@ -114,15 +117,12 @@ export async function GET(request: Request) {
     (data.profile.milestonesKg as number[] | null) ?? [],
     data.bodyStats,
   );
-  const bpAvg = bpAverage(
-    bp.map((r) => ({ at: r.at, systolic: r.systolic, diastolic: r.diastolic })),
-    REPORT_RANGES[range],
-    now,
-  );
-  // Control beside the average, and the pulse this window vs the one
-  // before — the same rows the page prints (doctor-report.ts).
+  // ONE cut for the whole BP section: the average, the control rows and
+  // the pulse pair all run over the readings since `since` — the same
+  // rows the page prints (doctor-report.ts).
+  const bpAvg = bpWindowAverage(bp);
   const control = bpControlRows(bpControl(bp), fmt);
-  const pulse = pulseRows(pulseTrend(data.bpReadings, REPORT_RANGES[range], now), REPORT_RANGES[range]);
+  const pulse = pulseRows(pulseTrend(data.bpReadings, since, REPORT_RANGES[range]), REPORT_RANGES[range]);
   const af = afStats(data.afEpisodes, now);
   // One adherence for the page and this file (cpapAdherence): of the
   // nights REPORTED, never of every morning up to today.
@@ -169,7 +169,7 @@ export async function GET(request: Request) {
   // Trend charts — the SAME specs the page draws (src/lib/report-charts.ts).
   const weightsInRange = inRange(data.bodyStats.filter((b) => b.weight != null), (b) => b.date);
   const windowRows = snapshot
-    ? weightWindowRows({ weights: weightsInRange, rangeLabel, treatmentWeek: clock?.week ?? null, pctLost: snapshot.pctLost }, '-')
+    ? weightWindowRows({ weights: weightsInRange, rangeLabel, treatmentWeek: clock?.week ?? null }, '-')
     : [];
   const charts = {
     weight: weightChart(weightsInRange),
@@ -368,10 +368,13 @@ export async function GET(request: Request) {
     note('No CPAP nights logged in this range.');
   }
 
-  section('Laboratory');
+  // The lab grid (owner, 2026-10-18: "like a table"): one row per test, a
+  // column per draw, the previous draw dimmed, each lab's own range. The
+  // heading needs room for the note, the header, a group and a row.
+  section('Laboratory', LAB_SECTION_NEED);
   if (!labs.length) note('No result in this range.');
-  else note("Each value against its own lab's reference range; ^ above it, v below it. \"previous\" is the last draw before the range.");
-  drawLabTable(w, labs, fmt);
+  else note("Each value against its own lab's range; ^ above it, v below it; bold = newest; Previous = the last draw before the range.");
+  drawLabGrid(w, labGrid(labs));
 
   section('Current medications');
   if (!meds.length) note('-');
@@ -379,7 +382,7 @@ export async function GET(request: Request) {
 
   // The owner's own questions, last, in his words (owner, 2026-10-18).
   if (questions.length) {
-    section('Questions for the doctor');
+    section('Questions for the doctor', QUESTIONS_SECTION_NEED);
     drawQuestions(w, questions);
   }
 
