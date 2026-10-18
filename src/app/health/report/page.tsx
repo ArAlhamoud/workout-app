@@ -7,18 +7,16 @@ import ReportChart from '@/components/health/ReportChart';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, weightChart } from '@/lib/report-charts';
 import { getHealthData, getSleepNights } from '../../health-actions';
 import { sleepReportRows, sleepReportSummary } from '@/lib/sleep';
-import { cpapAdherenceLabel, reportAge, signedKg, weightChangeAr, weightChangeLabel } from '@/lib/health-format';
+import { bornLabel, cpapAdherenceLabel, signedKg, weightChangeAr, weightChangeLabel } from '@/lib/health-format';
 import {
   afStats,
   bpAverage,
   cpapAdherence,
   bpSplitAroundAnchor,
   doseLedger,
-  labRefLabel,
   ownerDayKey,
   ongoingSymptoms,
   sideEffectRows,
-  reportLabs,
   siteLabel,
   treatmentClock,
   weightPace,
@@ -27,13 +25,23 @@ import {
   SYMPTOM_LABEL,
   type DosePlanStep,
 } from '@/lib/health-insights';
+import {
+  bpControl,
+  bpControlRows,
+  doctorQuestions,
+  labTable,
+  openQuestionCount,
+  openQuestionGroups,
+  pulseRows,
+  pulseTrend,
+  reportSince,
+  weightWindowRows,
+  REPORT_RANGES,
+  type ReportRange,
+} from '@/lib/doctor-report';
 
 export const metadata: Metadata = { title: 'Doctor Report' };
 export const dynamic = 'force-dynamic';
-
-const DAY_MS = 86_400_000;
-const RANGES = { '4w': 28, '3m': 91, all: 100_000 } as const;
-type RangeKey = keyof typeof RANGES;
 
 const fmt = (d: Date | string) =>
   new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Riyadh' });
@@ -68,10 +76,12 @@ export default async function DoctorReportPage({
 }: {
   searchParams: { range?: string };
 }) {
-  const range: RangeKey = (['4w', '3m', 'all'] as const).includes(searchParams.range as RangeKey)
-    ? (searchParams.range as RangeKey)
+  const range: ReportRange = (['4w', '3m', 'all'] as const).includes(searchParams.range as ReportRange)
+    ? (searchParams.range as ReportRange)
     : '4w';
-  const since = new Date(Date.now() - RANGES[range] * DAY_MS);
+  // HIS day clock: the window starts N of his days back (reportSince).
+  const now = new Date();
+  const since = reportSince(range, now);
 
   const [data, sleepNights] = await Promise.all([getHealthData(), getSleepNights()]);
   const inRange = <T,>(rows: T[], at: (r: T) => Date | string) =>
@@ -82,14 +92,18 @@ export default async function DoctorReportPage({
   const episodes = inRange(data.afEpisodes, (e) => e.startedAt);
   const bp = inRange(data.bpReadings, (r) => r.at);
   const cpap = inRange(data.cpapNights, (n) => n.night);
-  const labs = reportLabs(data.labs);
+  // Every draw in the range, per test, with ITS lab's range; the most
+  // recent earlier draw as "previous" (owner, 2026-10-18).
+  const labs = labTable(data.labs, since);
   const weights = data.bodyStats.filter((b) => b.weight != null);
   const weightsInRange = inRange(weights, (b) => b.date);
+  const questionList = doctorQuestions(data.profile.doctorQuestions);
+  const questions = openQuestionGroups(questionList);
 
   const clock = treatmentClock(
     data.injections,
     ((data.profile.dosePlan as DosePlanStep[] | null) ?? DEFAULT_DOSE_PLAN),
-    new Date(),
+    now,
     data.firstInjectionAt ?? undefined,
     data.injectionCount,
   );
@@ -113,14 +127,18 @@ export default async function DoctorReportPage({
         clock.anchor,
       )
     : { before: null, since: null };
-  const pace = weightPace(data.bodyStats);
+  const pace = weightPace(data.bodyStats, now);
   const snapshot = weightSnapshot(
     data.profile,
     (data.profile.milestonesKg as number[] | null) ?? [],
     data.bodyStats,
   );
-  const bpAvg = bpAverage(bp.map((r) => ({ at: r.at, systolic: r.systolic, diastolic: r.diastolic })), RANGES[range]);
-  const af = afStats(data.afEpisodes);
+  const bpAvg = bpAverage(bp.map((r) => ({ at: r.at, systolic: r.systolic, diastolic: r.diastolic })), REPORT_RANGES[range], now);
+  // Control beside the average, and the pulse this window vs the one
+  // before — the same rows the PDF prints (doctor-report.ts).
+  const control = bpControlRows(bpControl(bp), fmt);
+  const pulse = pulseRows(pulseTrend(data.bpReadings, REPORT_RANGES[range], now), REPORT_RANGES[range]);
+  const af = afStats(data.afEpisodes, now);
 
   // CPAP aggregates computed over the SELECTED RANGE — cpapStats' 30-day
   // window under a "last 3 months" heading printed month-old compliance as
@@ -149,14 +167,15 @@ export default async function DoctorReportPage({
       ? Math.round(cpapDeep.reduce((s, n) => s + n.deepSleepMin, 0) / cpapDeep.length)
       : null;
 
-  // A range delta needs two weigh-ins — one row is a moment, not a change.
-  const rangeStartW = weightsInRange.length >= 2 ? weightsInRange[0].weight : null;
-  const rangeEndW = weightsInRange.length >= 2 ? weightsInRange[weightsInRange.length - 1].weight : null;
-  const rangeDelta =
-    rangeStartW != null && rangeEndW != null ? Math.round((rangeEndW - rangeStartW) * 10) / 10 : null;
-  // Honest sign everywhere: a regain prints as +N kg, never as an unsigned
-  // number sitting in a "lost" position (clinical-safety) — and the percent
-  // carries the same sign (weightChangeLabel, shared with the PDF).
+  const rangeLabel = range === '4w' ? 'Last 4 weeks' : range === '3m' ? 'Last 3 months' : 'All data';
+  const rangeLabelAr = range === '4w' ? 'آخر ٤ أسابيع' : range === '3m' ? 'آخر ٣ أشهر' : 'كل البيانات';
+  // The window in clinical terms — change, share lost, pace per week,
+  // weeks on treatment — ONE function for this page and the PDF
+  // (weightWindowRows). Honest sign everywhere: a regain prints as +N kg,
+  // never as an unsigned number sitting in a "lost" position.
+  const windowRows = snapshot
+    ? weightWindowRows({ weights: weightsInRange, rangeLabel, treatmentWeek: clock?.week ?? null, pctLost: snapshot.pctLost })
+    : [];
 
   // Symptom summary: max + average severity per kind in range.
   const symptomAgg = new Map<string, { total: number; n: number; max: number }>();
@@ -179,7 +198,7 @@ export default async function DoctorReportPage({
   // Sleep from the wearable, over the same range — ONE function for this
   // page and the PDF (sleepReportSummary / sleepReportRows). Nights are
   // keyed by the morning he woke, so the range is compared in HIS days.
-  const sleep = sleepReportSummary(sleepNights, data.cpapNights, ownerDayKey(since), ownerDayKey(new Date()));
+  const sleep = sleepReportSummary(sleepNights, data.cpapNights, ownerDayKey(since), ownerDayKey(now));
   const sleepRows = sleepReportRows(sleep);
 
   const tooFew = (
@@ -198,11 +217,6 @@ export default async function DoctorReportPage({
   const firstCpapNight = data.cpapNights.length
     ? [...data.cpapNights].sort((a, b) => new Date(a.night).getTime() - new Date(b.night).getTime())[0].night
     : null;
-  const pulses = bp.filter((r) => r.pulse != null).map((r) => r.pulse as number);
-  const pulseAvg =
-    pulses.length >= 3 ? Math.round(pulses.reduce((s, p) => s + p, 0) / pulses.length) : null;
-  const rangeLabel = range === '4w' ? 'Last 4 weeks' : range === '3m' ? 'Last 3 months' : 'All data';
-  const rangeLabelAr = range === '4w' ? 'آخر ٤ أسابيع' : range === '3m' ? 'آخر ٣ أشهر' : 'كل البيانات';
 
   return (
     <div className="space-y-4 pb-8 print:space-y-3 print:text-black">
@@ -249,7 +263,7 @@ export default async function DoctorReportPage({
             Health summary — {rangeLabel}
           </p>
           <p className="text-xs text-app-tx3 print:text-gray-600">
-            Self-reported data from AR Health · generated {fmt(new Date())} · not a
+            Self-reported data from AR Health · generated {fmt(now)} · not a
             medical record
           </p>
         </div>
@@ -257,9 +271,9 @@ export default async function DoctorReportPage({
         {/* Patient block — what a clinician expects at the top of a page */}
         <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
           <Row label="Patient" value="Abdulrahman Alhamoud" />
-          {/* No birth date is stored, only the year — so the age prints as
-              the pair it can be, never as an exact figure (2026-10-02). */}
-          <Row label="Born" value={`1988 · ${reportAge(null)}`} />
+          {/* Birth month and year as the owner gave them; the age turns with
+              the month (bornLabel). Without a stored date, the honest pair. */}
+          <Row label="Born" value={bornLabel(data.profile.birthDate, now)} />
           <Row label="Height" value={`${data.profile.heightCm} cm`} />
           {conditions.length > 0 && (
             <p className="pt-1 text-xs leading-relaxed text-app-tx2 print:text-gray-700">
@@ -295,7 +309,8 @@ export default async function DoctorReportPage({
           <div className="rounded-card border border-app-border p-2.5 print:border-gray-300">
             <p className="metric-value print:text-black">{episodes.length}</p>
             <p className="metric-label print:text-gray-700">
-              AF episode{episodes.length === 1 ? '' : 's'} in range
+              {/* One expression: JSX once rendered "AF episode s". */}
+              {episodes.length === 1 ? 'AF episode' : 'AF episodes'} in range
             </p>
           </div>
         </div>
@@ -310,12 +325,9 @@ export default async function DoctorReportPage({
               <Row label="First clinic visit → now" value={`${snapshot.startKg} → ${snapshot.currentKg} kg`} />
               <Row label="Change" value={weightChangeLabel(snapshot.lostKg, snapshot.pctLost)} />
               <Row label="BMI" value={`${snapshot.startBmi} → ${snapshot.bmi}`} />
-              {rangeDelta != null && (
-                <Row
-                  label={rangeLabel}
-                  value={`${rangeDelta > 0 ? '+' : ''}${rangeDelta} kg · ${weightsInRange.length} weigh-ins`}
-                />
-              )}
+              {windowRows.map((r) => (
+                <Row key={r.label} label={r.label} value={r.value} dim={r.dim} />
+              ))}
               {charts.weight ? <ReportChart spec={charts.weight} /> : tooFew}
             </>
           ) : (
@@ -402,7 +414,11 @@ export default async function DoctorReportPage({
                 : 'No readings in this range.'}
             </p>
           )}
-          {pulseAvg != null && <Row label="Average pulse" value={`${pulseAvg} bpm`} />}
+          {/* Control, highest and lowest, the morning/evening split, then
+              the pulse pair (bpControlRows / pulseRows — the PDF's rows). */}
+          {[...control, ...pulse].map((r) => (
+            <Row key={r.label} label={r.label} value={r.value} dim={r.dim} />
+          ))}
           {/* The treatment split lives here, not under Mounjaro — BP facts
               stay in the BP section (owner's call, 2026-08-30). */}
           {bpSplit.before && (
@@ -455,15 +471,37 @@ export default async function DoctorReportPage({
 
         <Section title="Laboratory">
           {labs.length === 0 ? (
-            <p className="text-sm text-app-tx3 print:text-gray-600">No LDL or Lp(a) result logged.</p>
+            <p className="text-sm text-app-tx3 print:text-gray-600">No result in this range.</p>
           ) : (
-            labs.map((l) => (
-              <Row
-                key={l.id}
-                label={`${l.test.toUpperCase()} · ${fmt(l.date)}`}
-                value={`${l.value} ${l.unit}${labRefLabel(l) ? ` (${labRefLabel(l)})` : ''}`}
-              />
-            ))
+            <>
+              {/* Every draw in the range per test, each against ITS lab's
+                  range (a range belongs to its draw — HEALTH.md law 3), with
+                  a neutral mark outside it; "previous" is the last draw
+                  before the range. Units as stored, never converted. */}
+              <p className="text-xs text-app-tx3 print:text-gray-600">
+                ▲ above · ▼ below the lab&apos;s own range · previous = last draw before the range
+              </p>
+              {labs.map((g) => (
+                <div key={g.heading} className="mt-2 break-inside-avoid">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-app-tx3 print:text-gray-600">
+                    {g.heading}
+                  </p>
+                  {g.tests.map((t) => (
+                    <div key={t.test} className="mt-1">
+                      <p className="text-sm font-bold text-app-tx1 print:text-black">{t.label}</p>
+                      {t.rows.map((r) => (
+                        <Row
+                          key={r.id}
+                          label={`${fmt(r.date)} · ${r.lab}${r.previous ? ' · previous' : ''}`}
+                          value={`${r.value} ${r.unit}${r.flag ? ` ${r.flag}` : ''}${r.ref ? ` (${r.ref})` : ''}`}
+                          dim={r.previous}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </>
           )}
         </Section>
 
@@ -474,6 +512,28 @@ export default async function DoctorReportPage({
             <p className="text-sm text-app-tx3 print:text-gray-600">—</p>
           )}
         </Section>
+
+        {/* The owner's own questions, last, in his words (owner, 2026-10-18).
+            Open ones only; asked ones stay on /health/plan. */}
+        {questions.length > 0 && (
+          <Section title="Questions for the doctor">
+            {questions.map((g) => (
+              <div key={g.for} className="mt-1 break-inside-avoid">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-app-tx3 print:text-gray-600">
+                  {g.label}
+                </p>
+                <ol className="mt-0.5 space-y-1">
+                  {g.items.map((q) => (
+                    <li key={q.id} className="flex gap-2 text-sm leading-snug text-app-tx1 print:text-black">
+                      <span className="w-5 flex-none text-right tabular-nums text-app-tx3 print:text-gray-600">{q.n}.</span>
+                      <span>{q.text}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </Section>
+        )}
 
         {/* Arabic summary — same key numbers, right-to-left */}
         <section dir="rtl" lang="ar" className="border-t border-ink/10 pt-3 print:border-gray-300">
@@ -496,8 +556,9 @@ export default async function DoctorReportPage({
               <p>النوم: متوسط {sleep.avgHours} ساعة/ليلة · {sleep.nights} ليلة</p>
             )}
             {labs.length > 0 && (
-              <p>التحاليل: {labs.map((l) => `${l.test.toUpperCase()} ‏${l.value} ${l.unit}`).join(' · ')}</p>
+              <p>التحاليل في الفترة: {labs.reduce((s, g) => s + g.tests.length, 0)} فحصًا</p>
             )}
+            <p>أسئلة للطبيب: {openQuestionCount(questionList)}</p>
             <p className="text-xs text-app-tx3 print:text-gray-600">
               بيانات مسجّلة ذاتيًا من تطبيق المتابعة الشخصي — ليست سجلًا طبيًا.
             </p>
