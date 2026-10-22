@@ -285,7 +285,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     private func regionState(_ gym: String, side: RegionSide) {
         queue.resolvePending(gym, side: side, now: Date())
         save()
-        NSLog("[GymGeofence] %@ is %@", gym, side == .inside ? "inside — pending exit was drift" : side == .outside ? "outside" : "unknown — exit kept")
+        NSLog("[GymGeofence] %@ is %@", gym, side == .inside ? "inside (drift dropped, or departure sent)" : side == .outside ? "outside" : "unknown — exit kept")
         drain()
     }
 
