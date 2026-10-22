@@ -19,6 +19,7 @@
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
 		50B271D11FEDC1A000F3C39B /* public in Resources */ = {isa = PBXBuildFile; fileRef = 50B271D01FEDC1A000F3C39B /* public */; };
 		566BD583161FDF9B360CCF86 /* StartTrainingIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1333BE1576F28751D4EAAB57 /* StartTrainingIntent.swift */; };
+		5CF097294DF5C33F9FADAE46 /* GymGeofenceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4318881A1A72E7316DFBAF2E /* GymGeofenceManager.swift */; };
 		6FED573AB02BEB93BECC65D6 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFFB7073B92B0AB6FD1D35F9 /* API.swift */; };
 		8529606DE24CFA2A7E017C90 /* RestActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = D320A77CFB73C9B5736C7FB3 /* RestActivityPlugin.swift */; };
 		92EE044015CEE77C2888FC39 /* CloudBackupPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40419EABB67F21087D713F50 /* CloudBackupPlugin.swift */; };
@@ -29,7 +30,9 @@
 		ACDD937A8A4AD6D0A407E7CB /* RestTimerAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB38ACD491EDA22FA6B6C95 /* RestTimerAttributes.swift */; };
 		AD56B2BE256406326507D73C /* RestActivityWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00DF69B2CBBF18EAC0557160 /* RestActivityWidget.swift */; };
 		B7B6917D018AAAEB144CC5CE /* VerdictWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD24A8AD5A4D48DB65B49B25 /* VerdictWidget.swift */; };
+		BE37BD77E38074CAD020DA9C /* GymGeofencePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 230C54E9D0FF7F178DD8E65A /* GymGeofencePlugin.swift */; };
 		BF3EE47CFDA66AA9ED9F2144 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 731098EFA29918C3AFEDE702 /* Foundation.framework */; };
+		C4D22FF932900AF222AB9BEE /* GymGeofenceCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78F07DDD7F88AF4D018D273C /* GymGeofenceCore.swift */; };
 		CD202994D2938C78AC07F974 /* WatchApp.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 9F956992F4240B9D11E5B046 /* WatchApp.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		D05A0DC0A68E97FA81213B1A /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DED2A5C6FDC76C0C0A02A0F /* Models.swift */; };
 		D2F865A19A6C63DDEFCBC10E /* RestTimerAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CB38ACD491EDA22FA6B6C95 /* RestTimerAttributes.swift */; };
@@ -85,9 +88,11 @@
 		00DF69B2CBBF18EAC0557160 /* RestActivityWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RestActivityWidget.swift; sourceTree = "<group>"; };
 		1333BE1576F28751D4EAAB57 /* StartTrainingIntent.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StartTrainingIntent.swift; sourceTree = "<group>"; };
 		20FDBC46CCFBD6D403BB9834 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/WatchOS.platform/Developer/SDKs/WatchOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		230C54E9D0FF7F178DD8E65A /* GymGeofencePlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GymGeofencePlugin.swift; sourceTree = "<group>"; };
 		2621BF0FF1A58D66953843E9 /* WorkoutWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WorkoutWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		2FAD9762203C412B000D30F8 /* config.xml */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = config.xml; sourceTree = "<group>"; };
 		40419EABB67F21087D713F50 /* CloudBackupPlugin.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudBackupPlugin.swift; sourceTree = "<group>"; };
+		4318881A1A72E7316DFBAF2E /* GymGeofenceManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GymGeofenceManager.swift; sourceTree = "<group>"; };
 		454B628323951FFD6E6B4931 /* SessionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionStore.swift; sourceTree = "<group>"; };
 		4D0303028D75E59FA90D613B /* WorkoutWidgetsBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutWidgetsBundle.swift; sourceTree = "<group>"; };
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
@@ -103,6 +108,7 @@
 		6152D74701E54F5A639E6AFF /* WorkoutManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WorkoutManager.swift; sourceTree = "<group>"; };
 		669A28B73E6709C6A15A7600 /* WatchApp.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchApp.swift; sourceTree = "<group>"; };
 		731098EFA29918C3AFEDE702 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		78F07DDD7F88AF4D018D273C /* GymGeofenceCore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GymGeofenceCore.swift; sourceTree = "<group>"; };
 		83F3DB34B1B38E1F51DF2CC7 /* SessionCore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SessionCore.swift; sourceTree = "<group>"; };
 		8DED2A5C6FDC76C0C0A02A0F /* Models.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		9472C2BD99ACEE55845BE028 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -193,6 +199,9 @@
 				50B271D01FEDC1A000F3C39B /* public */,
 				D320A77CFB73C9B5736C7FB3 /* RestActivityPlugin.swift */,
 				40419EABB67F21087D713F50 /* CloudBackupPlugin.swift */,
+				78F07DDD7F88AF4D018D273C /* GymGeofenceCore.swift */,
+				4318881A1A72E7316DFBAF2E /* GymGeofenceManager.swift */,
+				230C54E9D0FF7F178DD8E65A /* GymGeofencePlugin.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -419,6 +428,9 @@
 				D2F865A19A6C63DDEFCBC10E /* RestTimerAttributes.swift in Sources */,
 				8529606DE24CFA2A7E017C90 /* RestActivityPlugin.swift in Sources */,
 				92EE044015CEE77C2888FC39 /* CloudBackupPlugin.swift in Sources */,
+				C4D22FF932900AF222AB9BEE /* GymGeofenceCore.swift in Sources */,
+				5CF097294DF5C33F9FADAE46 /* GymGeofenceManager.swift in Sources */,
+				BE37BD77E38074CAD020DA9C /* GymGeofencePlugin.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

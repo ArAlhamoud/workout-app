@@ -40,7 +40,7 @@ APP="$DERIVED/Build/Products/Debug-iphoneos/App.app"
 bash "$ROOT/scripts/check-server-url.sh"
 
 echo "==> Syncing native sources into the Xcode target"
-for f in HealthKitBridgePlugin RestActivityPlugin CloudBackupPlugin MainViewController; do
+for f in HealthKitBridgePlugin RestActivityPlugin CloudBackupPlugin GymGeofenceCore GymGeofenceManager GymGeofencePlugin MainViewController; do
   cp "$ROOT/native/HealthKitBridge/$f.swift" "$ROOT/ios/App/App/$f.swift"
 done
 
@@ -111,6 +111,7 @@ echo "==> Verifying the built bundle exports every plugin method"
 EXPECTED=$(cat "$ROOT/native/HealthKitBridge/HealthKitBridgePlugin.swift" \
                "$ROOT/native/HealthKitBridge/RestActivityPlugin.swift" \
                "$ROOT/native/HealthKitBridge/CloudBackupPlugin.swift" \
+               "$ROOT/native/HealthKitBridge/GymGeofencePlugin.swift" \
   | grep -oE 'CAPPluginMethod\(name: "[a-zA-Z]+"' \
   | sed -E 's/.*"([a-zA-Z]+)"/\1/' | sort)
 FOUND=$(strings "$APP/App.debug.dylib" 2>/dev/null | grep -oE "$(echo "$EXPECTED" | paste -sd'|' -)" | sort -u)

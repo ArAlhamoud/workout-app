@@ -39,7 +39,7 @@ if [ ! -f "$KEY_PATH" ]; then
 fi
 
 echo "==> Syncing native sources into the Xcode target"
-for f in HealthKitBridgePlugin RestActivityPlugin CloudBackupPlugin MainViewController; do
+for f in HealthKitBridgePlugin RestActivityPlugin CloudBackupPlugin GymGeofenceCore GymGeofenceManager GymGeofencePlugin MainViewController; do
   cp "$ROOT/native/HealthKitBridge/$f.swift" "$ROOT/ios/App/App/$f.swift"
 done
 

@@ -15,6 +15,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         requestNotificationAuthorization()
 
+        // Gym check-in/out. FIRST, on every launch: iOS relaunches a closed
+        // app in the background for a region event (launchOptions[.location])
+        // with no scene and no webview, and delivers the event to whichever
+        // location delegate exists when this method returns. The same call
+        // installs the notification delegate for the Check in action.
+        GymGeofence.shared.launch(launchOptions)
+
         if let item = launchOptions?[.shortcutItem] as? UIApplicationShortcutItem {
             pendingShortcutURL = URL(string: item.type)
         }
