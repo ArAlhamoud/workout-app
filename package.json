@@ -13,6 +13,7 @@
     "ios:deploy": "bash scripts/ios-deploy.sh",
     "ios:testflight": "bash scripts/testflight-upload.sh",
     "test:watch": "bash scripts/watch-core-tests/run.sh",
+    "test:geofence": "bash scripts/geofence-core-tests/run.sh",
     "test": "prisma generate && tsc --noEmit && ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/coach-tests.ts"
   },
   "prisma": {
