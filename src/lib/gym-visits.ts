@@ -236,3 +236,72 @@ export function fmtVisit(min: number): string {
   const m = min % 60;
   return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`;
 }
+
+// ── Geofence (owner, 2026-10-22) ─────────────────────────────
+// The phone watches a circle around each gym and reports only "entered"
+// or "exited" with the moment it happened — never a location. The server
+// decides here, so the phone and the Watch never carry visit rules (rule 9).
+
+const GEOFENCE_GYMS = new Set(['bfit', 'work']);
+
+export interface GeofenceEvent {
+  gym: string;
+  /** When the region event happened on the phone, not when it was sent. */
+  at: Date;
+  now: Date;
+}
+
+/** An event time must carry Z or an offset: a bare local time would be
+ *  read as UTC on the server, three hours off for Riyadh. */
+export function parseEventTime(raw: unknown): Date | null {
+  if (typeof raw !== 'string' || !/(Z|[+-]\d\d:?\d\d)$/.test(raw.trim())) return null;
+  const d = new Date(raw.trim());
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+const clampToNow = (at: Date, now: Date) => new Date(Math.min(at.getTime(), now.getTime()));
+
+/**
+ * Arriving: open a visit at the entry moment. Never a second open visit —
+ * a fresh one (manual tap, or a repeated region event, at either gym)
+ * stands. A forgotten (stale) visit does not block a new arrival. An entry
+ * older than the stale window opens nothing: it would be forgotten at once.
+ */
+export function geofenceEnter(
+  recent: VisitLite[],
+  e: GeofenceEvent,
+): { action: 'create' | 'none'; checkInAt?: Date } {
+  if (!GEOFENCE_GYMS.has(e.gym)) return { action: 'none' };
+  if (recent.some((v) => !v.checkOutAt && !isStale(v, e.now))) return { action: 'none' };
+  const at = clampToNow(e.at, e.now);
+  // A late tap on an old prompt must not overlap a visit that already
+  // covered that time (a manual visit, or one closed since): any visit that
+  // ended after the entry moment means this trip is already recorded.
+  if (recent.some((v) => v.checkOutAt && t(v.checkOutAt) > at.getTime())) return { action: 'none' };
+  if (e.now.getTime() - at.getTime() > VISIT_STALE_MS) return { action: 'none' };
+  return { action: 'create', checkInAt: at };
+}
+
+/**
+ * Leaving: close the open visit for THAT gym at the exit moment. The exit
+ * time is a measurement, not a guess, so even a visit past the stale window
+ * closes with it — unless the stay would exceed VISIT_MAX_MIN, which is left
+ * to the "how long were you there?" flow. An exit before the check-in, from
+ * the other gym, or with nothing open does nothing.
+ */
+export function geofenceExit(
+  open: VisitLite[],
+  e: GeofenceEvent,
+): { action: 'close' | 'none'; visitId?: string; checkOutAt?: Date } {
+  if (!GEOFENCE_GYMS.has(e.gym)) return { action: 'none' };
+  const v = open
+    .filter((x) => !x.checkOutAt && x.gym === e.gym)
+    .sort((a, b) => t(b.checkInAt) - t(a.checkInAt))[0];
+  if (!v) return { action: 'none' };
+  const at = clampToNow(e.at, e.now).getTime();
+  const inMs = t(v.checkInAt);
+  if (at < inMs) return { action: 'none' };
+  const out = Math.max(at, inMs + MIN);
+  if (out - inMs > VISIT_MAX_MIN * MIN) return { action: 'none' };
+  return { action: 'close', visitId: v.id, checkOutAt: new Date(out) };
+}

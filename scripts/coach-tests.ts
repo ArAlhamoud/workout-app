@@ -16,7 +16,7 @@ import * as DR from '../src/lib/doctor-report';
 import { createPdfWriter, drawLabGrid, drawQuestions, LAB_SECTION_NEED, QUESTIONS_SECTION_NEED } from '../src/lib/report-pdf';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
-import { adjustedTime, classifyVisit, fmtVisit, gymTimeStats, isStale } from '../src/lib/gym-visits';
+import { adjustedTime, classifyVisit, fmtVisit, geofenceEnter, geofenceExit, gymTimeStats, isStale, parseEventTime } from '../src/lib/gym-visits';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
 import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, startableUntilFor, settledSet, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
@@ -6102,6 +6102,59 @@ console.log('Doctor report — the visit pack (2026-10-18)');
 }
 
 Promise.all(pendingAsync).then(() => {
+// ── Geofence check-in / check-out: the server decides (owner, 2026-10-22) ──
+console.log('Gym visits — geofence enter and exit');
+{
+  const at = (iso: string) => new Date(`2026-10-22T${iso}:00+03:00`);
+  const V = (id: string, gym: string, inHm: string, outHm: string | null) => ({
+    id, gym, checkInAt: at(inHm).toISOString(), checkOutAt: outHm ? at(outHm).toISOString() : null,
+  });
+  const now = at('19:00');
+  // Enter: a new visit at the moment he ENTERED, not the moment he tapped.
+  const e1 = geofenceEnter([], { gym: 'bfit', at: at('18:02'), now });
+  assert(e1.action === 'create' && e1.checkInAt?.toISOString() === at('18:02').toISOString(), `enter opens a visit at the entry time (got ${JSON.stringify(e1)})`);
+  // A visit already open (manual tap, or a second region event): no duplicate.
+  const open = V('o', 'bfit', '17:58', null);
+  assert(geofenceEnter([open], { gym: 'bfit', at: at('18:02'), now }).action === 'none', 'enter never duplicates an open visit');
+  assert(geofenceEnter([open], { gym: 'work', at: at('18:02'), now }).action === 'none', 'enter at the other gym leaves an open visit alone');
+  // A stale open visit (forgotten, > 6 h) does not block a new arrival.
+  const stale = V('s', 'bfit', '08:00', null);
+  assert(geofenceEnter([stale], { gym: 'bfit', at: at('18:02'), now }).action === 'create', 'a forgotten visit does not block a new one');
+  // Clock skew: an entry stamped in the future is clamped to now; a very old one is refused.
+  assert(geofenceEnter([], { gym: 'bfit', at: at('19:30'), now }).checkInAt?.toISOString() === now.toISOString(), 'a future entry time is clamped to now');
+  assert(geofenceEnter([], { gym: 'bfit', at: at('11:00'), now }).action === 'none', 'an entry more than 6 h old opens nothing');
+  assert(geofenceEnter([], { gym: 'gold', at: at('18:02'), now }).action === 'none', 'an unknown gym opens nothing');
+  // Exit: close the open visit for THAT gym at the moment he LEFT.
+  const x1 = geofenceExit([open], { gym: 'bfit', at: at('18:55'), now });
+  assert(x1.action === 'close' && x1.visitId === 'o' && x1.checkOutAt?.toISOString() === at('18:55').toISOString(), `exit closes at the exit time (got ${JSON.stringify(x1)})`);
+  assert(geofenceExit([], { gym: 'bfit', at: at('18:55'), now }).action === 'none', 'exit with nothing open does nothing');
+  assert(geofenceExit([open], { gym: 'work', at: at('18:55'), now }).action === 'none', 'exit from the other gym leaves the visit open');
+  assert(geofenceExit([V('c', 'bfit', '17:00', '18:00')], { gym: 'bfit', at: at('18:55'), now }).action === 'none', 'an already closed visit is not closed again');
+  assert(geofenceExit([open], { gym: 'bfit', at: at('17:30'), now }).action === 'none', 'an exit before the check-in is ignored');
+  assert(geofenceExit([open], { gym: 'bfit', at: at('17:58'), now }).checkOutAt?.toISOString() === new Date(at('17:58').getTime() + 60_000).toISOString(), 'an exit at the check-in minute closes one minute later');
+  // A forgotten visit is closed by a real exit time when the stay is believable;
+  // over 5 h it is left to the "how long were you there?" flow.
+  const morning = V('m', 'bfit', '15:00', null);
+  assert(geofenceExit([morning], { gym: 'bfit', at: at('16:30'), now: at('22:00') }).action === 'close', 'a late-synced exit still closes at its real time');
+  assert(geofenceExit([V('l', 'bfit', '08:00', null)], { gym: 'bfit', at: at('18:55'), now }).action === 'none', 'an exit making a stay over 5 h is left for him to state');
+  assert(geofenceExit([open], { gym: 'bfit', at: at('19:30'), now }).checkOutAt?.toISOString() === now.toISOString(), 'a future exit time is clamped to now');
+  // Adversary, 2026-10-22. #1: a late "Check in" tap after a manual visit
+  // already covered that time must not create an overlapping second visit.
+  const manual = V('m2', 'bfit', '17:05', '18:00');
+  assert(geofenceEnter([manual], { gym: 'bfit', at: at('17:00'), now: at('18:30') }).action === 'none', 'an entry inside or before a visit that ended after it opens nothing');
+  assert(geofenceEnter([manual], { gym: 'bfit', at: at('18:20'), now: at('18:30') }).action === 'create', 'an entry after the last visit ended opens a new one');
+  // #4: a time without Z or an offset is refused, never read as UTC.
+  assert(parseEventTime('2026-10-22T17:00:00') === null, 'a time without an offset is refused');
+  assert(parseEventTime('2026-10-22T17:00:00+03:00')?.toISOString() === '2026-10-22T14:00:00.000Z' && parseEventTime('2026-10-22T14:00:00.000Z') !== null, 'times with Z or an offset are read exactly');
+  assert(parseEventTime('nonsense+03:00') === null && parseEventTime(5) === null, 'garbage is refused');
+  const route = fs.readFileSync(path.join(__dirname, '..', 'src/app/api/gym/visit/route.ts'), 'utf8');
+  assert(/geofenceEnter\(/.test(route) && /geofenceExit\(/.test(route), 'the endpoint decides through the tested planners');
+  assert(!/latitude|longitude|coords/i.test(route), 'the server never receives a location, only the gym and the time');
+  // #2: two enters at once (a retry, phone and Watch) are serialised.
+  assert(/pg_advisory_xact_lock/.test(route), 'enter and exit run under one lock, so two posts cannot both create a visit');
+  assert(/parseEventTime\(/.test(route), 'the endpoint reads times only through parseEventTime');
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
 });
