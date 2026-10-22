@@ -29,10 +29,14 @@ type CapacitorLike = { isNativePlatform?: () => boolean; Plugins?: Record<string
 
 /** The plugin, only inside the native shell and only with every method. */
 export function pickGeofencePlugin(cap: CapacitorLike): GymGeofencePlugin | undefined {
-  if (!cap?.isNativePlatform?.()) return undefined;
-  const p = cap.Plugins?.GymGeofence as Record<string, unknown> | undefined;
-  if (!p || !METHODS.every((m) => typeof p[m] === 'function')) return undefined;
-  return p as unknown as GymGeofencePlugin;
+  try {
+    if (!cap?.isNativePlatform?.()) return undefined;
+    const p = cap.Plugins?.GymGeofence as Record<string, unknown> | undefined;
+    if (!p || !METHODS.every((m) => typeof p[m] === 'function')) return undefined;
+    return p as unknown as GymGeofencePlugin;
+  } catch {
+    return undefined;
+  }
 }
 
 export function geofencePlugin(): GymGeofencePlugin | undefined {
@@ -42,8 +46,44 @@ export function geofencePlugin(): GymGeofencePlugin | undefined {
 
 // Kept apart from the plugin interface: addListener is Capacitor's own, not
 // one of the plugin's CAPPluginMethods (the suite matches those two lists).
+type ListenerHandle = { remove?: () => unknown };
 interface GeofenceEvents {
-  addListener?: (event: 'statusChange', cb: (s: GeofenceStatus) => void) => Promise<{ remove: () => void }>;
+  addListener?: (event: 'statusChange', cb: (s: GeofenceStatus) => void) => unknown;
+}
+
+/**
+ * Subscribe to "statusChange" on whatever the native side hands back.
+ * addListener returns a handle synchronously in the shell (the 2026-10-22
+ * blocker: `.then` on it crashed /train) and a promise elsewhere; it may
+ * also throw or reject. Every shape is absorbed; this never throws.
+ */
+export function subscribeGeofenceStatus(p: GeofenceEvents | undefined, cb: (s: GeofenceStatus) => void): () => void {
+  let handle: ListenerHandle | null = null;
+  let gone = false;
+  const drop = (h: ListenerHandle | null) => {
+    try {
+      h?.remove?.();
+    } catch {
+      /* already gone */
+    }
+  };
+  try {
+    if (typeof p?.addListener !== 'function') return () => {};
+    Promise.resolve(p.addListener('statusChange', cb))
+      .then((h) => {
+        const got = (h ?? null) as ListenerHandle | null;
+        if (gone) drop(got);
+        else handle = got;
+      })
+      .catch(() => {});
+  } catch {
+    return () => {};
+  }
+  return () => {
+    gone = true;
+    drop(handle);
+    handle = null;
+  };
 }
 
 /**
@@ -52,17 +92,7 @@ interface GeofenceEvents {
  * "Keep Only While Using"), so the card listens instead of waiting.
  */
 export function onGeofenceStatus(cb: (s: GeofenceStatus) => void): () => void {
-  const p = geofencePlugin() as (GymGeofencePlugin & GeofenceEvents) | undefined;
-  if (typeof p?.addListener !== 'function') return () => {};
-  let handle: { remove: () => void } | null = null;
-  let gone = false;
-  p.addListener('statusChange', cb)
-    .then((h) => (gone ? h.remove() : (handle = h)))
-    .catch(() => {});
-  return () => {
-    gone = true;
-    handle?.remove();
-  };
+  return subscribeGeofenceStatus(geofencePlugin() as GeofenceEvents | undefined, cb);
 }
 
 /** Shown before iOS asks — two short lines (owner's wording). */
@@ -84,7 +114,7 @@ export function autoCheckInView(status: GeofenceStatus | null, selected: Geofenc
   if (!status) return { kind: 'hidden' };
   if (status.authorization === 'notDetermined') return { kind: 'ask' };
   if (status.authorization !== 'always') return { kind: 'off', line: 'Auto check-in off · location not allowed' };
-  const set = (['bfit', 'work'] as const).filter((g) => status.gyms[g]?.set);
+  const set = (['bfit', 'work'] as const).filter((g) => status.gyms?.[g]?.set);
   return {
     kind: 'on',
     line: `Auto check-in · ${set.length ? set.map((g) => GEOFENCE_GYM_NAME[g]).join(' · ') : 'no gym set'}`,

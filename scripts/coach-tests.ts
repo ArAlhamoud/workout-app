@@ -16,7 +16,7 @@ import * as DR from '../src/lib/doctor-report';
 import { createPdfWriter, drawLabGrid, drawQuestions, LAB_SECTION_NEED, QUESTIONS_SECTION_NEED } from '../src/lib/report-pdf';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
-import { autoCheckInView, pickGeofencePlugin, AUTO_EXPLAIN, type GeofenceStatus } from '../src/lib/native-gym-geofence';
+import { autoCheckInView, pickGeofencePlugin, subscribeGeofenceStatus, AUTO_EXPLAIN, type GeofenceStatus } from '../src/lib/native-gym-geofence';
 import { adjustedTime, classifyVisit, fmtVisit, geofenceEnter, geofenceExit, gymTimeStats, isStale, parseEventTime } from '../src/lib/gym-visits';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
 import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, startableUntilFor, settledSet, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
@@ -6157,6 +6157,46 @@ console.log('Gym geofence — the native side and the auto check-in card');
   assert(/"test:geofence": "bash scripts\/geofence-core-tests\/run\.sh"/.test(read('package.json')), 'npm run test:geofence runs the Swift queue tests');
   const card = read('src/components/GymCheckIn.tsx');
   assert(/<AutoCheckIn/.test(card), 'the check-in card carries the auto check-in row');
+  // BLOCKER, simulator 2026-10-22: addListener returned a handle, not a
+  // promise, and `.then` on it took /train down. Both shapes, and a throw,
+  // must be tolerated; the row must never be able to crash the page.
+  {
+    const removed: string[] = [];
+    const plainHandle = { addListener: () => ({ remove: () => removed.push('plain') }) };
+    const promiseHandle = { addListener: () => Promise.resolve({ remove: () => removed.push('promise') }) };
+    const throwing = { addListener: () => { throw new Error('native'); } };
+    const rejecting = { addListener: () => Promise.reject(new Error('native')) };
+    let threw = false;
+    const offs: (() => void)[] = [];
+    try {
+      offs.push(subscribeGeofenceStatus(plainHandle, () => {}));
+      offs.push(subscribeGeofenceStatus(promiseHandle, () => {}));
+      offs.push(subscribeGeofenceStatus(throwing, () => {}));
+      offs.push(subscribeGeofenceStatus(rejecting, () => {}));
+      offs.push(subscribeGeofenceStatus(undefined, () => {}));
+      offs.push(subscribeGeofenceStatus({}, () => {}));
+    } catch { threw = true; }
+    assert(!threw && offs.every((f) => typeof f === 'function'), 'subscribing never throws: a plain handle, a promise, a throw, a rejection, no plugin');
+    pendingAsync.push((async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      offs.forEach((f) => f());
+      await new Promise((r) => setTimeout(r, 5));
+      assert(removed.includes('plain') && removed.includes('promise'), `unsubscribing removes the listener whether addListener returned a handle or a promise (removed ${removed.join()})`);
+    })());
+    const late: string[] = [];
+    const off = subscribeGeofenceStatus({ addListener: () => Promise.resolve({ remove: () => late.push('late') }) }, () => {});
+    off();
+    pendingAsync.push((async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      assert(late.length === 1, 'unsubscribing before the handle arrives still removes it');
+    })());
+    assert(autoCheckInView({ authorization: 'always' } as unknown as GeofenceStatus, 'bfit').kind === 'on', 'a status without gyms (an odd native answer) does not crash the view');
+    const cardSrc = read('src/components/GymCheckIn.tsx');
+    assert(!/<AutoCheckIn/.test(cardSrc.replace(/<AutoCheckInBoundary>\s*<AutoCheckIn[^>]*\/>\s*<\/AutoCheckInBoundary>/g, '')) && /<AutoCheckInBoundary>/.test(cardSrc), 'every auto check-in row on /train sits inside its error boundary');
+    const rowSrc = read('src/components/AutoCheckIn.tsx');
+    assert(/getDerivedStateFromError/.test(rowSrc) && /componentDidCatch|return null/.test(rowSrc), 'the boundary hides the row on a native failure instead of crashing /train');
+    assert(!/\.addListener\([^)]*\)\s*\.then/.test(read('src/lib/native-gym-geofence.ts') + rowSrc), 'no code chains .then straight off addListener');
+  }
   // iOS 27 answers the Always prompt after requestAlways resolves, without
   // resigning the app (simulator, 2026-10-22): the card must LISTEN.
   assert(/notifyListeners\("statusChange"/.test(read('native/HealthKitBridge/GymGeofencePlugin.swift')) && /onGeofenceStatus\(setStatus\)/.test(read('src/components/AutoCheckIn.tsx')), 'authorization changes reach the card as a statusChange event');

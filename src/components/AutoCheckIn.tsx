@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Component, useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   AUTO_EXPLAIN,
   GEOFENCE_GYM_NAME,
@@ -20,6 +20,24 @@ import {
 const kicker = 'font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-app-tx3';
 const btn = 'min-h-[44px] border border-app-border px-3 text-xs font-bold text-app-tx2';
 
+/**
+ * Wraps the row on /train: a native failure while rendering hides the row,
+ * never the page (2026-10-22: a listener crash took /train to the error
+ * screen).
+ */
+export class AutoCheckInBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch() {
+    /* the row stays hidden; manual check-in is untouched */
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
 export default function AutoCheckIn({ fixedGym }: { fixedGym?: GeofenceGym }) {
   const [status, setStatus] = useState<GeofenceStatus | null>(null);
   const [picked, setPicked] = useState<GeofenceGym>('bfit');
@@ -28,10 +46,13 @@ export default function AutoCheckIn({ fixedGym }: { fixedGym?: GeofenceGym }) {
   const [note, setNote] = useState<string | null>(null);
   const gym = fixedGym ?? picked;
 
+  // Every native call goes through a promise and a catch: a plugin that
+  // throws or answers oddly hides nothing but this row.
   const refresh = useCallback(() => {
-    const p = geofencePlugin();
-    if (!p) return;
-    p.status().then(setStatus).catch(() => {});
+    Promise.resolve()
+      .then(() => geofencePlugin()?.status())
+      .then((s) => s && setStatus(s))
+      .catch(() => {});
   }, []);
 
   // Read on mount and on every return: he may have changed it in Settings.
