@@ -40,6 +40,31 @@ export function geofencePlugin(): GymGeofencePlugin | undefined {
   return pickGeofencePlugin((window as Window & { Capacitor?: CapacitorLike }).Capacitor);
 }
 
+// Kept apart from the plugin interface: addListener is Capacitor's own, not
+// one of the plugin's CAPPluginMethods (the suite matches those two lists).
+interface GeofenceEvents {
+  addListener?: (event: 'statusChange', cb: (s: GeofenceStatus) => void) => Promise<{ remove: () => void }>;
+}
+
+/**
+ * Every authorization change, pushed by the plugin. iOS answers the Always
+ * prompt AFTER requestAlways resolves (it neither resigns the app nor reports
+ * "Keep Only While Using"), so the card listens instead of waiting.
+ */
+export function onGeofenceStatus(cb: (s: GeofenceStatus) => void): () => void {
+  const p = geofencePlugin() as (GymGeofencePlugin & GeofenceEvents) | undefined;
+  if (typeof p?.addListener !== 'function') return () => {};
+  let handle: { remove: () => void } | null = null;
+  let gone = false;
+  p.addListener('statusChange', cb)
+    .then((h) => (gone ? h.remove() : (handle = h)))
+    .catch(() => {});
+  return () => {
+    gone = true;
+    handle?.remove();
+  };
+}
+
 /** Shown before iOS asks — two short lines (owner's wording). */
 export const AUTO_EXPLAIN = [
   'To check you in when you arrive and out when you leave, the app needs location Always.',

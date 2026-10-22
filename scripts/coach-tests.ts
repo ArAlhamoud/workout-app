@@ -6157,6 +6157,12 @@ console.log('Gym geofence — the native side and the auto check-in card');
   assert(/"test:geofence": "bash scripts\/geofence-core-tests\/run\.sh"/.test(read('package.json')), 'npm run test:geofence runs the Swift queue tests');
   const card = read('src/components/GymCheckIn.tsx');
   assert(/<AutoCheckIn/.test(card), 'the check-in card carries the auto check-in row');
+  // iOS 27 answers the Always prompt after requestAlways resolves, without
+  // resigning the app (simulator, 2026-10-22): the card must LISTEN.
+  assert(/notifyListeners\("statusChange"/.test(read('native/HealthKitBridge/GymGeofencePlugin.swift')) && /onGeofenceStatus\(setStatus\)/.test(read('src/components/AutoCheckIn.tsx')), 'authorization changes reach the card as a statusChange event');
+  // Every mention of the simulator hook sits inside a #if DEBUG block.
+  const outsideDebug = mgr.replace(/#if DEBUG[\s\S]*?#endif/g, '');
+  assert(/func simulateFromLaunchArguments/.test(mgr) && !/simulateFromLaunchArguments|GymSimulate/.test(outsideDebug), 'the simulator hook exists only in Debug builds');
 }
 
 Promise.all(pendingAsync).then(() => {

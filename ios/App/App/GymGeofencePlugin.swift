@@ -22,6 +22,16 @@ public class GymGeofencePlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise)
     ]
 
+    /// Every authorization change reaches the card as "statusChange": the
+    /// Always answer arrives after requestAlways has resolved.
+    public override func load() {
+        DispatchQueue.main.async {
+            GymGeofence.shared.onStatusChange = { [weak self] in
+                self?.notifyListeners("statusChange", data: GymGeofence.shared.status())
+            }
+        }
+    }
+
     @objc func status(_ call: CAPPluginCall) {
         DispatchQueue.main.async { call.resolve(GymGeofence.shared.status()) }
     }

@@ -52,21 +52,14 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         m.delegate = self
         manager = m
         NotificationCenter.default.addObserver(self, selector: #selector(becameActive), name: UIApplication.didBecomeActiveNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(resignedActive), name: UIApplication.willResignActiveNotification, object: nil)
         syncMonitoring()
         wake()
+        #if DEBUG
+        simulateFromLaunchArguments()
+        #endif
     }
 
-    @objc private func becameActive() {
-        wake()
-        if !authWaiters.isEmpty {
-            // Back from the system prompt. If he kept the same answer iOS
-            // reports no change, so settle on what is true now.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.settleAuthWaiters() }
-        }
-    }
-
-    @objc private func resignedActive() { promptSeen = true }
+    @objc private func becameActive() { wake() }
 
     // MARK: Status for the web card
 
@@ -87,10 +80,17 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     }
 
     // MARK: Permission: When-In-Use first, then Always
+    //
+    // On iOS 27 neither prompt resigns the app, and "Keep Only While Using"
+    // reports no change at all (simulator, 2026-10-22), so there is no moment
+    // to wait for: requestAlways resolves once the Always prompt is up (or the
+    // answer is final), and every authorization change reaches the card as a
+    // "statusChange" event (onStatusChange, wired by the plugin).
 
+    /// Set by the plugin while the webview exists; never needed for events.
+    var onStatusChange: (() -> Void)?
     private var authWaiters: [(String) -> Void] = []
     private var alwaysAfterWhenInUse = false
-    private var promptSeen = false
 
     func requestAlways(_ done: @escaping (String) -> Void) {
         guard let m = manager else { return done("notDetermined") }
@@ -100,45 +100,25 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
             alwaysAfterWhenInUse = true
             m.requestWhenInUseAuthorization()
         case .authorizedWhenInUse:
-            authWaiters.append(done)
-            askAlways()
+            m.requestAlwaysAuthorization()
+            done(authorization)
         default:
             done(authorization)
         }
     }
 
-    private func askAlways() {
-        promptSeen = false
-        manager?.requestAlwaysAuthorization()
-        // iOS shows the Always prompt once, ever. When it does not appear the
-        // app never resigns active and no callback comes: settle anyway.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-            guard let self, !self.promptSeen else { return }
-            self.settleAuthWaiters()
-        }
-    }
-
-    private func settleAuthWaiters() {
-        // Still between the two prompts, or a system prompt is up: not yet.
-        guard !alwaysAfterWhenInUse, UIApplication.shared.applicationState == .active else { return }
-        let a = authorization
-        let w = authWaiters
-        authWaiters = []
-        w.forEach { $0(a) }
-    }
-
     func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {
+        NSLog("[GymGeofence] authorization now %@", authorization)
         syncMonitoring()
         if alwaysAfterWhenInUse && m.authorizationStatus != .notDetermined {
             alwaysAfterWhenInUse = false
-            if m.authorizationStatus == .authorizedWhenInUse {
-                askAlways()
-                return
-            }
+            if m.authorizationStatus == .authorizedWhenInUse { m.requestAlwaysAuthorization() }
+            let a = authorization
+            let w = authWaiters
+            authWaiters = []
+            w.forEach { $0(a) }
         }
-        if m.authorizationStatus != .notDetermined && m.authorizationStatus != .authorizedWhenInUse {
-            settleAuthWaiters()
-        }
+        onStatusChange?()
     }
 
     // MARK: Setting a gym — one fix, standing at it
@@ -166,6 +146,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
             all[gym] = ["lat": loc.coordinate.latitude, "lon": loc.coordinate.longitude]
             self.storedGyms = all
             self.syncMonitoring()
+            self.onStatusChange?()
             NSLog("[GymGeofence] %@ set (±%d m)", gym, Int(acc.rounded()))
             done(Int(acc.rounded()), nil)
         }
@@ -246,27 +227,80 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ m: CLLocationManager, didEnterRegion region: CLRegion) {
         guard let (small, gym) = parse(region), small else { return }
-        let now = Date()
-        let prompt = queue.enteredGym(gym, at: now)
-        save()
-        NSLog("[GymGeofence] entered %@ (prompt: %@)", gym, prompt ? "yes" : "no — same stay")
-        if prompt { GymNotifications.shared.postArrival(gym: gym, enteredAt: now) }
-        wake()
+        enteredGym(gym, at: Date())
     }
 
     func locationManager(_ m: CLLocationManager, didExitRegion region: CLRegion) {
         guard let (small, gym) = parse(region) else { return }
-        let now = Date()
+        exited(gym, small: small, at: Date())
+    }
+
+    /// Region events carry no timestamp: delivery is the moment.
+    private func enteredGym(_ gym: String, at: Date) {
+        let prompt = queue.enteredGym(gym, at: at)
+        save()
+        NSLog("[GymGeofence] entered %@ (prompt: %@)", gym, prompt ? "yes" : "no — same stay")
+        if prompt { GymNotifications.shared.postArrival(gym: gym, enteredAt: at) }
+        wake()
+    }
+
+    private func exited(_ gym: String, small: Bool, at: Date) {
         if small {
-            queue.exitedGym(gym, at: now)
+            queue.exitedGym(gym, at: at)
             NSLog("[GymGeofence] left %@ — exit pending", gym)
         } else {
-            queue.leftAwayArea(gym, now: now)
+            queue.leftAwayArea(gym, now: at)
             NSLog("[GymGeofence] left the %@ area", gym)
         }
         save()
         wake()
     }
+
+    #if DEBUG
+    /// Simulator only. The iOS 27 simulator cannot monitor regions at all
+    /// (isMonitoringAvailable is false; CLMonitor says conditionUnsupported),
+    /// so a test feeds the SAME handlers through a launch argument:
+    ///   xcrun simctl launch <sim> com.aralhamoud.workout -GymSimulate enter:bfit
+    /// Steps: enter / exit (small circle) / away (600 m circle), comma-separated,
+    /// each optionally "@-480" (seconds ago). Debug builds only.
+    private func simulateFromLaunchArguments() {
+        guard let script = defaults.string(forKey: "GymSimulate"), !script.isEmpty else { return }
+        for step in script.split(separator: ",") {
+            if step == "categories" {
+                UNUserNotificationCenter.current().getNotificationCategories { cats in
+                    NSLog("[GymGeofence] SIMULATED categories: %@", cats.map(\.identifier).sorted().joined(separator: ", "))
+                }
+                continue
+            }
+            let parts = step.split(separator: "@")
+            let ev = parts[0].split(separator: ":")
+            guard ev.count == 2, Self.gyms.contains(String(ev[1])) else { continue }
+            let at = Date().addingTimeInterval(parts.count > 1 ? Double(parts[1]) ?? 0 : 0)
+            let gym = String(ev[1])
+            NSLog("[GymGeofence] SIMULATED %@ %@", String(ev[0]), gym)
+            if ev[0] == "checkin" {
+                // What the Check in action does, fed the DELIVERED prompt's
+                // userInfo (synthesized touches cannot open its actions).
+                UNUserNotificationCenter.current().getDeliveredNotifications { list in
+                    DispatchQueue.main.async {
+                        guard let info = list.first(where: { $0.request.identifier == "gym.arrive.\(gym)" })?.request.content.userInfo,
+                              let entered = (info["enteredAt"] as? String).flatMap(GeofenceQueue.date(fromISO:)) else {
+                            return NSLog("[GymGeofence] SIMULATED checkin: no delivered prompt")
+                        }
+                        self.checkIn(gym: gym, enteredAt: entered) { NSLog("[GymGeofence] SIMULATED checkin done") }
+                    }
+                }
+                continue
+            }
+            switch ev[0] {
+            case "enter": enteredGym(gym, at: at)
+            case "exit": exited(gym, small: true, at: at)
+            case "away": exited(gym, small: false, at: at)
+            default: break
+            }
+        }
+    }
+    #endif
 
     func locationManager(_ m: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
         NSLog("[GymGeofence] monitoring failed for %@: %@", region?.identifier ?? "?", error.localizedDescription)

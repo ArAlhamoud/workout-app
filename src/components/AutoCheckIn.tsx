@@ -6,6 +6,7 @@ import {
   GEOFENCE_GYM_NAME,
   autoCheckInView,
   geofencePlugin,
+  onGeofenceStatus,
   type GeofenceGym,
   type GeofenceStatus,
 } from '@/lib/native-gym-geofence';
@@ -38,7 +39,11 @@ export default function AutoCheckIn({ fixedGym }: { fixedGym?: GeofenceGym }) {
     refresh();
     const onShow = () => document.visibilityState === 'visible' && refresh();
     document.addEventListener('visibilitychange', onShow);
-    return () => document.removeEventListener('visibilitychange', onShow);
+    const off = onGeofenceStatus(setStatus);
+    return () => {
+      document.removeEventListener('visibilitychange', onShow);
+      off();
+    };
   }, [refresh]);
 
   const act = async (fn: () => Promise<unknown>) => {
