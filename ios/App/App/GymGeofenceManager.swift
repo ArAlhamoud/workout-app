@@ -387,7 +387,7 @@ final class GymNotifications: NSObject, UNUserNotificationCenterDelegate {
     static let checkInAction = "GYM_CHECK_IN"
     static let notNowAction = "GYM_NOT_NOW"
 
-    /// Background actions (no .foreground): the tap is answered without
+    /// Background actions (empty options, not foreground): the tap is answered without
     /// opening the app, on the phone or on the Watch's mirrored copy.
     static let arriveCategory = UNNotificationCategory(
         identifier: arriveCategoryId,
