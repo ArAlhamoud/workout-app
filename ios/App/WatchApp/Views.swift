@@ -47,16 +47,29 @@ struct StartView: View {
     /// a crown detent was one sleeve-brush away from running the wrong day
     /// (trainer review).
     @State private var dayOverride: String?
-    @State private var durIndex: Int = 0
-    private let durations = [60, 45, 30]
+    /// nil = the plan's own length (no `dur` sent). A tap on a chip picks
+    /// one; a tap on the planned length goes back to nil (SessionCore.pickLength).
+    @State private var pickedDur: Int?
 
     private var planDay: String { store.plan?.day ?? "A" }
     private var chosenDay: String { dayOverride ?? planDay }
-    private var chosenDur: Int {
-        if durIndex == 0 { return store.plan?.durationMin ?? 60 }
-        return durations[(durIndex - 1) % durations.count]
-    }
+    private var chosenDur: Int { SessionCore.shownLength(picked: pickedDur, planned: store.plan?.durationMin) }
     private var otherDay: String { chosenDay == "A" ? "B" : "A" }
+
+    /// The day's colour, bright: for the OLED ground and for fills that
+    /// carry BLACK text — the higher-contrast pairing on the wrist (owner,
+    /// 2026-10-22: "the white text on the green button is hard to read").
+    /// Day B teal #2DD4BF + black 11.3:1 (best dark teal + white: 7.6:1);
+    /// Day A violet #B69CFF + black 9.2:1 (#5B21B6 + white: 9.0:1, and a
+    /// dark fill all but vanishes on the black ground). WATCH ONLY — the
+    /// phone's teal/violet buttons keep white text (owner, 2026-08-30).
+    static func dayColor(_ day: String) -> Color {
+        day == "A"
+            ? Color(red: 0xB6 / 255, green: 0x9C / 255, blue: 0xFF / 255)
+            : Color(red: 0x2D / 255, green: 0xD4 / 255, blue: 0xBF / 255)
+    }
+    /// #30D158 + black: 10.4:1. The tinted button carried white at ~2:1.
+    private static let continueGreen = Color(red: 0x30 / 255, green: 0xD1 / 255, blue: 0x58 / 255)
 
     /// "build 13 · Sep 24" — the date is the executable's own file date,
     /// read once: it changes with every compile, whatever the number says.
@@ -67,19 +80,20 @@ struct StartView: View {
     }()
 
     var body: some View {
+        let tint = Self.dayColor(chosenDay)
         ScrollView {
             VStack(spacing: 8) {
                 if let p = store.plan, p.loadPct < 100 {
-                    Text("RETURN · \(p.loadPct)%")
-                        .font(.system(size: 12, weight: .black, design: .rounded))
+                    Text("RETURN · \(p.loadPct)% load")
+                        .font(.system(.footnote, design: .rounded, weight: .black))
                         .foregroundStyle(.orange)
                 }
                 // The plan's advice stays visible even though nothing blocks:
                 // advice-then-allow is the program's contract.
                 if let p = store.plan, p.mode != "train" {
                     Text(p.mode == "recover" ? "Recovery day — walk instead?" : "Already trained today")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .font(.system(.footnote, design: .rounded, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
                         .multilineTextAlignment(.center)
                 }
                 if let live = store.phoneLive {
@@ -90,16 +104,55 @@ struct StartView: View {
                     } label: {
                         VStack(spacing: 2) {
                             Text("Continue Day \(live.day ?? "?")")
-                                .font(.system(size: 18, weight: .black, design: .rounded))
+                                .font(.system(.headline, design: .rounded, weight: .black))
                             Text(live.sets.isEmpty ? "on the phone" : "\(live.sets.count) set\(live.sets.count == 1 ? "" : "s") on the phone")
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundStyle(.secondary)
+                                .font(.system(.footnote, design: .rounded, weight: .semibold))
                         }
+                        .foregroundStyle(.black)
                         .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Self.continueGreen, in: RoundedRectangle(cornerRadius: 14))
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.green)
+                    .buttonStyle(.plain)
                 }
+
+                // WHICH day, large, in its colour. "planned" = the server's queue.
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Day \(chosenDay)")
+                        .font(.system(.title, design: .rounded, weight: .black))
+                        .foregroundStyle(tint)
+                    Spacer(minLength: 4)
+                    Text(dayOverride != nil ? "your pick" : store.offeredDay != nil ? "saved plan" : "planned")
+                        .font(.system(.footnote, design: .rounded, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+                .padding(.horizontal, 4)
+
+                // WHICH length: all three at once, the chosen one filled.
+                HStack(spacing: 6) {
+                    ForEach(SessionCore.lengthOptions, id: \.self) { m in
+                        let on = m == chosenDur
+                        Button {
+                            pickedDur = SessionCore.pickLength(m, planned: store.plan?.durationMin)
+                        } label: {
+                            VStack(spacing: 0) {
+                                Text("\(m)")
+                                    .font(.system(.title3, design: .rounded, weight: .black))
+                                    .monospacedDigit()
+                                Text("min")
+                                    .font(.system(.footnote, design: .rounded, weight: .bold))
+                            }
+                            .foregroundStyle(on ? Color.black : Color.white)
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                            .background(on ? tint : Color.clear, in: RoundedRectangle(cornerRadius: 12))
+                            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(on ? tint : Color.white.opacity(0.6), lineWidth: 2))
+                            .contentShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(m) minutes")
+                        .accessibilityAddTraits(on ? .isSelected : [])
+                    }
+                }
+
                 Button {
                     // "planned" means the SERVER's queue: no day and no
                     // length are sent unless he picked them. The screen's
@@ -108,53 +161,49 @@ struct StartView: View {
                     // A day the wrist offered by name (it could not confirm
                     // the queue) is sent by name on this confirming tap.
                     let d = SessionCore.startDay(override: dayOverride, offered: store.offeredDay)
-                    let dur: Int? = durIndex == 0 ? nil : chosenDur
+                    let dur: Int? = pickedDur
                     // With no day sent, what opens must be the day this
                     // button reads; a queue that moved is shown, not opened.
                     let promised = d == nil ? store.plan?.day : nil
                     Task { await store.start(day: d, dur: dur, promised: promised) }
                 } label: {
-                    VStack(spacing: 2) {
-                        Text("Day \(chosenDay)")
-                            .font(.system(size: 30, weight: .black, design: .rounded))
-                        Text("\(chosenDur) min\(dayOverride != nil ? "" : store.offeredDay != nil ? " · saved plan" : " · planned")")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 76)
+                    Text(SessionCore.startTitle(day: chosenDay, minutes: chosenDur))
+                        .font(.system(.headline, design: .rounded, weight: .black))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.85)
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .background(tint, in: RoundedRectangle(cornerRadius: 16))
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(chosenDay == "A" ? .purple : .teal)
+                .buttonStyle(.plain)
 
-                HStack(spacing: 6) {
-                    Button("Day \(otherDay)") {
-                        dayOverride = dayOverride == nil ? otherDay : nil
-                    }
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .buttonStyle(.bordered)
-                    Button("\(durations[durIndex % durations.count]) min") {
-                        durIndex += 1
-                    }
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .buttonStyle(.bordered)
+                // The other day costs a deliberate tap, below the start.
+                Button {
+                    dayOverride = dayOverride == nil ? otherDay : nil
+                } label: {
+                    Text(dayOverride == nil ? "Switch to Day \(otherDay)" : "Back to Day \(otherDay)")
+                        .font(.system(.footnote, design: .rounded, weight: .semibold))
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.bordered)
 
                 if let n = store.notice {
                     Text(n)
-                        .font(.system(size: 11, design: .rounded))
+                        .font(.system(.footnote, design: .rounded))
                         .foregroundStyle(.orange)
                         .multilineTextAlignment(.center)
                 }
                 if store.pendingCount > 0 {
                     Text("\(store.pendingCount) session\(store.pendingCount == 1 ? "" : "s") waiting to upload")
-                        .font(.system(size: 11, design: .rounded))
+                        .font(.system(.footnote, design: .rounded))
                         .foregroundStyle(.orange)
                 }
                 // Refused by the server and kept here, never retried — a Mac
                 // session can recover them (outbox-rejected.json).
                 if store.rejectedCount > 0 {
                     Text("\(store.rejectedCount) refused — kept on watch")
-                        .font(.system(size: 11, design: .rounded))
+                        .font(.system(.footnote, design: .rounded))
                         .foregroundStyle(.orange)
                 }
                 // Which build is on the wrist, readable without a Mac. A swipe
@@ -166,7 +215,7 @@ struct StartView: View {
                 // dev installs of different code — so the day the binary
                 // was built rides beside it.
                 Text(Self.buildLabel)
-                    .font(.system(size: 9, design: .rounded))
+                    .font(.system(.footnote, design: .rounded))
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 4)
