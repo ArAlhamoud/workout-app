@@ -322,6 +322,11 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
             let at = Date().addingTimeInterval(parts.count > 1 ? Double(parts[1]) ?? 0 : 0)
             let gym = String(ev[1])
             NSLog("[GymGeofence] SIMULATED %@ %@", String(ev[0]), gym)
+            if ev[0] == "checkin" && parts.count > 1 {
+                // An explicit entry time (seconds ago): the tap is now.
+                checkIn(gym: gym, enteredAt: at) { NSLog("[GymGeofence] SIMULATED checkin done") }
+                continue
+            }
             if ev[0] == "checkin" {
                 // What the Check in action does, fed the DELIVERED prompt's
                 // userInfo (synthesized touches cannot open its actions).
