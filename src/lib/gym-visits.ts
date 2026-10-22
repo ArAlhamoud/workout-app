@@ -251,6 +251,14 @@ export interface GeofenceEvent {
   now: Date;
 }
 
+/** An event time must carry Z or an offset: a bare local time would be
+ *  read as UTC on the server, three hours off for Riyadh. */
+export function parseEventTime(raw: unknown): Date | null {
+  if (typeof raw !== 'string' || !/(Z|[+-]\d\d:?\d\d)$/.test(raw.trim())) return null;
+  const d = new Date(raw.trim());
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 const clampToNow = (at: Date, now: Date) => new Date(Math.min(at.getTime(), now.getTime()));
 
 /**
@@ -260,12 +268,16 @@ const clampToNow = (at: Date, now: Date) => new Date(Math.min(at.getTime(), now.
  * older than the stale window opens nothing: it would be forgotten at once.
  */
 export function geofenceEnter(
-  open: VisitLite[],
+  recent: VisitLite[],
   e: GeofenceEvent,
 ): { action: 'create' | 'none'; checkInAt?: Date } {
   if (!GEOFENCE_GYMS.has(e.gym)) return { action: 'none' };
-  if (open.some((v) => !v.checkOutAt && !isStale(v, e.now))) return { action: 'none' };
+  if (recent.some((v) => !v.checkOutAt && !isStale(v, e.now))) return { action: 'none' };
   const at = clampToNow(e.at, e.now);
+  // A late tap on an old prompt must not overlap a visit that already
+  // covered that time (a manual visit, or one closed since): any visit that
+  // ended after the entry moment means this trip is already recorded.
+  if (recent.some((v) => v.checkOutAt && t(v.checkOutAt) > at.getTime())) return { action: 'none' };
   if (e.now.getTime() - at.getTime() > VISIT_STALE_MS) return { action: 'none' };
   return { action: 'create', checkInAt: at };
 }

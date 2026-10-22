@@ -13,7 +13,7 @@ the Mac session's.
 |---|---|
 | `event` | `"enter"` or `"exit"` |
 | `gym` | `"bfit"` (B_Fit) or `"work"` (Alrajhi Tower) |
-| `atISO` | when the region event happened on the phone (ISO 8601), **not** when it is sent |
+| `atISO` | when the region event happened on the phone, ISO 8601 **with `Z` or an offset** (a bare local time is refused), **not** when it is sent |
 
 Responses: `{ action: "created", visit }`, `{ action: "closed", visit }`, or
 `{ action: "none" }`. `none` is a normal answer, not an error.
@@ -30,6 +30,14 @@ Responses: `{ action: "created", visit }`, `{ action: "closed", visit }`, or
   out GPS drift. Nothing open, the other gym, an exit before the check-in,
   or a stay over 5 h → `none` (the "how long were you there?" card handles
   the last). A check-out already made on another device wins.
+- **Send events in the order they happened, one at a time.** Queue them on
+  the phone while offline and send the oldest first, waiting for each answer.
+  An exit sent before its enter finds nothing open and is answered `none`;
+  keep it queued and resend it after the enter is accepted.
+- An enter whose time falls before the end of a visit already recorded (for
+  example a late tap on an old prompt after a manual visit) → `none`.
+- Enter and exit run under one database lock, so a retry or a phone and a
+  Watch tap at the same moment cannot create two visits.
 - Manual check-in/out and the 5-minute time fixes are unchanged.
 
 ## Privacy

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
-import { geofenceEnter, geofenceExit, type VisitLite } from '@/lib/gym-visits';
+import { geofenceEnter, geofenceExit, parseEventTime, type VisitLite } from '@/lib/gym-visits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,29 +30,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
   const b = (body ?? {}) as { event?: unknown; gym?: unknown; atISO?: unknown };
-  const at = typeof b.atISO === 'string' ? new Date(b.atISO) : null;
-  if ((b.event !== 'enter' && b.event !== 'exit') || typeof b.gym !== 'string' || !at || Number.isNaN(at.getTime())) {
-    return NextResponse.json({ error: 'event (enter|exit), gym and atISO required' }, { status: 400 });
+  const at = parseEventTime(b.atISO);
+  if ((b.event !== 'enter' && b.event !== 'exit') || typeof b.gym !== 'string' || !at) {
+    return NextResponse.json({ error: 'event (enter|exit), gym and atISO with Z or an offset required' }, { status: 400 });
   }
+  const gym = b.gym;
   const now = new Date();
-  const open = (await prisma.gymVisit.findMany({ where: { checkOutAt: null }, orderBy: { checkInAt: 'desc' }, take: 5 })).map(toLite);
-
-  if (b.event === 'enter') {
-    const d = geofenceEnter(open, { gym: b.gym, at, now });
-    if (d.action === 'none' || !d.checkInAt) return NextResponse.json({ action: 'none', open: open[0] ?? null });
-    const v = await prisma.gymVisit.create({ data: { gym: b.gym, checkInAt: d.checkInAt } });
+  // One lock for the read-decide-write, so a retry or a phone and a Watch
+  // tap at the same moment cannot both create a visit (adversary).
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(424242)`;
+    const recent = (
+      await tx.gymVisit.findMany({
+        where: { OR: [{ checkOutAt: null }, { checkOutAt: { gt: new Date(now.getTime() - 24 * 3_600_000) } }] },
+        orderBy: { checkInAt: 'desc' },
+        take: 10,
+      })
+    ).map(toLite);
+    if (b.event === 'enter') {
+      const d = geofenceEnter(recent, { gym, at, now });
+      if (d.action === 'none' || !d.checkInAt) return { action: 'none' as const };
+      const v = await tx.gymVisit.create({ data: { gym, checkInAt: d.checkInAt } });
+      return { action: 'created' as const, visit: toLite(v) };
+    }
+    const d = geofenceExit(recent.filter((v) => !v.checkOutAt), { gym, at, now });
+    if (d.action === 'none' || !d.visitId || !d.checkOutAt) return { action: 'none' as const };
+    const r = await tx.gymVisit.updateMany({ where: { id: d.visitId, checkOutAt: null }, data: { checkOutAt: d.checkOutAt } });
+    if (r.count === 0) return { action: 'none' as const };
+    const v = await tx.gymVisit.findUnique({ where: { id: d.visitId } });
+    return { action: 'closed' as const, visit: v ? toLite(v) : null };
+  });
+  if (result.action !== 'none') {
     revalidatePath('/train');
     revalidatePath('/stats');
-    return NextResponse.json({ action: 'created', visit: toLite(v) });
   }
-
-  const d = geofenceExit(open, { gym: b.gym, at, now });
-  if (d.action === 'none' || !d.visitId || !d.checkOutAt) return NextResponse.json({ action: 'none' });
-  // Only an open row is closed: a check-out tapped on another device wins.
-  const r = await prisma.gymVisit.updateMany({ where: { id: d.visitId, checkOutAt: null }, data: { checkOutAt: d.checkOutAt } });
-  if (r.count === 0) return NextResponse.json({ action: 'none' });
-  revalidatePath('/train');
-  revalidatePath('/stats');
-  const v = await prisma.gymVisit.findUnique({ where: { id: d.visitId } });
-  return NextResponse.json({ action: 'closed', visit: v ? toLite(v) : null });
+  return NextResponse.json(result);
 }

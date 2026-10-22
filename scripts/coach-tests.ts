@@ -16,7 +16,7 @@ import * as DR from '../src/lib/doctor-report';
 import { createPdfWriter, drawLabGrid, drawQuestions, LAB_SECTION_NEED, QUESTIONS_SECTION_NEED } from '../src/lib/report-pdf';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
-import { adjustedTime, classifyVisit, fmtVisit, geofenceEnter, geofenceExit, gymTimeStats, isStale } from '../src/lib/gym-visits';
+import { adjustedTime, classifyVisit, fmtVisit, geofenceEnter, geofenceExit, gymTimeStats, isStale, parseEventTime } from '../src/lib/gym-visits';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
 import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, startableUntilFor, settledSet, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
 import {
@@ -6138,9 +6138,21 @@ console.log('Gym visits — geofence enter and exit');
   assert(geofenceExit([morning], { gym: 'bfit', at: at('16:30'), now: at('22:00') }).action === 'close', 'a late-synced exit still closes at its real time');
   assert(geofenceExit([V('l', 'bfit', '08:00', null)], { gym: 'bfit', at: at('18:55'), now }).action === 'none', 'an exit making a stay over 5 h is left for him to state');
   assert(geofenceExit([open], { gym: 'bfit', at: at('19:30'), now }).checkOutAt?.toISOString() === now.toISOString(), 'a future exit time is clamped to now');
+  // Adversary, 2026-10-22. #1: a late "Check in" tap after a manual visit
+  // already covered that time must not create an overlapping second visit.
+  const manual = V('m2', 'bfit', '17:05', '18:00');
+  assert(geofenceEnter([manual], { gym: 'bfit', at: at('17:00'), now: at('18:30') }).action === 'none', 'an entry inside or before a visit that ended after it opens nothing');
+  assert(geofenceEnter([manual], { gym: 'bfit', at: at('18:20'), now: at('18:30') }).action === 'create', 'an entry after the last visit ended opens a new one');
+  // #4: a time without Z or an offset is refused, never read as UTC.
+  assert(parseEventTime('2026-10-22T17:00:00') === null, 'a time without an offset is refused');
+  assert(parseEventTime('2026-10-22T17:00:00+03:00')?.toISOString() === '2026-10-22T14:00:00.000Z' && parseEventTime('2026-10-22T14:00:00.000Z') !== null, 'times with Z or an offset are read exactly');
+  assert(parseEventTime('nonsense+03:00') === null && parseEventTime(5) === null, 'garbage is refused');
   const route = fs.readFileSync(path.join(__dirname, '..', 'src/app/api/gym/visit/route.ts'), 'utf8');
   assert(/geofenceEnter\(/.test(route) && /geofenceExit\(/.test(route), 'the endpoint decides through the tested planners');
   assert(!/latitude|longitude|coords/i.test(route), 'the server never receives a location, only the gym and the time');
+  // #2: two enters at once (a retry, phone and Watch) are serialised.
+  assert(/pg_advisory_xact_lock/.test(route), 'enter and exit run under one lock, so two posts cannot both create a visit');
+  assert(/parseEventTime\(/.test(route), 'the endpoint reads times only through parseEventTime');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);
