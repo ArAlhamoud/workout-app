@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-10-21T09:52:31.794Z",
+  "exportedAt": "2026-10-22T09:52:33.954Z",
   "totalWorkouts": 21,
   "totalBodyStats": 50,
   "totalExercises": 21,
@@ -18839,15 +18839,15 @@
       {
         "id": "cmuzf3won0003lgpjv81tisk4",
         "day": "2026-10-21T00:00:00.000Z",
-        "proteinG": 124,
+        "proteinG": 77,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 2177,
-        "carbsG": 202,
-        "fatG": 96,
+        "kcal": 1363,
+        "carbsG": 140,
+        "fatG": 54,
         "flags": null,
-        "notes": "Delivery 1327/80/110/63 (sausage omelette breakfast) + Subway instead of the standing dinner: 6-inch rotisserie chicken, turkey, cheese, lite mayo, honey mustard (est 540/41/52/18) + hash brown bites with ketchup (est 310/3/40/15)",
+        "notes": "Delivery breakfast only so far (sausage omelette; delivery 1327 minus soup 267 and burger 547 = ~513/33/48/21). Subway 6-inch sub (est 540/41/52/18) + hash brown bites (est 310/3/40/15). Soup and Swiss mushroom burger not eaten yet.",
         "createdAt": "2026-10-08T10:52:52.919Z"
       },
       {
