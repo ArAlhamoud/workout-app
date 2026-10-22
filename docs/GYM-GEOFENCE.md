@@ -74,21 +74,37 @@ coordinates and stops watching.
   with **Check in** / **Not now** (category `GYM_ARRIVE`, background
   actions — iOS mirrors it to the Watch when the phone is locked). Check in
   queues an `enter` with the moment he ENTERED (carried in the
-  notification), not the tap time. Re-entering while an exit is still
-  pending is the same stay: no second prompt.
+  notification) — but only when he taps within 30 min of it; a later tap
+  sends the TAP time, unless an exit after that entry is already known (the
+  late tap after he left, which then closes at its real times). The prompt
+  is withdrawn on the next wake once it is 30 min old, so a stale one
+  cannot sit on the lock screen all day. Re-entering within 7 min of an
+  exit is the same stay (no second prompt); re-entering later SENDS that
+  old exit first (he left and the app slept through it) and prompts anew.
 - *Leaving* (150 m exited): a **pending exit** {gym, exitAt} is stored, not
   sent. It is sent, with that original exitAt, when (a) the 600 m away
   circle is exited, or (b) the app wakes for any reason (launch, foreground,
-  any region event, a notification action) and it is ≥ 7 min old. Coming
-  back inside first cancels it (GPS drift, a walk to the car). iOS cannot
-  run a timer while the app is suspended, which is why the away circle
-  exists.
+  any region event, a notification action), it is ≥ 7 min old, AND iOS
+  answers `requestState` with *outside* the 150 m circle. *Inside* means the
+  exit was indoor GPS drift while he trains: it is dropped, so opening the
+  logger can never close his real visit mid-workout; *unknown* keeps it
+  pending. Coming back inside first cancels it (GPS drift, a walk to the
+  car). iOS cannot run a timer while the app is suspended, which is why the
+  away circle exists.
 - **Alrajhi caveat:** that gym is inside his office tower; he may stay
   within 600 m all day, so the away circle never fires. There the exit goes
   out on the next wake after 7 min (the next time he opens the app or any
-  region event arrives) — still with the real exit time.
+  region event arrives) — still with the real exit time. And a gym inside
+  a building he spends the day in prompts "Check in?" on EVERY arrival at
+  the building, workday or not (the 30-min tap rule keeps an 08:00 arrival
+  from becoming the check-in). Setting Alrajhi is optional: left unset,
+  that gym is simply manual.
 - *Closed*: "Checked out of B_Fit · 1 h 23" — a quiet notification (no
   sound), duration from the visit the server returned.
+
+**Precise location.** With approximate location iOS cannot watch a 150 m
+circle: the card says "Precise location off" with a Settings link, setGym
+refuses with the same words, and no circle is monitored.
 
 **Sending.** One at a time, oldest event first, waiting for each answer;
 offline or 5xx keeps the event for the next wake; a 4xx drops it (it would
@@ -110,9 +126,14 @@ the event, the prompt and the send never need the bridge.
 the `UNUserNotificationCenter` delegate when the view loads.
 `GymNotifications` handles only notifications carrying `gymGeofence` in
 their userInfo and forwards everything else to the delegate it replaced; it
-installs at launch and again in `MainViewController.capacitorDidLoad`. The
+installs at launch and again in `MainViewController.capacitorDidLoad`.
+A non-gym notification that cold-launches the app (a rest-timer action, a
+Gap Guard tap) arrives before the router exists; it is held and replayed
+once the router is wrapped, never completed early. The
 LocalNotifications plugin's `registerActionTypes` (rest timer) replaces the
-whole category set, so a guard keeps `GYM_ARRIVE` in every set.
+whole category set, so a guard keeps `GYM_ARRIVE` in every set; every set
+runs under one lock, and ours is skipped when a newer one already went
+through the guard.
 
 **Permission.** The card explains in two lines, then the plugin asks
 When-In-Use and, once granted, Always. iOS 27 shows the second prompt
@@ -123,7 +144,7 @@ says "Auto check-in off · location not allowed" with a Settings link.
 
 **Simulator.** The iOS 27 simulator cannot monitor regions at all
 (`isMonitoringAvailable` is false; CLMonitor reports `conditionUnsupported`).
-Debug builds take `-GymSimulate enter:bfit,exit:bfit@-480,away:bfit,checkin:bfit,categories`
+Debug builds take `-GymSimulate enter:bfit,exit:bfit@-480,away:bfit,outside:bfit,inside:bfit,checkin:bfit,categories`
 as a launch argument, which feeds the SAME handlers (`checkin` uses the
 delivered prompt's userInfo, as the action does). Real arrival, the action
 buttons and the background relaunch can only be checked on the phone.

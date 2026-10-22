@@ -28,6 +28,10 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     /// A fix worse than this would put the circle in the wrong building.
     static let maxAccuracy: CLLocationAccuracy = 65
     static let imprecise = "GPS not precise enough — try again near the entrance"
+    /// Approximate location cannot watch a 150 m circle (review D4).
+    static let preciseOff = "Precise location off — turn it on in Settings"
+    /// A fix older than this may be a cached one from elsewhere (review S3).
+    static let freshFixAge: TimeInterval = 15
 
     private let defaults = UserDefaults.standard
     private let gymsKey = "gymGeofence.gyms"
@@ -76,7 +80,11 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         var set: [String: Any] = [:]
         for g in Self.gyms where storedGyms[g] != nil { set[g] = ["set": true] }
         let ours = (manager?.monitoredRegions ?? []).contains { $0.identifier.hasPrefix("gym.small.") }
-        return ["authorization": authorization, "gyms": set, "monitoring": ours]
+        return ["authorization": authorization, "gyms": set, "monitoring": ours, "reducedAccuracy": reducedAccuracy]
+    }
+
+    private var reducedAccuracy: Bool {
+        manager?.accuracyAuthorization == .reducedAccuracy
     }
 
     // MARK: Permission: When-In-Use first, then Always
@@ -136,6 +144,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         guard let m = manager, m.authorizationStatus == .authorizedAlways else {
             return done(nil, "Allow location Always first")
         }
+        guard m.accuracyAuthorization == .fullAccuracy else { return done(nil, Self.preciseOff) }
         guard fixWaiter == nil else { return done(nil, "Already finding your location") }
         fixWaiter = { [weak self] loc, err in
             guard let self else { return }
@@ -167,8 +176,16 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         w(loc, err)
     }
 
+    /// Only a fresh fix sets a gym: requestLocation can hand back a cached
+    /// one from somewhere else. A stale one asks again (the 20 s timeout and
+    /// its plain error still stand).
     func locationManager(_ m: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        finishFix(locations.last, nil)
+        guard fixWaiter != nil else { return }
+        guard let loc = locations.last(where: { abs($0.timestamp.timeIntervalSinceNow) <= Self.freshFixAge }) else {
+            m.requestLocation()
+            return
+        }
+        finishFix(loc, nil)
     }
 
     func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {
@@ -192,6 +209,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     private func syncMonitoring() {
         guard let m = manager else { return }
         let allowed = m.authorizationStatus == .authorizedAlways
+            && m.accuracyAuthorization == .fullAccuracy
             && CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self)
         var wanted: [String: CLCircularRegion] = [:]
         if allowed {
@@ -209,8 +227,11 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
             }
         }
         for r in m.monitoredRegions where r.identifier.hasPrefix("gym.") {
+            // Within a metre, not exact doubles: a region read back need not
+            // round-trip, and a needless restart loses inside/outside (S2).
             if let w = wanted[r.identifier], let c = r as? CLCircularRegion,
-               c.center.latitude == w.center.latitude, c.center.longitude == w.center.longitude, c.radius == w.radius {
+               GeofenceQueue.sameCircle(c.center.latitude, c.center.longitude, c.radius,
+                                        w.center.latitude, w.center.longitude, w.radius) {
                 wanted.removeValue(forKey: r.identifier)
             } else {
                 m.stopMonitoring(for: r)
@@ -235,13 +256,35 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         exited(gym, small: small, at: Date())
     }
 
-    /// Region events carry no timestamp: delivery is the moment.
+    /// Region events carry no timestamp: delivery is the moment. The wake
+    /// runs FIRST (review D1); its region-state asks answer asynchronously,
+    /// so the entry below always sees — and sends — an old pending exit.
     private func enteredGym(_ gym: String, at: Date) {
+        wake()
         let prompt = queue.enteredGym(gym, at: at)
         save()
         NSLog("[GymGeofence] entered %@ (prompt: %@)", gym, prompt ? "yes" : "no — same stay")
         if prompt { GymNotifications.shared.postArrival(gym: gym, enteredAt: at) }
-        wake()
+        drain()
+    }
+
+    /// Gyms whose state we asked about (a due pending exit). Only those
+    /// answers count: iOS also reports state on every transition.
+    private var stateAsked: Set<String> = []
+
+    func locationManager(_ m: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
+        guard let (small, gym) = parse(region), small, stateAsked.remove(gym) != nil else { return }
+        let side: RegionSide = state == .inside ? .inside : state == .outside ? .outside : .unknown
+        regionState(gym, side: side)
+    }
+
+    /// iOS's answer for a due pending exit (review D2): inside = drift,
+    /// dropped; outside = sent with its original time; unknown = kept.
+    private func regionState(_ gym: String, side: RegionSide) {
+        queue.resolvePending(gym, side: side, now: Date())
+        save()
+        NSLog("[GymGeofence] %@ is %@", gym, side == .inside ? "inside — pending exit was drift" : side == .outside ? "outside" : "unknown — exit kept")
+        drain()
     }
 
     private func exited(_ gym: String, small: Bool, at: Date) {
@@ -261,8 +304,9 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     /// (isMonitoringAvailable is false; CLMonitor says conditionUnsupported),
     /// so a test feeds the SAME handlers through a launch argument:
     ///   xcrun simctl launch <sim> com.aralhamoud.workout -GymSimulate enter:bfit
-    /// Steps: enter / exit (small circle) / away (600 m circle), comma-separated,
-    /// each optionally "@-480" (seconds ago). Debug builds only.
+    /// Steps: enter / exit (small circle) / away (600 m circle) / inside /
+    /// outside / unknown (a region-state answer), comma-separated, each
+    /// optionally "@-480" (seconds ago). Debug builds only.
     private func simulateFromLaunchArguments() {
         guard let script = defaults.string(forKey: "GymSimulate"), !script.isEmpty else { return }
         for step in script.split(separator: ",") {
@@ -293,6 +337,9 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
                 continue
             }
             switch ev[0] {
+            case "inside": regionState(gym, side: .inside)
+            case "outside": regionState(gym, side: .outside)
+            case "unknown": regionState(gym, side: .unknown)
             case "enter": enteredGym(gym, at: at)
             case "exit": exited(gym, small: true, at: at)
             case "away": exited(gym, small: false, at: at)
@@ -308,9 +355,10 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
 
     // MARK: Notification actions
 
-    /// He tapped Check in: report the moment he ENTERED (from the prompt).
+    /// He tapped Check in. The core sends the entry time, or the tap time
+    /// when the tap is far from it (review V1).
     func checkIn(gym: String, enteredAt: Date, done: @escaping () -> Void) {
-        queue.checkIn(gym: gym, enteredAt: enteredAt)
+        queue.checkIn(gym: gym, enteredAt: enteredAt, tappedAt: Date())
         save()
         NSLog("[GymGeofence] Check in tapped for %@", gym)
         wake(done)
@@ -322,12 +370,36 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     private var drainWaiters: [() -> Void] = []
     private var bgTask: UIBackgroundTaskIdentifier = .invalid
 
-    /// Every wake: release parked exits that are old enough, then send.
+    /// Every wake: forget stale kept exits, withdraw stale prompts, ask iOS
+    /// where he is for each pending exit old enough to send (the answer
+    /// decides, review D2), then send.
     func wake(_ done: (() -> Void)? = nil) {
-        queue.wake(now: Date())
+        let now = Date()
+        queue.wake(now: now)
         save()
+        removeStalePrompts(now: now)
+        for gym in queue.duePendingExits(now: now) {
+            if let region = manager?.monitoredRegions.first(where: { $0.identifier == "gym.small.\(gym)" }) {
+                stateAsked.insert(gym)
+                manager?.requestState(for: region)
+            }
+        }
         if let done { drainWaiters.append(done) }
         drain()
+    }
+
+    /// A "Check in?" more than 30 min after the entry is withdrawn, so it
+    /// cannot sit on the lock screen all day (review V1).
+    private func removeStalePrompts(now: Date) {
+        let center = UNUserNotificationCenter.current()
+        center.getDeliveredNotifications { list in
+            let stale = list.filter { n in
+                guard n.request.identifier.hasPrefix("gym.arrive."),
+                      let entered = (n.request.content.userInfo["enteredAt"] as? String).flatMap(GeofenceQueue.date(fromISO:)) else { return false }
+                return GeofenceQueue.promptExpired(enteredAt: entered, now: now)
+            }.map(\.request.identifier)
+            if !stale.isEmpty { center.removeDeliveredNotifications(withIdentifiers: stale) }
+        }
     }
 
     private func drain() {
@@ -433,18 +505,32 @@ final class GymNotifications: NSObject, UNUserNotificationCenterDelegate {
         options: []
     )
 
-    private weak var next: UNUserNotificationCenterDelegate?
+    /// The delegate this one wraps (Capacitor's router). Until it exists —
+    /// a cold launch from a notification tap — non-gym calls are HELD and
+    /// replayed when it is wrapped, never completed early (review S1).
+    private let gate = ReplayGate<NSObject>()
 
     func install() {
         Self.installCategoryGuard()
         let center = UNUserNotificationCenter.current()
+        // Re-read inside the lock: a set made after this read already went
+        // through the guard (gym category included), so ours would only be
+        // stale and could drop the rest timer's category (review S5).
+        let version = Self.categoryVersion
         center.getNotificationCategories { existing in
-            center.setNotificationCategories(existing)
+            Self.categoryLock.lock()
+            defer { Self.categoryLock.unlock() }
+            if Self.categoryVersion == version { center.setNotificationCategories(existing) }
         }
         if center.delegate === self { return }
-        next = center.delegate
+        if let current = center.delegate as? NSObject { gate.attach(current) }
         center.delegate = self
     }
+
+    /// Every category set, ours or the LocalNotifications plugin's, runs
+    /// under this lock and bumps the version.
+    static let categoryLock = NSRecursiveLock()
+    static var categoryVersion = 0
 
     // The LocalNotifications plugin's registerActionTypes (the rest timer's
     // "+30 s / Done") REPLACES the whole category set, which would strip
@@ -493,8 +579,10 @@ final class GymNotifications: NSObject, UNUserNotificationCenterDelegate {
             let arrive = notification.request.content.categoryIdentifier == Self.arriveCategoryId
             return completionHandler(arrive ? [.banner, .list, .sound] : [.banner, .list])
         }
-        if next?.userNotificationCenter?(center, willPresent: notification, withCompletionHandler: completionHandler) == nil {
-            completionHandler([])
+        let done = completionHandler
+        gate.send { next in
+            let d = next as? UNUserNotificationCenterDelegate
+            if d?.userNotificationCenter?(center, willPresent: notification, withCompletionHandler: done) == nil { done([]) }
         }
     }
 
@@ -502,8 +590,10 @@ final class GymNotifications: NSObject, UNUserNotificationCenterDelegate {
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
         guard Self.isGym(response.notification) else {
-            if next?.userNotificationCenter?(center, didReceive: response, withCompletionHandler: completionHandler) == nil {
-                completionHandler()
+            let done = completionHandler
+            gate.send { next in
+                let d = next as? UNUserNotificationCenterDelegate
+                if d?.userNotificationCenter?(center, didReceive: response, withCompletionHandler: done) == nil { done() }
             }
             return
         }
@@ -519,7 +609,7 @@ final class GymNotifications: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, openSettingsFor notification: UNNotification?) {
-        next?.userNotificationCenter?(center, openSettingsFor: notification)
+        gate.send { next in (next as? UNUserNotificationCenterDelegate)?.userNotificationCenter?(center, openSettingsFor: notification) }
     }
 }
 
@@ -527,6 +617,9 @@ extension UNUserNotificationCenter {
     /// Swapped with setNotificationCategories(_:) by the guard above: calling
     /// this name runs the ORIGINAL setter.
     @objc func gym_setNotificationCategories(_ categories: Set<UNNotificationCategory>) {
+        GymNotifications.categoryLock.lock()
+        defer { GymNotifications.categoryLock.unlock() }
+        GymNotifications.categoryVersion += 1
         var merged = categories.filter { $0.identifier != GymNotifications.arriveCategoryId }
         merged.insert(GymNotifications.arriveCategory)
         gym_setNotificationCategories(merged)

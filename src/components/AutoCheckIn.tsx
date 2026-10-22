@@ -44,6 +44,7 @@ export default function AutoCheckIn({ fixedGym }: { fixedGym?: GeofenceGym }) {
   const [explain, setExplain] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const gym = fixedGym ?? picked;
 
   // Every native call goes through a promise and a catch: a plugin that
@@ -122,28 +123,48 @@ export default function AutoCheckIn({ fixedGym }: { fixedGym?: GeofenceGym }) {
                   key={g}
                   type="button"
                   aria-pressed={g === gym}
-                  onClick={() => setPicked(g)}
+                  onClick={() => {
+                    setPicked(g);
+                    setConfirmClear(false);
+                  }}
                   className={`${btn} ${g === gym ? 'border-app-tx1 text-app-tx1' : ''}`}
                 >
                   {GEOFENCE_GYM_NAME[g]}
                 </button>
               ))}
-            <button
-              type="button"
-              disabled={busy}
-              className={`${btn} flex-1`}
-              onClick={() =>
-                act(async () => {
-                  const r = await p.setGym({ gym });
-                  setNote(`${GEOFENCE_GYM_NAME[gym]} set · ±${r.accuracyM} m`);
-                })
-              }
-            >
-              {busy ? 'Finding you…' : `Set this as ${GEOFENCE_GYM_NAME[gym]}`}
-            </button>
-            {view.selectedSet && (
-              <button type="button" disabled={busy} className={btn} onClick={() => act(() => p.clearGym({ gym }))}>
-                Clear
+            {/* Set only an unset gym: one tap at home must never move a set
+                gym there (review D3). Re-setting is Clear, then Set. */}
+            {!view.selectedSet && (
+              <button
+                type="button"
+                disabled={busy}
+                className={`${btn} flex-1`}
+                onClick={() =>
+                  act(async () => {
+                    const r = await p.setGym({ gym });
+                    setNote(`${GEOFENCE_GYM_NAME[gym]} set · ±${r.accuracyM} m`);
+                  })
+                }
+              >
+                {busy ? 'Finding you…' : `Set this as ${GEOFENCE_GYM_NAME[gym]}`}
+              </button>
+            )}
+            {view.selectedSet && !confirmClear && (
+              <button type="button" disabled={busy} className={`${btn} flex-1`} onClick={() => setConfirmClear(true)}>
+                {GEOFENCE_GYM_NAME[gym]} set · Clear
+              </button>
+            )}
+            {view.selectedSet && confirmClear && (
+              <button
+                type="button"
+                disabled={busy}
+                className={`${btn} flex-1 border-app-tx1 text-app-tx1`}
+                onClick={() => {
+                  setConfirmClear(false);
+                  act(() => p.clearGym({ gym }));
+                }}
+              >
+                {`Clear ${GEOFENCE_GYM_NAME[gym]}'s location?`}
               </button>
             )}
           </div>

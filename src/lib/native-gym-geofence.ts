@@ -13,6 +13,8 @@ export interface GeofenceStatus {
   authorization: GeoAuth;
   gyms: { bfit?: { set: true }; work?: { set: true } };
   monitoring: boolean;
+  /** Approximate location: iOS cannot watch a gym circle (review D4). */
+  reducedAccuracy?: boolean;
 }
 
 interface GymGeofencePlugin {
@@ -114,6 +116,7 @@ export function autoCheckInView(status: GeofenceStatus | null, selected: Geofenc
   if (!status) return { kind: 'hidden' };
   if (status.authorization === 'notDetermined') return { kind: 'ask' };
   if (status.authorization !== 'always') return { kind: 'off', line: 'Auto check-in off · location not allowed' };
+  if (status.reducedAccuracy) return { kind: 'off', line: 'Precise location off' };
   const set = (['bfit', 'work'] as const).filter((g) => status.gyms?.[g]?.set);
   return {
     kind: 'on',

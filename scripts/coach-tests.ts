@@ -6140,7 +6140,7 @@ console.log('Gym geofence — the native side and the auto check-in card');
   const mainVC = read('native/HealthKitBridge/MainViewController.swift');
   assert(/registerPluginInstance\(GymGeofencePlugin\(\)\)/.test(mainVC) && /GymNotifications\.shared\.install\(\)/.test(mainVC), 'the plugin is registered and the notification delegate re-wraps Capacitor\'s router');
   const mgr = read('native/HealthKitBridge/GymGeofenceManager.swift');
-  assert(/next\?\.userNotificationCenter\?\(center, willPresent/.test(mgr) && /next\?\.userNotificationCenter\?\(center, didReceive/.test(mgr), 'non-gym notifications are forwarded to the delegate it replaced');
+  assert(/d\?\.userNotificationCenter\?\(center, willPresent/.test(mgr) && /d\?\.userNotificationCenter\?\(center, didReceive/.test(mgr), 'non-gym notifications are forwarded to the delegate it replaced');
   assert(/UNNotificationAction\(identifier: checkInAction, title: "Check in", options: \[\]\)/.test(mgr) && !/\.foreground/.test(mgr), 'Check in runs in the background (no .foreground)');
   assert(/gym_setNotificationCategories/.test(mgr), 'the rest timer\'s registerActionTypes cannot strip the Check in category');
   assert(/beginBackgroundTask/.test(mgr), 'sends run inside a background task');
@@ -6196,6 +6196,32 @@ console.log('Gym geofence — the native side and the auto check-in card');
     const rowSrc = read('src/components/AutoCheckIn.tsx');
     assert(/getDerivedStateFromError/.test(rowSrc) && /componentDidCatch|return null/.test(rowSrc), 'the boundary hides the row on a native failure instead of crashing /train');
     assert(!/\.addListener\([^)]*\)\s*\.then/.test(read('src/lib/native-gym-geofence.ts') + rowSrc), 'no code chains .then straight off addListener');
+  }
+  // ── Blind adversary review of ff41581 (2026-10-22) ──
+  {
+    // D4: approximate location cannot watch a gym; say so, never pretend.
+    const reduced = autoCheckInView({ authorization: 'always', gyms: { bfit: { set: true } }, monitoring: false, reducedAccuracy: true }, 'bfit');
+    assert(reduced.kind === 'off' && reduced.line === 'Precise location off', 'D4: Always with approximate location shows "Precise location off" (with Settings)');
+    const reducedWiu = autoCheckInView({ authorization: 'whenInUse', gyms: {}, monitoring: false, reducedAccuracy: true }, 'bfit');
+    assert(reducedWiu.kind === 'off' && reducedWiu.line === 'Auto check-in off · location not allowed', 'D4: without Always the permission line wins');
+    assert(/accuracyAuthorization/.test(mgr) && /"reducedAccuracy"/.test(mgr) && /Precise location off/.test(mgr), 'D4: the phone reports reduced accuracy and setGym refuses with that message');
+    // D3: Set never silently overwrites a set gym.
+    const row = read('src/components/AutoCheckIn.tsx');
+    assert(/!view\.selectedSet && \(/.test(row) && /Clear \$\{GEOFENCE_GYM_NAME\[gym\]\}'s location\?/.test(row), 'D3: "Set this as" shows only for an unset gym; a set gym offers Clear with a one-tap confirm');
+    // V1: the tap time past 30 min, and the stale prompt withdrawn.
+    assert(/checkIn\(gym: gym, enteredAt: enteredAt, tappedAt: Date\(\)/.test(mgr), 'V1: Check in passes the tap time; the core decides which time to send');
+    assert(/promptExpired\(/.test(mgr) && /removeDeliveredNotifications/.test(mgr), 'V1: an arrival prompt older than 30 min is withdrawn on wake');
+    // D1: wake first, then the entry.
+    const entered = mgr.slice(mgr.indexOf('private func enteredGym('), mgr.indexOf('private func exited('));
+    assert(entered.indexOf('wake()') > -1 && entered.indexOf('wake()') < entered.indexOf('queue.enteredGym('), 'D1: a region entry runs the wake BEFORE the entry');
+    // D2: a pending exit is released on a wake only after iOS says outside.
+    assert(/requestState\(for:/.test(mgr) && /didDetermineState/.test(mgr) && /queue\.resolvePending\(/.test(mgr) && /duePendingExits\(/.test(mgr), 'D2: a due pending exit is sent only on the region state iOS reports');
+    // S2, S3, S5.
+    assert(/GeofenceQueue\.sameCircle\(/.test(mgr) && !/c\.center\.latitude == w\.center\.latitude/.test(mgr), 'S2: monitored circles are compared within a metre, not by exact doubles');
+    assert(/timestamp\.timeIntervalSinceNow/.test(mgr) && /freshFixAge/.test(mgr), 'S3: setGym takes only a fresh fix');
+    assert(/NSRecursiveLock/.test(mgr) && /categoryVersion/.test(mgr), 'S5: category updates are serialised and re-read');
+    // S1: held until the router exists.
+    assert(/ReplayGate</.test(mgr) && /gate\.attach\(/.test(mgr) && !/== nil \{\s*completionHandler\(\)/.test(mgr), 'S1: non-gym notification calls wait for the router instead of being completed early');
   }
   // iOS 27 answers the Always prompt after requestAlways resolves, without
   // resigning the app (simulator, 2026-10-22): the card must LISTEN.
