@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react';
 import { checkIn, checkOut, closeForgotten, deleteVisit, getGymVisitState, nudgeVisit, switchGym } from '@/app/gym-visit-actions';
 import { fmtVisit, visitMinutes, type VisitLite } from '@/lib/gym-visits';
 import { hapticSuccess } from '@/lib/native-feedback';
+import AutoCheckIn, { AutoCheckInBoundary } from './AutoCheckIn';
 
 /**
  * Check in on arrival, check out on leaving (owner, 2026-10-01). Door to
@@ -215,6 +216,9 @@ export default function GymCheckIn({
           >
             Wrong gym? Switch to {open.gym === 'work' ? 'B_Fit' : 'Alrajhi'}
           </button>
+          <AutoCheckInBoundary>
+            <AutoCheckIn fixedGym={open.gym === 'work' ? 'work' : 'bfit'} />
+          </AutoCheckInBoundary>
         </div>
         {msg && <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-rpe-hard">{msg}</p>}
       </div>
@@ -266,6 +270,9 @@ export default function GymCheckIn({
             </div>
           </details>
         )}
+        <AutoCheckInBoundary>
+          <AutoCheckIn />
+        </AutoCheckInBoundary>
       </div>
       {msg && <p className="mt-2 font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-rpe-hard">{msg}</p>}
     </div>

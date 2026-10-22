@@ -466,7 +466,9 @@ Not in the snapshot by design: `CoachNote`, `CoachLadderCopy` (dormant
 coach) and `LiveSession` (ephemeral). Everything else is, including
 `GymVisit` (2026-10-01): a new table goes into scripts/export-data.js,
 src/lib/export-data.ts and scripts/restore-from-snapshot.js in the same
-change, and the suite checks all three. The daily
+change, and the suite checks all three. Automatic check-in/out writes
+the same `GymVisit` rows — a gym and two times, never a location; the
+gym coordinates stay on the phone (docs/GYM-GEOFENCE.md). The daily
 `sync-data` action is the real backup; the iCloud copy is the same
 payload with no landing check.
 

@@ -15,6 +15,11 @@ class MainViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(HealthKitBridgePlugin())
         bridge?.registerPluginInstance(RestActivityPlugin())
         bridge?.registerPluginInstance(CloudBackupPlugin())
+        bridge?.registerPluginInstance(GymGeofencePlugin())
+        // The bridge has just made its NotificationRouter the notification
+        // delegate: wrap it again so the gym prompt's actions are answered
+        // here and every other notification still reaches the router.
+        GymNotifications.shared.install()
     }
 
     /// iOS 26+ draws a "scroll edge effect" — a grey fade — over content that

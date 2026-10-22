@@ -45,6 +45,10 @@
 	<string>Workout reads your weight, heart rate, and active energy from Apple Health to chart trends and enrich your logged sessions.</string>
 	<key>NSHealthUpdateUsageDescription</key>
 	<string>Workout saves your strength-training sessions and their energy burn to Apple Health.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>To check you in when you arrive at your gym and out when you leave. Only the two gym areas are watched; no location history is kept or sent.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Used when you tap Set this as B_Fit or Set this as Alrajhi, to save where that gym is. It stays on this iPhone.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSUbiquitousContainers</key>

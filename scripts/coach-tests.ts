@@ -16,6 +16,7 @@ import * as DR from '../src/lib/doctor-report';
 import { createPdfWriter, drawLabGrid, drawQuestions, LAB_SECTION_NEED, QUESTIONS_SECTION_NEED } from '../src/lib/report-pdf';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
+import { autoCheckInView, pickGeofencePlugin, subscribeGeofenceStatus, AUTO_EXPLAIN, type GeofenceStatus } from '../src/lib/native-gym-geofence';
 import { adjustedTime, classifyVisit, fmtVisit, geofenceEnter, geofenceExit, gymTimeStats, isStale, parseEventTime } from '../src/lib/gym-visits';
 import { parsePinKg, offGridWeights, crownStepFor, UNCONFIRMED_CROWN_STEP_KG, stepPlausible } from '../src/lib/pins';
 import { foldExerciseMemory, prescribeWorking, prescribeWarmup, prescriptionInputs, planExercises, extraSetAllowed, warmupRowsToDrop, warmupStillDue, untickedWarmupsKept, rampTargetKg, startableUntilFor, settledSet, type ExerciseMemory, type MemorySetRow } from '../src/lib/prescription';
@@ -4041,7 +4042,7 @@ console.log('Gym visits — door to door, by workout length');
 console.log('Native bridge — Swift twins and plugin methods');
 {
   const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
-  for (const f of ['HealthKitBridgePlugin', 'RestActivityPlugin', 'CloudBackupPlugin', 'MainViewController']) {
+  for (const f of ['HealthKitBridgePlugin', 'RestActivityPlugin', 'CloudBackupPlugin', 'GymGeofenceCore', 'GymGeofenceManager', 'GymGeofencePlugin', 'MainViewController']) {
     assert(read(`native/HealthKitBridge/${f}.swift`) === read(`ios/App/App/${f}.swift`), `${f}.swift: the ios/App/App copy is byte-identical to native/`);
   }
   const swiftMethods = (f: string) => new Set([...read(`native/HealthKitBridge/${f}.swift`).matchAll(/CAPPluginMethod\(name: "([a-zA-Z]+)"/g)].map((m) => m[1]));
@@ -4057,6 +4058,7 @@ console.log('Native bridge — Swift twins and plugin methods');
     ['RestActivityPlugin', ['src/lib/native-live-activity.ts', 'src/lib/native-widgets.ts']],
     ['CloudBackupPlugin', ['src/lib/native-cloud-backup.ts']],
     ['HealthKitBridgePlugin', ['src/lib/native-health.ts']],
+    ['GymGeofencePlugin', ['src/lib/native-gym-geofence.ts']],
   ];
   for (const [plugin, files] of contract) {
     const have = swiftMethods(plugin);
@@ -6099,6 +6101,139 @@ console.log('Doctor report — the visit pack (2026-10-18)');
       assert(groupOrphans === '', `a group heading never sits alone at a page foot (at y: ${groupOrphans || 'none'})`);
     })());
   }
+}
+
+// ── Geofence, the phone's side: native auto check-in (owner, 2026-10-22) ──
+// The queue rules are Swift (npm run test:geofence); held here: the card's
+// states, the JS↔Swift contract, and the wiring that only text can check —
+// background relaunch, the notification delegate, the copy loops, privacy.
+console.log('Gym geofence — the native side and the auto check-in card');
+{
+  const read = (f: string) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const st = (authorization: GeofenceStatus['authorization'], gyms: GeofenceStatus['gyms'] = {}, monitoring = false): GeofenceStatus => ({ authorization, gyms, monitoring });
+  assert(autoCheckInView(null, 'bfit').kind === 'hidden', 'no plugin (web, an older build): the auto check-in row is hidden');
+  assert(autoCheckInView(st('notDetermined'), 'bfit').kind === 'ask', 'never asked: the row offers to turn it on (explain first, then iOS asks)');
+  for (const a of ['denied', 'whenInUse'] as const) {
+    const v = autoCheckInView(st(a), 'bfit');
+    assert(v.kind === 'off' && v.line === 'Auto check-in off · location not allowed', `${a}: everything stays manual and the row says why, with a link to Settings`);
+  }
+  const none = autoCheckInView(st('always'), 'bfit');
+  assert(none.kind === 'on' && none.line === 'Auto check-in · no gym set' && !none.selectedSet, 'Always with no gym: says so, offers Set this as');
+  const bfit = autoCheckInView(st('always', { bfit: { set: true } }, true), 'bfit');
+  assert(bfit.kind === 'on' && bfit.line === 'Auto check-in · B_Fit' && bfit.selectedSet, 'B_Fit set: named on the line, Clear offered for it');
+  const work = autoCheckInView(st('always', { bfit: { set: true } }, true), 'work');
+  assert(work.kind === 'on' && !work.selectedSet, 'the selected gym decides which one Set this as / Clear act on');
+  assert(autoCheckInView(st('always', { bfit: { set: true }, work: { set: true } }, true), 'work').kind === 'on' && (autoCheckInView(st('always', { bfit: { set: true }, work: { set: true } }, true), 'work') as { line: string }).line === 'Auto check-in · B_Fit · Alrajhi', 'both set: both named');
+  assert(AUTO_EXPLAIN.length === 2 && AUTO_EXPLAIN[0].includes('location Always') && /no location history/.test(AUTO_EXPLAIN[1]), 'the explanation before iOS asks is two short lines');
+  const fn = () => Promise.resolve();
+  const full = { status: fn, requestAlways: fn, setGym: fn, clearGym: fn, openSettings: fn };
+  assert(pickGeofencePlugin({ isNativePlatform: () => true, Plugins: { GymGeofence: full } }) === (full as unknown), 'the native shell with the plugin gets it');
+  assert(pickGeofencePlugin({ isNativePlatform: () => true, Plugins: {} }) === undefined && pickGeofencePlugin(undefined) === undefined && pickGeofencePlugin({ isNativePlatform: () => false, Plugins: { GymGeofence: full } }) === undefined, 'an old build, the web or Safari get nothing');
+  assert(pickGeofencePlugin({ isNativePlatform: () => true, Plugins: { GymGeofence: { status: fn } } }) === undefined, 'a plugin missing a method is treated as absent');
+  // The plugin's Swift list and the JS calls are the same five, both ways.
+  const swift = [...read('native/HealthKitBridge/GymGeofencePlugin.swift').matchAll(/CAPPluginMethod\(name: "([a-zA-Z]+)"/g)].map((m) => m[1]).sort();
+  assert(swift.join() === ['clearGym', 'openSettings', 'requestAlways', 'setGym', 'status'].join(), `GymGeofence exports exactly status/requestAlways/setGym/clearGym/openSettings (has ${swift.join()})`);
+  // Background relaunch: the location delegate exists before launch returns.
+  const appDelegate = read('ios/App/App/AppDelegate.swift');
+  const finish = appDelegate.slice(appDelegate.indexOf('didFinishLaunchingWithOptions'), appDelegate.indexOf('return true'));
+  assert(/GymGeofence\.shared\.launch\(launchOptions\)/.test(finish), 'didFinishLaunching starts the geofence on every launch (a background relaunch has no scene)');
+  const mainVC = read('native/HealthKitBridge/MainViewController.swift');
+  assert(/registerPluginInstance\(GymGeofencePlugin\(\)\)/.test(mainVC) && /GymNotifications\.shared\.install\(\)/.test(mainVC), 'the plugin is registered and the notification delegate re-wraps Capacitor\'s router');
+  const mgr = read('native/HealthKitBridge/GymGeofenceManager.swift');
+  assert(/d\?\.userNotificationCenter\?\(center, willPresent/.test(mgr) && /d\?\.userNotificationCenter\?\(center, didReceive/.test(mgr), 'non-gym notifications are forwarded to the delegate it replaced');
+  assert(/UNNotificationAction\(identifier: checkInAction, title: "Check in", options: \[\]\)/.test(mgr) && !/\.foreground/.test(mgr), 'Check in runs in the background (no .foreground)');
+  assert(/gym_setNotificationCategories/.test(mgr), 'the rest timer\'s registerActionTypes cannot strip the Check in category');
+  assert(/beginBackgroundTask/.test(mgr), 'sends run inside a background task');
+  assert(/forResource: "capacitor\.config"/.test(mgr) && !/vercel\.app|https?:\/\//.test(mgr), 'the API base is the shell\'s own server.url, never a hard-coded host');
+  assert(!/startUpdatingLocation|allowsBackgroundLocationUpdates|startMonitoringSignificant/.test(mgr), 'region monitoring only: no continuous GPS');
+  assert(!/NSLog\([^)]*(coordinate|latitude|longitude)/.test(mgr), 'no location is ever logged');
+  const plist = read('ios/App/App/Info.plist');
+  assert(/NSLocationWhenInUseUsageDescription/.test(plist) && /NSLocationAlwaysAndWhenInUseUsageDescription/.test(plist), 'both location usage strings are in Info.plist');
+  assert(!/UIBackgroundModes/.test(plist), 'no background location mode: region monitoring does not need it');
+  for (const f of ['scripts/ios-deploy.sh', 'scripts/testflight-upload.sh']) {
+    assert(/GymGeofenceCore GymGeofenceManager GymGeofencePlugin/.test(read(f)), `${f} copies the geofence sources into the Xcode target`);
+  }
+  assert(/GymGeofencePlugin\.swift/.test(read('scripts/ios-deploy.sh')), 'ios:deploy verifies the geofence plugin methods in the installed binary');
+  assert(/"test:geofence": "bash scripts\/geofence-core-tests\/run\.sh"/.test(read('package.json')), 'npm run test:geofence runs the Swift queue tests');
+  const card = read('src/components/GymCheckIn.tsx');
+  assert(/<AutoCheckIn/.test(card), 'the check-in card carries the auto check-in row');
+  // BLOCKER, simulator 2026-10-22: addListener returned a handle, not a
+  // promise, and `.then` on it took /train down. Both shapes, and a throw,
+  // must be tolerated; the row must never be able to crash the page.
+  {
+    const removed: string[] = [];
+    const plainHandle = { addListener: () => ({ remove: () => removed.push('plain') }) };
+    const promiseHandle = { addListener: () => Promise.resolve({ remove: () => removed.push('promise') }) };
+    const throwing = { addListener: () => { throw new Error('native'); } };
+    const rejecting = { addListener: () => Promise.reject(new Error('native')) };
+    let threw = false;
+    const offs: (() => void)[] = [];
+    try {
+      offs.push(subscribeGeofenceStatus(plainHandle, () => {}));
+      offs.push(subscribeGeofenceStatus(promiseHandle, () => {}));
+      offs.push(subscribeGeofenceStatus(throwing, () => {}));
+      offs.push(subscribeGeofenceStatus(rejecting, () => {}));
+      offs.push(subscribeGeofenceStatus(undefined, () => {}));
+      offs.push(subscribeGeofenceStatus({}, () => {}));
+    } catch { threw = true; }
+    assert(!threw && offs.every((f) => typeof f === 'function'), 'subscribing never throws: a plain handle, a promise, a throw, a rejection, no plugin');
+    pendingAsync.push((async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      offs.forEach((f) => f());
+      await new Promise((r) => setTimeout(r, 5));
+      assert(removed.includes('plain') && removed.includes('promise'), `unsubscribing removes the listener whether addListener returned a handle or a promise (removed ${removed.join()})`);
+    })());
+    const late: string[] = [];
+    const off = subscribeGeofenceStatus({ addListener: () => Promise.resolve({ remove: () => late.push('late') }) }, () => {});
+    off();
+    pendingAsync.push((async () => {
+      await new Promise((r) => setTimeout(r, 5));
+      assert(late.length === 1, 'unsubscribing before the handle arrives still removes it');
+    })());
+    assert(autoCheckInView({ authorization: 'always' } as unknown as GeofenceStatus, 'bfit').kind === 'on', 'a status without gyms (an odd native answer) does not crash the view');
+    const cardSrc = read('src/components/GymCheckIn.tsx');
+    assert(!/<AutoCheckIn/.test(cardSrc.replace(/<AutoCheckInBoundary>\s*<AutoCheckIn[^>]*\/>\s*<\/AutoCheckInBoundary>/g, '')) && /<AutoCheckInBoundary>/.test(cardSrc), 'every auto check-in row on /train sits inside its error boundary');
+    const rowSrc = read('src/components/AutoCheckIn.tsx');
+    assert(/getDerivedStateFromError/.test(rowSrc) && /componentDidCatch|return null/.test(rowSrc), 'the boundary hides the row on a native failure instead of crashing /train');
+    assert(!/\.addListener\([^)]*\)\s*\.then/.test(read('src/lib/native-gym-geofence.ts') + rowSrc), 'no code chains .then straight off addListener');
+  }
+  // ── Blind adversary review of ff41581 (2026-10-22) ──
+  {
+    // D4: approximate location cannot watch a gym; say so, never pretend.
+    const reduced = autoCheckInView({ authorization: 'always', gyms: { bfit: { set: true } }, monitoring: false, reducedAccuracy: true }, 'bfit');
+    assert(reduced.kind === 'off' && reduced.line === 'Precise location off', 'D4: Always with approximate location shows "Precise location off" (with Settings)');
+    const reducedWiu = autoCheckInView({ authorization: 'whenInUse', gyms: {}, monitoring: false, reducedAccuracy: true }, 'bfit');
+    assert(reducedWiu.kind === 'off' && reducedWiu.line === 'Auto check-in off · location not allowed', 'D4: without Always the permission line wins');
+    assert(/accuracyAuthorization/.test(mgr) && /"reducedAccuracy"/.test(mgr) && /Precise location off/.test(mgr), 'D4: the phone reports reduced accuracy and setGym refuses with that message');
+    // D3: Set never silently overwrites a set gym.
+    const row = read('src/components/AutoCheckIn.tsx');
+    assert(/!view\.selectedSet && \(/.test(row) && /Clear \$\{GEOFENCE_GYM_NAME\[gym\]\}'s location\?/.test(row), 'D3: "Set this as" shows only for an unset gym; a set gym offers Clear with a one-tap confirm');
+    // V1: the tap time past 30 min, and the stale prompt withdrawn.
+    assert(/checkIn\(gym: gym, enteredAt: enteredAt, tappedAt: Date\(\)/.test(mgr), 'V1: Check in passes the tap time; the core decides which time to send');
+    assert(/promptExpired\(/.test(mgr) && /removeDeliveredNotifications/.test(mgr), 'V1: an arrival prompt older than 30 min is withdrawn on wake');
+    // D1: wake first, then the entry.
+    const entered = mgr.slice(mgr.indexOf('private func enteredGym('), mgr.indexOf('private func exited('));
+    assert(entered.indexOf('wake()') > -1 && entered.indexOf('wake()') < entered.indexOf('queue.enteredGym('), 'D1: a region entry runs the wake BEFORE the entry');
+    // D2: a pending exit is released on a wake only after iOS says outside.
+    assert(/requestState\(for:/.test(mgr) && /didDetermineState/.test(mgr) && /queue\.resolvePending\(/.test(mgr) && /duePendingExits\(/.test(mgr), 'D2: a due pending exit is sent only on the region state iOS reports');
+    // S2, S3, S5.
+    assert(/GeofenceQueue\.sameCircle\(/.test(mgr) && !/c\.center\.latitude == w\.center\.latitude/.test(mgr), 'S2: monitored circles are compared within a metre, not by exact doubles');
+    assert(/timestamp\.timeIntervalSinceNow/.test(mgr) && /freshFixAge/.test(mgr), 'S3: setGym takes only a fresh fix');
+    assert(/NSRecursiveLock/.test(mgr) && /categoryVersion/.test(mgr), 'S5: category updates are serialised and re-read');
+    // S-a: a state answer counts only within 30 s of its own ask, and an
+    // enter/exit callback clears the ask (re-verification, 2026-10-22).
+    assert(/StateAsks\(\)/.test(mgr) && /stateAsks\.ask\(/.test(mgr) && /stateAsks\.accept\(/.test(mgr) && !/stateAsked/.test(mgr), 'S-a: region-state asks are stamped and answered once, within 30 s');
+    const handlers = mgr.slice(mgr.indexOf('private func enteredGym('), mgr.indexOf('#if DEBUG', mgr.indexOf('private func enteredGym(')));
+    assert((handlers.match(/stateAsks\.clear\(gym\)/g) ?? []).length >= 2, 'S-a: an enter or exit of the small circle clears the outstanding ask');
+    // S1: held until the router exists.
+    assert(/ReplayGate</.test(mgr) && /gate\.attach\(/.test(mgr) && !/== nil \{\s*completionHandler\(\)/.test(mgr), 'S1: non-gym notification calls wait for the router instead of being completed early');
+  }
+  // iOS 27 answers the Always prompt after requestAlways resolves, without
+  // resigning the app (simulator, 2026-10-22): the card must LISTEN.
+  assert(/notifyListeners\("statusChange"/.test(read('native/HealthKitBridge/GymGeofencePlugin.swift')) && /onGeofenceStatus\(setStatus\)/.test(read('src/components/AutoCheckIn.tsx')), 'authorization changes reach the card as a statusChange event');
+  // Every mention of the simulator hook sits inside a #if DEBUG block.
+  const outsideDebug = mgr.replace(/#if DEBUG[\s\S]*?#endif/g, '');
+  assert(/func simulateFromLaunchArguments/.test(mgr) && !/simulateFromLaunchArguments|GymSimulate/.test(outsideDebug), 'the simulator hook exists only in Debug builds');
 }
 
 Promise.all(pendingAsync).then(() => {
