@@ -32,7 +32,8 @@ struct GeofenceEvent: Codable, Equatable {
 ///   sent when he leaves the 600 m "away" area, or — once it is `exitDelay`
 ///   old — when iOS confirms he is OUTSIDE the small circle (the manager asks
 ///   on every wake; inside means the exit was drift and it is dropped).
-///   Coming back within `exitDelay` cancels it; coming back later sends it.
+///   Coming back cancels it when it may be drift; sends it when it is a
+///   departure (`driftWindow`: confirmed, or older than 90 min).
 /// - `outbox`: events to POST, oldest first, one at a time (the server's
 ///   contract). Survives offline and relaunch.
 /// - `maybeLater`: exits the server answered "none". If he taps an old
@@ -44,14 +45,22 @@ struct GeofenceQueue: Codable, Equatable {
     /// The entry time is trusted only for a tap this close to it (review V1:
     /// Alrajhi's circle fires on arrival at the office tower at 08:00).
     static let entryTrustWindow: TimeInterval = 30 * 60
+    /// ONE rule for "drift or departure", used by every path (re-entry, the
+    /// region-state answer, check-in bounding): a pending exit is CONFIRMED
+    /// when the away circle was left or iOS answered "outside" for it; a
+    /// confirmed exit is real. An unconfirmed one younger than this may be
+    /// indoor GPS drift; older, it is a departure.
+    static let driftWindow: TimeInterval = 90 * 60
 
     var outbox: [GeofenceEvent] = []
     var pendingExits: [String: Date] = [:]
     var maybeLater: [GeofenceEvent] = []
+    /// Gyms whose pending exit iOS confirmed (answered "outside").
+    var confirmedExits: Set<String> = []
 
     init() {}
 
-    private enum CodingKeys: String, CodingKey { case outbox, pendingExits, maybeLater }
+    private enum CodingKeys: String, CodingKey { case outbox, pendingExits, maybeLater, confirmedExits }
 
     /// Every key optional: a queue stored by an older or newer build keeps
     /// what it has instead of failing whole and wiping the outbox (review S4).
@@ -60,34 +69,54 @@ struct GeofenceQueue: Codable, Equatable {
         outbox = try c.decodeIfPresent([GeofenceEvent].self, forKey: .outbox) ?? []
         pendingExits = try c.decodeIfPresent([String: Date].self, forKey: .pendingExits) ?? [:]
         maybeLater = try c.decodeIfPresent([GeofenceEvent].self, forKey: .maybeLater) ?? []
+        confirmedExits = try c.decodeIfPresent(Set<String>.self, forKey: .confirmedExits) ?? []
+    }
+
+    /// The one rule: is this gym's pending exit a real departure?
+    private func isDeparture(_ gym: String, exitAt: Date, now: Date) -> Bool {
+        confirmedExits.contains(gym) || now.timeIntervalSince(exitAt) >= Self.driftWindow
+    }
+
+    /// Takes the pending exit off the books (sent or dropped).
+    private mutating func takePending(_ gym: String) -> Date? {
+        confirmedExits.remove(gym)
+        return pendingExits.removeValue(forKey: gym)
+    }
+
+    private mutating func sendExit(_ gym: String, at exitAt: Date) {
+        enqueue(GeofenceEvent(id: UUID().uuidString, kind: .exit, gym: gym, at: exitAt))
     }
 
     // MARK: Region events
 
     /// Entered a gym's small circle. True when the arrival prompt should be
     /// shown; false when this only cancels a pending exit (same stay).
-    /// A pending exit older than `exitDelay` was a real departure the app
-    /// slept through: it is SENT, not deleted (review D1).
+    /// A departure (confirmed, or older than `driftWindow`) the app slept
+    /// through is SENT, not deleted (review D1); an unconfirmed exit younger
+    /// than that is drift and the same stay — no exit, no prompt (N1: the
+    /// D1 fix had closed a real visit mid-workout on a drift re-entry).
     mutating func enteredGym(_ gym: String, at: Date) -> Bool {
-        guard let exitAt = pendingExits.removeValue(forKey: gym) else { return true }
-        if at.timeIntervalSince(exitAt) >= Self.exitDelay {
-            enqueue(GeofenceEvent(id: UUID().uuidString, kind: .exit, gym: gym, at: exitAt))
-            return true
-        }
-        return false
+        guard let exitAt = pendingExits[gym] else { return true }
+        let departure = isDeparture(gym, exitAt: exitAt, now: at)
+        _ = takePending(gym)
+        if departure { sendExit(gym, at: exitAt) }
+        return departure
     }
 
     /// Left a gym's small circle: park the exit. A repeated exit with no
     /// re-entry between keeps the first time.
     mutating func exitedGym(_ gym: String, at: Date) {
-        if pendingExits[gym] == nil { pendingExits[gym] = at }
+        if pendingExits[gym] == nil {
+            pendingExits[gym] = at
+            confirmedExits.remove(gym)
+        }
     }
 
     /// Left the gym's 600 m area: he has really gone — send the parked exit
     /// with its small-circle time.
     mutating func leftAwayArea(_ gym: String, now: Date) {
-        guard let exitAt = pendingExits.removeValue(forKey: gym) else { return }
-        enqueue(GeofenceEvent(id: UUID().uuidString, kind: .exit, gym: gym, at: exitAt))
+        guard let exitAt = takePending(gym) else { return }
+        sendExit(gym, at: exitAt)
     }
 
     /// Gyms whose pending exit is old enough to send — once iOS confirms he
@@ -98,18 +127,26 @@ struct GeofenceQueue: Codable, Equatable {
         pendingExits.filter { now.timeIntervalSince($0.value) >= Self.exitDelay }.map(\.key).sorted()
     }
 
-    /// iOS answered where he is for `gym`'s small circle. Inside: the pending
-    /// exit was drift, dropped. Outside and old enough: sent with its
-    /// original time. Unknown: kept.
+    /// iOS answered where he is for `gym`'s small circle.
+    /// Outside: the exit is CONFIRMED; sent once `exitDelay` old.
+    /// Inside: drift if it is not a departure by the one rule (dropped);
+    /// a departure and a return otherwise (sent — N2: yesterday's exit must
+    /// not die because he opened the app at the gym today).
+    /// Unknown: kept.
     mutating func resolvePending(_ gym: String, side: RegionSide, now: Date) {
         guard let exitAt = pendingExits[gym] else { return }
         switch side {
+        case .outside:
+            confirmedExits.insert(gym)
+            if now.timeIntervalSince(exitAt) >= Self.exitDelay {
+                _ = takePending(gym)
+                sendExit(gym, at: exitAt)
+            }
         case .inside:
-            pendingExits.removeValue(forKey: gym)
-        case .outside where now.timeIntervalSince(exitAt) >= Self.exitDelay:
-            pendingExits.removeValue(forKey: gym)
-            enqueue(GeofenceEvent(id: UUID().uuidString, kind: .exit, gym: gym, at: exitAt))
-        default:
+            let departure = isDeparture(gym, exitAt: exitAt, now: now)
+            _ = takePending(gym)
+            if departure { sendExit(gym, at: exitAt) }
+        case .unknown:
             break
         }
     }
@@ -129,8 +166,10 @@ struct GeofenceQueue: Codable, Equatable {
     /// bounds the trip (the late tap after he left) and closes it at its
     /// real times.
     mutating func checkIn(gym: String, enteredAt: Date, tappedAt: Date, id: String = UUID().uuidString) {
+        // Only a real exit bounds the trip: sent or kept ones, or a confirmed
+        // pending one — never an unconfirmed (possibly drift) pending exit (N3).
         let bounded = (outbox + maybeLater).contains { $0.kind == .exit && $0.gym == gym && $0.at > enteredAt }
-            || (pendingExits[gym].map { $0 > enteredAt } ?? false)
+            || (confirmedExits.contains(gym) && (pendingExits[gym].map { $0 > enteredAt } ?? false))
         let close = tappedAt.timeIntervalSince(enteredAt) <= Self.entryTrustWindow
         enqueue(GeofenceEvent(id: id, kind: .enter, gym: gym, at: close || bounded ? enteredAt : Swift.max(tappedAt, enteredAt)))
     }
@@ -155,7 +194,7 @@ struct GeofenceQueue: Codable, Equatable {
     /// The gym's coordinates were cleared: its parked exit means nothing now.
     /// Queued events stay — they are facts already.
     mutating func clearGym(_ gym: String) {
-        pendingExits.removeValue(forKey: gym)
+        _ = takePending(gym)
     }
 
     // MARK: Sending
@@ -265,4 +304,21 @@ final class ReplayGate<Target: AnyObject> {
         held = []
         calls.forEach { $0(t) }
     }
+}
+
+/// Region-state asks, stamped (review S-a): an answer counts only within
+/// `window` of its ask, once; an enter/exit callback for that gym clears the
+/// ask, so iOS's own transition report is never taken for our answer.
+struct StateAsks {
+    static let window: TimeInterval = 30
+    private var asked: [String: Date] = [:]
+
+    mutating func ask(_ gym: String, at: Date) { asked[gym] = at }
+
+    mutating func accept(_ gym: String, at: Date) -> Bool {
+        guard let t = asked.removeValue(forKey: gym) else { return false }
+        return at.timeIntervalSince(t) >= 0 && at.timeIntervalSince(t) <= Self.window
+    }
+
+    mutating func clear(_ gym: String) { asked.removeValue(forKey: gym) }
 }

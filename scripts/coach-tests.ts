@@ -6220,6 +6220,11 @@ console.log('Gym geofence — the native side and the auto check-in card');
     assert(/GeofenceQueue\.sameCircle\(/.test(mgr) && !/c\.center\.latitude == w\.center\.latitude/.test(mgr), 'S2: monitored circles are compared within a metre, not by exact doubles');
     assert(/timestamp\.timeIntervalSinceNow/.test(mgr) && /freshFixAge/.test(mgr), 'S3: setGym takes only a fresh fix');
     assert(/NSRecursiveLock/.test(mgr) && /categoryVersion/.test(mgr), 'S5: category updates are serialised and re-read');
+    // S-a: a state answer counts only within 30 s of its own ask, and an
+    // enter/exit callback clears the ask (re-verification, 2026-10-22).
+    assert(/StateAsks\(\)/.test(mgr) && /stateAsks\.ask\(/.test(mgr) && /stateAsks\.accept\(/.test(mgr) && !/stateAsked/.test(mgr), 'S-a: region-state asks are stamped and answered once, within 30 s');
+    const handlers = mgr.slice(mgr.indexOf('private func enteredGym('), mgr.indexOf('#if DEBUG', mgr.indexOf('private func enteredGym(')));
+    assert((handlers.match(/stateAsks\.clear\(gym\)/g) ?? []).length >= 2, 'S-a: an enter or exit of the small circle clears the outstanding ask');
     // S1: held until the router exists.
     assert(/ReplayGate</.test(mgr) && /gate\.attach\(/.test(mgr) && !/== nil \{\s*completionHandler\(\)/.test(mgr), 'S1: non-gym notification calls wait for the router instead of being completed early');
   }

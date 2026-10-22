@@ -214,6 +214,66 @@ do {
     check(r.got.last == "later", "S1: after that, calls go straight through")
 }
 
+print("Geofence core — one drift rule (re-verification, 2026-10-22)")
+do {
+    // N1: logger open, indoor drift exit 18:30, drift re-entry 18:45.
+    var q = GeofenceQueue()
+    q.exitedGym("bfit", at: at("18:30"))
+    let prompt = q.enteredGym("bfit", at: at("18:45"))
+    check(q.outbox.isEmpty && q.pendingExits.isEmpty && prompt == false, "N1: an UNCONFIRMED exit 15 min before re-entry is the same stay — no exit sent, no prompt")
+    var q2 = GeofenceQueue()
+    q2.exitedGym("bfit", at: at("17:00"))
+    let p2 = q2.enteredGym("bfit", at: at("18:31"))
+    check(q2.next()?.at == at("17:00") && p2 == true, "N1: an unconfirmed exit 91 min old is a departure: sent, and a new prompt")
+    var q3 = GeofenceQueue()
+    q3.exitedGym("bfit", at: at("18:30"))
+    q3.resolvePending("bfit", side: .outside, now: at("18:33"))
+    check(q3.outbox.isEmpty && q3.pendingExits["bfit"] != nil, "an outside answer before 7 min confirms but does not send yet")
+    let p3 = q3.enteredGym("bfit", at: at("18:45"))
+    check(q3.next()?.kind == .exit && q3.next()?.at == at("18:30") && p3 == true, "N1: a CONFIRMED exit is sent on re-entry, whatever its age, and he is asked again")
+}
+do {
+    // N2: yesterday's departure, app opened today before the entry arrives; iOS says inside.
+    var q = GeofenceQueue()
+    q.exitedGym("bfit", at: at("18:00"))
+    q.resolvePending("bfit", side: .inside, now: at("18:00").addingTimeInterval(24 * 3600))
+    check(q.next()?.kind == .exit && q.next()?.at == at("18:00") && q.pendingExits.isEmpty, "N2: inside, but the exit is a day old: a departure and a return — sent, not deleted")
+    var q2 = GeofenceQueue()
+    q2.exitedGym("bfit", at: at("18:00"))
+    q2.resolvePending("bfit", side: .inside, now: at("19:29"))
+    check(q2.outbox.isEmpty && q2.pendingExits.isEmpty, "N2: inside within 90 min of the exit: drift, dropped")
+}
+do {
+    // N3: a drift exit at the desk (08:20) must not bound a 12:30 tap to 08:00.
+    var q = GeofenceQueue()
+    q.exitedGym("work", at: at("08:20"))
+    q.checkIn(gym: "work", enteredAt: at("08:00"), tappedAt: at("12:30"), id: "w")
+    check(q.outbox.first { $0.kind == .enter }?.at == at("12:30"), "N3: an unconfirmed pending exit never keeps the entry time on a late tap")
+    var q2 = GeofenceQueue()
+    q2.exitedGym("work", at: at("08:20"))
+    q2.resolvePending("work", side: .outside, now: at("08:22"))
+    q2.checkIn(gym: "work", enteredAt: at("08:00"), tappedAt: at("12:30"), id: "w")
+    check(q2.outbox.first { $0.kind == .enter }?.at == at("08:00"), "N3: a CONFIRMED pending exit bounds the trip")
+}
+do {
+    // S-a: a stale state ask must not swallow a later, unrelated answer.
+    var asks = StateAsks()
+    asks.ask("bfit", at: at("18:00"))
+    check(asks.accept("bfit", at: at("18:00").addingTimeInterval(10)) == true, "S-a: an answer within 30 s of the ask counts")
+    check(asks.accept("bfit", at: at("18:00").addingTimeInterval(12)) == false, "S-a: one answer per ask")
+    asks.ask("bfit", at: at("18:00"))
+    check(asks.accept("bfit", at: at("18:00").addingTimeInterval(31)) == false, "S-a: an answer 31 s after the ask is not its answer")
+    asks.ask("work", at: at("18:00"))
+    asks.clear("work")
+    check(asks.accept("work", at: at("18:00").addingTimeInterval(5)) == false, "S-a: an enter/exit callback clears the outstanding ask")
+    check(asks.accept("bfit", at: at("18:00")) == false, "S-a: no ask, no answer")
+}
+do {
+    let old = Data("{\"outbox\":[],\"pendingExits\":{\"bfit\":0},\"maybeLater\":[]}".utf8)
+    let q = GeofenceQueue.decode(old)
+    check(q.pendingExits["bfit"] != nil && q.confirmedExits.isEmpty, "a queue stored before confirmations existed decodes with none")
+}
+
 print("Geofence core — persisted")
 do {
     var q = GeofenceQueue()

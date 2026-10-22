@@ -260,6 +260,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     /// runs FIRST (review D1); its region-state asks answer asynchronously,
     /// so the entry below always sees — and sends — an old pending exit.
     private func enteredGym(_ gym: String, at: Date) {
+        stateAsks.clear(gym)
         wake()
         let prompt = queue.enteredGym(gym, at: at)
         save()
@@ -268,12 +269,13 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         drain()
     }
 
-    /// Gyms whose state we asked about (a due pending exit). Only those
-    /// answers count: iOS also reports state on every transition.
-    private var stateAsked: Set<String> = []
+    /// Our region-state asks, stamped. Only an answer within 30 s of its
+    /// own ask counts: iOS also reports state on every transition, and an
+    /// unanswered ask must not adopt a later, unrelated report (S-a).
+    private var stateAsks = StateAsks()
 
     func locationManager(_ m: CLLocationManager, didDetermineState state: CLRegionState, for region: CLRegion) {
-        guard let (small, gym) = parse(region), small, stateAsked.remove(gym) != nil else { return }
+        guard let (small, gym) = parse(region), small, stateAsks.accept(gym, at: Date()) else { return }
         let side: RegionSide = state == .inside ? .inside : state == .outside ? .outside : .unknown
         regionState(gym, side: side)
     }
@@ -288,6 +290,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     }
 
     private func exited(_ gym: String, small: Bool, at: Date) {
+        if small { stateAsks.clear(gym) }
         if small {
             queue.exitedGym(gym, at: at)
             NSLog("[GymGeofence] left %@ — exit pending", gym)
@@ -385,7 +388,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         removeStalePrompts(now: now)
         for gym in queue.duePendingExits(now: now) {
             if let region = manager?.monitoredRegions.first(where: { $0.identifier == "gym.small.\(gym)" }) {
-                stateAsked.insert(gym)
+                stateAsks.ask(gym, at: now)
                 manager?.requestState(for: region)
             }
         }

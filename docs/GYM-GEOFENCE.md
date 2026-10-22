@@ -75,22 +75,30 @@ coordinates and stops watching.
   actions — iOS mirrors it to the Watch when the phone is locked). Check in
   queues an `enter` with the moment he ENTERED (carried in the
   notification) — but only when he taps within 30 min of it; a later tap
-  sends the TAP time, unless an exit after that entry is already known (the
-  late tap after he left, which then closes at its real times). The prompt
-  is withdrawn on the next wake once it is 30 min old, so a stale one
-  cannot sit on the lock screen all day. Re-entering within 7 min of an
-  exit is the same stay (no second prompt); re-entering later SENDS that
-  old exit first (he left and the app slept through it) and prompts anew.
+  sends the TAP time, unless a CONFIRMED exit after that entry is already
+  known (the late tap after he left, which then closes at its real times).
+  The prompt is withdrawn on the next wake once it is 30 min old, so a
+  stale one cannot sit on the lock screen all day — which also makes the
+  late-tap path rare at B_Fit: leaving wakes the app, and by then the
+  prompt is usually gone. Re-entering after a pending exit follows the
+  drift rule below: drift is the same stay (no exit, no second prompt); a
+  departure sends that old exit first and prompts anew.
 - *Leaving* (150 m exited): a **pending exit** {gym, exitAt} is stored, not
   sent. It is sent, with that original exitAt, when (a) the 600 m away
   circle is exited, or (b) the app wakes for any reason (launch, foreground,
   any region event, a notification action), it is ≥ 7 min old, AND iOS
-  answers `requestState` with *outside* the 150 m circle. *Inside* means the
-  exit was indoor GPS drift while he trains: it is dropped, so opening the
-  logger can never close his real visit mid-workout; *unknown* keeps it
-  pending. Coming back inside first cancels it (GPS drift, a walk to the
-  car). iOS cannot run a timer while the app is suspended, which is why the
-  away circle exists.
+  answers `requestState` with *outside* the 150 m circle (answers count only
+  within 30 s of our own ask). *Inside* drops it as drift — unless it is a
+  departure by the rule below, then it is sent (left yesterday, back
+  today); *unknown* keeps it pending. iOS cannot run a timer while the app
+  is suspended, which is why the away circle exists.
+- **One drift rule** (every path: re-entry, the state answer, the late-tap
+  bound). A pending exit is *confirmed* when the away circle was left or
+  iOS answered *outside* for it; a confirmed exit is real and is sent with
+  its original time. An *unconfirmed* pending exit younger than
+  `driftWindow` (90 min) may be indoor GPS drift while he trains, so it is
+  never what closes a visit or bounds a check-in; older than 90 min it is
+  a departure the app slept through.
 - **Alrajhi caveat:** that gym is inside his office tower; he may stay
   within 600 m all day, so the away circle never fires. There the exit goes
   out on the next wake after 7 min (the next time he opens the app or any
