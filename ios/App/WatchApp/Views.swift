@@ -79,22 +79,29 @@ struct StartView: View {
         return SessionCore.buildLabel(version: Bundle.main.infoDictionary?["CFBundleVersion"] as? String, builtAt: built)
     }()
 
+    /// The phone's /train names each day's focus on its directive card
+    /// (DAY_FOCUS); the wrist repeats the same label, nothing more.
+    private static func focus(_ day: String) -> String {
+        day == "A" ? "Chest · Quads · Shoulders" : "Back · Hamstrings · Arms"
+    }
+
     var body: some View {
         let tint = Self.dayColor(chosenDay)
         ScrollView {
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
+                // Volt topline: what the plan says about today, mono kicker.
                 if let p = store.plan, p.loadPct < 100 {
-                    Text("RETURN · \(p.loadPct)% load")
-                        .font(.system(.footnote, design: .rounded, weight: .black))
-                        .foregroundStyle(.orange)
+                    VoltFlag(text: "Return · \(p.loadPct)% load", ground: .orange, ink: .black)
                 }
                 // The plan's advice stays visible even though nothing blocks:
                 // advice-then-allow is the program's contract.
                 if let p = store.plan, p.mode != "train" {
                     Text(p.mode == "recover" ? "Recovery day — walk instead?" : "Already trained today")
-                        .font(.system(.footnote, design: .rounded, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .multilineTextAlignment(.center)
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .textCase(.uppercase)
+                        .tracking(0.6)
+                        .foregroundStyle(.white.opacity(0.8))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if let live = store.phoneLive {
                     // Started on the phone — pick it up here under the same
@@ -105,88 +112,119 @@ struct StartView: View {
                         VStack(spacing: 2) {
                             Text("Continue Day \(live.day ?? "?")")
                                 .font(.system(.headline, design: .rounded, weight: .black))
+                                .textCase(.uppercase)
                             Text(live.sets.isEmpty ? "on the phone" : "\(live.sets.count) set\(live.sets.count == 1 ? "" : "s") on the phone")
-                                .font(.system(.footnote, design: .rounded, weight: .semibold))
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .textCase(.uppercase)
                         }
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity, minHeight: 52)
-                        .background(Self.continueGreen, in: RoundedRectangle(cornerRadius: 14))
+                        .background(Self.continueGreen)
                     }
                     .buttonStyle(.plain)
                 }
 
-                // WHICH day, large, in its colour. "planned" = the server's queue.
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Day \(chosenDay)")
-                        .font(.system(.title, design: .rounded, weight: .black))
-                        .foregroundStyle(tint)
-                    Spacer(minLength: 4)
-                    Text(dayOverride != nil ? "your pick" : store.offeredDay != nil ? "saved plan" : "planned")
-                        .font(.system(.footnote, design: .rounded, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.75))
-                }
-                .padding(.horizontal, 4)
-
-                // WHICH length: all three at once, the chosen one filled.
-                HStack(spacing: 6) {
-                    ForEach(SessionCore.lengthOptions, id: \.self) { m in
-                        let on = m == chosenDur
-                        Button {
-                            pickedDur = SessionCore.pickLength(m, planned: store.plan?.durationMin)
-                        } label: {
-                            VStack(spacing: 0) {
-                                Text("\(m)")
-                                    .font(.system(.title3, design: .rounded, weight: .black))
-                                    .monospacedDigit()
-                                Text("min")
-                                    .font(.system(.footnote, design: .rounded, weight: .bold))
-                            }
-                            .foregroundStyle(on ? Color.black : Color.white)
-                            .frame(maxWidth: .infinity, minHeight: 48)
-                            .background(on ? tint : Color.clear, in: RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(on ? tint : Color.white.opacity(0.6), lineWidth: 2))
-                            .contentShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(m) minutes")
-                        .accessibilityAddTraits(on ? .isSelected : [])
+                // The directive card — /train's queued-day slab: solid volt,
+                // black ink, square corners, offset solid shadow. The day's
+                // own colour rides as the left edge (violet A, teal B).
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .center) {
+                        VoltFlag(text: dayOverride != nil ? "Your pick" : store.offeredDay != nil ? "Saved plan" : "Up next",
+                                 ground: .black, ink: Volt.lime)
+                        Spacer(minLength: 0)
                     }
-                }
-
-                Button {
-                    // "planned" means the SERVER's queue: no day and no
-                    // length are sent unless he picked them. The screen's
-                    // own day went out as an explicit ask — stale by a
-                    // session, the server still obeyed it.
-                    // A day the wrist offered by name (it could not confirm
-                    // the queue) is sent by name on this confirming tap.
-                    let d = SessionCore.startDay(override: dayOverride, offered: store.offeredDay)
-                    let dur: Int? = pickedDur
-                    // With no day sent, what opens must be the day this
-                    // button reads; a queue that moved is shown, not opened.
-                    let promised = d == nil ? store.plan?.day : nil
-                    Task { await store.start(day: d, dur: dur, promised: promised) }
-                } label: {
-                    Text(SessionCore.startTitle(day: chosenDay, minutes: chosenDur))
-                        .font(.system(.headline, design: .rounded, weight: .black))
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.85)
+                    Text("Day \(chosenDay)")
+                        .font(.system(size: 30, weight: .black, design: .rounded))
+                        .textCase(.uppercase)
                         .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity, minHeight: 56)
-                        .background(tint, in: RoundedRectangle(cornerRadius: 16))
+                        .padding(.top, 5)
+                    Text(Self.focus(chosenDay))
+                        .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                        .textCase(.uppercase)
+                        .foregroundStyle(.black.opacity(0.72))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+
+                    // WHICH length: all three at once, the chosen one black.
+                    HStack(spacing: 5) {
+                        ForEach(SessionCore.lengthOptions, id: \.self) { m in
+                            let on = m == chosenDur
+                            Button {
+                                pickedDur = SessionCore.pickLength(m, planned: store.plan?.durationMin)
+                            } label: {
+                                VStack(spacing: 1) {
+                                    Text("\(m)")
+                                        .font(.system(size: 18, weight: .black, design: .rounded))
+                                        .monospacedDigit()
+                                    Text("MIN")
+                                        .font(.system(size: 8.5, weight: .bold, design: .monospaced))
+                                        .opacity(0.75)
+                                }
+                                .foregroundStyle(on ? Volt.lime : Color.black)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .background(on ? Color.black : Color.black.opacity(0.1))
+                                .overlay(Rectangle().strokeBorder(Color.black, lineWidth: 1.5))
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(m) minutes")
+                            .accessibilityAddTraits(on ? .isSelected : [])
+                        }
+                    }
+                    .padding(.top, 10)
+
+                    Button {
+                        // "planned" means the SERVER's queue: no day and no
+                        // length are sent unless he picked them. The screen's
+                        // own day went out as an explicit ask — stale by a
+                        // session, the server still obeyed it.
+                        // A day the wrist offered by name (it could not confirm
+                        // the queue) is sent by name on this confirming tap.
+                        let d = SessionCore.startDay(override: dayOverride, offered: store.offeredDay)
+                        let dur: Int? = pickedDur
+                        // With no day sent, what opens must be the day this
+                        // button reads; a queue that moved is shown, not opened.
+                        let promised = d == nil ? store.plan?.day : nil
+                        Task { await store.start(day: d, dur: dur, promised: promised) }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "play.fill").font(.system(size: 11, weight: .black))
+                            Text(SessionCore.startTitle(day: chosenDay, minutes: chosenDur))
+                                .font(.system(size: 15, weight: .black, design: .rounded))
+                                .textCase(.uppercase)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        .padding(.horizontal, 12)
+                        .foregroundStyle(Volt.lime)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Parallelogram().fill(Color.black))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 9)
                 }
-                .buttonStyle(.plain)
+                .padding(EdgeInsets(top: 10, leading: 17, bottom: 10, trailing: 10))
+                .background(Volt.lime)
+                .overlay(alignment: .leading) { Rectangle().fill(tint).frame(width: 9) }
+                .overlay(Rectangle().strokeBorder(Volt.bone, lineWidth: 1.5))
+                .background(Rectangle().fill(Volt.bone.opacity(0.9)).offset(x: 3, y: 3))
+                .padding(.trailing, 3)
 
                 // The other day costs a deliberate tap, below the start.
                 Button {
                     dayOverride = dayOverride == nil ? otherDay : nil
                 } label: {
                     Text(dayOverride == nil ? "Switch to Day \(otherDay)" : "Back to Day \(otherDay)")
-                        .font(.system(.footnote, design: .rounded, weight: .semibold))
-                        .frame(maxWidth: .infinity)
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .textCase(.uppercase)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .overlay(Rectangle().strokeBorder(Color.white.opacity(0.55), lineWidth: 1.5))
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
+                .padding(.top, 4)
 
                 if let n = store.notice {
                     Text(n)
@@ -215,7 +253,7 @@ struct StartView: View {
                 // dev installs of different code — so the day the binary
                 // was built rides beside it.
                 Text(Self.buildLabel)
-                    .font(.system(.footnote, design: .rounded))
+                    .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 4)
@@ -228,6 +266,48 @@ struct StartView: View {
                 try? await Task.sleep(for: .seconds(20))
             }
         }
+    }
+}
+
+// MARK: - Volt (the phone's training skin, on the wrist)
+
+/// The phone's training routes wear Volt (CLAUDE.md "Two skins"): OLED
+/// black, #CDFF00, mono kickers, square corners. The Start screen speaks
+/// the same language as /train's "Up next" card.
+enum Volt {
+    static let lime = Color(red: 0xCD / 255, green: 0xFF / 255, blue: 0x00 / 255)
+    static let bone = Color(red: 0xF2 / 255, green: 0xF2 / 255, blue: 0xF0 / 255)
+}
+
+/// /train's skewed kicker flag: mono caps on a slanted slab.
+struct VoltFlag: View {
+    let text: String
+    let ground: Color
+    let ink: Color
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .heavy, design: .monospaced))
+            .textCase(.uppercase)
+            .tracking(1.4)
+            .foregroundStyle(ink)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Parallelogram(slant: 0.12).fill(ground))
+    }
+}
+
+/// The volt start bar's clip-path, polygon(2% 0, 100% 0, 98% 100%, 0 100%).
+struct Parallelogram: Shape {
+    var slant: CGFloat = 0.03
+    func path(in r: CGRect) -> Path {
+        let d = r.width * slant
+        var p = Path()
+        p.move(to: CGPoint(x: r.minX + d, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.maxX - d, y: r.maxY))
+        p.addLine(to: CGPoint(x: r.minX, y: r.maxY))
+        p.closeSubpath()
+        return p
     }
 }
 

@@ -187,15 +187,19 @@ returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
    numbers mean"; the old grey chip showed the length the NEXT tap would
    pick, beside the big button's current one). Top to bottom: the plan's
    banners (RETURN · N% load, recovery / already trained), Continue from
-   the phone, **`Day B`** large in the day colour (A violet, B teal) with
-   `planned` / `saved plan` / `your pick`, three length chips **30 · 45 ·
-   60 min** (chosen one filled, others outlined), ONE button **`Start Day
-   B · 45 min`**, then `Switch to Day A` (a deliberate tap). The chosen
-   length starts as the plan's `durationMin`; tapping the planned chip
-   returns to it and no `dur` is sent (`SessionCore.pickLength`). Watch
-   contrast: bright day fill + BLACK text (teal #2DD4BF 11.3:1, violet
-   #B69CFF 9.2:1), Continue #30D158 + black 10.4:1; nothing below
-   `.footnote`. The phone's buttons keep white text. Starting it ALSO starts an
+   the phone, the Start screen wears /train's Volt "Up next" card (owner,
+   2026-10-23: "follow the train tab"): a solid #CDFF00 slab with square
+   corners and an offset bone shadow, the day colour (A violet, B teal) as
+   its left edge, a black skewed flag `UP NEXT` / `SAVED PLAN` / `YOUR
+   PICK`, **`DAY B`** large in black with the day's focus in mono, three
+   square chips **30 · 45 · 60 MIN** (chosen one black with volt digits),
+   ONE slanted black start bar **`▶ START DAY B · 45 MIN`** in volt, then
+   an outlined `SWITCH TO DAY A` (a deliberate tap). The chosen length
+   starts as the plan's `durationMin`; tapping the planned chip returns to
+   it and no `dur` is sent (`SessionCore.pickLength`). Watch contrast:
+   black on volt and volt on black (~17:1), Continue #30D158 + black
+   10.4:1; no white on a light fill. The phone's teal/violet buttons keep
+   white text. Starting it ALSO starts an
    `HKWorkoutSession` (traditional strength training) so HR, rings and
    the always-on session UI come free.
 2. **Set card** (the core screen, one per set):
