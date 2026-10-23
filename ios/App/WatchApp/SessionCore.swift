@@ -567,6 +567,33 @@ enum SessionCore {
     /// it were today's queue; the server obeyed an explicit day.
     static func startDay(override: String?, offered: String?) -> String? { override ?? offered }
 
+    // MARK: - Start screen wording (owner, 2026-10-22)
+    //
+    // "I can't tell what the numbers mean, which one is the session length,
+    // or what I'm about to start." The big button read the plan's length,
+    // a grey chip beside it read the length the NEXT tap would pick. Now
+    // the three lengths are shown at once, the chosen one filled, and the
+    // start button names both day and length. Presentation only: nil still
+    // means "the server's queue" and no `dur` goes out.
+
+    /// The template lengths the server accepts (`?dur=30|45|60`).
+    static let lengthOptions = [30, 45, 60]
+
+    /// The server's length when none is asked (DEFAULT_SESSION_MIN).
+    static let defaultLength = 45
+
+    /// The length highlighted: his pick, else the plan's, else the server's default.
+    static func shownLength(picked: Int?, planned: Int?) -> Int { picked ?? planned ?? defaultLength }
+
+    /// A tap on a length chip. Tapping the plan's own length returns to the
+    /// plan (nil = no `dur` sent), so "planned" keeps its meaning.
+    static func pickLength(_ tapped: Int, planned: Int?) -> Int? {
+        tapped == (planned ?? defaultLength) ? nil : tapped
+    }
+
+    /// "Start Day B · 45 min" — what the one start button says it starts.
+    static func startTitle(day: String, minutes: Int) -> String { "Start Day \(day) · \(minutes) min" }
+
     // MARK: - Outbox
 
     /// A network path update: flush when there is a path and something is

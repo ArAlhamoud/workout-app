@@ -504,5 +504,17 @@ do {
     check(SessionCore.promiseKept(shown: "A", opened: "A") && SessionCore.promiseKept(shown: nil, opened: "B"), "same day, or no day was on screen (the Action Button): start")
 }
 
+print("Watch core — the Start screen says what it starts (owner, 2026-10-22)")
+do {
+    check(SessionCore.lengthOptions == [30, 45, 60], "three lengths, shortest first, the server's own 30/45/60")
+    check(SessionCore.shownLength(picked: nil, planned: 45) == 45, "untouched: the plan's own length is the one highlighted")
+    check(SessionCore.shownLength(picked: 30, planned: 45) == 30, "his pick is the one highlighted")
+    check(SessionCore.shownLength(picked: nil, planned: nil) == 45, "no plan yet: the server's default length (45), not 60")
+    check(SessionCore.pickLength(60, planned: 45) == 60, "a tap on another length picks it")
+    check(SessionCore.pickLength(45, planned: 45) == nil, "a tap on the planned length goes back to the plan: no dur is sent")
+    check(SessionCore.pickLength(45, planned: nil) == nil, "no plan: the default length is the plan's, nothing to ask")
+    check(SessionCore.startTitle(day: "B", minutes: 45) == "Start Day B · 45 min", "one button, day and length in words")
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)
