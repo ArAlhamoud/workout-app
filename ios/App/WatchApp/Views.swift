@@ -56,18 +56,6 @@ struct StartView: View {
     private var chosenDur: Int { SessionCore.shownLength(picked: pickedDur, planned: store.plan?.durationMin) }
     private var otherDay: String { chosenDay == "A" ? "B" : "A" }
 
-    /// The day's colour, bright: for the OLED ground and for fills that
-    /// carry BLACK text — the higher-contrast pairing on the wrist (owner,
-    /// 2026-10-22: "the white text on the green button is hard to read").
-    /// Day B teal #2DD4BF + black 11.3:1 (best dark teal + white: 7.6:1);
-    /// Day A violet #B69CFF + black 9.2:1 (#5B21B6 + white: 9.0:1, and a
-    /// dark fill all but vanishes on the black ground). WATCH ONLY — the
-    /// phone's teal/violet buttons keep white text (owner, 2026-08-30).
-    static func dayColor(_ day: String) -> Color {
-        day == "A"
-            ? Color(red: 0xB6 / 255, green: 0x9C / 255, blue: 0xFF / 255)
-            : Color(red: 0x2D / 255, green: 0xD4 / 255, blue: 0xBF / 255)
-    }
     /// #30D158 + black: 10.4:1. The tinted button carried white at ~2:1.
     private static let continueGreen = Color(red: 0x30 / 255, green: 0xD1 / 255, blue: 0x58 / 255)
 
@@ -86,7 +74,6 @@ struct StartView: View {
     }
 
     var body: some View {
-        let tint = Self.dayColor(chosenDay)
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 // Volt topline: what the plan says about today, mono kicker.
@@ -125,8 +112,8 @@ struct StartView: View {
                 }
 
                 // The directive card — /train's queued-day slab: solid volt,
-                // black ink, square corners, offset solid shadow. The day's
-                // own colour rides as the left edge (violet A, teal B).
+                // black ink, square corners, offset solid shadow — the same slab
+                // for either day, as on the phone.
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .center) {
                         VoltFlag(text: dayOverride != nil ? "Your pick" : store.offeredDay != nil ? "Saved plan" : "Up next",
@@ -204,9 +191,8 @@ struct StartView: View {
                     .buttonStyle(.plain)
                     .padding(.top, 9)
                 }
-                .padding(EdgeInsets(top: 10, leading: 17, bottom: 10, trailing: 10))
+                .padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 10))
                 .background(Volt.lime)
-                .overlay(alignment: .leading) { Rectangle().fill(tint).frame(width: 9) }
                 .overlay(Rectangle().strokeBorder(Volt.bone, lineWidth: 1.5))
                 .background(Rectangle().fill(Volt.bone.opacity(0.9)).offset(x: 3, y: 3))
                 .padding(.trailing, 3)
@@ -296,6 +282,39 @@ struct VoltFlag: View {
     }
 }
 
+/// A square slab button: black ink on a bright fill (volt, or a meaning
+/// colour such as an RPE). Presses dim; nothing rounds.
+struct VoltSlab: ButtonStyle {
+    var fill: Color = Volt.lime
+    var ink: Color = .black
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(ink)
+            .background(Rectangle().fill(fill))
+            .opacity(configuration.isPressed ? 0.7 : 1)
+            .contentShape(Rectangle())
+    }
+}
+
+/// A square outlined button on the black ground: the secondary action.
+struct VoltOutline: ButtonStyle {
+    var ink: Color = .white
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(ink)
+            .overlay(Rectangle().strokeBorder(ink.opacity(0.6), lineWidth: 1.5))
+            .opacity(configuration.isPressed ? 0.6 : 1)
+            .contentShape(Rectangle())
+    }
+}
+
+/// Mono caps for kickers and quiet lines, as /train's volt-topline.
+extension View {
+    func voltMono(_ size: CGFloat, _ weight: Font.Weight = .bold) -> some View {
+        self.font(.system(size: size, weight: weight, design: .monospaced)).textCase(.uppercase)
+    }
+}
+
 /// The volt start bar's clip-path, polygon(2% 0, 100% 0, 98% 100%, 0 100%).
 struct Parallelogram: Shape {
     var slant: CGFloat = 0.03
@@ -366,11 +385,11 @@ struct SetCardView: View {
                 HStack(spacing: 4) {
                     if let pos = store.machinePosition {
                         Text("\(pos.index)/\(pos.total)")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.7))
                             .monospacedDigit()
                     }
                     if let r = reasonLabel {
-                        Text("· \(r.text)").foregroundStyle(r.color)
+                        Text("· \(r.text)").foregroundStyle(r.color == .green ? Volt.lime : r.color)
                     }
                     if heartDown {
                         Button {
@@ -385,12 +404,13 @@ struct SetCardView: View {
                         .accessibilityLabel("Workout not recording — tap to restart")
                     }
                 }
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .voltMono(11)
             }
             Text(slot.isWarmup ? "Warm-up · \(slot.exerciseName)" : "Set \(slot.setNumber)/\(slot.setsTotal) · \(slot.exerciseName)")
-                .font(.system(size: 12, weight: .bold, design: .rounded))
-                .foregroundStyle(slot.isWarmup ? Color.orange : Color.primary)
+                .voltMono(11, .heavy)
+                .foregroundStyle(slot.isWarmup ? Color.orange : Volt.lime)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
 
             if slot.isSeconds {
                 // Plank-class card: the hold time IS the progression axis —
@@ -401,8 +421,8 @@ struct SetCardView: View {
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .monospacedDigit()
                     Text("sec hold")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .voltMono(12)
+                        .foregroundStyle(.white.opacity(0.7))
                 }
                 .focusable()
                 .focused($crownFocused)
@@ -418,8 +438,8 @@ struct SetCardView: View {
                         .font(.system(size: 40, weight: .black, design: .rounded))
                         .monospacedDigit()
                     Text("kg")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .voltMono(12)
+                        .foregroundStyle(.white.opacity(0.7))
                     // Tap = one more rep (wrapping at the top of the range);
                     // hold = one fewer, down to 1, so a short set is
                     // recordable (trainer ruling 6). One gesture, exclusive:
@@ -427,7 +447,7 @@ struct SetCardView: View {
                     Text("× \(slot.reps)")
                         .font(.system(size: 26, weight: .black, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(slot.reps < slot.repsMin ? Color.orange : Color.teal)
+                        .foregroundStyle(slot.reps < slot.repsMin ? Color.orange : Volt.lime)
                         .contentShape(Rectangle())
                         .gesture(
                             LongPressGesture(minimumDuration: 0.5)
@@ -449,8 +469,8 @@ struct SetCardView: View {
 
             if !slot.isSeconds && slot.weightKg <= 0 {
                 Text("turn the crown to set weight")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .voltMono(10)
+                    .foregroundStyle(.white.opacity(0.7))
             }
             if store.pendingMachineCount > 1, let next = store.nextMachineName {
                 // Occupied machine (owner, 2026-09-07): swipe is the gesture,
@@ -468,13 +488,13 @@ struct SetCardView: View {
                 // hit-tests the glyphs, not the padded frame.
                 Button { store.skipToNextMachine() } label: {
                     Text("\(next) ›")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .voltMono(11)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, minHeight: 30)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
                 // Measured 5.75 pt to the green Log set button, whose mis-tap
                 // writes a set and starts a rest. Buy back clearance.
                 .padding(.bottom, 4)
@@ -484,16 +504,16 @@ struct SetCardView: View {
             } label: {
                 Text(!slot.isSeconds && slot.weightKg <= 0 ? "Log bodyweight · 0 kg" : slot.isWarmup ? "Log warm-up" : "Log set")
                     .font(.system(size: !slot.isSeconds && slot.weightKg <= 0 ? 14 : 17, weight: .black, design: .rounded))
+                    .textCase(.uppercase)
                     .frame(maxWidth: .infinity, minHeight: 40)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(!slot.isSeconds && slot.weightKg <= 0 ? .orange : .green)
+            .buttonStyle(VoltSlab(fill: !slot.isSeconds && slot.weightKg <= 0 ? .orange : Volt.lime))
             if slot.isWarmup {
                 // Warm or not is his call — the card never traps him on it.
                 Button("skip warm-up") { store.skipWarmup() }
                     .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .voltMono(11)
+                    .foregroundStyle(.white.opacity(0.7))
                     .frame(maxWidth: .infinity, minHeight: 28)
                     .contentShape(Rectangle())
             }
@@ -527,7 +547,7 @@ struct SetCardView: View {
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("End") { store.endEarly() }
-                    .font(.system(size: 12, design: .rounded))
+                    .voltMono(11)
             }
         }
     }
@@ -546,9 +566,7 @@ struct RestView: View {
     var body: some View {
         ScrollView {
         VStack(spacing: 8) {
-            Text("REST")
-                .font(.system(size: 13, weight: .black, design: .rounded))
-                .foregroundStyle(.secondary)
+            VoltFlag(text: "Rest", ground: Volt.lime, ink: .black)
             // Never `Date()...until` straight: once `until` has passed and the
             // view re-renders before the timer fires, that range traps.
             Text(timerInterval: SessionCore.restRange(now: Date(), until: until), countsDown: true)
@@ -561,14 +579,17 @@ struct RestView: View {
                 let what = next.isWarmup ? "warm-up" : "set \(next.setNumber)"
                 let weight = !next.isSeconds && next.weightKg > 0 ? " · \(kg(next.weightKg)) kg" : ""
                 Text("Next: \(next.exerciseName) · \(what)\(weight)")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
+                    .voltMono(11)
+                    .foregroundStyle(.white.opacity(0.75))
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
             }
-            Button("Skip") { store.skipRest() }
-                .buttonStyle(.bordered)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+            Button { store.skipRest() } label: {
+                Text("Skip")
+                    .voltMono(13, .heavy)
+                    .frame(maxWidth: .infinity, minHeight: 40)
+            }
+            .buttonStyle(VoltOutline(ink: Volt.lime))
             // He walks to the next machine DURING the rest — this is where
             // "it's taken" is discovered, so the switch lives here too. The
             // machine AT RISK is the one he is walking to (the slot that is
@@ -577,13 +598,13 @@ struct RestView: View {
                let walkingTo = store.currentSlot?.exerciseName {
                 Button { store.switchMachineFromRest() } label: {
                     Text("\(walkingTo) taken? ›")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .voltMono(11)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, minHeight: 24)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
             }
             // '+1 set' — only after a below-cap rating on a machine that
             // allows it, once per machine (trainer ruling 2). Recording, not
@@ -591,21 +612,21 @@ struct RestView: View {
             if let name = store.extraSetOfferName {
                 Button { store.addExtraSet() } label: {
                     Text("+1 set · \(name)")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .voltMono(11, .heavy)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, minHeight: 32)
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(VoltOutline(ink: Volt.lime))
             }
             if store.undoableSet != nil {
                 Button { store.undoLastSet() } label: {
                     Text("undo last set")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .voltMono(11)
                         .frame(maxWidth: .infinity, minHeight: 28)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.7))
             }
         }
         .contentShape(Rectangle())
@@ -633,17 +654,24 @@ struct RPEStripView: View {
     let exerciseName: String
 
     private let labels = ["Easy", "Med", "Hard", "Grind"]
-    private let tints: [Color] = [.green, .teal, .orange, .red]
+    /// The RPE meanings survive on both grounds (CLAUDE.md); bright fills
+    /// under black ink.
+    private let tints: [Color] = [
+        Color(red: 0x30 / 255, green: 0xD1 / 255, blue: 0x58 / 255),
+        Color(red: 0x2D / 255, green: 0xD4 / 255, blue: 0xBF / 255),
+        Color(red: 0xFF / 255, green: 0x9F / 255, blue: 0x0A / 255),
+        Color(red: 0xFF / 255, green: 0x45 / 255, blue: 0x3A / 255),
+    ]
 
     var body: some View {
         ScrollView {
         VStack(spacing: 5) {
             Text(exerciseName)
-                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .voltMono(11, .heavy)
+                .foregroundStyle(Volt.lime)
                 .lineLimit(1)
-            Text("How hard?")
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(.secondary)
+                .minimumScaleFactor(0.8)
+            VoltFlag(text: "How hard?", ground: .white, ink: .black)
             // Every button always tappable: the cap is a prescription for
             // how hard the set SHOULD be, never a limit on reporting how
             // hard it WAS — a censored Grind during a ramp week is exactly
@@ -653,7 +681,7 @@ struct RPEStripView: View {
                 // "Ramp target" only while the ramp scales loads; at 100% the
                 // cap is the chart's effort ceiling, not a ramp.
                 Text("\((store.session?.loadPct ?? 100) < 100 ? "Ramp target" : "Ceiling"): ≤ \(labels[cap - 1])")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .voltMono(10)
                     .foregroundStyle(.orange)
             }
             ForEach(0..<4, id: \.self) { i in
@@ -664,21 +692,21 @@ struct RPEStripView: View {
                 } label: {
                     Text(labels[i])
                         .font(.system(size: 14, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 26)
+                        .textCase(.uppercase)
+                        .frame(maxWidth: .infinity, minHeight: 30)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(tints[i].opacity(i + 1 > cap ? 0.55 : 1))
+                .buttonStyle(VoltSlab(fill: tints[i].opacity(i + 1 > cap ? 0.55 : 1)))
             }
             // An unrated exercise is honest data too — never force a tap.
             Button("skip") { store.skipRPE() }
                 .buttonStyle(.plain)
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(.secondary)
+                .voltMono(11)
+                .foregroundStyle(.white.opacity(0.7))
             // A mis-logged last set: take it back before rating it.
             Button("undo last set") { store.undoLastSet() }
                 .buttonStyle(.plain)
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(.secondary)
+                .voltMono(11)
+                .foregroundStyle(.white.opacity(0.7))
         }
         .padding(.horizontal, 2)
         }
@@ -714,15 +742,18 @@ struct SummaryView: View {
         ScrollView {
             VStack(spacing: 6) {
                 let mins = Int(Date().timeIntervalSince(store.session?.startedAt ?? Date()) / 60)
+                VoltFlag(text: "Session", ground: Volt.lime, ink: .black)
                 Text("\(working.count) sets · \(mins) min")
-                    .font(.system(size: 17, weight: .black, design: .rounded))
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .textCase(.uppercase)
                 ForEach(topWeights, id: \.0) { name, w in
                     HStack {
-                        Text(name).font(.system(size: 12, weight: .semibold, design: .rounded)).lineLimit(1)
+                        Text(name).voltMono(10).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
                         Spacer()
                         Text("\(kg(w)) kg")
-                            .font(.system(size: 12, weight: .black, design: .rounded))
+                            .font(.system(size: 13, weight: .black, design: .rounded))
                             .monospacedDigit()
+                            .foregroundStyle(Volt.lime)
                     }
                 }
                 if let n = store.notice {
@@ -737,11 +768,13 @@ struct SummaryView: View {
                 if let next = store.currentSlot {
                     Button { store.backToSet() } label: {
                         Text("Back to \(next.exerciseName)")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .voltMono(12, .heavy)
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                            .padding(.horizontal, 6)
                             .frame(maxWidth: .infinity, minHeight: 36)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(VoltOutline())
                     .padding(.bottom, 10)
                 }
                 Button {
@@ -749,35 +782,37 @@ struct SummaryView: View {
                 } label: {
                     Text("Finish & save")
                         .font(.system(size: 16, weight: .black, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 38)
+                        .textCase(.uppercase)
+                        .frame(maxWidth: .infinity, minHeight: 42)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
+                .buttonStyle(VoltSlab())
                 if let name = store.extraSetOfferName {
                     Button { store.addExtraSet() } label: {
                         Text("+1 set · \(name)")
-                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .voltMono(11, .heavy)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity, minHeight: 32)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(VoltOutline(ink: Volt.lime))
                 }
                 if store.undoableSet != nil {
                     Button("undo last set") { store.undoLastSet() }
                         .buttonStyle(.plain)
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .voltMono(11)
+                        .foregroundStyle(.white.opacity(0.7))
                         .frame(maxWidth: .infinity, minHeight: 28)
                 }
                 // Always offered: a test run with logged sets needs a way
                 // out that isn't "save it into the training history". Asks
                 // first — one tap used to throw the session away.
-                Button(working.isEmpty ? "Discard" : "Discard — don't save") {
+                Button {
                     if store.session?.logged.isEmpty ?? true { store.discard() } else { confirmDiscard = true }
+                } label: {
+                    Text(working.isEmpty ? "Discard" : "Discard — don't save")
+                        .voltMono(11, .heavy)
+                        .frame(maxWidth: .infinity, minHeight: 34)
                 }
-                .buttonStyle(.bordered)
-                .tint(.red)
-                .font(.system(size: 13, design: .rounded))
+                .buttonStyle(VoltOutline(ink: Color(red: 0xFF / 255, green: 0x45 / 255, blue: 0x3A / 255)))
             }
             .padding(.horizontal, 4)
         }
@@ -796,7 +831,7 @@ struct DoneView: View {
 
     private var icon: (name: String, color: Color) {
         switch outcome {
-        case .saved, .merged: return ("checkmark.circle.fill", .green)
+        case .saved, .merged: return ("checkmark.square.fill", Volt.lime)
         case .banked: return ("tray.and.arrow.up", .orange)
         case .rejected: return ("exclamationmark.triangle.fill", .orange)
         }
@@ -817,10 +852,15 @@ struct DoneView: View {
                 .font(.system(size: 34))
                 .foregroundStyle(icon.color)
             Text(line)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .voltMono(12, .heavy)
                 .multilineTextAlignment(.center)
-            Button("Done") { store.reset() }
-                .buttonStyle(.borderedProminent)
+            Button { store.reset() } label: {
+                Text("Done")
+                    .font(.system(size: 16, weight: .black, design: .rounded))
+                    .textCase(.uppercase)
+                    .frame(maxWidth: .infinity, minHeight: 42)
+            }
+            .buttonStyle(VoltSlab())
         }
     }
 }

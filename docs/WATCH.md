@@ -189,8 +189,9 @@ returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
    banners (RETURN · N% load, recovery / already trained), Continue from
    the phone, the Start screen wears /train's Volt "Up next" card (owner,
    2026-10-23: "follow the train tab"): a solid #CDFF00 slab with square
-   corners and an offset bone shadow, the day colour (A violet, B teal) as
-   its left edge, a black skewed flag `UP NEXT` / `SAVED PLAN` / `YOUR
+   corners and an offset bone shadow, the same slab for either day (a
+   violet edge for Day A was tried and dropped, owner 2026-10-23), a black
+   skewed flag `UP NEXT` / `SAVED PLAN` / `YOUR
    PICK`, **`DAY B`** large in black with the day's focus in mono, three
    square chips **30 · 45 · 60 MIN** (chosen one black with volt digits),
    ONE slanted black start bar **`▶ START DAY B · 45 MIN`** in volt, then
@@ -199,7 +200,13 @@ returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
    it and no `dur` is sent (`SessionCore.pickLength`). Watch contrast:
    black on volt and volt on black (~17:1), Continue #30D158 + black
    10.4:1; no white on a light fill. The phone's teal/violet buttons keep
-   white text. Starting it ALSO starts an
+   white text.
+   The screens after Start speak the same Volt (2026-10-23): mono caps
+   kickers, the weight huge in white with `× reps` in volt, `LOG SET` /
+   `FINISH & SAVE` / `DONE` as square volt slabs with black ink, `REST` as
+   a skewed volt flag, the RPE four as square slabs (green/teal/orange/red,
+   black ink), secondary actions as square outlines. Layout, sizes,
+   clearances and gestures are unchanged. Starting it ALSO starts an
    `HKWorkoutSession` (traditional strength training) so HR, rings and
    the always-on session UI come free.
 2. **Set card** (the core screen, one per set):
