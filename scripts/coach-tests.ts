@@ -1625,11 +1625,12 @@ console.log('Watch wave — program defaults');
   assert(src('src/lib/prescription.ts').includes('prefillReps(') && src('src/app/api/watch/plan/route.ts').includes('planExercises('), 'the Watch plan derives reps with prefillReps (through planExercises)');
   assert(src('src/components/WorkoutForm.tsx').includes('prefillReps('), 'the phone logger derives reps with prefillReps');
 
-  // R3: a bare Start opens 45 minutes, in the ramp and after it. Every
-  // session he has logged was 30 or 45; 60 only adds Lateral Raise to Day A,
-  // which he has never logged.
+  // R3: a bare Start opens 45 minutes, in the ramp and after it. Lateral
+  // Raise joined the default Day A (owner, 2026-10-24) once it had history —
+  // the check below keeps every default machine logged, so none opens at 0 kg.
   assert(DEFAULT_SESSION_MIN === 45, 'the default session is 45 minutes');
-  assert(!getExercisesForDuration('A', DEFAULT_SESSION_MIN).some((e) => e.name === 'Lateral Raise'), 'the default Day A carries no Lateral Raise — never logged, it would open at 0 kg');
+  assert(getExercisesForDuration('A', DEFAULT_SESSION_MIN).some((e) => e.name === 'Lateral Raise'), 'the default Day A carries Lateral Raise — the side shoulder gets direct work');
+  assert(!getExercisesForDuration('A', 30).some((e) => e.name === 'Lateral Raise'), 'the 30-minute Day A stays the four big machines');
   for (const f of ['src/app/api/watch/plan/route.ts', 'src/app/workouts/new/page.tsx']) {
     assert(!/inRamp \? 45 : 60/.test(src(f)), `${f}: no ramp-dependent 60-minute default`);
   }
