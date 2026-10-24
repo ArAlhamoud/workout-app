@@ -12,7 +12,7 @@ import {
   BREAK_THRESHOLD_DAYS,
   DEFAULT_GYM_ID,
   cleanRampSessionDates,
-  earnsOverload,
+  earnsProgress,
   getTrainingStatus,
   rescueDatesOf,
   isTrainingSession,
@@ -30,17 +30,18 @@ export type ExerciseMemory = {
   weight: number;
   reps: number;
   rpe: number | null;
-  /** Two straight sessions that proved this weight light (earnsOverload) at
-   *  the same top weight — the prescription takes one pin. Reports history
-   *  only; prescribeWorking decides whether the ramp allows it. */
+  /** The pin is earned: the last session earned progress (earnsProgress)
+   *  with every working set at repsMax. Reports history only;
+   *  prescribeWorking decides whether the ramp allows it. */
   overload?: boolean;
-  /** The LAST session on this machine proved its weight light. */
-  allEasy?: boolean;
+  /** The LAST session on this machine earned the next step — one more rep,
+   *  or (with overload) the pin. */
+  earned?: boolean;
   /** Ramp only: no pre-break record, so the weight is the latest in-block one
    *  and must NOT be scaled again (pickRampMemory). */
   rampHold?: boolean;
-  /** With overload: the fewest reps on any working set of those two sessions
-   *  — a coarse step waits until every set reached repsMax. */
+  /** With earned: the fewest reps on any working set of the last session —
+   *  the next ask is one more than this, the pin waits until it is repsMax. */
   repsFloor?: number;
   /** The last two sessions each had a short set rated Hard or Grind at the
    *  same top weight (trainer ruling 6): one pin lighter next time. */
@@ -113,10 +114,13 @@ export function foldExerciseMemory(
       sessions[i].push(x);
     }
     const spec = programSpec(first.exerciseName);
-    const earned = (sess: MemorySetRow[]) => earnsOverload(sess, spec);
     const top = (sess: MemorySetRow[]) => Math.max(...sess.map((x) => x.weight));
     const sameTop = sessions.length >= 2 && top(sessions[0]) === top(sessions[1]) && top(sessions[0]) > 0;
-    const overload = sameTop && earned(sessions[0]) && earned(sessions[1]);
+    // Double progression reads ONE session (earnsProgress): no repsMax for
+    // an off-plan machine, so it never climbs.
+    const earned = spec != null && earnsProgress(sessions[0], spec);
+    const repsFloor = Math.min(...sessions[0].map((x) => x.reps));
+    const overload = earned && repsFloor >= spec.repsMax;
     const shortHard =
       sameTop && shortSetVerdict(sessions[0], spec) === 'short-hard' && shortSetVerdict(sessions[1], spec) === 'short-hard';
     out[exId] = {
@@ -124,8 +128,8 @@ export function foldExerciseMemory(
       reps: first.reps,
       rpe: first.rpe,
       overload,
-      allEasy: earned(sessions[0]),
-      ...(overload ? { repsFloor: Math.min(...sessions[0].concat(sessions[1]).map((x) => x.reps)) } : {}),
+      earned,
+      ...(earned ? { repsFloor } : {}),
       ...(shortHard ? { shortHard: true } : {}),
       ...(shortSetVerdict(sessions[0], spec) === 'short-hard' ? { lastShortHard: true } : {}),
       lastDate: first.workout.date.toISOString(),
@@ -135,7 +139,7 @@ export function foldExerciseMemory(
 }
 
 export type PrescriptionReason =
-  /** a coarse step: one more rep before the pin */
+  /** double progression: one more rep at the same weight before the pin */
   | 'reps'
   /** no history on this machine at this gym */
   | 'none'
@@ -147,7 +151,7 @@ export type PrescriptionReason =
   | 'ramp'
   /** in a ramp, a machine first met inside it: its weight as-is */
   | 'held'
-  /** two sessions proved it light: one pin up */
+  /** every set reached repsMax at Easy or Med: one pin up, reps from the bottom */
   | 'overload'
   /** a plateau: ~90% for half the sets */
   | 'deload'
@@ -168,13 +172,10 @@ export interface Prescription {
   reps?: number;
 }
 
-/** A step bigger than this share of the working weight is coarse: reps first. */
-export const COARSE_PIN_SHARE = 0.15;
-
 /**
  * Today's working weight for one machine. The checks run in this order:
  *   timed → none → deload (a plateau beats everything outside a ramp) →
- *   short (Hard short sets twice) → overload → the ramp scaler / last weight.
+ *   short (Hard short sets twice) → overload / reps → the ramp scaler / last weight.
  *
  * `rampPct` null means OUTSIDE a return block. It is NOT the same as 100:
  * RESTORE (week 4) is rampPct 100 and still keeps the seed off a scaled
@@ -215,22 +216,19 @@ export function prescribeWorking(
   if (!inRamp && !ctx.rescue && memory.shortHard) {
     return { ...base, workingKg: round2(Math.max(p, w - p)), reason: 'short', fromKg: w, note: `Short sets at ${w} kg felt Hard twice · one pin lighter` };
   }
-  // Reps before the pin on a coarse stack (trainer ruling 4): a 5 kg step
-  // on 27.5 is +18%, so it waits until every set reached the top of the range.
-  const coarse = p > w * COARSE_PIN_SHARE;
-  const repsReady = coarse ? (memory.repsFloor ?? memory.reps) >= ex.repsMax : memory.reps >= ex.repsMin;
-  const seedable = (!inRamp || memory.rampHold) && !ctx.rescue && memory.overload && !ctx.readinessHold;
-  if (seedable && repsReady) {
-    // After a coarse pin the reps start again at the bottom: opening at
-    // repsMax on the heavier weight skipped the reps-first wait for good
-    // (+18% then +15% every two sessions on a lumbar machine — round 3).
-    return { ...base, workingKg: round2(w + p), reason: 'overload', fromKg: w, ...(coarse ? { reps: ex.repsMin } : {}) };
+  // Reps first, then the pin, on EVERY stack (double progression, owner-
+  // approved 2026-10-24; was coarse stacks only, trainer ruling 4). A
+  // session that earned progress asks for one more rep at the same weight;
+  // once every set reached repsMax the pin goes on and the reps start again
+  // at the bottom — opening at repsMax on the heavier weight would skip the
+  // climb for good. He logs what the prefill says (169 of 215 working sets
+  // sat at repsMin), so an unasked rep is a rep that never happens.
+  const climbs = (!inRamp || memory.rampHold) && !ctx.rescue && !ctx.readinessHold && (memory.earned === true || memory.overload === true) && Number.isFinite(ex.repsMax);
+  if (climbs && memory.overload && (memory.repsFloor ?? 0) >= ex.repsMax) {
+    return { ...base, workingKg: round2(w + p), reason: 'overload', fromKg: w, reps: ex.repsMin };
   }
-  if (seedable && coarse && Number.isFinite(ex.repsMax)) {
-    // The pin is earned but the step is coarse: ASK for the reps, one more
-    // than last time, or the machine silently never moves (he logs what
-    // the prefill says — 169 of 215 working sets sit at repsMin).
-    return { ...base, workingKg: w, reason: 'reps', fromKg: w, reps: Math.min(ex.repsMax, memory.reps + 1) };
+  if (climbs && memory.repsFloor != null && memory.repsFloor < ex.repsMax) {
+    return { ...base, workingKg: w, reason: 'reps', fromKg: w, reps: Math.min(ex.repsMax, Math.max(ex.repsMin, memory.repsFloor + 1)) };
   }
   // In the ramp a short Hard set HOLDS its weight: a scaled machine reads
   // only pre-break memory, so without this a set he could not finish at 35
@@ -281,7 +279,7 @@ type InputRow = {
   name: string;
   gym?: string | null;
   duration?: number | null;
-  sets?: Array<{ exerciseId: string; weight: number; rpe: number | null; isWarmup?: boolean | null; allowedKg?: number | null }> | null;
+  sets?: Array<{ exerciseId: string; weight: number; reps?: number; rpe: number | null; isWarmup?: boolean | null; allowedKg?: number | null }> | null;
 };
 
 /**
@@ -390,6 +388,35 @@ export function planExercises(
         prefillReps: p.reps ?? prefillReps(last?.reps, t.repsMin, t.repsMax),
       };
     });
+}
+
+/**
+ * One of each rotating pair (ProgramExercise.rotatesWith): the member done
+ * LONGER ago stays, the other leaves today's list. Never done → it is due;
+ * a tie keeps the first in template order. Applied to the template BEFORE
+ * planExercises numbers it, by the phone logger, /train and the Watch plan
+ * alike, from the same gym-scoped memory — so all three show the same day.
+ */
+export function rotatePairs<T extends Pick<ProgramExercise, 'name' | 'rotatesWith'>>(
+  template: T[],
+  byName: Map<string, { id: string }>,
+  memory: Record<string, Pick<ExerciseMemory, 'lastDate'>>,
+): T[] {
+  const names = new Set(template.map((t) => t.name));
+  const last = (name: string) => {
+    const id = byName.get(name)?.id;
+    const d = id ? memory[id]?.lastDate : undefined;
+    return d ? new Date(d).getTime() : -Infinity;
+  };
+  const drop = new Set<string>();
+  template.forEach((t, i) => {
+    const other = t.rotatesWith;
+    if (!other || !names.has(other) || drop.has(t.name) || drop.has(other)) return;
+    const j = template.findIndex((x) => x.name === other);
+    if (j < i) return; // the pair is decided from its first member
+    drop.add(last(t.name) > last(other) ? t.name : other);
+  });
+  return template.filter((t) => !drop.has(t.name));
 }
 
 /**

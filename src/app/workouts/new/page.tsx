@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { getExercises, getLiveSession, getLoggerMemory, getPersonalRecords, getRepRecords, getWorkouts } from '../../actions';
 import RescueWalkButton from '@/components/RescueWalkButton';
 import WorkoutForm from '@/components/WorkoutForm';
-import { prescriptionInputs } from '@/lib/prescription';
+import { prescriptionInputs, rotatePairs } from '@/lib/prescription';
 import {
   DEFAULT_GYM_ID,
   getDayTemplate,
@@ -150,6 +150,7 @@ export default async function NewWorkoutPage({
           targetReps: te.repsDisplay,
           unit: te.unit,
           alwaysWarm: te.alwaysWarm === true,
+          rotatesWith: te.rotatesWith,
         };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
@@ -184,7 +185,10 @@ export default async function NewWorkoutPage({
   }
 
   const plankTarget = getPlankTarget(status.week);
-  const finalExercises = initialExercises.map((ex) =>
+  // One of each rotating pair (Rear Delt Fly / Face Pull) — the same pick
+  // /train and the Watch plan make from the same memory (rotatePairs).
+  const rotated = rotatePairs(initialExercises, new Map(initialExercises.map((e) => [e.name, { id: e.exerciseId }])), lastSession);
+  const finalExercises = rotated.map((ex) =>
     ex.name === 'Plank' ? { ...ex, defaultReps: plankTarget.min } : ex
   );
 
@@ -218,7 +222,7 @@ export default async function NewWorkoutPage({
             had gone missing. Name the choice, and let the pills carry the unit
             the way the Home card already does. */}
         <p className="section-label mb-2">
-          Session length · {initialExercises.length} exercises
+          Session length · {finalExercises.length} exercises
         </p>
         <div className="grid grid-cols-3 gap-2">
           {DURATIONS.map((d) => {

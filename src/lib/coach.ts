@@ -53,6 +53,8 @@ interface SessionTop {
   topRpe: number | null; // hardest RPE recorded at the session's top weight
   /** Any set on this machine rated that session — an untouched prefill is not evidence of a jump. */
   rated: boolean;
+  /** Fewest reps on a set at the top weight — a rep gain is progress too. */
+  topReps: number;
 }
 
 /** Chronological per-session top weights (and their RPE) for every exercise. */
@@ -60,7 +62,7 @@ function sessionTops(workouts: CoachWorkout[]): Record<string, SessionTop[]> {
   const chrono = [...workouts].sort((a, b) => time(a.date) - time(b.date));
   const tops: Record<string, SessionTop[]> = {};
   for (const w of chrono) {
-    const perSession: Record<string, { top: number; topRpe: number | null }> = {};
+    const perSession: Record<string, { top: number; topRpe: number | null; topReps: number }> = {};
     const ratedIn: Record<string, boolean> = {};
     for (const s of w.sets) {
       if (s.weight <= 0 || s.isWarmup) continue;
@@ -68,13 +70,14 @@ function sessionTops(workouts: CoachWorkout[]): Record<string, SessionTop[]> {
       if (rpe != null) ratedIn[s.exerciseId] = true;
       const cur = perSession[s.exerciseId];
       if (!cur || s.weight > cur.top) {
-        perSession[s.exerciseId] = { top: s.weight, topRpe: rpe };
-      } else if (s.weight === cur.top && rpe != null && (cur.topRpe == null || rpe > cur.topRpe)) {
-        cur.topRpe = rpe;
+        perSession[s.exerciseId] = { top: s.weight, topRpe: rpe, topReps: s.reps };
+      } else if (s.weight === cur.top) {
+        if (rpe != null && (cur.topRpe == null || rpe > cur.topRpe)) cur.topRpe = rpe;
+        cur.topReps = Math.min(cur.topReps, s.reps);
       }
     }
     for (const [id, entry] of Object.entries(perSession)) {
-      (tops[id] ??= []).push({ date: time(w.date), top: entry.top, topRpe: entry.topRpe, rated: ratedIn[id] === true });
+      (tops[id] ??= []).push({ date: time(w.date), top: entry.top, topRpe: entry.topRpe, rated: ratedIn[id] === true, topReps: entry.topReps });
     }
   }
   return tops;
@@ -213,8 +216,16 @@ export function detectPlateau(workouts: CoachWorkout[], exerciseId: string): Pla
   if (!tops.length) return { plateaued: false, sessions: 0, weight: null, suggestion: null };
 
   const last = tops[tops.length - 1];
+  // A stall is no gain in weight OR reps: under double progression the
+  // weight holds for several sessions while the reps climb, and that is
+  // the program working, not a plateau to deload (2026-10-24).
   let streak = 1;
-  while (streak < tops.length && tops[tops.length - 1 - streak].top === last.top) streak++;
+  while (streak < tops.length) {
+    const prev = tops[tops.length - 1 - streak];
+    const next = tops[tops.length - streak];
+    if (prev.top !== last.top || next.topReps > prev.topReps) break;
+    streak++;
+  }
 
   const streakTops = tops.slice(tops.length - streak);
   const anyHard = streakTops.some((t) => t.topRpe != null && t.topRpe >= 3);
