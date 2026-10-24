@@ -24,6 +24,16 @@ export interface ProgramExercise {
   /** Warms up wherever it lands in the session, not only as one of the first
    *  two machines started (trainer ruling 5). */
   alwaysWarm?: true;
+  /** Shares a job with this other movement of the same day: a session does
+   *  ONE of the two, whichever was done longer ago (rotatePairs). Rear Delt
+   *  Fly and Face Pull both train the rear shoulder; doing both every Day B
+   *  ran sessions to 95 min (trainer review, owner-approved 2026-10-24). */
+  rotatesWith?: string;
+  /** The pin at the top of the range needs the last set EASY, not Med: a
+   *  loaded spine (Back Extension, Ab Crunch) climbs reps at Med but takes
+   *  more weight only when the top of the range was easy (trainer review of
+   *  double progression, 2026-10-24). */
+  pinNeedsEasy?: true;
 }
 
 export interface DayTemplate {
@@ -51,8 +61,8 @@ export const DAY_A: DayTemplate = {
     // in the 30-minute session too — same station, two extra minutes (trainer).
     { name: 'Hip Adduction', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness (Hip Adduction — pads in)', cues: 'Flip the pads to the INSIDE of the thighs and start with the legs open. Sit tall, back on the pad, hands light on the handles. Squeeze the knees TOGETHER by driving through the inner thighs — feel it along the inside of the leg, not the knee joint. In 2s, hold 1s with the pads touching, open 3s under control and stop just before the stack touches down. It normally sits above your abduction weight — the inner thigh is the stronger side, so a heavier pin is not a form error. MISTAKE TO AVOID: setting the start position too wide — if the inner thigh pulls sharply at the start, close the range one notch.', youtubeUrl: 'https://www.youtube.com/watch?v=CjAVezAggkI', priority: 1 },
     { name: 'Leg Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness', cues: 'Adjust seat back so your knee joint aligns with the machine pivot point — this is critical for joint safety. Pad just above the ankle. Grip the handles to stop your hips lifting. Extend fully — flex quads hard and hold 1s at the top. Lower 3s under full control. MISTAKE TO AVOID: swinging or letting the weight drop — the slow eccentric is where you build the muscle. Toes slightly up throughout.', youtubeUrl: 'https://www.youtube.com/watch?v=2lvdnQg04PM', priority: 2 },
-    { name: 'Pec Fly', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Hoist ROC-IT', cues: "Adjust seat so handles align with mid-chest. Set a slight bend in the elbows and KEEP that exact angle throughout — they are not a hinge. Open arms back only until you feel a mild chest stretch (roughly even with your body line — no further). Arc the handles together thinking 'hugging a tree', squeezing the chest hard. IMPORTANT — this Hoist seat is DESIGNED TO MOVE as you close: let it rock with you instead of fighting it, and keep your back on the pad. MISTAKE TO AVOID: opening arms too far back loads the bicep tendon and risks a shoulder tear — conservative range of motion is correct here.", youtubeUrl: 'https://www.youtube.com/watch?v=dY4LduyY8H0', priority: 2 },
-    { name: 'Ab Crunch', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Life Fitness (Abdominal)', cues: 'Adjust pad to sit across your upper chest/sternum. Cross arms over chest or hold handles lightly — do NOT pull with your arms. Exhale as you crunch DOWN — this forces maximum ab contraction. Hold 1s at full crunch. Return 3s. MISTAKE TO AVOID: using hip flexors instead of abs — you should only feel this in your mid-section, not your hip creases. Keep chin slightly tucked and never strain your neck.', youtubeUrl: 'https://www.youtube.com/watch?v=G8937xqkxDo', priority: 2 },
+    { name: 'Pec Fly', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Hoist ROC-IT', cues: "Adjust seat so handles align with mid-chest. Set a slight bend in the elbows and KEEP that exact angle throughout — they are not a hinge. Open arms back only until you feel a mild chest stretch (roughly even with your body line — no further). Arc the handles together thinking 'hugging a tree', squeezing the chest hard. IMPORTANT — this Hoist seat is DESIGNED TO MOVE as you close: let it rock with you instead of fighting it, and keep your back on the pad. MISTAKE TO AVOID: opening arms too far back loads the bicep tendon and risks a shoulder tear — conservative range of motion is correct here.", youtubeUrl: 'https://www.youtube.com/watch?v=dY4LduyY8H0', priority: 2 },
+    { name: 'Ab Crunch', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Life Fitness (Abdominal)', cues: 'Adjust pad to sit across your upper chest/sternum. Cross arms over chest or hold handles lightly — do NOT pull with your arms. Exhale as you crunch DOWN — this forces maximum ab contraction. Hold 1s at full crunch. Return 3s. MISTAKE TO AVOID: using hip flexors instead of abs — you should only feel this in your mid-section, not your hip creases. Keep chin slightly tucked and never strain your neck.', youtubeUrl: 'https://www.youtube.com/watch?v=G8937xqkxDo', priority: 2 , pinNeedsEasy: true },
     { name: 'Lateral Raise', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit upright, back against pad. Pads contact the outside of your forearms — not your wrists. Lead with your ELBOWS, not your hands, and raise only to shoulder height — going higher shifts the load to traps. Hold 1s at shoulder height. Lower 4s — the slow negative is critical for building the lateral delt. MISTAKE TO AVOID: shrugging the shoulders or using heavy weight and momentum. This exercise only works with strict form and light weight.', youtubeUrl: 'https://www.youtube.com/watch?v=NNAs8jx_zJI', priority: 3 },
   ],
 };
@@ -63,15 +73,15 @@ export const DAY_B: DayTemplate = {
   warmup: '5 min elliptical (easy pace) + shoulder rolls + gentle torso twists + 10 cat-cows on mat + 8 bird-dogs each side',
   cardioFinisher: '25–30 min swimming (best cardio on this day) OR 15 min elliptical at moderate pace',
   exercises: [
-    { name: 'Back Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '75s', machine: 'Life Fitness (seated Back Extension)', cues: 'This is the SEATED machine, not a roman chair — you sit upright, not face-down. Set the back pad so it sits across your upper back / shoulder blades, and the seat so your hips sit at the machine pivot. Cross arms on your chest or hold the handles. Press BACKWARD by driving your hips down into the seat and squeezing your glutes — the movement is a hip extension, the spine stays neutral and travels as one piece. Push back 2s, hold 1s, return 3s under control, stopping before the stack touches down. Range: only as far back as you can go without your ribs flaring or your chin lifting. MISTAKE TO AVOID: cranking backward with the lower back to chase range — a shorter, controlled rep with the glutes doing the work is the whole point, and at your bodyweight the seated version is far kinder to your spine than a roman chair.', youtubeUrl: 'https://www.youtube.com/watch?v=gLT-WLH84B4', priority: 1, alwaysWarm: true },
+    { name: 'Back Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '75s', machine: 'Life Fitness (seated Back Extension)', cues: 'This is the SEATED machine, not a roman chair — you sit upright, not face-down. Set the back pad so it sits across your upper back / shoulder blades, and the seat so your hips sit at the machine pivot. Cross arms on your chest or hold the handles. Press BACKWARD by driving your hips down into the seat and squeezing your glutes — the movement is a hip extension, the spine stays neutral and travels as one piece. Push back 2s, hold 1s, return 3s under control, stopping before the stack touches down. Range: only as far back as you can go without your ribs flaring or your chin lifting. MISTAKE TO AVOID: cranking backward with the lower back to chase range — a shorter, controlled rep with the glutes doing the work is the whole point, and at your bodyweight the seated version is far kinder to your spine than a roman chair.', youtubeUrl: 'https://www.youtube.com/watch?v=gLT-WLH84B4', priority: 1, alwaysWarm: true , pinNeedsEasy: true },
     { name: 'Lat Pulldown', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hammer Strength', cues: 'Grip just outside shoulder width — wider is NOT better. Lock thighs under the pad. BEFORE pulling: depress your shoulder blades (pull shoulders away from ears). Then pull the bar to your upper chest by driving elbows straight DOWN and BACK toward your hips. Lean back 10–15° naturally. Hold 1s at bottom with lats squeezed. Return with arms fully extending for a full lat stretch at the top. MISTAKE TO AVOID: leaning back 45°+ turns this into a row — keep the lean minimal and feel your lats, not your biceps.', youtubeUrl: 'https://www.youtube.com/watch?v=NYQ-o3ffxOc', priority: 1 },
     { name: 'Mid Row', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hoist ROC-IT', cues: 'Adjust seat so handles are at mid-abdomen height. Sit upright with a slight forward lean at the hips — chest up, not hunched. Neutral grip (palms facing each other). BEFORE pulling: depress and slightly retract shoulder blades. Then row by driving elbows past your torso — aim for 90° elbow angle at full contraction. Squeeze shoulder blades together hard and hold 1s. Return 3s to a full arm extension and feel the lats stretch. IMPORTANT — this Hoist seat is DESIGNED TO MOVE as you row: keep your chest against the pad as it rocks and do not let it push you into a shrug. MISTAKE TO AVOID: shrugging shoulders up toward ears during the row — keep them down throughout.', youtubeUrl: 'https://www.youtube.com/watch?v=GZbfZ033f74', priority: 1 },
     { name: 'Plank', sets: 3, repsMin: 20, repsMax: 30, unit: 'seconds', repsDisplay: '20–30s', rest: '45s', machine: 'Floor / mat', cues: "KNEE PLANK is the default at your bodyweight — or dead bugs, which are as good for the spine. Knees and forearms on the mat, elbows directly under shoulders, a straight line from knees to head. KEEP BREATHING — slow, steady breaths in and out for the whole hold, 4–6 breaths per 30 s. Never hold your breath: a held breath under load spikes blood pressure. Squeeze glutes, draw the belly button toward the spine, push the floor away with the forearms. Hold 20–30 s; to progress, add a SET, not seconds. MISTAKE TO AVOID: hips piked up, or hips sagging — the moment the hips drop, the set is over. And no toes-down plank yet: at this bodyweight it drags the pelvis into a tilt and loads the lumbar spine.", youtubeUrl: 'https://www.youtube.com/watch?v=A2b2EmIg0dA', priority: 2 },
     { name: 'Leg Curl', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness (Seated Leg Curl)', cues: 'SEATED machine: sit tall, back on the pad, knee joint in line with the machine pivot, thigh pad locked DOWN across the lower thighs, ankle pad just above the heels. HOLD THE HANDLES — they are what keep your hips down. Curl under the seat until the pad nearly touches the seat frame, squeeze the hamstrings and hold 1s, return 3s — CRITICAL: let the legs fully extend and feel the hamstring stretch before the next rep. If the seated machine is taken, do the next exercise and come back — no face-down curls at this bodyweight (a compressed belly and an arched back is a blood-pressure spike). MISTAKE TO AVOID: hips rising off the seat means the weight is too heavy — drop a pin.', youtubeUrl: 'https://www.youtube.com/watch?v=S367qaHeYWU', priority: 1 },
-    { name: 'Bicep Curl', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Hammer Strength Select (or Life Fitness)', cues: 'Set the pad so your upper arms rest FLAT along it and your elbows align with the machine pivot. Palms up (supinated grip). Start from fully extended arms — feel the bicep stretch at the bottom. Curl until forearms go just past vertical, squeeze the bicep hard and hold 1s. Return 3s to FULL extension — never cut the range of motion short. MISTAKE TO AVOID: the whole point of the pad is to eliminate swinging — if your upper arms are lifting off the pad, you are cheating and the exercise is not working.', youtubeUrl: 'https://www.youtube.com/watch?v=fcziDNsUWPM', priority: 2 },
-    { name: 'Triceps Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit facing the machine, upper arms resting on the pad. Grip handles with palms down, elbows shoulder-width — do NOT let them flare out. Start with forearms vertical (90° elbow angle). Press DOWN and FORWARD to FULL lockout at the bottom — full extension is required to fully contract the tricep. Hold 1s. Return 3s — this slow eccentric is the growth stimulus. MISTAKE TO AVOID: elbows drifting wide, and not fully locking out. Upper arms stay pinned to the pad throughout — only forearms move.', youtubeUrl: 'https://www.youtube.com/watch?v=fcziDNsUWPM', priority: 2 },
-    { name: 'Rear Delt Fly', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit facing the pad, chest against it. Handles at chest height. Palms facing down or inward. Keep a slight bend in the elbows and MAINTAIN that angle — do not straighten arms like a chest fly. Raise arms outward and back, leading with elbows, stopping when arms are parallel to the floor. Squeeze rear delts and shoulder blades together for 1s. Return 3s. MISTAKE TO AVOID: using heavy weight — this is a very small muscle that fatigues fast. If you feel it in your upper traps instead of the back of your shoulders, drop the weight significantly.', youtubeUrl: 'https://www.youtube.com/watch?v=6yMdhi2DVao', priority: 2 },
-    { name: 'Cable Face Pull', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Life Fitness Dual Adjustable Pulley (rope attachment)', cues: 'Set cable to eye height or slightly above, rope attachment. Take two steps back — arms slightly extended at start. Pull the rope ends toward your FACE, keeping elbows at or above shoulder height throughout. At full contraction, hands are beside your ears with thumbs pointing behind you — like a double bicep pose. This external rotation at the shoulder is the whole purpose of the exercise. Hold 1s. Return 3s. MISTAKE TO AVOID: leaning back to pull, or dropping the elbows below shoulder height — this is a posture-building exercise and the mechanics must be precise.', youtubeUrl: 'https://www.youtube.com/watch?v=7bLivsAhDFY', priority: 2 },
+    { name: 'Bicep Curl', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Hammer Strength Select (or Life Fitness)', cues: 'Set the pad so your upper arms rest FLAT along it and your elbows align with the machine pivot. Palms up (supinated grip). Start from fully extended arms — feel the bicep stretch at the bottom. Curl until forearms go just past vertical, squeeze the bicep hard and hold 1s. Return 3s to FULL extension — never cut the range of motion short. MISTAKE TO AVOID: the whole point of the pad is to eliminate swinging — if your upper arms are lifting off the pad, you are cheating and the exercise is not working.', youtubeUrl: 'https://www.youtube.com/watch?v=fcziDNsUWPM', priority: 2 },
+    { name: 'Triceps Extension', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit facing the machine, upper arms resting on the pad. Grip handles with palms down, elbows shoulder-width — do NOT let them flare out. Start with forearms vertical (90° elbow angle). Press DOWN and FORWARD to FULL lockout at the bottom — full extension is required to fully contract the tricep. Hold 1s. Return 3s — this slow eccentric is the growth stimulus. MISTAKE TO AVOID: elbows drifting wide, and not fully locking out. Upper arms stay pinned to the pad throughout — only forearms move.', youtubeUrl: 'https://www.youtube.com/watch?v=fcziDNsUWPM', priority: 2 },
+    { name: 'Rear Delt Fly', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit facing the pad, chest against it. Handles at chest height. Palms facing down or inward. Keep a slight bend in the elbows and MAINTAIN that angle — do not straighten arms like a chest fly. Raise arms outward and back, leading with elbows, stopping when arms are parallel to the floor. Squeeze rear delts and shoulder blades together for 1s. Return 3s. MISTAKE TO AVOID: using heavy weight — this is a very small muscle that fatigues fast. If you feel it in your upper traps instead of the back of your shoulders, drop the weight significantly.', youtubeUrl: 'https://www.youtube.com/watch?v=6yMdhi2DVao', priority: 2 , rotatesWith: 'Cable Face Pull' },
+    { name: 'Cable Face Pull', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Life Fitness Dual Adjustable Pulley (rope attachment)', cues: 'Set cable to eye height or slightly above, rope attachment. Take two steps back — arms slightly extended at start. Pull the rope ends toward your FACE, keeping elbows at or above shoulder height throughout. At full contraction, hands are beside your ears with thumbs pointing behind you — like a double bicep pose. This external rotation at the shoulder is the whole purpose of the exercise. Hold 1s. Return 3s. MISTAKE TO AVOID: leaning back to pull, or dropping the elbows below shoulder height — this is a posture-building exercise and the mechanics must be precise.', youtubeUrl: 'https://www.youtube.com/watch?v=7bLivsAhDFY', priority: 2 , rotatesWith: 'Rear Delt Fly' },
   ],
 };
 
@@ -154,10 +164,10 @@ export function warmupDue(
 }
 
 /** The prescription for one named movement, wherever it sits in the week. */
-export function programSpec(name: string | null | undefined): { sets: number; repsMin: number; repsMax: number } | undefined {
+export function programSpec(name: string | null | undefined): { sets: number; repsMin: number; repsMax: number; pinNeedsEasy?: true } | undefined {
   if (!name) return undefined;
   const e = [...DAY_A.exercises, ...DAY_B.exercises].find((x) => x.name === name);
-  return e ? { sets: e.sets, repsMin: e.repsMin, repsMax: e.repsMax } : undefined;
+  return e ? { sets: e.sets, repsMin: e.repsMin, repsMax: e.repsMax, ...(e.pinNeedsEasy ? { pinNeedsEasy: e.pinNeedsEasy } : {}) } : undefined;
 }
 
 /** One logged working set, as the progression rules read it. */
@@ -171,30 +181,33 @@ export interface EvidenceSet {
 const isRated = (rpe: number | null | undefined): rpe is number => rpe != null && rpe > 0;
 
 /**
- * Did this session prove the weight light? (trainer ruling 1, 2026-09-24)
+ * May the next session ask for more? (double progression, owner-approved
+ * 2026-10-24 — "earn reps first, then a pin".)
  *
- * The Watch rates ONE set per machine — the last, most fatigued one — so the
- * old "two or more rated sets, all Easy" rule meant a wrist-only session
- * could never earn a pin. An Easy on the last set at full reps says the
- * earlier sets were Easy too, so it now counts, under guards that matter
- * because he rates nearly everything Easy (Sep 12: 29 of 29 sets):
+ * The old rule added a pin after two all-Easy sessions at the BOTTOM of the
+ * range, so 169 of 215 working sets sat at repsMin and only the weight ever
+ * moved, and a Med rating — the effort the trainer asks for — never earned
+ * anything. Now one session that did the whole prescription at one weight,
+ * finishing at Easy or Med, earns the next step: one more rep, or the pin
+ * once every set reached repsMax (foldExerciseMemory / prescribeWorking).
+ * The Watch rates ONE set per machine — the last, most fatigued one — so:
  *   - every prescribed working set logged (an off-plan machine: two);
  *   - all at one weight — no drop sets;
  *   - every set at or above repsMin — a short set anywhere disqualifies;
- *   - the highest-numbered set rated Easy;
- *   - no other rated set above Easy.
- * Unrated (a spoken "done", a skipped strip) never qualifies. Two such
- * sessions in a row at the same top weight still gate the pin.
+ *   - the highest-numbered set rated Easy or Med;
+ *   - no rated set Hard or Grind (on his chart Hard is the ceiling: a set
+ *     at the ceiling is the place to stay, not to climb from).
+ * Unrated (a spoken "done", a skipped strip) never qualifies.
  */
-export function earnsOverload(sets: EvidenceSet[], spec: { sets: number; repsMin: number } | undefined): boolean {
+export function earnsProgress(sets: EvidenceSet[], spec: { sets: number; repsMin: number } | undefined): boolean {
   const work = sets.filter((x) => x.weight > 0);
   if (work.length < (spec?.sets ?? 2)) return false;
   const top = Math.max(...work.map((x) => x.weight));
   if (work.some((x) => Math.abs(x.weight - top) > 1e-6)) return false;
   if (spec && work.some((x) => x.reps < spec.repsMin)) return false;
   const last = work.reduce((a, b) => (b.setNumber > a.setNumber ? b : a));
-  if (last.rpe !== 1) return false;
-  return work.every((x) => !isRated(x.rpe) || x.rpe === 1);
+  if (!isRated(last.rpe) || last.rpe > 2) return false;
+  return work.every((x) => !isRated(x.rpe) || x.rpe <= 2);
 }
 
 export type ShortSetVerdict = 'full' | 'short-easy' | 'short-hard' | 'short-unrated';
@@ -481,8 +494,8 @@ export const WEEKLY_SESSION_TARGET = 3;
 
 export const PROGRESSION = [
   { weeks: '1–2', phase: 'LEARN', desc: 'Lightest weight. Learn each movement: full range, 2s up / 3s down. Chase technique, not fatigue.' },
-  { weeks: '3–4', phase: 'BUILD', desc: 'If all reps clean → move up one weight pin. Last 2–3 reps should feel challenging.' },
-  { weeks: '5–6', phase: 'PUSH', desc: 'Add 1 rep per set OR one weight pin. Extend cardio to 12–15 min if energy allows.' },
+  { weeks: '3–4', phase: 'BUILD', desc: 'Last set Easy or Med → one more rep next time. Hard → repeat. Every set at the top → one pin, back to the bottom reps. Last 2 reps Med: keep breathing, never a grind.' },
+  { weeks: '5–6', phase: 'PUSH', desc: 'Same rule: Easy or Med → one more rep, or one pin at the top. Hard → repeat. Extend cardio to 12–15 min if energy allows.' },
   { weeks: '7', phase: 'DELOAD', desc: 'Drop weights 40%. Same exercises, light effort. Focus on stretching and sleep.' },
   { weeks: '8–10', phase: 'REBUILD', desc: "Return to Wk 6 weights — they'll feel easier. Continue adding weight/reps gradually." },
   { weeks: '11–12', phase: 'EVALUATE', desc: 'Measure: weight, how clothes fit, strength gains. Reassess if plateau.' },
@@ -1088,34 +1101,26 @@ export function effortCeiling(
 }
 
 /**
- * The "Try N kg" chip. One learned pin, and only after the same two
- * all-Easy sessions the overload seed waits for — the chip used to add a
- * hard-coded 5 kg after ONE Easy session (Face Pull 8.75 → "Try 13.75",
- * +57%, on a machine whose own cue says light and strict; trainer A6,
- * 2026-09-18). Null = nothing to suggest.
+ * The "Try N kg" chip, shown only when he declined the pin the prescription
+ * applied: one learned pin, and only once the last session earned it —
+ * every set at repsMax, finished at Easy or Med (memory.overload). The chip
+ * used to add a hard-coded 5 kg after ONE Easy session (Face Pull 8.75 →
+ * "Try 13.75", +57%; trainer A6, 2026-09-18). Null = nothing to suggest.
  */
 export function nextTryWeight(
   last: { weight: number; reps?: number; rpe: number | null; overload?: boolean; repsFloor?: number } | null | undefined,
   pin: number,
-  minReps = 0,
   maxReps = Number.POSITIVE_INFINITY,
+  pinNeedsEasy = false,
 ): number | null {
   if (!last || last.weight <= 0 || !last.overload) return null;
   if (last.rpe != null && last.rpe >= 3) return null;
-  // Reps first, then the pin — the seed declines under the minimum reps and
-  // the chip must not offer what the seed declined (trainer).
-  if (typeof last.reps === 'number' && last.reps < minReps) return null;
+  // A loaded spine takes the pin only from an Easy top — as prescribeWorking.
+  if (pinNeedsEasy && last.rpe !== 1) return null;
+  // Reps first, then the pin: the chip must not offer what the seed declined.
+  if ((last.repsFloor ?? last.reps ?? 0) < maxReps) return null;
   const p = pin > 0 ? pin : 2.5;
-  // A coarse step (more than 15% of the weight) waits until every set
-  // reached the top of the range — the same gate as the seed
-  // (prescription.ts COARSE_PIN_SHARE; review F5: 29 → 38 at 12 reps).
-  if (p > last.weight * 0.15 && (last.repsFloor ?? last.reps ?? 0) < maxReps) return null;
   return +(last.weight + p).toFixed(2);
-}
-
-/** One all-Easy session at a weight: repeat it and earn the pin — not "try more". */
-export function repeatToEarn(last: { weight?: number; rpe: number | null; allEasy?: boolean; overload?: boolean } | null | undefined): boolean {
-  return !!last && last.allEasy === true && !last.overload;
 }
 
 /** A timed hold never prefills past its ceiling — the 30 s plank cap is a

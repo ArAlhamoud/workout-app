@@ -602,7 +602,7 @@ async function rampSnapshot(gym: string = DEFAULT_GYM_ID, excludeClientSaveId?: 
     prisma.workout.findMany({
       orderBy: { date: 'desc' },
       take: PRESCRIPTION_WINDOW,
-      select: { date: true, name: true, gym: true, duration: true, clientSaveId: true, sets: { select: { rpe: true, isWarmup: true, exerciseId: true, weight: true, allowedKg: true } } },
+      select: { date: true, name: true, gym: true, duration: true, clientSaveId: true, sets: { select: { rpe: true, isWarmup: true, exerciseId: true, weight: true, reps: true, allowedKg: true } } },
     }),
     prisma.exercise.findMany({ select: { id: true, pinIncrement: true } }),
   ]);
@@ -704,7 +704,7 @@ export async function getLastSessionForExercises(
     for (const x of all) (evidence.get(x.workoutId) ?? evidence.set(x.workoutId, []).get(x.workoutId)!).push({ rpe: x.rpe, isWarmup: false });
   }
 
-  // The fold — sessions by day, earnsOverload for the pin, shortSetVerdict
+  // The fold — sessions by day, earnsProgress for reps and the pin, shortSetVerdict
   // for the step down — is pure and shared (prescription.ts).
   return foldExerciseMemory(
     rows.map((r) => ({ ...r, exerciseName: r.exercise.name })),

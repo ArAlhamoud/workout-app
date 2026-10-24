@@ -14,7 +14,6 @@ import {
   warmupDue,
   warmupWeight,
   nextTryWeight,
-  repeatToEarn,
   prefillReps,
   programSpec,
 } from '@/lib/program';
@@ -97,7 +96,7 @@ interface ExerciseBlock {
   unit?: 'reps' | 'seconds';
   showCues: boolean;
   expandedNoteIdx: number | null;
-  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean; repsFloor?: number; shortHard?: boolean; holdAtKg?: number };
+  lastSession?: { weight: number; reps: number; rpe: number | null; overload?: boolean; earned?: boolean; rampHold?: boolean; repsFloor?: number; shortHard?: boolean; holdAtKg?: number };
   /** Overload by default took one learned pin at seed time; tap undoes it. */
   overloadApplied?: { from: number; to: number; fromReps?: number };
   /** He undid the seed: do not re-offer the same number as a chip. */
@@ -115,7 +114,7 @@ interface ExerciseBlock {
   warmupEligible?: boolean;
   /** Warms up wherever it lands (Back Extension). */
   alwaysWarm?: boolean;
-  /** A coarse step asked for one more rep (reason 'reps'): the reps it asked
+  /** Double progression asked for one more rep (reason 'reps'): the reps it asked
    *  up from, so a HOLD morning can take the ask back like a seed. */
   repsAsk?: { from: number; to: number };
 }
@@ -218,7 +217,7 @@ function formatElapsed(seconds: number): string {
 
 function buildBlocks(
   initialExercises: InitialExercise[],
-  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; allEasy?: boolean; rampHold?: boolean; repsFloor?: number; shortHard?: boolean; holdAtKg?: number }>,
+  lastSession: Record<string, { weight: number; reps: number; rpe: number | null; overload?: boolean; earned?: boolean; rampHold?: boolean; repsFloor?: number; shortHard?: boolean; holdAtKg?: number }>,
   returnLoadPct?: number,
   pinIncrements: Record<string, number> = {},
   plateauKgs: Record<string, number> = {},
@@ -239,7 +238,7 @@ function buildBlocks(
     // returnLoadPct is undefined outside a ramp and set (even 100) inside
     // one or on a rescue — exactly prescribeWorking's `rampPct`.
     const p = prescribeWorking(
-      { unit, sets: ie.sets, repsMin: ie.defaultReps, repsMax: ie.maxReps ?? Number.POSITIVE_INFINITY },
+      { unit, sets: ie.sets, repsMin: ie.defaultReps, repsMax: ie.maxReps ?? Number.POSITIVE_INFINITY, pinNeedsEasy: programSpec(ie.name)?.pinNeedsEasy },
       prev,
       inc,
       plateauKgs[ie.exerciseId] ?? null,
@@ -311,7 +310,7 @@ function buildBlocks(
         // Clamped into the range for EVERY unit (trainer ruling 6): a short
         // set is never the next prefill — Triceps carried 10 against a 12
         // minimum three sessions running.
-        // A coarse step asks for one more rep before the pin (reason 'reps').
+        // Double progression asks for one more rep before the pin (reason 'reps').
         reps: p.reps ?? prefillReps(prev?.reps, ie.defaultReps, ie.maxReps ?? Number.POSITIVE_INFINITY),
         weight: unit === 'seconds' ? 0 : p.workingKg ?? 0,
         done: false,
@@ -599,7 +598,7 @@ export default function WorkoutForm({
     if (readiness?.verdict !== 'hold') return;
     setBlocks((prev) =>
       prev.map((b) => {
-        // The coarse step's one-more-rep ask is a seed too: on a HOLD
+        // The one-more-rep ask is a seed too: on a HOLD
         // morning the Watch and /train drop it, so the phone does (round 3).
         const unasked = b.repsAsk
           ? { ...b, repsAsk: undefined, sets: b.sets.map((st) => (st.done || st.isWarmup ? st : { ...st, reps: b.repsAsk!.from })) }
@@ -1414,7 +1413,7 @@ export default function WorkoutForm({
             const inc = gymPins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
             const anchored = gymHisSteps.includes(b.exerciseId);
             const p = prescribeWorking(
-              { unit, sets: b.plannedSets ?? b.sets.filter((s) => !s.isWarmup).length, repsMin: b.defaultReps ?? 0, repsMax: b.maxReps ?? Number.POSITIVE_INFINITY },
+              { unit, sets: b.plannedSets ?? b.sets.filter((s) => !s.isWarmup).length, repsMin: b.defaultReps ?? 0, repsMax: b.maxReps ?? Number.POSITIVE_INFINITY, pinNeedsEasy: programSpec(b.programName)?.pinNeedsEasy },
               prevSession,
               inc,
               gymPlateaus[b.exerciseId] ?? null,
@@ -2460,14 +2459,13 @@ export default function WorkoutForm({
             !deload &&
             ((!returnTarget && !isTimed && block.lastSession?.weight != null && lastRpe != null && lastRpe >= 3) ||
               readinessHold);
-          // One learned pin, only after two all-Easy sessions (program.ts
-          // nextTryWeight) — never a hard-coded 5 kg after one Easy session.
+          // One learned pin, only once every set reached the top of the range
+          // (program.ts nextTryWeight) — never a hard-coded 5 kg.
           const suggestWeight =
             !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload &&
             !block.overloadApplied && !block.overloadDeclined
-              ? nextTryWeight(block.lastSession, pins[block.exerciseId] ?? DEFAULT_PIN_INCREMENT, block.defaultReps ?? 0, block.maxReps ?? Number.POSITIVE_INFINITY)
+              ? nextTryWeight(block.lastSession, pins[block.exerciseId] ?? DEFAULT_PIN_INCREMENT, block.maxReps ?? Number.POSITIVE_INFINITY, programSpec(block.programName)?.pinNeedsEasy === true)
               : null;
-          const earnIt = !returnTarget && !isTimed && !shouldHold && !deload && !block.overloadApplied && !block.overloadDeclined && repeatToEarn(block.lastSession);
 
           const est1RM = !isTimed
             ? block.sets.reduce((best, s) => Math.max(best, epley1RM(s.weight, s.reps)), 0)
@@ -2557,9 +2555,9 @@ export default function WorkoutForm({
                     &#8594; Try {suggestWeight} kg
                   </span>
                 )}
-                {earnIt && !allDone && (
-                  <span className="text-xs bg-app-surface2 text-app-tx2 px-2.5 py-1 rounded-full border border-app-border font-medium">
-                    Repeat · earn the pin
+                {block.repsAsk && !shouldHold && !allDone && (
+                  <span className="text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium tabular-nums">
+                    +1 rep &#183; {block.repsAsk.to}
                   </span>
                 )}
                 {block.overloadApplied && !allDone && (
@@ -2569,7 +2567,7 @@ export default function WorkoutForm({
                     aria-label={`Undo the increase, back to ${block.overloadApplied.from} kg`}
                     className="pressable text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium tabular-nums"
                   >
-                    +{+(block.overloadApplied.to - block.overloadApplied.from).toFixed(1)} kg &#183; 2&#215; Easy &#183; undo
+                    +{+(block.overloadApplied.to - block.overloadApplied.from).toFixed(1)} kg &#183; top of range &#183; undo
                   </button>
                 )}
                 {deload && !returnTarget && !allDone && (

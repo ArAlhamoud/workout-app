@@ -12,7 +12,7 @@ import {
   DEFAULT_SESSION_MIN,
   DEFAULT_GYM_ID,
 } from '@/lib/program';
-import { extraSetAllowed, planExercises, prescriptionInputs, PRESCRIPTION_WINDOW, startableUntilFor } from '@/lib/prescription';
+import { extraSetAllowed, planExercises, prescriptionInputs, PRESCRIPTION_WINDOW, rotatePairs, startableUntilFor } from '@/lib/prescription';
 import { getLoggerMemory, readinessHoldToday } from '@/app/actions';
 
 export const runtime = 'nodejs';
@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     startableUntil: startableUntilFor(inputs.training[0] ? new Date(inputs.training[0].date) : null, new Date()),
     // planExercises filters unseeded names out FIRST, then numbers — the
     // same `order` the phone's blocks carry.
-    exercises: planExercises(template, byName, memory, inputs, { readinessHold }).map((e) => ({
+    exercises: planExercises(rotatePairs(template, byName, inputs.lastDoneAt), byName, memory, inputs, { readinessHold }).map((e) => ({
       exerciseId: e.exerciseId,
       name: e.name,
       machine: e.template.machine,

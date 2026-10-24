@@ -10,7 +10,7 @@ import {
   isTrainingSession,
   DEFAULT_GYM_ID, DEFAULT_SESSION_MIN, effortCeiling, rampSessionVerdicts } from '@/lib/program';
 import { combineIncrement, phaseForWeek } from '@/lib/coach';
-import { planExercises, prescriptionInputs } from '@/lib/prescription';
+import { planExercises, prescriptionInputs, rotatePairs } from '@/lib/prescription';
 import CoachCard from '@/components/CoachCard';
 import VoltLetter from '@/components/VoltLetter';
 import CardioQuickLog from '@/components/CardioQuickLog';
@@ -232,7 +232,7 @@ export default async function TrainPage() {
     getLoggerMemory(previewIds, DEFAULT_GYM_ID, inputs.cut),
     readinessHoldToday(),
   ]);
-  const preview = planExercises(template, exerciseByName, lastByExercise, inputs, { readinessHold }).map((e) => ({
+  const preview = planExercises(rotatePairs(template, exerciseByName, inputs.lastDoneAt), exerciseByName, lastByExercise, inputs, { readinessHold }).map((e) => ({
     name: e.name,
     setsReps: `${e.prescription.sets} × ${e.template.repsDisplay}`,
     isHold: e.template.unit === 'seconds',
