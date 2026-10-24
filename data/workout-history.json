@@ -1,9 +1,9 @@
 {
-  "exportedAt": "2026-10-23T09:46:28.318Z",
+  "exportedAt": "2026-10-24T09:19:58.032Z",
   "totalWorkouts": 22,
   "totalBodyStats": 50,
   "totalExercises": 21,
-  "totalHealthSamples": 617,
+  "totalHealthSamples": 624,
   "totalHolds": 0,
   "totalGymVisits": 5,
   "totalInjections": 9,
@@ -178,11 +178,21 @@
       "createdAt": "2026-10-04T22:21:27.805Z"
     },
     {
-      "id": "cmuudy95l0007kayy93ya2c3r",
-      "type": "sleep_resp_rate",
+      "id": "cmuudy95l0006kayyz36za7rm",
+      "type": "sleep_spo2_avg",
       "date": "2024-12-04T00:00:00.000Z",
-      "value": 28.6,
-      "unit": "count/min",
+      "value": 99,
+      "unit": "%",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:38.647Z"
+    },
+    {
+      "id": "cmuudy95l0005kayyxbf0tmjo",
+      "type": "sleep_spo2_low",
+      "date": "2024-12-04T00:00:00.000Z",
+      "value": 99,
+      "unit": "%",
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-04T22:21:38.647Z"
@@ -198,21 +208,11 @@
       "createdAt": "2026-10-04T22:21:38.647Z"
     },
     {
-      "id": "cmuudy95l0005kayyxbf0tmjo",
-      "type": "sleep_spo2_low",
+      "id": "cmuudy95l0007kayy93ya2c3r",
+      "type": "sleep_resp_rate",
       "date": "2024-12-04T00:00:00.000Z",
-      "value": 99,
-      "unit": "%",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:38.647Z"
-    },
-    {
-      "id": "cmuudy95l0006kayyz36za7rm",
-      "type": "sleep_spo2_avg",
-      "date": "2024-12-04T00:00:00.000Z",
-      "value": 99,
-      "unit": "%",
+      "value": 28.6,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-04T22:21:38.647Z"
@@ -226,6 +226,16 @@
       "source": "apple-health",
       "meta": "{\"bed\":\"2025-02-13T02:56:56.000Z\",\"wake\":\"2025-02-13T05:15:56.000Z\",\"sources\":[\"Abdulrahman’s Apple Watch\"],\"asleepMin\":129}",
       "createdAt": "2026-10-04T22:21:37.196Z"
+    },
+    {
+      "id": "cmuudy62s001ggbbp6g8zpah0",
+      "type": "sleep_asleep_h",
+      "date": "2025-07-17T00:00:00.000Z",
+      "value": 1.88,
+      "unit": "h",
+      "source": "apple-health",
+      "meta": "{\"bed\":\"2025-07-17T10:56:06.000Z\",\"wake\":\"2025-07-17T13:19:36.000Z\",\"sources\":[\"Abdulrahman’s Apple Watch\"],\"asleepMin\":113}",
+      "createdAt": "2026-10-04T22:21:34.658Z"
     },
     {
       "id": "cmuudy62s001jgbbpx3410ro1",
@@ -258,16 +268,6 @@
       "createdAt": "2026-10-04T22:21:34.658Z"
     },
     {
-      "id": "cmuudy62s001ggbbp6g8zpah0",
-      "type": "sleep_asleep_h",
-      "date": "2025-07-17T00:00:00.000Z",
-      "value": 1.88,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2025-07-17T10:56:06.000Z\",\"wake\":\"2025-07-17T13:19:36.000Z\",\"sources\":[\"Abdulrahman’s Apple Watch\"],\"asleepMin\":113}",
-      "createdAt": "2026-10-04T22:21:34.658Z"
-    },
-    {
       "id": "cmuudy4ic001cgbbpwz21i0vx",
       "type": "sleep_asleep_h",
       "date": "2025-12-04T00:00:00.000Z",
@@ -288,6 +288,26 @@
       "createdAt": "2026-10-04T22:21:32.626Z"
     },
     {
+      "id": "cmuudy3k7000rgbbp75rgjuw3",
+      "type": "sleep_deep_min",
+      "date": "2026-02-04T00:00:00.000Z",
+      "value": 105,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:31.396Z"
+    },
+    {
+      "id": "cmuudy3k8000vgbbpazkur4ty",
+      "type": "sleep_spo2_low",
+      "date": "2026-02-04T00:00:00.000Z",
+      "value": 94,
+      "unit": "%",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:31.396Z"
+    },
+    {
       "id": "cmuudy3k7000tgbbpg02fynr2",
       "type": "sleep_core_min",
       "date": "2026-02-04T00:00:00.000Z",
@@ -298,10 +318,20 @@
       "createdAt": "2026-10-04T22:21:31.396Z"
     },
     {
-      "id": "cmuudy3k7000rgbbp75rgjuw3",
-      "type": "sleep_deep_min",
+      "id": "cmuudy3k7000qgbbpz0faimke",
+      "type": "sleep_asleep_h",
       "date": "2026-02-04T00:00:00.000Z",
-      "value": 105,
+      "value": 6.43,
+      "unit": "h",
+      "source": "apple-health",
+      "meta": "{\"bed\":\"2026-02-03T20:27:59.000Z\",\"wake\":\"2026-02-04T04:02:59.000Z\",\"sources\":[\"RingConn\"],\"asleepMin\":386}",
+      "createdAt": "2026-10-04T22:21:31.396Z"
+    },
+    {
+      "id": "cmuudy3k8000ugbbpppoiggxm",
+      "type": "sleep_awake_min",
+      "date": "2026-02-04T00:00:00.000Z",
+      "value": 69,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -328,34 +358,34 @@
       "createdAt": "2026-10-04T22:21:31.396Z"
     },
     {
-      "id": "cmuudy3k7000qgbbpz0faimke",
-      "type": "sleep_asleep_h",
-      "date": "2026-02-04T00:00:00.000Z",
-      "value": 6.43,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-02-03T20:27:59.000Z\",\"wake\":\"2026-02-04T04:02:59.000Z\",\"sources\":[\"RingConn\"],\"asleepMin\":386}",
-      "createdAt": "2026-10-04T22:21:31.396Z"
-    },
-    {
-      "id": "cmuudy3k8000vgbbpazkur4ty",
+      "id": "cmuudy3l60012gbbpzgk208by",
       "type": "sleep_spo2_low",
-      "date": "2026-02-04T00:00:00.000Z",
-      "value": 94,
+      "date": "2026-02-05T00:00:00.000Z",
+      "value": 91,
       "unit": "%",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-04T22:21:31.396Z"
+      "createdAt": "2026-10-04T22:21:31.431Z"
     },
     {
-      "id": "cmuudy3k8000ugbbpppoiggxm",
+      "id": "cmuudy3l60011gbbp6ojjt4nk",
       "type": "sleep_awake_min",
-      "date": "2026-02-04T00:00:00.000Z",
-      "value": 69,
+      "date": "2026-02-05T00:00:00.000Z",
+      "value": 10,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-04T22:21:31.396Z"
+      "createdAt": "2026-10-04T22:21:31.431Z"
+    },
+    {
+      "id": "cmuudy3l60010gbbpuxqwzald",
+      "type": "sleep_core_min",
+      "date": "2026-02-05T00:00:00.000Z",
+      "value": 163,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:31.431Z"
     },
     {
       "id": "cmuudy3l6000zgbbpyzs4ufbp",
@@ -398,40 +428,40 @@
       "createdAt": "2026-10-04T22:21:31.431Z"
     },
     {
-      "id": "cmuudy3l60012gbbpzgk208by",
-      "type": "sleep_spo2_low",
-      "date": "2026-02-05T00:00:00.000Z",
-      "value": 91,
+      "id": "cmuudy3m3001agbbpyj2mcq1m",
+      "type": "sleep_spo2_avg",
+      "date": "2026-02-06T00:00:00.000Z",
+      "value": 96,
       "unit": "%",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-04T22:21:31.431Z"
+      "createdAt": "2026-10-04T22:21:31.463Z"
     },
     {
-      "id": "cmuudy3l60011gbbp6ojjt4nk",
+      "id": "cmuudy3m20018gbbpc6y3h7xp",
       "type": "sleep_awake_min",
-      "date": "2026-02-05T00:00:00.000Z",
-      "value": 10,
+      "date": "2026-02-06T00:00:00.000Z",
+      "value": 25,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-04T22:21:31.431Z"
-    },
-    {
-      "id": "cmuudy3l60010gbbpuxqwzald",
-      "type": "sleep_core_min",
-      "date": "2026-02-05T00:00:00.000Z",
-      "value": 163,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:31.431Z"
+      "createdAt": "2026-10-04T22:21:31.463Z"
     },
     {
       "id": "cmuudy3m20017gbbpcguow18q",
       "type": "sleep_core_min",
       "date": "2026-02-06T00:00:00.000Z",
       "value": 140,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:31.463Z"
+    },
+    {
+      "id": "cmuudy3m20016gbbp6357hmte",
+      "type": "sleep_rem_min",
+      "date": "2026-02-06T00:00:00.000Z",
+      "value": 85,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -458,16 +488,6 @@
       "createdAt": "2026-10-04T22:21:31.463Z"
     },
     {
-      "id": "cmuudy3m3001agbbpyj2mcq1m",
-      "type": "sleep_spo2_avg",
-      "date": "2026-02-06T00:00:00.000Z",
-      "value": 96,
-      "unit": "%",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:31.463Z"
-    },
-    {
       "id": "cmuudy3m20019gbbpku2t7shu",
       "type": "sleep_spo2_low",
       "date": "2026-02-06T00:00:00.000Z",
@@ -478,24 +498,14 @@
       "createdAt": "2026-10-04T22:21:31.463Z"
     },
     {
-      "id": "cmuudy3m20018gbbpc6y3h7xp",
-      "type": "sleep_awake_min",
-      "date": "2026-02-06T00:00:00.000Z",
-      "value": 25,
-      "unit": "min",
+      "id": "cmuudy2tj0009gbbp57jvdxyc",
+      "type": "sleep_spo2_low",
+      "date": "2026-02-08T00:00:00.000Z",
+      "value": 95,
+      "unit": "%",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-04T22:21:31.463Z"
-    },
-    {
-      "id": "cmuudy3m20016gbbp6357hmte",
-      "type": "sleep_rem_min",
-      "date": "2026-02-06T00:00:00.000Z",
-      "value": 85,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:31.463Z"
+      "createdAt": "2026-10-04T22:21:30.435Z"
     },
     {
       "id": "cmuudy2tj000agbbpzg22gfc0",
@@ -508,20 +518,10 @@
       "createdAt": "2026-10-04T22:21:30.435Z"
     },
     {
-      "id": "cmuudy2ti0004gbbpvjf7jq6p",
-      "type": "sleep_asleep_h",
+      "id": "cmuudy2ti0007gbbpt87eom2g",
+      "type": "sleep_core_min",
       "date": "2026-02-08T00:00:00.000Z",
-      "value": 6.17,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-02-07T22:14:42.000Z\",\"wake\":\"2026-02-08T04:40:07.000Z\",\"sources\":[\"RingConn\"],\"asleepMin\":370}",
-      "createdAt": "2026-10-04T22:21:30.435Z"
-    },
-    {
-      "id": "cmuudy2ti0005gbbpjzid1akj",
-      "type": "sleep_deep_min",
-      "date": "2026-02-08T00:00:00.000Z",
-      "value": 97,
+      "value": 184,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -538,13 +538,23 @@
       "createdAt": "2026-10-04T22:21:30.435Z"
     },
     {
-      "id": "cmuudy2ti0007gbbpt87eom2g",
-      "type": "sleep_core_min",
+      "id": "cmuudy2ti0005gbbpjzid1akj",
+      "type": "sleep_deep_min",
       "date": "2026-02-08T00:00:00.000Z",
-      "value": 184,
+      "value": 97,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
+      "createdAt": "2026-10-04T22:21:30.435Z"
+    },
+    {
+      "id": "cmuudy2ti0004gbbpvjf7jq6p",
+      "type": "sleep_asleep_h",
+      "date": "2026-02-08T00:00:00.000Z",
+      "value": 6.17,
+      "unit": "h",
+      "source": "apple-health",
+      "meta": "{\"bed\":\"2026-02-07T22:14:42.000Z\",\"wake\":\"2026-02-08T04:40:07.000Z\",\"sources\":[\"RingConn\"],\"asleepMin\":370}",
       "createdAt": "2026-10-04T22:21:30.435Z"
     },
     {
@@ -558,26 +568,6 @@
       "createdAt": "2026-10-04T22:21:30.435Z"
     },
     {
-      "id": "cmuudy2tj0009gbbp57jvdxyc",
-      "type": "sleep_spo2_low",
-      "date": "2026-02-08T00:00:00.000Z",
-      "value": 95,
-      "unit": "%",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:30.435Z"
-    },
-    {
-      "id": "cmuudy2ui000hgbbpbvr48exi",
-      "type": "sleep_spo2_avg",
-      "date": "2026-02-09T00:00:00.000Z",
-      "value": 97.1,
-      "unit": "%",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:30.471Z"
-    },
-    {
       "id": "cmuudy2uh000cgbbp8y99taly",
       "type": "sleep_deep_min",
       "date": "2026-02-09T00:00:00.000Z",
@@ -585,6 +575,16 @@
       "unit": "min",
       "source": "apple-health",
       "meta": null,
+      "createdAt": "2026-10-04T22:21:30.471Z"
+    },
+    {
+      "id": "cmuudy2uh000bgbbp8t3nai7q",
+      "type": "sleep_asleep_h",
+      "date": "2026-02-09T00:00:00.000Z",
+      "value": 5.62,
+      "unit": "h",
+      "source": "apple-health",
+      "meta": "{\"bed\":\"2026-02-08T22:10:18.000Z\",\"wake\":\"2026-02-09T03:55:18.000Z\",\"sources\":[\"RingConn\"],\"asleepMin\":337}",
       "createdAt": "2026-10-04T22:21:30.471Z"
     },
     {
@@ -618,20 +618,20 @@
       "createdAt": "2026-10-04T22:21:30.471Z"
     },
     {
-      "id": "cmuudy2uh000bgbbp8t3nai7q",
-      "type": "sleep_asleep_h",
-      "date": "2026-02-09T00:00:00.000Z",
-      "value": 5.62,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-02-08T22:10:18.000Z\",\"wake\":\"2026-02-09T03:55:18.000Z\",\"sources\":[\"RingConn\"],\"asleepMin\":337}",
-      "createdAt": "2026-10-04T22:21:30.471Z"
-    },
-    {
       "id": "cmuudy2ui000ggbbpcyeduhni",
       "type": "sleep_spo2_low",
       "date": "2026-02-09T00:00:00.000Z",
       "value": 95,
+      "unit": "%",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:30.471Z"
+    },
+    {
+      "id": "cmuudy2ui000hgbbpbvr48exi",
+      "type": "sleep_spo2_avg",
+      "date": "2026-02-09T00:00:00.000Z",
+      "value": 97.1,
       "unit": "%",
       "source": "apple-health",
       "meta": null,
@@ -645,6 +645,16 @@
       "unit": "h",
       "source": "apple-health",
       "meta": "{\"bed\":\"2026-02-09T21:58:17.000Z\",\"wake\":\"2026-02-10T03:28:17.000Z\",\"sources\":[\"RingConn\"],\"asleepMin\":323}",
+      "createdAt": "2026-10-04T22:21:30.502Z"
+    },
+    {
+      "id": "cmuudy2vd000kgbbpbl0kjzyz",
+      "type": "sleep_rem_min",
+      "date": "2026-02-10T00:00:00.000Z",
+      "value": 120,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
       "createdAt": "2026-10-04T22:21:30.502Z"
     },
     {
@@ -688,16 +698,6 @@
       "createdAt": "2026-10-04T22:21:30.502Z"
     },
     {
-      "id": "cmuudy2vd000kgbbpbl0kjzyz",
-      "type": "sleep_rem_min",
-      "date": "2026-02-10T00:00:00.000Z",
-      "value": 120,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:30.502Z"
-    },
-    {
       "id": "cmuudy2vd000lgbbp5qjcstj0",
       "type": "sleep_core_min",
       "date": "2026-02-10T00:00:00.000Z",
@@ -706,16 +706,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-04T22:21:30.502Z"
-    },
-    {
-      "id": "cmuudy23u0000gbbpla3jln2p",
-      "type": "sleep_asleep_h",
-      "date": "2026-04-21T00:00:00.000Z",
-      "value": 1.45,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-04-21T04:33:50.000Z\",\"wake\":\"2026-04-21T06:01:34.000Z\",\"sources\":[\"Abdulrahman’s Apple Watch\"],\"asleepMin\":87}",
-      "createdAt": "2026-10-04T22:21:29.512Z"
     },
     {
       "id": "cmuudy23u0001gbbppuspzrce",
@@ -728,6 +718,16 @@
       "createdAt": "2026-10-04T22:21:29.512Z"
     },
     {
+      "id": "cmuudy23u0000gbbpla3jln2p",
+      "type": "sleep_asleep_h",
+      "date": "2026-04-21T00:00:00.000Z",
+      "value": 1.45,
+      "unit": "h",
+      "source": "apple-health",
+      "meta": "{\"bed\":\"2026-04-21T04:33:50.000Z\",\"wake\":\"2026-04-21T06:01:34.000Z\",\"sources\":[\"Abdulrahman’s Apple Watch\"],\"asleepMin\":87}",
+      "createdAt": "2026-10-04T22:21:29.512Z"
+    },
+    {
       "id": "cmuudy23u0002gbbpeexl5dau",
       "type": "sleep_spo2_avg",
       "date": "2026-04-21T00:00:00.000Z",
@@ -736,6 +736,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-04T22:21:29.512Z"
+    },
+    {
+      "id": "cmsfkujt70001xomdh7e6e20a",
+      "type": "hrv_sdnn",
+      "date": "2026-07-30T00:00:00.000Z",
+      "value": 111.2569654555603,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T04:18:45.836Z"
     },
     {
       "id": "cmsfkujsk0000xomdi7kl04ot",
@@ -758,14 +768,14 @@
       "createdAt": "2026-08-05T04:18:45.852Z"
     },
     {
-      "id": "cmsfkujt70001xomdh7e6e20a",
-      "type": "hrv_sdnn",
-      "date": "2026-07-30T00:00:00.000Z",
-      "value": 111.2569654555603,
-      "unit": "ms",
+      "id": "cmsfkujtr0005xomd5gjil8ud",
+      "type": "steps",
+      "date": "2026-07-31T00:00:00.000Z",
+      "value": 2937,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-05T04:18:45.836Z"
+      "createdAt": "2026-08-05T04:18:45.856Z"
     },
     {
       "id": "cmsfkujtb0002xomd3owogrrd",
@@ -778,14 +788,14 @@
       "createdAt": "2026-08-05T04:18:45.839Z"
     },
     {
-      "id": "cmsfkujtr0005xomd5gjil8ud",
-      "type": "steps",
-      "date": "2026-07-31T00:00:00.000Z",
-      "value": 2937,
-      "unit": "count",
+      "id": "cmsfkujtk0003xomdy4zekvz5",
+      "type": "hrv_sdnn",
+      "date": "2026-08-01T00:00:00.000Z",
+      "value": 16.31092656762389,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-05T04:18:45.856Z"
+      "createdAt": "2026-08-05T04:18:45.848Z"
     },
     {
       "id": "cmsfkujtv0006xomd6f1bpevf",
@@ -796,16 +806,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-05T04:18:45.859Z"
-    },
-    {
-      "id": "cmsfkujtk0003xomdy4zekvz5",
-      "type": "hrv_sdnn",
-      "date": "2026-08-01T00:00:00.000Z",
-      "value": 16.31092656762389,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-05T04:18:45.848Z"
     },
     {
       "id": "cmsfkujty0007xomdsa04rav6",
@@ -828,16 +828,6 @@
       "createdAt": "2026-08-05T04:18:45.868Z"
     },
     {
-      "id": "cmsg8kv5c000611wkrqgpoi2y",
-      "type": "hrv_sdnn",
-      "date": "2026-08-04T00:00:00.000Z",
-      "value": 37.59371690430033,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-05T15:23:04.753Z"
-    },
-    {
       "id": "cmsg8kv4r000111wkkuv5axg9",
       "type": "resting_hr",
       "date": "2026-08-04T00:00:00.000Z",
@@ -858,14 +848,14 @@
       "createdAt": "2026-08-05T04:18:45.871Z"
     },
     {
-      "id": "cmsfn3ynr000a48uq6r0vx5fy",
-      "type": "steps",
-      "date": "2026-08-05T00:00:00.000Z",
-      "value": 3780.548100910012,
-      "unit": "count",
+      "id": "cmsg8kv5c000611wkrqgpoi2y",
+      "type": "hrv_sdnn",
+      "date": "2026-08-04T00:00:00.000Z",
+      "value": 37.59371690430033,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-05T05:22:04.216Z"
+      "createdAt": "2026-08-05T15:23:04.753Z"
     },
     {
       "id": "cmsg8kv50000211wko29cmxbn",
@@ -878,6 +868,16 @@
       "createdAt": "2026-08-05T15:23:04.740Z"
     },
     {
+      "id": "cmsfn3ynr000a48uq6r0vx5fy",
+      "type": "steps",
+      "date": "2026-08-05T00:00:00.000Z",
+      "value": 3780.548100910012,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-05T05:22:04.216Z"
+    },
+    {
       "id": "cmsg8kv5f000711wkdheuo3ny",
       "type": "hrv_sdnn",
       "date": "2026-08-05T00:00:00.000Z",
@@ -888,14 +888,14 @@
       "createdAt": "2026-08-05T15:23:04.756Z"
     },
     {
-      "id": "cmsh896h00007mkeeitaksegj",
-      "type": "hrv_sdnn",
+      "id": "cmsh896hw000emkeenzqe0ivw",
+      "type": "steps",
       "date": "2026-08-06T00:00:00.000Z",
-      "value": 33.1705612878084,
-      "unit": "ms",
+      "value": 3985,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-06T08:01:45.732Z"
+      "createdAt": "2026-08-06T08:01:45.764Z"
     },
     {
       "id": "cmsh896g50002mkeeh2ktumuk",
@@ -908,14 +908,14 @@
       "createdAt": "2026-08-06T08:01:45.701Z"
     },
     {
-      "id": "cmsh896hw000emkeenzqe0ivw",
-      "type": "steps",
+      "id": "cmsh896h00007mkeeitaksegj",
+      "type": "hrv_sdnn",
       "date": "2026-08-06T00:00:00.000Z",
-      "value": 3985,
-      "unit": "count",
+      "value": 33.1705612878084,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-06T08:01:45.764Z"
+      "createdAt": "2026-08-06T08:01:45.732Z"
     },
     {
       "id": "cmsoy7a4m000440cqu9eq73lf",
@@ -938,16 +938,6 @@
       "createdAt": "2026-08-11T17:42:30.431Z"
     },
     {
-      "id": "cmsoy7a4p000540cqgkorkop9",
-      "type": "resting_hr",
-      "date": "2026-08-08T00:00:00.000Z",
-      "value": 65,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-11T17:42:30.409Z"
-    },
-    {
       "id": "cmsoy7a5d000e40cqjz30g2q7",
       "type": "steps",
       "date": "2026-08-08T00:00:00.000Z",
@@ -956,6 +946,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-11T17:42:30.434Z"
+    },
+    {
+      "id": "cmsoy7a4p000540cqgkorkop9",
+      "type": "resting_hr",
+      "date": "2026-08-08T00:00:00.000Z",
+      "value": 65,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-11T17:42:30.409Z"
     },
     {
       "id": "cmsoy7a50000940cqgcptafij",
@@ -968,14 +968,14 @@
       "createdAt": "2026-08-11T17:42:30.420Z"
     },
     {
-      "id": "cmsoy7a4r000640cqpaf0925a",
-      "type": "resting_hr",
+      "id": "cmsoy7a5g000f40cqqa4ktblf",
+      "type": "steps",
       "date": "2026-08-09T00:00:00.000Z",
-      "value": 59,
-      "unit": "count/min",
+      "value": 3462.424472301504,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-11T17:42:30.412Z"
+      "createdAt": "2026-08-11T17:42:30.437Z"
     },
     {
       "id": "cmsoy7a52000a40cqsnj7s92j",
@@ -988,24 +988,14 @@
       "createdAt": "2026-08-11T17:42:30.423Z"
     },
     {
-      "id": "cmsoy7a5g000f40cqqa4ktblf",
-      "type": "steps",
+      "id": "cmsoy7a4r000640cqpaf0925a",
+      "type": "resting_hr",
       "date": "2026-08-09T00:00:00.000Z",
-      "value": 3462.424472301504,
-      "unit": "count",
+      "value": 59,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-11T17:42:30.437Z"
-    },
-    {
-      "id": "cmsoy7a5j000g40cqkcslgzm8",
-      "type": "steps",
-      "date": "2026-08-10T00:00:00.000Z",
-      "value": 2296.837476550523,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-11T17:42:30.439Z"
+      "createdAt": "2026-08-11T17:42:30.412Z"
     },
     {
       "id": "cmsunp8fg000e6nl4xlwfhys0",
@@ -1016,6 +1006,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-15T17:35:09.292Z"
+    },
+    {
+      "id": "cmsoy7a5j000g40cqkcslgzm8",
+      "type": "steps",
+      "date": "2026-08-10T00:00:00.000Z",
+      "value": 2296.837476550523,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-11T17:42:30.439Z"
     },
     {
       "id": "cmsoy79qg000040cq5qwy4llu",
@@ -1058,16 +1058,6 @@
       "createdAt": "2026-08-11T17:42:30.442Z"
     },
     {
-      "id": "cmsunp8fp000g6nl4rjj6jnnv",
-      "type": "hrv_sdnn",
-      "date": "2026-08-12T00:00:00.000Z",
-      "value": 23.13473097685623,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-15T17:35:09.301Z"
-    },
-    {
       "id": "cmsq51x0y000dbjxho78juqz1",
       "type": "steps",
       "date": "2026-08-12T00:00:00.000Z",
@@ -1076,6 +1066,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-12T13:42:03.634Z"
+    },
+    {
+      "id": "cmsunp8fp000g6nl4rjj6jnnv",
+      "type": "hrv_sdnn",
+      "date": "2026-08-12T00:00:00.000Z",
+      "value": 23.13473097685623,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-15T17:35:09.301Z"
     },
     {
       "id": "cmsunp7wt00036nl4om4frjwt",
@@ -1108,16 +1108,6 @@
       "createdAt": "2026-08-15T17:35:08.631Z"
     },
     {
-      "id": "cmsunp8f7000c6nl4lhncxsas",
-      "type": "resting_hr",
-      "date": "2026-08-14T00:00:00.000Z",
-      "value": 67,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-15T17:35:09.283Z"
-    },
-    {
       "id": "cmsunp8gm000n6nl4wo8i7p2t",
       "type": "steps",
       "date": "2026-08-14T00:00:00.000Z",
@@ -1126,6 +1116,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-15T17:35:09.334Z"
+    },
+    {
+      "id": "cmsunp8f7000c6nl4lhncxsas",
+      "type": "resting_hr",
+      "date": "2026-08-14T00:00:00.000Z",
+      "value": 67,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-15T17:35:09.283Z"
     },
     {
       "id": "cmsunp8fv000h6nl41dfaackb",
@@ -1138,16 +1138,6 @@
       "createdAt": "2026-08-15T17:35:09.307Z"
     },
     {
-      "id": "cmsyzghla0009a52f10dbp5jr",
-      "type": "resting_hr",
-      "date": "2026-08-15T00:00:00.000Z",
-      "value": 78,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-18T18:15:21.358Z"
-    },
-    {
       "id": "cmsunp8gq000o6nl4148w8olr",
       "type": "steps",
       "date": "2026-08-15T00:00:00.000Z",
@@ -1156,6 +1146,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-15T17:35:09.338Z"
+    },
+    {
+      "id": "cmsyzghla0009a52f10dbp5jr",
+      "type": "resting_hr",
+      "date": "2026-08-15T00:00:00.000Z",
+      "value": 78,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-18T18:15:21.358Z"
     },
     {
       "id": "cmsyzghm7000ea52fvw7yc8yx",
@@ -1188,14 +1188,14 @@
       "createdAt": "2026-08-18T18:15:21.438Z"
     },
     {
-      "id": "cmsyzghmi000fa52flb9zuzfe",
-      "type": "hrv_sdnn",
+      "id": "cmsyzghll000aa52fkx3kyf2y",
+      "type": "resting_hr",
       "date": "2026-08-17T00:00:00.000Z",
-      "value": 15.8448246424567,
-      "unit": "ms",
+      "value": 70,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-18T18:15:21.402Z"
+      "createdAt": "2026-08-18T18:15:21.370Z"
     },
     {
       "id": "cmsyzghnl000ma52fi7dppbxc",
@@ -1208,24 +1208,14 @@
       "createdAt": "2026-08-18T18:15:21.442Z"
     },
     {
-      "id": "cmsyzghll000aa52fkx3kyf2y",
-      "type": "resting_hr",
+      "id": "cmsyzghmi000fa52flb9zuzfe",
+      "type": "hrv_sdnn",
       "date": "2026-08-17T00:00:00.000Z",
-      "value": 70,
-      "unit": "count/min",
+      "value": 15.8448246424567,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-18T18:15:21.370Z"
-    },
-    {
-      "id": "cmsyzghnq000na52fo87fa7sy",
-      "type": "steps",
-      "date": "2026-08-18T00:00:00.000Z",
-      "value": 1637,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-18T18:15:21.446Z"
+      "createdAt": "2026-08-18T18:15:21.402Z"
     },
     {
       "id": "cmsyzghmn000ga52fa43py0vz",
@@ -1236,6 +1226,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-18T18:15:21.407Z"
+    },
+    {
+      "id": "cmsyzghnq000na52fo87fa7sy",
+      "type": "steps",
+      "date": "2026-08-18T00:00:00.000Z",
+      "value": 1637,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-18T18:15:21.446Z"
     },
     {
       "id": "cmsyzghlq000ba52fdf72ww2q",
@@ -1268,16 +1268,6 @@
       "createdAt": "2026-08-25T16:28:02.037Z"
     },
     {
-      "id": "cmt1prov2000ay4h5jl9hqxt5",
-      "type": "hrv_sdnn",
-      "date": "2026-08-19T00:00:00.000Z",
-      "value": 29.60710610799945,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-20T16:07:26.366Z"
-    },
-    {
       "id": "cmt1proul0004y4h5zocdot32",
       "type": "resting_hr",
       "date": "2026-08-19T00:00:00.000Z",
@@ -1288,6 +1278,16 @@
       "createdAt": "2026-08-20T16:07:26.349Z"
     },
     {
+      "id": "cmt1prov2000ay4h5jl9hqxt5",
+      "type": "hrv_sdnn",
+      "date": "2026-08-19T00:00:00.000Z",
+      "value": 29.60710610799945,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-20T16:07:26.366Z"
+    },
+    {
       "id": "cmt1provi000hy4h5578na2jg",
       "type": "steps",
       "date": "2026-08-19T00:00:00.000Z",
@@ -1296,26 +1296,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-20T16:07:26.382Z"
-    },
-    {
-      "id": "cmt8vpg2t000yaq17nd55s2o1",
-      "type": "respiratory_rate",
-      "date": "2026-08-20T00:00:00.000Z",
-      "value": 26.5,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-25T16:28:02.597Z"
-    },
-    {
-      "id": "cmt1prov4000by4h5x7fdwpgi",
-      "type": "hrv_sdnn",
-      "date": "2026-08-20T00:00:00.000Z",
-      "value": 18.89575890872776,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-20T16:07:26.369Z"
     },
     {
       "id": "cmt1provk000iy4h5868e8fil",
@@ -1338,6 +1318,26 @@
       "createdAt": "2026-08-20T16:07:26.354Z"
     },
     {
+      "id": "cmt1prov4000by4h5x7fdwpgi",
+      "type": "hrv_sdnn",
+      "date": "2026-08-20T00:00:00.000Z",
+      "value": 18.89575890872776,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-20T16:07:26.369Z"
+    },
+    {
+      "id": "cmt8vpg2t000yaq17nd55s2o1",
+      "type": "respiratory_rate",
+      "date": "2026-08-20T00:00:00.000Z",
+      "value": 26.5,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.597Z"
+    },
+    {
       "id": "cmt8vpg330011aq170yp1s09q",
       "type": "steps",
       "date": "2026-08-21T00:00:00.000Z",
@@ -1358,16 +1358,6 @@
       "createdAt": "2026-08-25T16:28:02.045Z"
     },
     {
-      "id": "cmt8vpg380012aq17boga0l1g",
-      "type": "steps",
-      "date": "2026-08-22T00:00:00.000Z",
-      "value": 4353.424458893036,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-25T16:28:02.612Z"
-    },
-    {
       "id": "cmt8vpg2f000uaq17xmts3np1",
       "type": "hrv_sdnn",
       "date": "2026-08-22T00:00:00.000Z",
@@ -1386,6 +1376,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-25T16:28:02.566Z"
+    },
+    {
+      "id": "cmt8vpg380012aq17boga0l1g",
+      "type": "steps",
+      "date": "2026-08-22T00:00:00.000Z",
+      "value": 4353.424458893036,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.612Z"
     },
     {
       "id": "cmt8vpg3c0013aq17uaxojpic",
@@ -1458,16 +1458,6 @@
       "createdAt": "2026-08-25T16:28:02.068Z"
     },
     {
-      "id": "cmt8vpg2m000waq17qhjqotoo",
-      "type": "hrv_sdnn",
-      "date": "2026-08-24T00:00:00.000Z",
-      "value": 25.64768329814619,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-25T16:28:02.591Z"
-    },
-    {
       "id": "cmt8vpg25000raq17d317l3pi",
       "type": "resting_hr",
       "date": "2026-08-24T00:00:00.000Z",
@@ -1486,6 +1476,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-25T16:28:02.620Z"
+    },
+    {
+      "id": "cmt8vpg2m000waq17qhjqotoo",
+      "type": "hrv_sdnn",
+      "date": "2026-08-24T00:00:00.000Z",
+      "value": 25.64768329814619,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-25T16:28:02.591Z"
     },
     {
       "id": "cmt8vpg3j0015aq171jkrwlm7",
@@ -1568,16 +1568,6 @@
       "createdAt": "2026-08-27T10:35:02.291Z"
     },
     {
-      "id": "cmtddyg56000o1318bqsev4gv",
-      "type": "resting_hr",
-      "date": "2026-08-28T00:00:00.000Z",
-      "value": 67,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-28T20:10:00.379Z"
-    },
-    {
       "id": "cmtddyg5s000t1318ik2f5tfc",
       "type": "hrv_sdnn",
       "date": "2026-08-28T00:00:00.000Z",
@@ -1586,6 +1576,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-28T20:10:00.400Z"
+    },
+    {
+      "id": "cmtddyg56000o1318bqsev4gv",
+      "type": "resting_hr",
+      "date": "2026-08-28T00:00:00.000Z",
+      "value": 67,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-28T20:10:00.379Z"
     },
     {
       "id": "cmtddyg6i001013183idmqzjj",
@@ -1598,14 +1598,14 @@
       "createdAt": "2026-08-28T20:10:00.427Z"
     },
     {
-      "id": "cmtdhefvy000yzvg5laznusu5",
-      "type": "steps",
+      "id": "cmtehnpe8000t6y9tnp2b19io",
+      "type": "hrv_sdnn",
       "date": "2026-08-29T00:00:00.000Z",
-      "value": 5012,
-      "unit": "count",
+      "value": 20.24759502381868,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-28T21:46:25.391Z"
+      "createdAt": "2026-08-29T14:41:23.792Z"
     },
     {
       "id": "cmtehnpdi000o6y9tczty7p10",
@@ -1618,24 +1618,14 @@
       "createdAt": "2026-08-29T14:41:23.767Z"
     },
     {
-      "id": "cmtehnpe8000t6y9tnp2b19io",
-      "type": "hrv_sdnn",
+      "id": "cmtdhefvy000yzvg5laznusu5",
+      "type": "steps",
       "date": "2026-08-29T00:00:00.000Z",
-      "value": 20.24759502381868,
-      "unit": "ms",
+      "value": 5012,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-08-29T14:41:23.792Z"
-    },
-    {
-      "id": "cmtflxki1000312pkm3oktnhd",
-      "type": "resting_hr",
-      "date": "2026-08-30T00:00:00.000Z",
-      "value": 64,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-30T09:28:48.650Z"
+      "createdAt": "2026-08-28T21:46:25.391Z"
     },
     {
       "id": "cmtfoiecz000812r6rmf82wf1",
@@ -1658,6 +1648,16 @@
       "createdAt": "2026-08-30T07:29:36.086Z"
     },
     {
+      "id": "cmtflxki1000312pkm3oktnhd",
+      "type": "resting_hr",
+      "date": "2026-08-30T00:00:00.000Z",
+      "value": 64,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-30T09:28:48.650Z"
+    },
+    {
       "id": "cmtfho92c000osfrmba8jnc5v",
       "type": "weight",
       "date": "2026-08-30T05:52:37.000Z",
@@ -1668,16 +1668,6 @@
       "createdAt": "2026-08-30T07:29:35.460Z"
     },
     {
-      "id": "cmth3ukkq000s131xrs8xzo97",
-      "type": "bp_diastolic",
-      "date": "2026-08-30T06:07:00.000Z",
-      "value": 80,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-31T10:38:08.042Z"
-    },
-    {
       "id": "cmth3ukke000p131xqu30b11r",
       "type": "bp_systolic",
       "date": "2026-08-30T06:07:00.000Z",
@@ -1686,6 +1676,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-31T10:38:08.030Z"
+    },
+    {
+      "id": "cmth3ukkq000s131xrs8xzo97",
+      "type": "bp_diastolic",
+      "date": "2026-08-30T06:07:00.000Z",
+      "value": 80,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-31T10:38:08.042Z"
     },
     {
       "id": "cmth3ukl2000v131x2a3z54by",
@@ -1738,16 +1738,6 @@
       "createdAt": "2026-08-31T10:38:08.046Z"
     },
     {
-      "id": "cmtgc3e410012uuocq8pbvh9s",
-      "type": "steps",
-      "date": "2026-08-31T00:00:00.000Z",
-      "value": 8101.331873685498,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-30T21:41:10.322Z"
-    },
-    {
       "id": "cmtgytmbd0008zye20ijqj59t",
       "type": "hrv_sdnn",
       "date": "2026-08-31T00:00:00.000Z",
@@ -1756,16 +1746,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-31T08:17:25.561Z"
-    },
-    {
-      "id": "cmtgytmat0003zye2eev5w6re",
-      "type": "resting_hr",
-      "date": "2026-08-31T00:00:00.000Z",
-      "value": 67,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-31T08:17:25.541Z"
     },
     {
       "id": "cmth3crmm00093uusiqp8ofhb",
@@ -1778,6 +1758,26 @@
       "createdAt": "2026-08-31T10:24:17.375Z"
     },
     {
+      "id": "cmtgc3e410012uuocq8pbvh9s",
+      "type": "steps",
+      "date": "2026-08-31T00:00:00.000Z",
+      "value": 8101.331873685498,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-30T21:41:10.322Z"
+    },
+    {
+      "id": "cmtgytmat0003zye2eev5w6re",
+      "type": "resting_hr",
+      "date": "2026-08-31T00:00:00.000Z",
+      "value": 67,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-31T08:17:25.541Z"
+    },
+    {
       "id": "cmth3uklf000y131xygq9hfgt",
       "type": "heart_rate",
       "date": "2026-08-31T08:07:47.000Z",
@@ -1788,16 +1788,6 @@
       "createdAt": "2026-08-31T10:38:08.067Z"
     },
     {
-      "id": "cmth3ukky000u131x9csn5v6w",
-      "type": "bp_diastolic",
-      "date": "2026-08-31T08:07:47.000Z",
-      "value": 77,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-08-31T10:38:08.050Z"
-    },
-    {
       "id": "cmth3ukkm000r131xzmsyzi6g",
       "type": "bp_systolic",
       "date": "2026-08-31T08:07:47.000Z",
@@ -1806,6 +1796,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-08-31T10:38:08.038Z"
+    },
+    {
+      "id": "cmth3ukky000u131x9csn5v6w",
+      "type": "bp_diastolic",
+      "date": "2026-08-31T08:07:47.000Z",
+      "value": 77,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-08-31T10:38:08.050Z"
     },
     {
       "id": "cmth3uklj000z131xx0v99gsn",
@@ -1878,6 +1878,16 @@
       "createdAt": "2026-09-04T16:45:43.598Z"
     },
     {
+      "id": "cmtn6qpf6001htannmk4vrjri",
+      "type": "heart_rate",
+      "date": "2026-09-01T18:11:31.000Z",
+      "value": 68,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.602Z"
+    },
+    {
       "id": "cmtn6qpd70010tann0oujvgzy",
       "type": "bp_systolic",
       "date": "2026-09-01T18:11:31.000Z",
@@ -1896,16 +1906,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-04T16:45:43.562Z"
-    },
-    {
-      "id": "cmtn6qpf6001htannmk4vrjri",
-      "type": "heart_rate",
-      "date": "2026-09-01T18:11:31.000Z",
-      "value": 68,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-04T16:45:43.602Z"
     },
     {
       "id": "cmtn6qpf9001itannu7l8j2ee",
@@ -1928,16 +1928,6 @@
       "createdAt": "2026-09-02T12:04:51.596Z"
     },
     {
-      "id": "cmtjnapg1001mlua8lz8i1m2a",
-      "type": "steps",
-      "date": "2026-09-02T00:00:00.000Z",
-      "value": 4196.765652675517,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-02T05:18:05.905Z"
-    },
-    {
       "id": "cmtjnapf4001elua8qcw53x7y",
       "type": "hrv_sdnn",
       "date": "2026-09-02T00:00:00.000Z",
@@ -1948,14 +1938,14 @@
       "createdAt": "2026-09-02T05:18:05.873Z"
     },
     {
-      "id": "cmtn6qpfd001jtann6gvldhvg",
-      "type": "heart_rate",
-      "date": "2026-09-02T04:21:14.000Z",
-      "value": 68,
-      "unit": "count/min",
+      "id": "cmtjnapg1001mlua8lz8i1m2a",
+      "type": "steps",
+      "date": "2026-09-02T00:00:00.000Z",
+      "value": 4196.765652675517,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-04T16:45:43.610Z"
+      "createdAt": "2026-09-02T05:18:05.905Z"
     },
     {
       "id": "cmtn6qpe60018tannl2w166gn",
@@ -1966,6 +1956,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-04T16:45:43.567Z"
+    },
+    {
+      "id": "cmtn6qpfd001jtann6gvldhvg",
+      "type": "heart_rate",
+      "date": "2026-09-02T04:21:14.000Z",
+      "value": 68,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:43.610Z"
     },
     {
       "id": "cmtn6qpdc0011tannkzchbqym",
@@ -1998,16 +1998,6 @@
       "createdAt": "2026-09-04T16:45:44.296Z"
     },
     {
-      "id": "cmtn6qpxv001vtannqj6gr1z2",
-      "type": "resting_hr",
-      "date": "2026-09-03T00:00:00.000Z",
-      "value": 61.99999999999999,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-04T16:45:44.276Z"
-    },
-    {
       "id": "cmtn6qpz3002atannnttrq79z",
       "type": "steps",
       "date": "2026-09-03T00:00:00.000Z",
@@ -2016,6 +2006,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-04T16:45:44.319Z"
+    },
+    {
+      "id": "cmtn6qpxv001vtannqj6gr1z2",
+      "type": "resting_hr",
+      "date": "2026-09-03T00:00:00.000Z",
+      "value": 61.99999999999999,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:44.276Z"
     },
     {
       "id": "cmtn6qpdg0012tanna6ll3ybx",
@@ -2068,16 +2068,6 @@
       "createdAt": "2026-09-06T18:55:04.322Z"
     },
     {
-      "id": "cmtn6qpyi0023tannflii7xbi",
-      "type": "hrv_sdnn",
-      "date": "2026-09-04T00:00:00.000Z",
-      "value": 29.21135357542555,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-04T16:45:44.298Z"
-    },
-    {
       "id": "cmtn6qpxy001wtannjzirct8q",
       "type": "resting_hr",
       "date": "2026-09-04T00:00:00.000Z",
@@ -2086,6 +2076,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-04T16:45:44.278Z"
+    },
+    {
+      "id": "cmtn6qpyi0023tannflii7xbi",
+      "type": "hrv_sdnn",
+      "date": "2026-09-04T00:00:00.000Z",
+      "value": 29.21135357542555,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-04T16:45:44.298Z"
     },
     {
       "id": "cmtn6qpz5002btannhf7xeyur",
@@ -2138,16 +2138,6 @@
       "createdAt": "2026-09-04T16:45:43.575Z"
     },
     {
-      "id": "cmtq68s0j0026h0wftweu5a43",
-      "type": "hrv_sdnn",
-      "date": "2026-09-05T00:00:00.000Z",
-      "value": 29.31041028854526,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-06T18:55:05.679Z"
-    },
-    {
       "id": "cmtq68s18002eh0wf3w3nucjt",
       "type": "steps",
       "date": "2026-09-05T00:00:00.000Z",
@@ -2156,6 +2146,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-06T18:55:05.708Z"
+    },
+    {
+      "id": "cmtq68s0j0026h0wftweu5a43",
+      "type": "hrv_sdnn",
+      "date": "2026-09-05T00:00:00.000Z",
+      "value": 29.31041028854526,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-06T18:55:05.679Z"
     },
     {
       "id": "cmtq68rzt001zh0wfcmicyx0i",
@@ -2198,6 +2198,16 @@
       "createdAt": "2026-09-11T11:12:01.542Z"
     },
     {
+      "id": "cmtwuwj13002fjzaf8g8in9h6",
+      "type": "heart_rate",
+      "date": "2026-09-05T14:38:48.000Z",
+      "value": 68,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-11T11:12:01.623Z"
+    },
+    {
       "id": "cmtwuwizq0020jzafsjycki30",
       "type": "bp_diastolic",
       "date": "2026-09-05T14:38:48.000Z",
@@ -2208,14 +2218,14 @@
       "createdAt": "2026-09-11T11:12:01.575Z"
     },
     {
-      "id": "cmtwuwj13002fjzaf8g8in9h6",
-      "type": "heart_rate",
-      "date": "2026-09-05T14:38:48.000Z",
-      "value": 68,
+      "id": "cmtq68rzz0020h0wfgvgfgwb6",
+      "type": "resting_hr",
+      "date": "2026-09-06T00:00:00.000Z",
+      "value": 58,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-11T11:12:01.623Z"
+      "createdAt": "2026-09-06T18:55:05.664Z"
     },
     {
       "id": "cmtq68s1a002fh0wflznuuqbz",
@@ -2238,16 +2248,6 @@
       "createdAt": "2026-09-06T18:55:05.686Z"
     },
     {
-      "id": "cmtq68rzz0020h0wfgvgfgwb6",
-      "type": "resting_hr",
-      "date": "2026-09-06T00:00:00.000Z",
-      "value": 58,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-06T18:55:05.664Z"
-    },
-    {
       "id": "cmtq68qzb0010h0wfgosps2wj",
       "type": "weight",
       "date": "2026-09-06T05:12:13.000Z",
@@ -2256,6 +2256,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-06T18:55:04.343Z"
+    },
+    {
+      "id": "cmtqf2yr5001t149aajv24jpz",
+      "type": "heart_rate",
+      "date": "2026-09-06T22:24:06.000Z",
+      "value": 72,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-06T23:02:31.026Z"
     },
     {
       "id": "cmtqf2ypg0019149a884ke904",
@@ -2278,26 +2288,6 @@
       "createdAt": "2026-09-06T23:02:30.994Z"
     },
     {
-      "id": "cmtqf2yr5001t149aajv24jpz",
-      "type": "heart_rate",
-      "date": "2026-09-06T22:24:06.000Z",
-      "value": 72,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-06T23:02:31.026Z"
-    },
-    {
-      "id": "cmtr098450020malcm4b4mmvw",
-      "type": "resting_hr",
-      "date": "2026-09-07T00:00:00.000Z",
-      "value": 60,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-07T08:55:15.030Z"
-    },
-    {
       "id": "cmtqc18gh0029htbgucmmf3py",
       "type": "steps",
       "date": "2026-09-07T00:00:00.000Z",
@@ -2318,6 +2308,16 @@
       "createdAt": "2026-09-07T08:55:15.057Z"
     },
     {
+      "id": "cmtr098450020malcm4b4mmvw",
+      "type": "resting_hr",
+      "date": "2026-09-07T00:00:00.000Z",
+      "value": 60,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-07T08:55:15.030Z"
+    },
+    {
       "id": "cmtwuwidl000xjzafjzl319ke",
       "type": "weight",
       "date": "2026-09-07T06:44:24.000Z",
@@ -2326,6 +2326,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-11T11:12:00.778Z"
+    },
+    {
+      "id": "cmtt2cj0800208g4lu2q25jr9",
+      "type": "resting_hr",
+      "date": "2026-09-08T00:00:00.000Z",
+      "value": 58,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-08T19:29:20.696Z"
     },
     {
       "id": "cmtt2cj0y00278g4lz7lic3j7",
@@ -2348,16 +2358,6 @@
       "createdAt": "2026-09-08T14:10:53.346Z"
     },
     {
-      "id": "cmtt2cj0800208g4lu2q25jr9",
-      "type": "resting_hr",
-      "date": "2026-09-08T00:00:00.000Z",
-      "value": 58,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-08T19:29:20.696Z"
-    },
-    {
       "id": "cmtwva6g1001nqjjzw2o03jre",
       "type": "bp_systolic",
       "date": "2026-09-08T05:03:42.000Z",
@@ -2366,16 +2366,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-11T11:22:38.497Z"
-    },
-    {
-      "id": "cmtwva6hc0020qjjzuf7f4p8r",
-      "type": "bp_diastolic",
-      "date": "2026-09-08T05:03:42.000Z",
-      "value": 73,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-11T11:22:38.545Z"
     },
     {
       "id": "cmtwva6jc002iqjjzadje0p13",
@@ -2388,6 +2378,16 @@
       "createdAt": "2026-09-11T11:22:38.616Z"
     },
     {
+      "id": "cmtwva6hc0020qjjzuf7f4p8r",
+      "type": "bp_diastolic",
+      "date": "2026-09-08T05:03:42.000Z",
+      "value": 73,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-11T11:22:38.545Z"
+    },
+    {
       "id": "cmtwuwidu000zjzaf8wedor6w",
       "type": "weight",
       "date": "2026-09-08T05:11:05.000Z",
@@ -2398,16 +2398,6 @@
       "createdAt": "2026-09-11T11:12:00.787Z"
     },
     {
-      "id": "cmtwuwjf4002wjzafrm37ywok",
-      "type": "steps",
-      "date": "2026-09-09T00:00:00.000Z",
-      "value": 3406.719060569955,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-11T11:12:02.128Z"
-    },
-    {
       "id": "cmtxhne7e002s10i9n20301vr",
       "type": "hrv_sdnn",
       "date": "2026-09-09T00:00:00.000Z",
@@ -2416,6 +2406,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-11T21:48:46.634Z"
+    },
+    {
+      "id": "cmtwuwjf4002wjzafrm37ywok",
+      "type": "steps",
+      "date": "2026-09-09T00:00:00.000Z",
+      "value": 3406.719060569955,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-11T11:12:02.128Z"
     },
     {
       "id": "cmtwuwie10011jzafkqtypwud",
@@ -2548,16 +2548,6 @@
       "createdAt": "2026-09-11T11:12:00.818Z"
     },
     {
-      "id": "cmtwuwjfb002yjzafrm2bwz29",
-      "type": "steps",
-      "date": "2026-09-11T00:00:00.000Z",
-      "value": 2649,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-11T11:12:02.135Z"
-    },
-    {
       "id": "cmtxhne7p002u10i9s2kt78v1",
       "type": "hrv_sdnn",
       "date": "2026-09-11T00:00:00.000Z",
@@ -2568,14 +2558,24 @@
       "createdAt": "2026-09-11T21:48:46.645Z"
     },
     {
-      "id": "cmtwva6gc001qqjjz20p2svq3",
-      "type": "bp_systolic",
-      "date": "2026-09-11T10:08:03.000Z",
-      "value": 112,
-      "unit": "mmHg",
+      "id": "cmtwuwjfb002yjzafrm2bwz29",
+      "type": "steps",
+      "date": "2026-09-11T00:00:00.000Z",
+      "value": 2649,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-11T11:22:38.509Z"
+      "createdAt": "2026-09-11T11:12:02.135Z"
+    },
+    {
+      "id": "cmtwva6jq002lqjjz0l1azi8t",
+      "type": "heart_rate",
+      "date": "2026-09-11T10:08:03.000Z",
+      "value": 72,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-11T11:22:38.630Z"
     },
     {
       "id": "cmtwva6hn0023qjjzsoob424h",
@@ -2588,14 +2588,14 @@
       "createdAt": "2026-09-11T11:22:38.555Z"
     },
     {
-      "id": "cmtwva6jq002lqjjz0l1azi8t",
-      "type": "heart_rate",
+      "id": "cmtwva6gc001qqjjz20p2svq3",
+      "type": "bp_systolic",
       "date": "2026-09-11T10:08:03.000Z",
-      "value": 72,
-      "unit": "count/min",
+      "value": 112,
+      "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-11T11:22:38.630Z"
+      "createdAt": "2026-09-11T11:22:38.509Z"
     },
     {
       "id": "cmtwuwiev001bjzaf0c7adu08",
@@ -2628,24 +2628,14 @@
       "createdAt": "2026-09-11T11:12:00.830Z"
     },
     {
-      "id": "cmtyg271h002u8jje69ifd8rh",
-      "type": "hrv_sdnn",
+      "id": "cmtyvd5cy003011joi3bojshl",
+      "type": "active_energy",
       "date": "2026-09-12T00:00:00.000Z",
-      "value": 22.73053572223939,
-      "unit": "ms",
+      "value": 80,
+      "unit": "kcal",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-12T13:52:04.134Z"
-    },
-    {
-      "id": "cmtyvd5cu002z11jovo08gx5w",
-      "type": "heart_rate",
-      "date": "2026-09-12T00:00:00.000Z",
-      "value": 74,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-12T21:00:29.407Z"
+      "createdAt": "2026-09-12T21:00:29.410Z"
     },
     {
       "id": "cmtxltf05002p14oat12x4yqv",
@@ -2658,14 +2648,14 @@
       "createdAt": "2026-09-11T23:45:26.070Z"
     },
     {
-      "id": "cmtyvd5cy003011joi3bojshl",
-      "type": "active_energy",
+      "id": "cmtyvd5cu002z11jovo08gx5w",
+      "type": "heart_rate",
       "date": "2026-09-12T00:00:00.000Z",
-      "value": 80,
-      "unit": "kcal",
+      "value": 74,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-12T21:00:29.410Z"
+      "createdAt": "2026-09-12T21:00:29.407Z"
     },
     {
       "id": "cmtxhne8g003110i95vexhhoh",
@@ -2676,6 +2666,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-11T21:48:46.672Z"
+    },
+    {
+      "id": "cmtyg271h002u8jje69ifd8rh",
+      "type": "hrv_sdnn",
+      "date": "2026-09-12T00:00:00.000Z",
+      "value": 22.73053572223939,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-12T13:52:04.134Z"
     },
     {
       "id": "cmu31n9yx001c8yzzyk29amxm",
@@ -2748,6 +2748,16 @@
       "createdAt": "2026-09-15T19:07:24.356Z"
     },
     {
+      "id": "cmu31nanf00378yzzcoo0mzhf",
+      "type": "heart_rate",
+      "date": "2026-09-13T20:22:55.000Z",
+      "value": 74,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.227Z"
+    },
+    {
       "id": "cmu31nal7002l8yzz0q1nue8h",
       "type": "bp_diastolic",
       "date": "2026-09-13T20:22:55.000Z",
@@ -2768,24 +2778,14 @@
       "createdAt": "2026-09-15T19:07:25.090Z"
     },
     {
-      "id": "cmu31nanf00378yzzcoo0mzhf",
-      "type": "heart_rate",
-      "date": "2026-09-13T20:22:55.000Z",
-      "value": 74,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.227Z"
-    },
-    {
-      "id": "cmu31nb5w003s8yzzjv17zbba",
-      "type": "steps",
+      "id": "cmu31nb58003l8yzzve9h7fuu",
+      "type": "hrv_sdnn",
       "date": "2026-09-14T00:00:00.000Z",
-      "value": 10202.7687557824,
-      "unit": "count",
+      "value": 16.8940503981819,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-15T19:07:25.893Z"
+      "createdAt": "2026-09-15T19:07:25.869Z"
     },
     {
       "id": "cmu31nb4n003f8yzzyrd7szqz",
@@ -2798,14 +2798,14 @@
       "createdAt": "2026-09-15T19:07:25.847Z"
     },
     {
-      "id": "cmu31nb58003l8yzzve9h7fuu",
-      "type": "hrv_sdnn",
+      "id": "cmu31nb5w003s8yzzjv17zbba",
+      "type": "steps",
       "date": "2026-09-14T00:00:00.000Z",
-      "value": 16.8940503981819,
-      "unit": "ms",
+      "value": 10202.7687557824,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-15T19:07:25.869Z"
+      "createdAt": "2026-09-15T19:07:25.893Z"
     },
     {
       "id": "cmu31n9zf001h8yzzphmortgc",
@@ -2816,6 +2816,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-15T19:07:24.364Z"
+    },
+    {
+      "id": "cmu31najq00258yzzmqypwifl",
+      "type": "bp_systolic",
+      "date": "2026-09-14T06:21:03.000Z",
+      "value": 114,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.094Z"
     },
     {
       "id": "cmu31nanj00388yzzgxaiqne7",
@@ -2838,26 +2848,6 @@
       "createdAt": "2026-09-15T19:07:25.151Z"
     },
     {
-      "id": "cmu31najq00258yzzmqypwifl",
-      "type": "bp_systolic",
-      "date": "2026-09-14T06:21:03.000Z",
-      "value": 114,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.094Z"
-    },
-    {
-      "id": "cmu31nb4r003g8yzzw1jfmozh",
-      "type": "resting_hr",
-      "date": "2026-09-15T00:00:00.000Z",
-      "value": 60,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.851Z"
-    },
-    {
       "id": "cmu31nb5z003t8yzzd8imv6e7",
       "type": "steps",
       "date": "2026-09-15T00:00:00.000Z",
@@ -2876,6 +2866,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-15T19:07:25.871Z"
+    },
+    {
+      "id": "cmu31nb4r003g8yzzw1jfmozh",
+      "type": "resting_hr",
+      "date": "2026-09-15T00:00:00.000Z",
+      "value": 60,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.851Z"
     },
     {
       "id": "cmu31n9zn001j8yzz9m8bfu34",
@@ -2898,16 +2898,6 @@
       "createdAt": "2026-09-15T19:07:24.380Z"
     },
     {
-      "id": "cmu31nanm00398yzzjfzrk0cz",
-      "type": "heart_rate",
-      "date": "2026-09-15T06:11:32.000Z",
-      "value": 69,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-15T19:07:25.234Z"
-    },
-    {
       "id": "cmu31naju00268yzzvb8a2tk7",
       "type": "bp_systolic",
       "date": "2026-09-15T06:11:32.000Z",
@@ -2916,6 +2906,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-15T19:07:25.098Z"
+    },
+    {
+      "id": "cmu31nanm00398yzzjfzrk0cz",
+      "type": "heart_rate",
+      "date": "2026-09-15T06:11:32.000Z",
+      "value": 69,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-15T19:07:25.234Z"
     },
     {
       "id": "cmu31nalf002n8yzzy0dq6am0",
@@ -3018,14 +3018,14 @@
       "createdAt": "2026-09-17T21:34:15.669Z"
     },
     {
-      "id": "cmu61rwgp003peevc0vz417ib",
-      "type": "steps",
+      "id": "cmu65h9fc003jfs3xn4dd54m3",
+      "type": "hrv_sdnn",
       "date": "2026-09-18T00:00:00.000Z",
-      "value": 4410.101020148233,
-      "unit": "count",
+      "value": 22.99064054554493,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-17T21:34:18.649Z"
+      "createdAt": "2026-09-17T23:18:00.696Z"
     },
     {
       "id": "cmu65h9eg003dfs3xh5f8hpvo",
@@ -3038,24 +3038,14 @@
       "createdAt": "2026-09-17T23:18:00.665Z"
     },
     {
-      "id": "cmu65h9fc003jfs3xn4dd54m3",
-      "type": "hrv_sdnn",
+      "id": "cmu61rwgp003peevc0vz417ib",
+      "type": "steps",
       "date": "2026-09-18T00:00:00.000Z",
-      "value": 22.99064054554493,
-      "unit": "ms",
+      "value": 4410.101020148233,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-17T23:18:00.696Z"
-    },
-    {
-      "id": "cmu9bv776000cb5qa4e461bum",
-      "type": "hrv_sdnn",
-      "date": "2026-09-19T00:00:00.000Z",
-      "value": 26.62247299216648,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-20T04:40:07.219Z"
+      "createdAt": "2026-09-17T21:34:18.649Z"
     },
     {
       "id": "cmu9bv76f0005b5qau6eytem2",
@@ -3076,6 +3066,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-19T08:57:23.811Z"
+    },
+    {
+      "id": "cmu9bv776000cb5qa4e461bum",
+      "type": "hrv_sdnn",
+      "date": "2026-09-19T00:00:00.000Z",
+      "value": 26.62247299216648,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-20T04:40:07.219Z"
     },
     {
       "id": "cmu85m5q2001ow9e3a6ozyh5t",
@@ -3108,16 +3108,6 @@
       "createdAt": "2026-09-19T08:57:21.542Z"
     },
     {
-      "id": "cmu9bv78c000jb5qaxus5g43x",
-      "type": "steps",
-      "date": "2026-09-20T00:00:00.000Z",
-      "value": 3240,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-20T04:40:07.260Z"
-    },
-    {
       "id": "cmu9bv76n0006b5qam13c0dyw",
       "type": "resting_hr",
       "date": "2026-09-20T00:00:00.000Z",
@@ -3126,6 +3116,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-20T04:40:07.199Z"
+    },
+    {
+      "id": "cmu9bv78c000jb5qaxus5g43x",
+      "type": "steps",
+      "date": "2026-09-20T00:00:00.000Z",
+      "value": 3240,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-20T04:40:07.260Z"
     },
     {
       "id": "cmudt142q000bvcosn8e60l86",
@@ -3158,16 +3158,6 @@
       "createdAt": "2026-09-23T07:51:39.482Z"
     },
     {
-      "id": "cmul367yk002oiokzzkvwtsff",
-      "type": "bp_diastolic",
-      "date": "2026-09-21T05:18:07.000Z",
-      "value": 79,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-28T10:09:58.989Z"
-    },
-    {
       "id": "cmul367wa0025iokzollcw81g",
       "type": "bp_systolic",
       "date": "2026-09-21T05:18:07.000Z",
@@ -3188,6 +3178,16 @@
       "createdAt": "2026-09-28T10:09:59.092Z"
     },
     {
+      "id": "cmul367yk002oiokzzkvwtsff",
+      "type": "bp_diastolic",
+      "date": "2026-09-21T05:18:07.000Z",
+      "value": 79,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-28T10:09:58.989Z"
+    },
+    {
       "id": "cmul36791001giokzenvrhp3u",
       "type": "weight",
       "date": "2026-09-21T06:22:13.000Z",
@@ -3196,16 +3196,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-28T10:09:58.069Z"
-    },
-    {
-      "id": "cmul368sp0000r3rqxrjkfzlv",
-      "type": "resting_hr",
-      "date": "2026-09-22T00:00:00.000Z",
-      "value": 60,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-28T10:10:00.071Z"
     },
     {
       "id": "cmudt142u000cvcosksdq7ezf",
@@ -3226,6 +3216,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-28T10:10:00.104Z"
+    },
+    {
+      "id": "cmul368sp0000r3rqxrjkfzlv",
+      "type": "resting_hr",
+      "date": "2026-09-22T00:00:00.000Z",
+      "value": 60,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-28T10:10:00.071Z"
     },
     {
       "id": "cmudt13a1002213we6j6g1nob",
@@ -3258,16 +3258,6 @@
       "createdAt": "2026-09-23T07:51:40.310Z"
     },
     {
-      "id": "cmul368to0007r3rqka3ccimt",
-      "type": "hrv_sdnn",
-      "date": "2026-09-23T00:00:00.000Z",
-      "value": 24.40139192181566,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-28T10:10:00.108Z"
-    },
-    {
       "id": "cmudt142y000dvcosgggj0dvv",
       "type": "steps",
       "date": "2026-09-23T00:00:00.000Z",
@@ -3276,6 +3266,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-23T07:51:41.290Z"
+    },
+    {
+      "id": "cmul368to0007r3rqka3ccimt",
+      "type": "hrv_sdnn",
+      "date": "2026-09-23T00:00:00.000Z",
+      "value": 24.40139192181566,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-28T10:10:00.108Z"
     },
     {
       "id": "cmul368sz0001r3rqxq17nqhn",
@@ -3298,14 +3298,14 @@
       "createdAt": "2026-09-28T10:09:58.083Z"
     },
     {
-      "id": "cmul368t30002r3rqesssyyyc",
-      "type": "resting_hr",
+      "id": "cmul368tt0008r3rq7ztuv7cl",
+      "type": "hrv_sdnn",
       "date": "2026-09-24T00:00:00.000Z",
-      "value": 67,
-      "unit": "count/min",
+      "value": 32.29123491214068,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-28T10:10:00.087Z"
+      "createdAt": "2026-09-28T10:10:00.113Z"
     },
     {
       "id": "cmul368um000gr3rq439w38vw",
@@ -3318,24 +3318,14 @@
       "createdAt": "2026-09-28T10:10:00.143Z"
     },
     {
-      "id": "cmul368tt0008r3rq7ztuv7cl",
-      "type": "hrv_sdnn",
-      "date": "2026-09-24T00:00:00.000Z",
-      "value": 32.29123491214068,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-28T10:10:00.113Z"
-    },
-    {
-      "id": "cmul368t70003r3rqevpfcdw0",
+      "id": "cmul368t30002r3rqesssyyyc",
       "type": "resting_hr",
-      "date": "2026-09-25T00:00:00.000Z",
+      "date": "2026-09-24T00:00:00.000Z",
       "value": 67,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-28T10:10:00.092Z"
+      "createdAt": "2026-09-28T10:10:00.087Z"
     },
     {
       "id": "cmul368uc000dr3rqcy4k5rha",
@@ -3346,6 +3336,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-28T10:10:00.132Z"
+    },
+    {
+      "id": "cmul368t70003r3rqevpfcdw0",
+      "type": "resting_hr",
+      "date": "2026-09-25T00:00:00.000Z",
+      "value": 67,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-28T10:10:00.092Z"
     },
     {
       "id": "cmul368tx0009r3rqwtp3uusw",
@@ -3368,14 +3368,14 @@
       "createdAt": "2026-09-28T10:10:00.147Z"
     },
     {
-      "id": "cmul368u1000ar3rqrse4emt3",
-      "type": "hrv_sdnn",
+      "id": "cmul368uu000ir3rqoepppjgq",
+      "type": "steps",
       "date": "2026-09-26T00:00:00.000Z",
-      "value": 28.08343920203301,
-      "unit": "ms",
+      "value": 3963.079053061099,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-28T10:10:00.121Z"
+      "createdAt": "2026-09-28T10:10:00.151Z"
     },
     {
       "id": "cmul368tb0004r3rqe8pvnpik",
@@ -3388,14 +3388,14 @@
       "createdAt": "2026-09-28T10:10:00.096Z"
     },
     {
-      "id": "cmul368uu000ir3rqoepppjgq",
-      "type": "steps",
+      "id": "cmul368u1000ar3rqrse4emt3",
+      "type": "hrv_sdnn",
       "date": "2026-09-26T00:00:00.000Z",
-      "value": 3963.079053061099,
-      "unit": "count",
+      "value": 28.08343920203301,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-09-28T10:10:00.151Z"
+      "createdAt": "2026-09-28T10:10:00.121Z"
     },
     {
       "id": "cmul368u5000br3rq8k10jk5x",
@@ -3438,16 +3438,6 @@
       "createdAt": "2026-09-28T10:09:58.094Z"
     },
     {
-      "id": "cmul368u8000cr3rq2ist2qk1",
-      "type": "hrv_sdnn",
-      "date": "2026-09-28T00:00:00.000Z",
-      "value": 22.72326234482876,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-09-28T10:10:00.129Z"
-    },
-    {
       "id": "cmul368v2000kr3rqm85fhlub",
       "type": "steps",
       "date": "2026-09-28T00:00:00.000Z",
@@ -3458,6 +3448,16 @@
       "createdAt": "2026-09-28T10:10:00.159Z"
     },
     {
+      "id": "cmul368u8000cr3rq2ist2qk1",
+      "type": "hrv_sdnn",
+      "date": "2026-09-28T00:00:00.000Z",
+      "value": 22.72326234482876,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-09-28T10:10:00.129Z"
+    },
+    {
       "id": "cmumatpdj000iika5fktvvcsw",
       "type": "steps",
       "date": "2026-09-29T00:00:00.000Z",
@@ -3466,6 +3466,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-09-29T06:31:58.135Z"
+    },
+    {
+      "id": "cmvce7xdp001d2kpnob74ib3g",
+      "type": "heart_rate",
+      "date": "2026-09-29T04:48:03.000Z",
+      "value": 77,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:01.117Z"
     },
     {
       "id": "cmvce7xcv00162kpndumsvqru",
@@ -3486,16 +3496,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T12:49:01.044Z"
-    },
-    {
-      "id": "cmvce7xdp001d2kpnob74ib3g",
-      "type": "heart_rate",
-      "date": "2026-09-29T04:48:03.000Z",
-      "value": 77,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:01.117Z"
     },
     {
       "id": "cmuna14ic003ksa2t2xa6sfu6",
@@ -3528,16 +3528,6 @@
       "createdAt": "2026-10-01T23:39:20.696Z"
     },
     {
-      "id": "cmusvungw0000vh87c7khco06",
-      "type": "resting_hr",
-      "date": "2026-10-02T00:00:00.000Z",
-      "value": 71,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-03T21:07:11.312Z"
-    },
-    {
       "id": "cmusvuni10003vh874ok7m02d",
       "type": "hrv_sdnn",
       "date": "2026-10-02T00:00:00.000Z",
@@ -3546,6 +3536,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-03T21:07:11.353Z"
+    },
+    {
+      "id": "cmusvungw0000vh87c7khco06",
+      "type": "resting_hr",
+      "date": "2026-10-02T00:00:00.000Z",
+      "value": 71,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-03T21:07:11.312Z"
     },
     {
       "id": "cmv989ava000g657iym0h44n6",
@@ -3618,6 +3618,16 @@
       "createdAt": "2026-10-17T12:49:01.139Z"
     },
     {
+      "id": "cmvce7xee001j2kpnst5gzy7s",
+      "type": "heart_rate",
+      "date": "2026-10-02T13:31:44.000Z",
+      "value": 71,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:01.143Z"
+    },
+    {
       "id": "cmvce7xbt00102kpn74ldbemx",
       "type": "bp_systolic",
       "date": "2026-10-02T13:31:44.000Z",
@@ -3636,16 +3646,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T12:49:01.091Z"
-    },
-    {
-      "id": "cmvce7xee001j2kpnst5gzy7s",
-      "type": "heart_rate",
-      "date": "2026-10-02T13:31:44.000Z",
-      "value": 71,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:01.143Z"
     },
     {
       "id": "cmvce7xej001k2kpn2mti9ihz",
@@ -3698,6 +3698,46 @@
       "createdAt": "2026-10-17T12:49:01.164Z"
     },
     {
+      "id": "cmuudxzc2000h7tmatg3p5pyj",
+      "type": "sleep_rem_min",
+      "date": "2026-10-03T00:00:00.000Z",
+      "value": 40,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:25.919Z"
+    },
+    {
+      "id": "cmuudxzc2000i7tma13o0yf94",
+      "type": "sleep_core_min",
+      "date": "2026-10-03T00:00:00.000Z",
+      "value": 166,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:25.919Z"
+    },
+    {
+      "id": "cmuudxzc2000j7tmagyu4cuwo",
+      "type": "sleep_awake_min",
+      "date": "2026-10-03T00:00:00.000Z",
+      "value": 16,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:25.919Z"
+    },
+    {
+      "id": "cmusvunhl0001vh87ouos7wqi",
+      "type": "resting_hr",
+      "date": "2026-10-03T00:00:00.000Z",
+      "value": 71,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-03T21:07:11.338Z"
+    },
+    {
       "id": "cmusvunib0004vh87xvdw1uss",
       "type": "hrv_sdnn",
       "date": "2026-10-03T00:00:00.000Z",
@@ -3728,26 +3768,6 @@
       "createdAt": "2026-10-04T22:21:25.919Z"
     },
     {
-      "id": "cmuudxzc2000i7tma13o0yf94",
-      "type": "sleep_core_min",
-      "date": "2026-10-03T00:00:00.000Z",
-      "value": 166,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:25.919Z"
-    },
-    {
-      "id": "cmuudxzc2000j7tmagyu4cuwo",
-      "type": "sleep_awake_min",
-      "date": "2026-10-03T00:00:00.000Z",
-      "value": 16,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:25.919Z"
-    },
-    {
       "id": "cmuudxzc1000f7tmajl0lk4ay",
       "type": "sleep_asleep_h",
       "date": "2026-10-03T00:00:00.000Z",
@@ -3755,26 +3775,6 @@
       "unit": "h",
       "source": "apple-health",
       "meta": "{\"bed\":\"2026-10-02T23:16:00.000Z\",\"wake\":\"2026-10-03T10:30:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":484,\"wakeUps\":3,\"mainBed\":\"2026-10-02T23:16:00.000Z\",\"mainAsleepMin\":484}",
-      "createdAt": "2026-10-04T22:21:25.919Z"
-    },
-    {
-      "id": "cmusvunhl0001vh87ouos7wqi",
-      "type": "resting_hr",
-      "date": "2026-10-03T00:00:00.000Z",
-      "value": 71,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-03T21:07:11.338Z"
-    },
-    {
-      "id": "cmuudxzc2000h7tmatg3p5pyj",
-      "type": "sleep_rem_min",
-      "date": "2026-10-03T00:00:00.000Z",
-      "value": 40,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
       "createdAt": "2026-10-04T22:21:25.919Z"
     },
     {
@@ -3808,14 +3808,14 @@
       "createdAt": "2026-10-15T07:38:49.039Z"
     },
     {
-      "id": "cmuwgrec5002cwfujitutjhsr",
-      "type": "heart_rate",
+      "id": "cmuwgre9r001kwfujv4ej390s",
+      "type": "bp_systolic",
       "date": "2026-10-03T21:20:30.000Z",
-      "value": 70,
-      "unit": "count/min",
+      "value": 118,
+      "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-06T09:15:49.974Z"
+      "createdAt": "2026-10-06T09:15:49.887Z"
     },
     {
       "id": "cmuwgreb2001ywfuje7qxhcsm",
@@ -3828,20 +3828,20 @@
       "createdAt": "2026-10-06T09:15:49.934Z"
     },
     {
-      "id": "cmuwgre9r001kwfujv4ej390s",
-      "type": "bp_systolic",
+      "id": "cmuwgrec5002cwfujitutjhsr",
+      "type": "heart_rate",
       "date": "2026-10-03T21:20:30.000Z",
-      "value": 118,
-      "unit": "mmHg",
+      "value": 70,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-06T09:15:49.887Z"
+      "createdAt": "2026-10-06T09:15:49.974Z"
     },
     {
-      "id": "cmuudxzco000m7tmabl7affo2",
-      "type": "sleep_rem_min",
+      "id": "cmuudxzco000n7tmasu4c9log",
+      "type": "sleep_core_min",
       "date": "2026-10-04T00:00:00.000Z",
-      "value": 70,
+      "value": 169,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -3888,26 +3888,6 @@
       "createdAt": "2026-10-04T22:21:25.074Z"
     },
     {
-      "id": "cmuudyg7q000skayyp3kvt3js",
-      "type": "readiness_hold",
-      "date": "2026-10-04T00:00:00.000Z",
-      "value": 1,
-      "unit": "flag",
-      "source": "ar-health",
-      "meta": "5.2 h sleep",
-      "createdAt": "2026-10-04T22:21:47.799Z"
-    },
-    {
-      "id": "cmuudxzco000o7tmaxvnk8epm",
-      "type": "sleep_awake_min",
-      "date": "2026-10-04T00:00:00.000Z",
-      "value": 0,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-04T22:21:25.942Z"
-    },
-    {
       "id": "cmuudxyox00057tmalbgdekh5",
       "type": "hrv_sdnn",
       "date": "2026-10-04T00:00:00.000Z",
@@ -3928,10 +3908,30 @@
       "createdAt": "2026-10-04T22:21:25.942Z"
     },
     {
-      "id": "cmuudxzco000n7tmasu4c9log",
-      "type": "sleep_core_min",
+      "id": "cmuudxzco000m7tmabl7affo2",
+      "type": "sleep_rem_min",
       "date": "2026-10-04T00:00:00.000Z",
-      "value": 169,
+      "value": 70,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-04T22:21:25.942Z"
+    },
+    {
+      "id": "cmuudyg7q000skayyp3kvt3js",
+      "type": "readiness_hold",
+      "date": "2026-10-04T00:00:00.000Z",
+      "value": 1,
+      "unit": "flag",
+      "source": "ar-health",
+      "meta": "5.2 h sleep",
+      "createdAt": "2026-10-04T22:21:47.799Z"
+    },
+    {
+      "id": "cmuudxzco000o7tmaxvnk8epm",
+      "type": "sleep_awake_min",
+      "date": "2026-10-04T00:00:00.000Z",
+      "value": 0,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -3948,14 +3948,14 @@
       "createdAt": "2026-10-15T07:38:49.042Z"
     },
     {
-      "id": "cmuwgrea3001lwfujfoo0zdwv",
-      "type": "bp_systolic",
+      "id": "cmuwgreb5001zwfujg6iehu1b",
+      "type": "bp_diastolic",
       "date": "2026-10-04T19:45:21.000Z",
-      "value": 115,
+      "value": 71,
       "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-06T09:15:49.899Z"
+      "createdAt": "2026-10-06T09:15:49.938Z"
     },
     {
       "id": "cmuwgrec8002dwfuj8eg9u34q",
@@ -3968,34 +3968,14 @@
       "createdAt": "2026-10-06T09:15:49.976Z"
     },
     {
-      "id": "cmuwgreb5001zwfujg6iehu1b",
-      "type": "bp_diastolic",
+      "id": "cmuwgrea3001lwfujfoo0zdwv",
+      "type": "bp_systolic",
       "date": "2026-10-04T19:45:21.000Z",
-      "value": 71,
+      "value": 115,
       "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-06T09:15:49.938Z"
-    },
-    {
-      "id": "cmuwgrf130003dnokc2xdla5r",
-      "type": "resting_hr",
-      "date": "2026-10-05T00:00:00.000Z",
-      "value": 69,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-06T09:15:50.871Z"
-    },
-    {
-      "id": "cmuvbz4un000rl89g989zwivf",
-      "type": "sleep_deep_min",
-      "date": "2026-10-05T00:00:00.000Z",
-      "value": 60,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-05T14:14:06.669Z"
+      "createdAt": "2026-10-06T09:15:49.899Z"
     },
     {
       "id": "cmuvbz4uo000sl89g726kvkc9",
@@ -4028,24 +4008,14 @@
       "createdAt": "2026-10-05T14:14:06.669Z"
     },
     {
-      "id": "cmuvbz47c0008l89gg4l7affg",
-      "type": "respiratory_rate",
+      "id": "cmuvbz4un000rl89g989zwivf",
+      "type": "sleep_deep_min",
       "date": "2026-10-05T00:00:00.000Z",
-      "value": 23.2,
-      "unit": "count/min",
+      "value": 60,
+      "unit": "min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-05T14:14:05.833Z"
-    },
-    {
-      "id": "cmuwgrf1i0007dnokwkutdchj",
-      "type": "hrv_sdnn",
-      "date": "2026-10-05T00:00:00.000Z",
-      "value": 27.34248601813343,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-06T09:15:50.886Z"
+      "createdAt": "2026-10-05T14:14:06.669Z"
     },
     {
       "id": "cmuvbz4un000ql89g8jtfqr8o",
@@ -4058,14 +4028,24 @@
       "createdAt": "2026-10-05T14:14:06.669Z"
     },
     {
-      "id": "cmuudxypr000e7tma3z7ctcoj",
-      "type": "steps",
+      "id": "cmuwgrf130003dnokc2xdla5r",
+      "type": "resting_hr",
       "date": "2026-10-05T00:00:00.000Z",
-      "value": 2898.603469301805,
-      "unit": "count",
+      "value": 69,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-04T22:21:25.119Z"
+      "createdAt": "2026-10-06T09:15:50.871Z"
+    },
+    {
+      "id": "cmuvbz47c0008l89gg4l7affg",
+      "type": "respiratory_rate",
+      "date": "2026-10-05T00:00:00.000Z",
+      "value": 23.2,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-05T14:14:05.833Z"
     },
     {
       "id": "cmuvbz561000vl89gk8b4yvqa",
@@ -4078,30 +4058,60 @@
       "createdAt": "2026-10-05T14:14:07.082Z"
     },
     {
-      "id": "cmuwgrg92000hyjq1mjnb0cty",
-      "type": "sleep_rem_min",
-      "date": "2026-10-06T00:00:00.000Z",
-      "value": 63,
-      "unit": "min",
+      "id": "cmuudxypr000e7tma3z7ctcoj",
+      "type": "steps",
+      "date": "2026-10-05T00:00:00.000Z",
+      "value": 2898.603469301805,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-06T09:15:52.452Z"
+      "createdAt": "2026-10-04T22:21:25.119Z"
     },
     {
-      "id": "cmuwgrgmh000kyjq19mi21sv3",
-      "type": "readiness_hold",
+      "id": "cmuwgrf1i0007dnokwkutdchj",
+      "type": "hrv_sdnn",
+      "date": "2026-10-05T00:00:00.000Z",
+      "value": 27.34248601813343,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-06T09:15:50.886Z"
+    },
+    {
+      "id": "cmuwgrf1l0008dnok4nctqvt5",
+      "type": "hrv_sdnn",
       "date": "2026-10-06T00:00:00.000Z",
-      "value": 1,
-      "unit": "flag",
-      "source": "ar-health",
-      "meta": "5.2 h sleep",
-      "createdAt": "2026-10-06T09:15:52.937Z"
+      "value": 28.98358003818295,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-06T09:15:50.889Z"
+    },
+    {
+      "id": "cmuwgrf2m000idnok2tvcb1jk",
+      "type": "steps",
+      "date": "2026-10-06T00:00:00.000Z",
+      "value": 4612.765870391151,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-06T09:15:50.926Z"
     },
     {
       "id": "cmuwgrg92000gyjq1imbzdh8b",
       "type": "sleep_deep_min",
       "date": "2026-10-06T00:00:00.000Z",
       "value": 58,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-06T09:15:52.452Z"
+    },
+    {
+      "id": "cmuwgrg92000hyjq1mjnb0cty",
+      "type": "sleep_rem_min",
+      "date": "2026-10-06T00:00:00.000Z",
+      "value": 63,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -4128,24 +4138,24 @@
       "createdAt": "2026-10-06T09:15:52.452Z"
     },
     {
-      "id": "cmuwgrf2m000idnok2tvcb1jk",
-      "type": "steps",
+      "id": "cmuwgrg92000fyjq1o3hjijkm",
+      "type": "sleep_asleep_h",
       "date": "2026-10-06T00:00:00.000Z",
-      "value": 4612.765870391151,
-      "unit": "count",
+      "value": 5.2,
+      "unit": "h",
       "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-06T09:15:50.926Z"
+      "meta": "{\"bed\":\"2026-10-05T22:46:00.000Z\",\"wake\":\"2026-10-06T03:58:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":312,\"wakeUps\":0,\"mainBed\":\"2026-10-05T22:46:00.000Z\",\"mainAsleepMin\":312}",
+      "createdAt": "2026-10-06T09:15:52.452Z"
     },
     {
-      "id": "cmuwgrf1l0008dnok4nctqvt5",
-      "type": "hrv_sdnn",
+      "id": "cmuwgrgmh000kyjq19mi21sv3",
+      "type": "readiness_hold",
       "date": "2026-10-06T00:00:00.000Z",
-      "value": 28.98358003818295,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-06T09:15:50.889Z"
+      "value": 1,
+      "unit": "flag",
+      "source": "ar-health",
+      "meta": "5.2 h sleep",
+      "createdAt": "2026-10-06T09:15:52.937Z"
     },
     {
       "id": "cmux1jj1n0004ry55oyayle9p",
@@ -4158,24 +4168,14 @@
       "createdAt": "2026-10-06T18:57:34.763Z"
     },
     {
-      "id": "cmuwgrg92000fyjq1o3hjijkm",
-      "type": "sleep_asleep_h",
-      "date": "2026-10-06T00:00:00.000Z",
-      "value": 5.2,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-10-05T22:46:00.000Z\",\"wake\":\"2026-10-06T03:58:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":312,\"wakeUps\":0,\"mainBed\":\"2026-10-05T22:46:00.000Z\",\"mainAsleepMin\":312}",
-      "createdAt": "2026-10-06T09:15:52.452Z"
-    },
-    {
-      "id": "cmuwgreca002ewfujewogz97b",
-      "type": "heart_rate",
+      "id": "cmuwgreb80020wfuj59kcb3qm",
+      "type": "bp_diastolic",
       "date": "2026-10-06T05:43:20.000Z",
       "value": 73,
-      "unit": "count/min",
+      "unit": "mmHg",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-06T09:15:49.979Z"
+      "createdAt": "2026-10-06T09:15:49.941Z"
     },
     {
       "id": "cmuwgrea6001mwfuju3gug5rs",
@@ -4188,24 +4188,14 @@
       "createdAt": "2026-10-06T09:15:49.903Z"
     },
     {
-      "id": "cmuwgreb80020wfuj59kcb3qm",
-      "type": "bp_diastolic",
+      "id": "cmuwgreca002ewfujewogz97b",
+      "type": "heart_rate",
       "date": "2026-10-06T05:43:20.000Z",
       "value": 73,
-      "unit": "mmHg",
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-06T09:15:49.941Z"
-    },
-    {
-      "id": "cmvcms93900131tt691ucdjsp",
-      "type": "bp_systolic",
-      "date": "2026-10-06T16:59:26.000Z",
-      "value": 114,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T16:48:46.341Z"
+      "createdAt": "2026-10-06T09:15:49.979Z"
     },
     {
       "id": "cmvcms949001h1tt6sb7cns0c",
@@ -4216,6 +4206,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T16:48:46.378Z"
+    },
+    {
+      "id": "cmvcms93900131tt691ucdjsp",
+      "type": "bp_systolic",
+      "date": "2026-10-06T16:59:26.000Z",
+      "value": 114,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T16:48:46.341Z"
     },
     {
       "id": "cmvcms95p00251tt69u0zdx77",
@@ -4258,6 +4258,16 @@
       "createdAt": "2026-10-07T11:53:17.810Z"
     },
     {
+      "id": "cmuxq53es003k25f69zih0p1r",
+      "type": "sleep_core_min",
+      "date": "2026-10-07T00:00:00.000Z",
+      "value": 211,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-07T06:26:11.715Z"
+    },
+    {
       "id": "cmuxq53es003l25f6ybmi1iak",
       "type": "sleep_awake_min",
       "date": "2026-10-07T00:00:00.000Z",
@@ -4268,14 +4278,14 @@
       "createdAt": "2026-10-07T06:26:11.715Z"
     },
     {
-      "id": "cmuxq53er003i25f6jbe2280p",
-      "type": "sleep_deep_min",
+      "id": "cmuxq53v3003m25f6z6ax6644",
+      "type": "readiness_hold",
       "date": "2026-10-07T00:00:00.000Z",
-      "value": 62,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-07T06:26:11.715Z"
+      "value": 1,
+      "unit": "flag",
+      "source": "ar-health",
+      "meta": "5.1 h sleep",
+      "createdAt": "2026-10-07T06:26:12.303Z"
     },
     {
       "id": "cmuxq53es003j25f6mzhs9mqj",
@@ -4298,20 +4308,20 @@
       "createdAt": "2026-10-10T11:00:02.055Z"
     },
     {
-      "id": "cmuxq52e0002p25f66j85tmhi",
-      "type": "respiratory_rate",
+      "id": "cmv2a8t5q000812bv6lg0v6rw",
+      "type": "hrv_sdnn",
       "date": "2026-10-07T00:00:00.000Z",
-      "value": 13.8,
-      "unit": "count/min",
+      "value": 18.3490217852591,
+      "unit": "ms",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-07T06:26:10.392Z"
+      "createdAt": "2026-10-10T11:00:02.078Z"
     },
     {
-      "id": "cmuxq53es003k25f69zih0p1r",
-      "type": "sleep_core_min",
+      "id": "cmuxq53er003i25f6jbe2280p",
+      "type": "sleep_deep_min",
       "date": "2026-10-07T00:00:00.000Z",
-      "value": 211,
+      "value": 62,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -4328,16 +4338,6 @@
       "createdAt": "2026-10-07T06:26:11.715Z"
     },
     {
-      "id": "cmuxq53v3003m25f6z6ax6644",
-      "type": "readiness_hold",
-      "date": "2026-10-07T00:00:00.000Z",
-      "value": 1,
-      "unit": "flag",
-      "source": "ar-health",
-      "meta": "5.1 h sleep",
-      "createdAt": "2026-10-07T06:26:12.303Z"
-    },
-    {
       "id": "cmux7pvmg001prk2lava8f56n",
       "type": "steps",
       "date": "2026-10-07T00:00:00.000Z",
@@ -4348,14 +4348,14 @@
       "createdAt": "2026-10-06T21:50:28.696Z"
     },
     {
-      "id": "cmv2a8t5q000812bv6lg0v6rw",
-      "type": "hrv_sdnn",
+      "id": "cmuxq52e0002p25f66j85tmhi",
+      "type": "respiratory_rate",
       "date": "2026-10-07T00:00:00.000Z",
-      "value": 18.3490217852591,
-      "unit": "ms",
+      "value": 13.8,
+      "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-10T11:00:02.078Z"
+      "createdAt": "2026-10-07T06:26:10.392Z"
     },
     {
       "id": "cmv989avn000k657ilmyiwotr",
@@ -4368,40 +4368,30 @@
       "createdAt": "2026-10-15T07:38:49.044Z"
     },
     {
-      "id": "cmv2a8u17001b12bv8tge4riw",
-      "type": "sleep_awake_min",
-      "date": "2026-10-08T00:00:00.000Z",
-      "value": 93,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-10T11:00:03.210Z"
-    },
-    {
-      "id": "cmv2a8u17001912bvwwwn7fs2",
-      "type": "sleep_rem_min",
-      "date": "2026-10-08T00:00:00.000Z",
-      "value": 76,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-10T11:00:03.210Z"
-    },
-    {
-      "id": "cmv2a8u17001712bv3cwkk47w",
-      "type": "sleep_asleep_h",
-      "date": "2026-10-08T00:00:00.000Z",
-      "value": 5.03,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-10-07T23:02:00.000Z\",\"wake\":\"2026-10-08T05:37:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":302,\"wakeUps\":4,\"mainBed\":\"2026-10-07T23:02:00.000Z\",\"mainAsleepMin\":302}",
-      "createdAt": "2026-10-10T11:00:03.210Z"
-    },
-    {
       "id": "cmv2a8u17001812bvpfd8e1oy",
       "type": "sleep_deep_min",
       "date": "2026-10-08T00:00:00.000Z",
       "value": 36,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-10T11:00:03.210Z"
+    },
+    {
+      "id": "cmv2a8t58000412bvt0zt9pac",
+      "type": "resting_hr",
+      "date": "2026-10-08T00:00:00.000Z",
+      "value": 69,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-10T11:00:02.060Z"
+    },
+    {
+      "id": "cmv2a8u17001b12bv8tge4riw",
+      "type": "sleep_awake_min",
+      "date": "2026-10-08T00:00:00.000Z",
+      "value": 93,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -4418,14 +4408,24 @@
       "createdAt": "2026-10-10T11:00:03.210Z"
     },
     {
-      "id": "cmv2a8t58000412bvt0zt9pac",
-      "type": "resting_hr",
+      "id": "cmv2a8t7d000k12bv0lbbo0ud",
+      "type": "steps",
       "date": "2026-10-08T00:00:00.000Z",
-      "value": 69,
-      "unit": "count/min",
+      "value": 1446.344015338489,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-10T11:00:02.060Z"
+      "createdAt": "2026-10-10T11:00:02.137Z"
+    },
+    {
+      "id": "cmv2a8u17001912bvwwwn7fs2",
+      "type": "sleep_rem_min",
+      "date": "2026-10-08T00:00:00.000Z",
+      "value": 76,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-10T11:00:03.210Z"
     },
     {
       "id": "cmv2a8t5v000912bvoznhzsje",
@@ -4448,14 +4448,14 @@
       "createdAt": "2026-10-10T11:00:02.101Z"
     },
     {
-      "id": "cmv2a8t7d000k12bv0lbbo0ud",
-      "type": "steps",
+      "id": "cmv2a8u17001712bv3cwkk47w",
+      "type": "sleep_asleep_h",
       "date": "2026-10-08T00:00:00.000Z",
-      "value": 1446.344015338489,
-      "unit": "count",
+      "value": 5.03,
+      "unit": "h",
       "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-10T11:00:02.137Z"
+      "meta": "{\"bed\":\"2026-10-07T23:02:00.000Z\",\"wake\":\"2026-10-08T05:37:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":302,\"wakeUps\":4,\"mainBed\":\"2026-10-07T23:02:00.000Z\",\"mainAsleepMin\":302}",
+      "createdAt": "2026-10-10T11:00:03.210Z"
     },
     {
       "id": "cmv989avq000l657ij9rmwbz7",
@@ -4478,6 +4478,46 @@
       "createdAt": "2026-10-12T12:23:41.822Z"
     },
     {
+      "id": "cmv2a8u1n001d12bv19gw6998",
+      "type": "sleep_deep_min",
+      "date": "2026-10-09T00:00:00.000Z",
+      "value": 118,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-10T11:00:03.225Z"
+    },
+    {
+      "id": "cmv2a8u1n001e12bv222vaa9z",
+      "type": "sleep_rem_min",
+      "date": "2026-10-09T00:00:00.000Z",
+      "value": 185,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-10T11:00:03.225Z"
+    },
+    {
+      "id": "cmv2a8u1n001f12bvgsnsota1",
+      "type": "sleep_core_min",
+      "date": "2026-10-09T00:00:00.000Z",
+      "value": 372,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-10T11:00:03.225Z"
+    },
+    {
+      "id": "cmv5843qa001lds6pnwn4kun1",
+      "type": "resting_hr",
+      "date": "2026-10-09T00:00:00.000Z",
+      "value": 71,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-12T12:23:41.794Z"
+    },
+    {
       "id": "cmv2a8u1o001g12bvspxbn887",
       "type": "sleep_awake_min",
       "date": "2026-10-09T00:00:00.000Z",
@@ -4496,26 +4536,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-10T11:00:03.225Z"
-    },
-    {
-      "id": "cmv2a8u1n001f12bvgsnsota1",
-      "type": "sleep_core_min",
-      "date": "2026-10-09T00:00:00.000Z",
-      "value": 372,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-10T11:00:03.225Z"
-    },
-    {
-      "id": "cmv2a8t7g000l12bvc6m1ul5q",
-      "type": "steps",
-      "date": "2026-10-09T00:00:00.000Z",
-      "value": 2987.219476708873,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-10T11:00:02.141Z"
     },
     {
       "id": "cmv2a8u1o001i12bvv0t6glnf",
@@ -4538,24 +4558,24 @@
       "createdAt": "2026-10-10T11:00:03.225Z"
     },
     {
-      "id": "cmv2a8u1n001e12bv222vaa9z",
-      "type": "sleep_rem_min",
+      "id": "cmv2a8u1n001c12bvxb1kgrti",
+      "type": "sleep_asleep_h",
       "date": "2026-10-09T00:00:00.000Z",
-      "value": 185,
-      "unit": "min",
+      "value": 11.25,
+      "unit": "h",
       "source": "apple-health",
-      "meta": null,
+      "meta": "{\"bed\":\"2026-10-08T15:39:00.000Z\",\"wake\":\"2026-10-09T10:21:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":675,\"wakeUps\":2,\"mainBed\":\"2026-10-09T00:29:00.000Z\",\"mainAsleepMin\":503}",
       "createdAt": "2026-10-10T11:00:03.225Z"
     },
     {
-      "id": "cmv2a8u1n001d12bv19gw6998",
-      "type": "sleep_deep_min",
+      "id": "cmv2a8t7g000l12bvc6m1ul5q",
+      "type": "steps",
       "date": "2026-10-09T00:00:00.000Z",
-      "value": 118,
-      "unit": "min",
+      "value": 2987.219476708873,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-10T11:00:03.225Z"
+      "createdAt": "2026-10-10T11:00:02.141Z"
     },
     {
       "id": "cmv2a8t6k000e12bvhmr47h2y",
@@ -4566,26 +4586,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-10T11:00:02.109Z"
-    },
-    {
-      "id": "cmv5843qa001lds6pnwn4kun1",
-      "type": "resting_hr",
-      "date": "2026-10-09T00:00:00.000Z",
-      "value": 71,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-12T12:23:41.794Z"
-    },
-    {
-      "id": "cmv2a8u1n001c12bvxb1kgrti",
-      "type": "sleep_asleep_h",
-      "date": "2026-10-09T00:00:00.000Z",
-      "value": 11.25,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-10-08T15:39:00.000Z\",\"wake\":\"2026-10-09T10:21:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":675,\"wakeUps\":2,\"mainBed\":\"2026-10-09T00:29:00.000Z\",\"mainAsleepMin\":503}",
-      "createdAt": "2026-10-10T11:00:03.225Z"
     },
     {
       "id": "cmv989avs000m657ihorekkxu",
@@ -4608,16 +4608,6 @@
       "createdAt": "2026-10-17T16:48:46.350Z"
     },
     {
-      "id": "cmvcms95u00271tt6fat0l24z",
-      "type": "heart_rate",
-      "date": "2026-10-09T23:54:01.000Z",
-      "value": 74,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T16:48:46.434Z"
-    },
-    {
       "id": "cmvcms94c001i1tt63lqvdtpo",
       "type": "bp_diastolic",
       "date": "2026-10-09T23:54:01.000Z",
@@ -4628,10 +4618,60 @@
       "createdAt": "2026-10-17T16:48:46.380Z"
     },
     {
+      "id": "cmvcms95u00271tt6fat0l24z",
+      "type": "heart_rate",
+      "date": "2026-10-09T23:54:01.000Z",
+      "value": 74,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T16:48:46.434Z"
+    },
+    {
       "id": "cmv2a8u2a001l12bvvhpdwu5p",
       "type": "sleep_deep_min",
       "date": "2026-10-10T00:00:00.000Z",
       "value": 77,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-10T11:00:03.249Z"
+    },
+    {
+      "id": "cmv2a8u2a001k12bvqj3uox03",
+      "type": "sleep_asleep_h",
+      "date": "2026-10-10T00:00:00.000Z",
+      "value": 5.87,
+      "unit": "h",
+      "source": "apple-health",
+      "meta": "{\"bed\":\"2026-10-10T03:48:00.000Z\",\"wake\":\"2026-10-10T09:45:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":352,\"wakeUps\":1,\"mainBed\":\"2026-10-10T03:48:00.000Z\",\"mainAsleepMin\":352}",
+      "createdAt": "2026-10-10T11:00:03.249Z"
+    },
+    {
+      "id": "cmv2a8u2b001m12bv1gwqk7la",
+      "type": "sleep_rem_min",
+      "date": "2026-10-10T00:00:00.000Z",
+      "value": 86,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-10T11:00:03.249Z"
+    },
+    {
+      "id": "cmv2a8u2b001n12bvo3v95gxt",
+      "type": "sleep_core_min",
+      "date": "2026-10-10T00:00:00.000Z",
+      "value": 189,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-10T11:00:03.249Z"
+    },
+    {
+      "id": "cmv2a8u2b001o12bv2lcr55xh",
+      "type": "sleep_awake_min",
+      "date": "2026-10-10T00:00:00.000Z",
+      "value": 5,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -4658,26 +4698,6 @@
       "createdAt": "2026-10-10T11:00:02.114Z"
     },
     {
-      "id": "cmv2a8ue3001p12bvcf8jd38y",
-      "type": "readiness_hold",
-      "date": "2026-10-10T00:00:00.000Z",
-      "value": 0,
-      "unit": "flag",
-      "source": "ar-health",
-      "meta": "5.9 h sleep",
-      "createdAt": "2026-10-10T11:00:03.675Z"
-    },
-    {
-      "id": "cmv2a8u2b001o12bv2lcr55xh",
-      "type": "sleep_awake_min",
-      "date": "2026-10-10T00:00:00.000Z",
-      "value": 5,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-10T11:00:03.249Z"
-    },
-    {
       "id": "cmv5843r6001sds6pwsjmcmhm",
       "type": "hrv_sdnn",
       "date": "2026-10-10T00:00:00.000Z",
@@ -4688,24 +4708,14 @@
       "createdAt": "2026-10-12T12:23:41.826Z"
     },
     {
-      "id": "cmv2a8u2b001m12bv1gwqk7la",
-      "type": "sleep_rem_min",
+      "id": "cmv2a8ue3001p12bvcf8jd38y",
+      "type": "readiness_hold",
       "date": "2026-10-10T00:00:00.000Z",
-      "value": 86,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-10T11:00:03.249Z"
-    },
-    {
-      "id": "cmv2a8u2a001k12bvqj3uox03",
-      "type": "sleep_asleep_h",
-      "date": "2026-10-10T00:00:00.000Z",
-      "value": 5.87,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-10-10T03:48:00.000Z\",\"wake\":\"2026-10-10T09:45:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":352,\"wakeUps\":1,\"mainBed\":\"2026-10-10T03:48:00.000Z\",\"mainAsleepMin\":352}",
-      "createdAt": "2026-10-10T11:00:03.249Z"
+      "value": 0,
+      "unit": "flag",
+      "source": "ar-health",
+      "meta": "5.9 h sleep",
+      "createdAt": "2026-10-10T11:00:03.675Z"
     },
     {
       "id": "cmv2a8t7k000m12bvbfg9vz4d",
@@ -4716,16 +4726,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-10T11:00:02.145Z"
-    },
-    {
-      "id": "cmv2a8u2b001n12bvo3v95gxt",
-      "type": "sleep_core_min",
-      "date": "2026-10-10T00:00:00.000Z",
-      "value": 189,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-10T11:00:03.249Z"
     },
     {
       "id": "cmv2a8rzy0011mxi3jyda8zpg",
@@ -4748,16 +4748,6 @@
       "createdAt": "2026-10-15T07:38:49.054Z"
     },
     {
-      "id": "cmvcms93k00151tt6wmqshoac",
-      "type": "bp_systolic",
-      "date": "2026-10-10T12:33:36.000Z",
-      "value": 109,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T16:48:46.352Z"
-    },
-    {
       "id": "cmvcms94e001j1tt60p4hl3zh",
       "type": "bp_diastolic",
       "date": "2026-10-10T12:33:36.000Z",
@@ -4766,6 +4756,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T16:48:46.383Z"
+    },
+    {
+      "id": "cmvcms93k00151tt6wmqshoac",
+      "type": "bp_systolic",
+      "date": "2026-10-10T12:33:36.000Z",
+      "value": 109,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T16:48:46.352Z"
     },
     {
       "id": "cmvcms95w00281tt69zpdmkvp",
@@ -4808,14 +4808,34 @@
       "createdAt": "2026-10-12T12:23:41.807Z"
     },
     {
-      "id": "cmv5844bx0030ds6pvsugwfey",
-      "type": "sleep_resp_rate",
+      "id": "cmv5844ob0031ds6p32a5gqdy",
+      "type": "readiness_hold",
       "date": "2026-10-12T00:00:00.000Z",
-      "value": 23.4,
-      "unit": "count/min",
+      "value": 0,
+      "unit": "flag",
+      "source": "ar-health",
+      "meta": "5.9 h sleep",
+      "createdAt": "2026-10-12T12:23:43.020Z"
+    },
+    {
+      "id": "cmv5844bx002yds6pajuwp22t",
+      "type": "sleep_spo2_low",
+      "date": "2026-10-12T00:00:00.000Z",
+      "value": 93.4,
+      "unit": "%",
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-12T12:23:42.572Z"
+    },
+    {
+      "id": "cmv5843sk0025ds6pf7qq5wxn",
+      "type": "steps",
+      "date": "2026-10-12T00:00:00.000Z",
+      "value": 6887.879207435754,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-12T12:23:41.876Z"
     },
     {
       "id": "cmv5844bx002xds6pzmhw66si",
@@ -4828,20 +4848,10 @@
       "createdAt": "2026-10-12T12:23:42.572Z"
     },
     {
-      "id": "cmv5844bx002zds6p3cozxd1t",
-      "type": "sleep_spo2_avg",
+      "id": "cmv5844bx002wds6pw237t6ea",
+      "type": "sleep_core_min",
       "date": "2026-10-12T00:00:00.000Z",
-      "value": 93.4,
-      "unit": "%",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-12T12:23:42.572Z"
-    },
-    {
-      "id": "cmv5844bx002uds6pe7z4uun2",
-      "type": "sleep_deep_min",
-      "date": "2026-10-12T00:00:00.000Z",
-      "value": 103,
+      "value": 198,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -4858,24 +4868,14 @@
       "createdAt": "2026-10-12T17:55:00.000Z"
     },
     {
-      "id": "cmv5844ob0031ds6p32a5gqdy",
-      "type": "readiness_hold",
+      "id": "cmv5844bx002vds6py5i4eqp5",
+      "type": "sleep_rem_min",
       "date": "2026-10-12T00:00:00.000Z",
-      "value": 0,
-      "unit": "flag",
-      "source": "ar-health",
-      "meta": "5.9 h sleep",
-      "createdAt": "2026-10-12T12:23:43.020Z"
-    },
-    {
-      "id": "cmv5843rs001yds6ptm4nc29w",
-      "type": "respiratory_rate",
-      "date": "2026-10-12T00:00:00.000Z",
-      "value": 23.4,
-      "unit": "count/min",
+      "value": 53,
+      "unit": "min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-12T12:23:41.848Z"
+      "createdAt": "2026-10-12T12:23:42.572Z"
     },
     {
       "id": "cmv5844bx002tds6pczeuy5qh",
@@ -4888,28 +4888,8 @@
       "createdAt": "2026-10-12T12:23:42.572Z"
     },
     {
-      "id": "cmv5843sk0025ds6pf7qq5wxn",
-      "type": "steps",
-      "date": "2026-10-12T00:00:00.000Z",
-      "value": 6887.879207435754,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-12T12:23:41.876Z"
-    },
-    {
-      "id": "cmv5844bx002wds6pw237t6ea",
-      "type": "sleep_core_min",
-      "date": "2026-10-12T00:00:00.000Z",
-      "value": 198,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-12T12:23:42.572Z"
-    },
-    {
-      "id": "cmv5844bx002yds6pajuwp22t",
-      "type": "sleep_spo2_low",
+      "id": "cmv5844bx002zds6p3cozxd1t",
+      "type": "sleep_spo2_avg",
       "date": "2026-10-12T00:00:00.000Z",
       "value": 93.4,
       "unit": "%",
@@ -4918,10 +4898,30 @@
       "createdAt": "2026-10-12T12:23:42.572Z"
     },
     {
-      "id": "cmv5844bx002vds6py5i4eqp5",
-      "type": "sleep_rem_min",
+      "id": "cmv5844bx0030ds6pvsugwfey",
+      "type": "sleep_resp_rate",
       "date": "2026-10-12T00:00:00.000Z",
-      "value": 53,
+      "value": 23.4,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-12T12:23:42.572Z"
+    },
+    {
+      "id": "cmv5843rs001yds6ptm4nc29w",
+      "type": "respiratory_rate",
+      "date": "2026-10-12T00:00:00.000Z",
+      "value": 23.4,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-12T12:23:41.848Z"
+    },
+    {
+      "id": "cmv5844bx002uds6pe7z4uun2",
+      "type": "sleep_deep_min",
+      "date": "2026-10-12T00:00:00.000Z",
+      "value": 103,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -4936,16 +4936,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-12T14:57:07.185Z"
-    },
-    {
-      "id": "cmvcms95y00291tt69z545atp",
-      "type": "heart_rate",
-      "date": "2026-10-12T06:16:35.000Z",
-      "value": 80,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T16:48:46.438Z"
     },
     {
       "id": "cmvcms94g001k1tt6ehy5fzpk",
@@ -4966,6 +4956,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T16:48:46.355Z"
+    },
+    {
+      "id": "cmvcms95y00291tt69z545atp",
+      "type": "heart_rate",
+      "date": "2026-10-12T06:16:35.000Z",
+      "value": 80,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T16:48:46.438Z"
     },
     {
       "id": "cmv989aw3000q657i5ckzsogw",
@@ -4998,16 +4998,6 @@
       "createdAt": "2026-10-17T16:48:46.387Z"
     },
     {
-      "id": "cmvcms93o00171tt618a56o6y",
-      "type": "bp_systolic",
-      "date": "2026-10-12T12:08:10.000Z",
-      "value": 119,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T16:48:46.357Z"
-    },
-    {
       "id": "cmvcms962002b1tt68jt415lo",
       "type": "heart_rate",
       "date": "2026-10-12T12:08:10.000Z",
@@ -5016,6 +5006,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T16:48:46.443Z"
+    },
+    {
+      "id": "cmvcms93o00171tt618a56o6y",
+      "type": "bp_systolic",
+      "date": "2026-10-12T12:08:10.000Z",
+      "value": 119,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T16:48:46.357Z"
     },
     {
       "id": "cmvcms965002c1tt62pvcvafr",
@@ -5138,16 +5138,6 @@
       "createdAt": "2026-10-15T07:38:50.703Z"
     },
     {
-      "id": "cmv989ctx0017nyiesf46m9dq",
-      "type": "sleep_asleep_h",
-      "date": "2026-10-14T00:00:00.000Z",
-      "value": 3.7,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-10-13T23:53:00.000Z\",\"wake\":\"2026-10-14T03:35:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":222,\"wakeUps\":0,\"mainBed\":\"2026-10-13T23:53:00.000Z\",\"mainAsleepMin\":222}",
-      "createdAt": "2026-10-15T07:38:51.572Z"
-    },
-    {
       "id": "cmv989c5c000bnyiedyxm4z2k",
       "type": "hrv_sdnn",
       "date": "2026-10-14T00:00:00.000Z",
@@ -5158,14 +5148,14 @@
       "createdAt": "2026-10-15T07:38:50.689Z"
     },
     {
-      "id": "cmv989c4v0005nyiewx6g556v",
-      "type": "resting_hr",
+      "id": "cmv989ctx0017nyiesf46m9dq",
+      "type": "sleep_asleep_h",
       "date": "2026-10-14T00:00:00.000Z",
-      "value": 66,
-      "unit": "count/min",
+      "value": 3.7,
+      "unit": "h",
       "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-15T07:38:50.671Z"
+      "meta": "{\"bed\":\"2026-10-13T23:53:00.000Z\",\"wake\":\"2026-10-14T03:35:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":222,\"wakeUps\":0,\"mainBed\":\"2026-10-13T23:53:00.000Z\",\"mainAsleepMin\":222}",
+      "createdAt": "2026-10-15T07:38:51.572Z"
     },
     {
       "id": "cmv989c6b000nnyie9xisu2dd",
@@ -5178,6 +5168,16 @@
       "createdAt": "2026-10-15T07:38:50.723Z"
     },
     {
+      "id": "cmv989c4v0005nyiewx6g556v",
+      "type": "resting_hr",
+      "date": "2026-10-14T00:00:00.000Z",
+      "value": 66,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-15T07:38:50.671Z"
+    },
+    {
       "id": "cmv989aw8000s657iy1q82jp9",
       "type": "weight",
       "date": "2026-10-14T04:14:37.000Z",
@@ -5188,6 +5188,26 @@
       "createdAt": "2026-10-15T07:38:49.065Z"
     },
     {
+      "id": "cmv989c6f000onyie1u2i9f9v",
+      "type": "steps",
+      "date": "2026-10-15T00:00:00.000Z",
+      "value": 2948,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-15T07:38:50.727Z"
+    },
+    {
+      "id": "cmv989cua0018nyieftgfuhsg",
+      "type": "sleep_asleep_h",
+      "date": "2026-10-15T00:00:00.000Z",
+      "value": 5.17,
+      "unit": "h",
+      "source": "apple-health",
+      "meta": "{\"bed\":\"2026-10-15T00:15:00.000Z\",\"wake\":\"2026-10-15T05:44:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":310,\"wakeUps\":3,\"mainBed\":\"2026-10-15T00:15:00.000Z\",\"mainAsleepMin\":310}",
+      "createdAt": "2026-10-15T07:38:51.584Z"
+    },
+    {
       "id": "cmvce7ye1001y2kpndcongg0x",
       "type": "resting_hr",
       "date": "2026-10-15T00:00:00.000Z",
@@ -5196,6 +5216,36 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T12:49:02.425Z"
+    },
+    {
+      "id": "cmv989cua001cnyiel5viq7qn",
+      "type": "sleep_awake_min",
+      "date": "2026-10-15T00:00:00.000Z",
+      "value": 19,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-15T07:38:51.584Z"
+    },
+    {
+      "id": "cmv989d67001dnyieommb3ioq",
+      "type": "readiness_hold",
+      "date": "2026-10-15T00:00:00.000Z",
+      "value": 1,
+      "unit": "flag",
+      "source": "ar-health",
+      "meta": "5.2 h sleep",
+      "createdAt": "2026-10-15T07:38:52.015Z"
+    },
+    {
+      "id": "cmvce7yer00252kpndnf7aekw",
+      "type": "hrv_sdnn",
+      "date": "2026-10-15T00:00:00.000Z",
+      "value": 21.48082842909632,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:02.452Z"
     },
     {
       "id": "cmv989cua001bnyiedx1ltrjc",
@@ -5228,46 +5278,6 @@
       "createdAt": "2026-10-15T07:38:51.584Z"
     },
     {
-      "id": "cmv989c6f000onyie1u2i9f9v",
-      "type": "steps",
-      "date": "2026-10-15T00:00:00.000Z",
-      "value": 2948,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-15T07:38:50.727Z"
-    },
-    {
-      "id": "cmv989cua0018nyieftgfuhsg",
-      "type": "sleep_asleep_h",
-      "date": "2026-10-15T00:00:00.000Z",
-      "value": 5.17,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-10-15T00:15:00.000Z\",\"wake\":\"2026-10-15T05:44:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":310,\"wakeUps\":3,\"mainBed\":\"2026-10-15T00:15:00.000Z\",\"mainAsleepMin\":310}",
-      "createdAt": "2026-10-15T07:38:51.584Z"
-    },
-    {
-      "id": "cmv989d67001dnyieommb3ioq",
-      "type": "readiness_hold",
-      "date": "2026-10-15T00:00:00.000Z",
-      "value": 1,
-      "unit": "flag",
-      "source": "ar-health",
-      "meta": "5.2 h sleep",
-      "createdAt": "2026-10-15T07:38:52.015Z"
-    },
-    {
-      "id": "cmv989cua001cnyiel5viq7qn",
-      "type": "sleep_awake_min",
-      "date": "2026-10-15T00:00:00.000Z",
-      "value": 19,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-15T07:38:51.584Z"
-    },
-    {
       "id": "cmv989cua001anyie0yahlyol",
       "type": "sleep_rem_min",
       "date": "2026-10-15T00:00:00.000Z",
@@ -5276,16 +5286,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-15T07:38:51.584Z"
-    },
-    {
-      "id": "cmvce7yer00252kpndnf7aekw",
-      "type": "hrv_sdnn",
-      "date": "2026-10-15T00:00:00.000Z",
-      "value": 21.48082842909632,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:02.452Z"
     },
     {
       "id": "cmv989awd000u657iuamhk1k4",
@@ -5298,14 +5298,54 @@
       "createdAt": "2026-10-15T07:38:49.070Z"
     },
     {
-      "id": "cmvce7yfe002c2kpnqr5bbc5t",
-      "type": "respiratory_rate",
+      "id": "cmvce7zcp00342kpn2ueblprt",
+      "type": "sleep_asleep_h",
+      "date": "2026-10-16T00:00:00.000Z",
+      "value": 8.78,
+      "unit": "h",
+      "source": "apple-health",
+      "meta": "{\"bed\":\"2026-10-15T20:38:00.000Z\",\"wake\":\"2026-10-16T05:25:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":527,\"wakeUps\":0,\"mainBed\":\"2026-10-15T20:38:00.000Z\",\"mainAsleepMin\":527}",
+      "createdAt": "2026-10-17T12:49:03.670Z"
+    },
+    {
+      "id": "cmvce7zcp00352kpn1qdi2xbs",
+      "type": "sleep_deep_min",
+      "date": "2026-10-16T00:00:00.000Z",
+      "value": 92,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:03.670Z"
+    },
+    {
+      "id": "cmvce7zcp00362kpn955dn8qx",
+      "type": "sleep_rem_min",
+      "date": "2026-10-16T00:00:00.000Z",
+      "value": 119,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:03.670Z"
+    },
+    {
+      "id": "cmvce7yeu00262kpnl0qfs48o",
+      "type": "hrv_sdnn",
+      "date": "2026-10-16T00:00:00.000Z",
+      "value": 17.9248390822558,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:02.455Z"
+    },
+    {
+      "id": "cmvce7zcp003b2kpnbryx1v1a",
+      "type": "sleep_resp_rate",
       "date": "2026-10-16T00:00:00.000Z",
       "value": 21.4,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-17T12:49:02.475Z"
+      "createdAt": "2026-10-17T12:49:03.670Z"
     },
     {
       "id": "cmvce7zcp00372kpnlvpdd8ja",
@@ -5348,64 +5388,14 @@
       "createdAt": "2026-10-17T12:49:03.670Z"
     },
     {
-      "id": "cmvce7yeu00262kpnl0qfs48o",
-      "type": "hrv_sdnn",
-      "date": "2026-10-16T00:00:00.000Z",
-      "value": 17.9248390822558,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:02.455Z"
-    },
-    {
-      "id": "cmvce7zcp003b2kpnbryx1v1a",
-      "type": "sleep_resp_rate",
+      "id": "cmvce7yfe002c2kpnqr5bbc5t",
+      "type": "respiratory_rate",
       "date": "2026-10-16T00:00:00.000Z",
       "value": 21.4,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-17T12:49:03.670Z"
-    },
-    {
-      "id": "cmvce7ye5001z2kpnji4sxzex",
-      "type": "resting_hr",
-      "date": "2026-10-16T00:00:00.000Z",
-      "value": 72,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:02.430Z"
-    },
-    {
-      "id": "cmvce7zcp00342kpn2ueblprt",
-      "type": "sleep_asleep_h",
-      "date": "2026-10-16T00:00:00.000Z",
-      "value": 8.78,
-      "unit": "h",
-      "source": "apple-health",
-      "meta": "{\"bed\":\"2026-10-15T20:38:00.000Z\",\"wake\":\"2026-10-16T05:25:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":527,\"wakeUps\":0,\"mainBed\":\"2026-10-15T20:38:00.000Z\",\"mainAsleepMin\":527}",
-      "createdAt": "2026-10-17T12:49:03.670Z"
-    },
-    {
-      "id": "cmvce7zcp00352kpn1qdi2xbs",
-      "type": "sleep_deep_min",
-      "date": "2026-10-16T00:00:00.000Z",
-      "value": 92,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:03.670Z"
-    },
-    {
-      "id": "cmvce7zcp00362kpn955dn8qx",
-      "type": "sleep_rem_min",
-      "date": "2026-10-16T00:00:00.000Z",
-      "value": 119,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:03.670Z"
+      "createdAt": "2026-10-17T12:49:02.475Z"
     },
     {
       "id": "cmvce7yg3002j2kpneye7yr0u",
@@ -5416,6 +5406,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T12:49:02.500Z"
+    },
+    {
+      "id": "cmvce7ye5001z2kpnji4sxzex",
+      "type": "resting_hr",
+      "date": "2026-10-16T00:00:00.000Z",
+      "value": 72,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:02.430Z"
     },
     {
       "id": "cmvcms966002d1tt64a0ckfma",
@@ -5538,16 +5538,6 @@
       "createdAt": "2026-10-17T16:48:46.476Z"
     },
     {
-      "id": "cmvcms93r00181tt6q9jvsnot",
-      "type": "bp_systolic",
-      "date": "2026-10-16T18:02:40.000Z",
-      "value": 119,
-      "unit": "mmHg",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T16:48:46.359Z"
-    },
-    {
       "id": "cmvcms972002p1tt6jbach55p",
       "type": "heart_rate",
       "date": "2026-10-16T18:02:40.000Z",
@@ -5556,6 +5546,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T16:48:46.478Z"
+    },
+    {
+      "id": "cmvcms93r00181tt6q9jvsnot",
+      "type": "bp_systolic",
+      "date": "2026-10-16T18:02:40.000Z",
+      "value": 119,
+      "unit": "mmHg",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T16:48:46.359Z"
     },
     {
       "id": "cmvcms94l001m1tt6bqcwyufi",
@@ -5638,26 +5638,6 @@
       "createdAt": "2026-10-17T16:48:46.496Z"
     },
     {
-      "id": "cmvce7yfi002d2kpnkchwjjzj",
-      "type": "respiratory_rate",
-      "date": "2026-10-17T00:00:00.000Z",
-      "value": 21.6,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:02.478Z"
-    },
-    {
-      "id": "cmvce7zdo003g2kpn3wb69haz",
-      "type": "sleep_awake_min",
-      "date": "2026-10-17T00:00:00.000Z",
-      "value": 86,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:03.705Z"
-    },
-    {
       "id": "cmvce7zdo003f2kpno8sr9x7i",
       "type": "sleep_core_min",
       "date": "2026-10-17T00:00:00.000Z",
@@ -5666,6 +5646,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-17T12:49:03.705Z"
+    },
+    {
+      "id": "cmvce7yg8002k2kpn6kwlb4in",
+      "type": "steps",
+      "date": "2026-10-17T00:00:00.000Z",
+      "value": 4165,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:02.504Z"
     },
     {
       "id": "cmvce7zdo003e2kpnr4annq8x",
@@ -5698,14 +5688,14 @@
       "createdAt": "2026-10-17T12:49:03.705Z"
     },
     {
-      "id": "cmvce7zvy003h2kpnuc3q9oc1",
-      "type": "readiness_hold",
+      "id": "cmvce7ye900202kpn94j56v1g",
+      "type": "resting_hr",
       "date": "2026-10-17T00:00:00.000Z",
-      "value": 0,
-      "unit": "flag",
-      "source": "ar-health",
-      "meta": "6.0 h sleep",
-      "createdAt": "2026-10-17T12:49:04.366Z"
+      "value": 72,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:02.433Z"
     },
     {
       "id": "cmvce7yex00272kpnwhabg37p",
@@ -5718,24 +5708,34 @@
       "createdAt": "2026-10-17T12:49:02.458Z"
     },
     {
-      "id": "cmvce7yg8002k2kpn6kwlb4in",
-      "type": "steps",
+      "id": "cmvce7yfi002d2kpnkchwjjzj",
+      "type": "respiratory_rate",
       "date": "2026-10-17T00:00:00.000Z",
-      "value": 4165,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T12:49:02.504Z"
-    },
-    {
-      "id": "cmvce7ye900202kpn94j56v1g",
-      "type": "resting_hr",
-      "date": "2026-10-17T00:00:00.000Z",
-      "value": 72,
+      "value": 21.6,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-17T12:49:02.433Z"
+      "createdAt": "2026-10-17T12:49:02.478Z"
+    },
+    {
+      "id": "cmvce7zvy003h2kpnuc3q9oc1",
+      "type": "readiness_hold",
+      "date": "2026-10-17T00:00:00.000Z",
+      "value": 0,
+      "unit": "flag",
+      "source": "ar-health",
+      "meta": "6.0 h sleep",
+      "createdAt": "2026-10-17T12:49:04.366Z"
+    },
+    {
+      "id": "cmvce7zdo003g2kpn3wb69haz",
+      "type": "sleep_awake_min",
+      "date": "2026-10-17T00:00:00.000Z",
+      "value": 86,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-17T12:49:03.705Z"
     },
     {
       "id": "cmvce7wp9000u2kpnzib9i6x1",
@@ -5768,16 +5768,6 @@
       "createdAt": "2026-10-17T16:48:46.498Z"
     },
     {
-      "id": "cmvcms97o002y1tt68xm6vba7",
-      "type": "heart_rate",
-      "date": "2026-10-17T11:13:21.000Z",
-      "value": 76,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-17T16:48:46.500Z"
-    },
-    {
       "id": "cmvcms93t00191tt61nc7u29m",
       "type": "bp_systolic",
       "date": "2026-10-17T11:13:21.000Z",
@@ -5798,40 +5788,30 @@
       "createdAt": "2026-10-17T16:48:46.392Z"
     },
     {
-      "id": "cmvdr5mu5000k7gkre6bbztru",
-      "type": "respiratory_rate",
-      "date": "2026-10-18T00:00:00.000Z",
-      "value": 22.6,
+      "id": "cmvcms97o002y1tt68xm6vba7",
+      "type": "heart_rate",
+      "date": "2026-10-17T11:13:21.000Z",
+      "value": 76,
       "unit": "count/min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-18T11:38:55.325Z"
+      "createdAt": "2026-10-17T16:48:46.500Z"
+    },
+    {
+      "id": "cmvdr5mus000r7gkr7sygos04",
+      "type": "steps",
+      "date": "2026-10-18T00:00:00.000Z",
+      "value": 3768.680763251459,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-18T11:38:55.348Z"
     },
     {
       "id": "cmvdr5nkb001f7gkr3fzfm3i5",
       "type": "sleep_awake_min",
       "date": "2026-10-18T00:00:00.000Z",
       "value": 0,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-18T11:38:56.264Z"
-    },
-    {
-      "id": "cmvdr5nka001d7gkr6bzfay2t",
-      "type": "sleep_rem_min",
-      "date": "2026-10-18T00:00:00.000Z",
-      "value": 74,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-18T11:38:56.264Z"
-    },
-    {
-      "id": "cmvdr5nka001e7gkrktpuw0v8",
-      "type": "sleep_core_min",
-      "date": "2026-10-18T00:00:00.000Z",
-      "value": 247,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -5858,6 +5838,16 @@
       "createdAt": "2026-10-18T11:38:55.300Z"
     },
     {
+      "id": "cmvdr5mu5000k7gkre6bbztru",
+      "type": "respiratory_rate",
+      "date": "2026-10-18T00:00:00.000Z",
+      "value": 22.6,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-18T11:38:55.325Z"
+    },
+    {
       "id": "cmvdr5nzx001g7gkrjxvnnhp2",
       "type": "readiness_hold",
       "date": "2026-10-18T00:00:00.000Z",
@@ -5868,14 +5858,14 @@
       "createdAt": "2026-10-18T11:38:56.830Z"
     },
     {
-      "id": "cmvdr5mus000r7gkr7sygos04",
-      "type": "steps",
+      "id": "cmvdr5nka001e7gkrktpuw0v8",
+      "type": "sleep_core_min",
       "date": "2026-10-18T00:00:00.000Z",
-      "value": 3768.680763251459,
-      "unit": "count",
+      "value": 247,
+      "unit": "min",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-18T11:38:55.348Z"
+      "createdAt": "2026-10-18T11:38:56.264Z"
     },
     {
       "id": "cmvdr5nka001b7gkr1qurej62",
@@ -5890,6 +5880,16 @@
     {
       "id": "cmvdr5nka001c7gkrg2zizwct",
       "type": "sleep_deep_min",
+      "date": "2026-10-18T00:00:00.000Z",
+      "value": 74,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-18T11:38:56.264Z"
+    },
+    {
+      "id": "cmvdr5nka001d7gkr6bzfay2t",
+      "type": "sleep_rem_min",
       "date": "2026-10-18T00:00:00.000Z",
       "value": 74,
       "unit": "min",
@@ -5918,16 +5918,6 @@
       "createdAt": "2026-10-19T07:52:38.141Z"
     },
     {
-      "id": "cmveyihaw002g7lun7zx827p7",
-      "type": "hrv_sdnn",
-      "date": "2026-10-19T00:00:00.000Z",
-      "value": 22.5242093584247,
-      "unit": "ms",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-19T07:52:38.168Z"
-    },
-    {
       "id": "cmveyiivt003h7luniuot7wa0",
       "type": "readiness_hold",
       "date": "2026-10-19T00:00:00.000Z",
@@ -5938,6 +5928,16 @@
       "createdAt": "2026-10-19T07:52:40.217Z"
     },
     {
+      "id": "cmveyihaw002g7lun7zx827p7",
+      "type": "hrv_sdnn",
+      "date": "2026-10-19T00:00:00.000Z",
+      "value": 22.5242093584247,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-19T07:52:38.168Z"
+    },
+    {
       "id": "cmvewg0zb003ls6nlrm566bjq",
       "type": "steps",
       "date": "2026-10-19T00:00:00.000Z",
@@ -5946,16 +5946,6 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-19T06:54:44.471Z"
-    },
-    {
-      "id": "cmvgc8atl00331vcrug7hu71t",
-      "type": "heart_rate",
-      "date": "2026-10-19T18:24:04.000Z",
-      "value": 78,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-20T07:04:24.010Z"
     },
     {
       "id": "cmvgc8am600181vcrutgzdxq4",
@@ -5976,6 +5966,16 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-20T07:04:23.800Z"
+    },
+    {
+      "id": "cmvgc8atl00331vcrug7hu71t",
+      "type": "heart_rate",
+      "date": "2026-10-19T18:24:04.000Z",
+      "value": 78,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-20T07:04:24.010Z"
     },
     {
       "id": "cmvgc8anv001q1vcr2f3hug4z",
@@ -6028,16 +6028,6 @@
       "createdAt": "2026-10-20T07:04:24.021Z"
     },
     {
-      "id": "cmvgc8bmw003j1vcr5yqbayp6",
-      "type": "resting_hr",
-      "date": "2026-10-20T00:00:00.000Z",
-      "value": 68,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-20T07:04:25.064Z"
-    },
-    {
       "id": "cmvgc8bny003w1vcryhzzuxz7",
       "type": "respiratory_rate",
       "date": "2026-10-20T00:00:00.000Z",
@@ -6048,13 +6038,13 @@
       "createdAt": "2026-10-20T07:04:25.102Z"
     },
     {
-      "id": "cmvgc8c5k004r1vcrvzertjdn",
-      "type": "sleep_asleep_h",
+      "id": "cmvgc8c5k004t1vcr4fifw3to",
+      "type": "sleep_rem_min",
       "date": "2026-10-20T00:00:00.000Z",
-      "value": 7.05,
-      "unit": "h",
+      "value": 115,
+      "unit": "min",
       "source": "apple-health",
-      "meta": "{\"bed\":\"2026-10-19T21:13:00.000Z\",\"wake\":\"2026-10-20T04:16:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":423,\"wakeUps\":0,\"mainBed\":\"2026-10-19T21:13:00.000Z\",\"mainAsleepMin\":423}",
+      "meta": null,
       "createdAt": "2026-10-20T07:04:25.731Z"
     },
     {
@@ -6068,16 +6058,6 @@
       "createdAt": "2026-10-20T07:04:25.086Z"
     },
     {
-      "id": "cmvgc8boi00431vcrl40xq3cf",
-      "type": "steps",
-      "date": "2026-10-20T00:00:00.000Z",
-      "value": 3021.969373808788,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-20T07:04:25.122Z"
-    },
-    {
       "id": "cmvgc8c5k004s1vcr108jyr6l",
       "type": "sleep_deep_min",
       "date": "2026-10-20T00:00:00.000Z",
@@ -6088,14 +6068,44 @@
       "createdAt": "2026-10-20T07:04:25.731Z"
     },
     {
-      "id": "cmvgc8c5k004t1vcr4fifw3to",
-      "type": "sleep_rem_min",
+      "id": "cmvgc8c5l004v1vcr43yly8jm",
+      "type": "sleep_awake_min",
       "date": "2026-10-20T00:00:00.000Z",
-      "value": 115,
+      "value": 0,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-20T07:04:25.731Z"
+    },
+    {
+      "id": "cmvgc8boi00431vcrl40xq3cf",
+      "type": "steps",
+      "date": "2026-10-20T00:00:00.000Z",
+      "value": 3021.969373808788,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-20T07:04:25.122Z"
+    },
+    {
+      "id": "cmvgc8c5k004r1vcrvzertjdn",
+      "type": "sleep_asleep_h",
+      "date": "2026-10-20T00:00:00.000Z",
+      "value": 7.05,
+      "unit": "h",
+      "source": "apple-health",
+      "meta": "{\"bed\":\"2026-10-19T21:13:00.000Z\",\"wake\":\"2026-10-20T04:16:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":423,\"wakeUps\":0,\"mainBed\":\"2026-10-19T21:13:00.000Z\",\"mainAsleepMin\":423}",
+      "createdAt": "2026-10-20T07:04:25.731Z"
+    },
+    {
+      "id": "cmvgc8bmw003j1vcr5yqbayp6",
+      "type": "resting_hr",
+      "date": "2026-10-20T00:00:00.000Z",
+      "value": 68,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-20T07:04:25.064Z"
     },
     {
       "id": "cmvgc8cfv004w1vcr7i64ewgd",
@@ -6112,16 +6122,6 @@
       "type": "sleep_core_min",
       "date": "2026-10-20T00:00:00.000Z",
       "value": 245,
-      "unit": "min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-20T07:04:25.731Z"
-    },
-    {
-      "id": "cmvgc8c5l004v1vcr43yly8jm",
-      "type": "sleep_awake_min",
-      "date": "2026-10-20T00:00:00.000Z",
-      "value": 0,
       "unit": "min",
       "source": "apple-health",
       "meta": null,
@@ -6148,16 +6148,6 @@
       "createdAt": "2026-10-20T07:04:23.087Z"
     },
     {
-      "id": "cmvgc8atz00391vcrnjza384q",
-      "type": "heart_rate",
-      "date": "2026-10-20T04:57:05.000Z",
-      "value": 72,
-      "unit": "count/min",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-20T07:04:24.023Z"
-    },
-    {
       "id": "cmvgc8anx001r1vcrt5ljxvfh",
       "type": "bp_diastolic",
       "date": "2026-10-20T04:57:05.000Z",
@@ -6176,6 +6166,36 @@
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-20T07:04:23.749Z"
+    },
+    {
+      "id": "cmvgc8atz00391vcrnjza384q",
+      "type": "heart_rate",
+      "date": "2026-10-20T04:57:05.000Z",
+      "value": 72,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-20T07:04:24.023Z"
+    },
+    {
+      "id": "cmvjjf7ou00448i3xs56tad7n",
+      "type": "sleep_spo2_low",
+      "date": "2026-10-21T00:00:00.000Z",
+      "value": 92.9,
+      "unit": "%",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-22T12:49:02.381Z"
+    },
+    {
+      "id": "cmvjjf7ou00428i3xihl1rv55",
+      "type": "sleep_core_min",
+      "date": "2026-10-21T00:00:00.000Z",
+      "value": 194,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-22T12:49:02.381Z"
     },
     {
       "id": "cmvjjf7ou00418i3xvzfi6l0w",
@@ -6208,11 +6228,21 @@
       "createdAt": "2026-10-22T12:49:02.381Z"
     },
     {
-      "id": "cmvjjf7ou00428i3xihl1rv55",
-      "type": "sleep_core_min",
+      "id": "cmvjjf6b0003i8i3xk3vbve4g",
+      "type": "steps",
       "date": "2026-10-21T00:00:00.000Z",
-      "value": 194,
-      "unit": "min",
+      "value": 3641,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-22T12:49:00.588Z"
+    },
+    {
+      "id": "cmvjjf7ou00458i3xlyypblgs",
+      "type": "sleep_spo2_avg",
+      "date": "2026-10-21T00:00:00.000Z",
+      "value": 92.9,
+      "unit": "%",
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-22T12:49:02.381Z"
@@ -6228,36 +6258,6 @@
       "createdAt": "2026-10-22T12:49:02.381Z"
     },
     {
-      "id": "cmvjjf7ou00448i3xs56tad7n",
-      "type": "sleep_spo2_low",
-      "date": "2026-10-21T00:00:00.000Z",
-      "value": 92.9,
-      "unit": "%",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-22T12:49:02.381Z"
-    },
-    {
-      "id": "cmvjjf7ou00458i3xlyypblgs",
-      "type": "sleep_spo2_avg",
-      "date": "2026-10-21T00:00:00.000Z",
-      "value": 92.9,
-      "unit": "%",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-22T12:49:02.381Z"
-    },
-    {
-      "id": "cmvjjf6b0003i8i3xk3vbve4g",
-      "type": "steps",
-      "date": "2026-10-21T00:00:00.000Z",
-      "value": 3641,
-      "unit": "count",
-      "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-22T12:49:00.588Z"
-    },
-    {
       "id": "cmvjjf7pc00478i3xus75v3y7",
       "type": "sleep_deep_min",
       "date": "2026-10-22T00:00:00.000Z",
@@ -6268,34 +6268,54 @@
       "createdAt": "2026-10-22T12:49:02.399Z"
     },
     {
-      "id": "cmvjjf7pc00488i3x8aqkoh89",
-      "type": "sleep_rem_min",
+      "id": "cmvjjf6b7003j8i3xexkma6kd",
+      "type": "steps",
       "date": "2026-10-22T00:00:00.000Z",
-      "value": 23,
-      "unit": "min",
+      "value": 5663.248843455647,
+      "unit": "count",
       "source": "apple-health",
       "meta": null,
-      "createdAt": "2026-10-22T12:49:02.399Z"
+      "createdAt": "2026-10-22T12:49:00.596Z"
+    },
+    {
+      "id": "cmvjjf8if004b8i3xz3uhegm2",
+      "type": "readiness_hold",
+      "date": "2026-10-22T00:00:00.000Z",
+      "value": 1,
+      "unit": "flag",
+      "source": "ar-health",
+      "meta": "1.9 h sleep",
+      "createdAt": "2026-10-22T12:49:03.447Z"
+    },
+    {
+      "id": "cmvlqdnb70030h0gvbc6sq5v6",
+      "type": "resting_hr",
+      "date": "2026-10-22T00:00:00.000Z",
+      "value": 77,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-24T01:39:18.979Z"
     },
     {
       "id": "cmvjy2ikn003913ngqb9mypcx",
       "type": "hrv_sdnn",
       "date": "2026-10-22T00:00:00.000Z",
-      "value": 19.16880774418257,
+      "value": 17.32697026867178,
       "unit": "ms",
       "source": "apple-health",
       "meta": null,
       "createdAt": "2026-10-22T19:39:04.199Z"
     },
     {
-      "id": "cmvjjf6b7003j8i3xexkma6kd",
-      "type": "steps",
+      "id": "cmvjjf7pc00468i3xrufnrz54",
+      "type": "sleep_asleep_h",
       "date": "2026-10-22T00:00:00.000Z",
-      "value": 4717.109376741737,
-      "unit": "count",
+      "value": 1.88,
+      "unit": "h",
       "source": "apple-health",
-      "meta": null,
-      "createdAt": "2026-10-22T12:49:00.596Z"
+      "meta": "{\"bed\":\"2026-10-21T15:41:00.000Z\",\"wake\":\"2026-10-21T17:34:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":113,\"wakeUps\":0,\"mainBed\":\"2026-10-21T15:41:00.000Z\",\"mainAsleepMin\":113}",
+      "createdAt": "2026-10-22T12:49:02.399Z"
     },
     {
       "id": "cmvjjf7pd004a8i3xze7x6tup",
@@ -6318,24 +6338,74 @@
       "createdAt": "2026-10-22T12:49:02.399Z"
     },
     {
-      "id": "cmvjjf8if004b8i3xz3uhegm2",
-      "type": "readiness_hold",
+      "id": "cmvjjf7pc00488i3x8aqkoh89",
+      "type": "sleep_rem_min",
       "date": "2026-10-22T00:00:00.000Z",
-      "value": 1,
-      "unit": "flag",
-      "source": "ar-health",
-      "meta": "1.9 h sleep",
-      "createdAt": "2026-10-22T12:49:03.447Z"
+      "value": 23,
+      "unit": "min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-22T12:49:02.399Z"
     },
     {
-      "id": "cmvjjf7pc00468i3xrufnrz54",
-      "type": "sleep_asleep_h",
-      "date": "2026-10-22T00:00:00.000Z",
-      "value": 1.88,
-      "unit": "h",
+      "id": "cmvlqdnbb0031h0gvd1f1olwp",
+      "type": "resting_hr",
+      "date": "2026-10-23T00:00:00.000Z",
+      "value": 73,
+      "unit": "count/min",
       "source": "apple-health",
-      "meta": "{\"bed\":\"2026-10-21T15:41:00.000Z\",\"wake\":\"2026-10-21T17:34:00.000Z\",\"sources\":[\"Google Health\"],\"asleepMin\":113,\"wakeUps\":0,\"mainBed\":\"2026-10-21T15:41:00.000Z\",\"mainAsleepMin\":113}",
-      "createdAt": "2026-10-22T12:49:02.399Z"
+      "meta": null,
+      "createdAt": "2026-10-24T01:39:18.983Z"
+    },
+    {
+      "id": "cmvlqdnct003gh0gvymglgx78",
+      "type": "steps",
+      "date": "2026-10-23T00:00:00.000Z",
+      "value": 3223.071434569432,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-24T01:39:19.038Z"
+    },
+    {
+      "id": "cmvlqdnbw0037h0gv1dpslyny",
+      "type": "hrv_sdnn",
+      "date": "2026-10-23T00:00:00.000Z",
+      "value": 23.27929004567729,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-24T01:39:19.005Z"
+    },
+    {
+      "id": "cmvlqdnbf0032h0gvzhlpnvun",
+      "type": "resting_hr",
+      "date": "2026-10-24T00:00:00.000Z",
+      "value": 73,
+      "unit": "count/min",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-24T01:39:18.987Z"
+    },
+    {
+      "id": "cmvlqdncz003hh0gvjbfesivv",
+      "type": "steps",
+      "date": "2026-10-24T00:00:00.000Z",
+      "value": 409.928565430568,
+      "unit": "count",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-24T01:39:19.043Z"
+    },
+    {
+      "id": "cmvlqdnc00038h0gvz5warx4i",
+      "type": "hrv_sdnn",
+      "date": "2026-10-24T00:00:00.000Z",
+      "value": 22.48792488105844,
+      "unit": "ms",
+      "source": "apple-health",
+      "meta": null,
+      "createdAt": "2026-10-24T01:39:19.008Z"
     }
   ],
   "holds": [],
@@ -19606,15 +19676,15 @@
       {
         "id": "cmuzf3won0003lgpjv81tisk4",
         "day": "2026-10-21T00:00:00.000Z",
-        "proteinG": 77,
+        "proteinG": 115,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 1363,
-        "carbsG": 140,
-        "fatG": 54,
+        "kcal": 1910,
+        "carbsG": 169,
+        "fatG": 85,
         "flags": null,
-        "notes": "Delivery breakfast only so far (sausage omelette; delivery 1327 minus soup 267 and burger 547 = ~513/33/48/21). Subway 6-inch sub (est 540/41/52/18) + hash brown bites (est 310/3/40/15). Soup and Swiss mushroom burger not eaten yet.",
+        "notes": "Delivery breakfast only so far (sausage omelette; delivery 1327 minus soup 267 and burger 547 = ~513/33/48/21). Subway 6-inch sub (est 540/41/52/18) + hash brown bites (est 310/3/40/15). Soup and Swiss mushroom burger not eaten yet. · dinner: delivery burger (no soup)",
         "createdAt": "2026-10-08T10:52:52.919Z"
       },
       {
@@ -19630,6 +19700,20 @@
         "flags": null,
         "notes": "Planned: delivery 1155/61/104/55 (scrambled egg and turkey breakfast) + standing dinner 630/67/57/12 (200 g chicken + rice)",
         "createdAt": "2026-10-08T10:52:52.923Z"
+      },
+      {
+        "id": "cmvkxbpsa00001170cqcra5ne",
+        "day": "2026-10-23T00:00:00.000Z",
+        "proteinG": 48,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1317,
+        "carbsG": 115,
+        "fatG": 74,
+        "flags": null,
+        "notes": "Saddle brunch, half each: pancakes 467, house breakfast 455, swirl croissant 395 (menu kcal; macros est)",
+        "createdAt": "2026-10-23T12:06:00.010Z"
       },
       {
         "id": "cmuzf3wox0005lgpj1y4p6fwo",
