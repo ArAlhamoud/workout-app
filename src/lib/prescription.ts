@@ -330,6 +330,19 @@ export function prescriptionInputs<R extends InputRow>(
   const cut = inRamp ? rampBaseBefore(training, cleanDates, now) : null;
   const pinFor = pinMapFor(gymRows as never, exercises, gym);
   const stepIsHis = stepIsHisFor(exercises, gym);
+  // When each machine was last DONE, at either gym and through a ramp: the
+  // rotation reads this, never weight memory, which is gym-scoped and in a
+  // ramp frozen at the pre-break record (adversary, 2026-10-24). Which
+  // movement he did last is a fact about training, not a weight (rule 2).
+  const lastDoneAt: Record<string, string> = {};
+  for (const w of training) {
+    if (isRescueName(w.name)) continue;
+    const at = new Date(w.date).toISOString();
+    for (const st of w.sets ?? []) {
+      if (st.isWarmup) continue;
+      if (!lastDoneAt[st.exerciseId] || at > lastDoneAt[st.exerciseId]) lastDoneAt[st.exerciseId] = at;
+    }
+  }
   return {
     training,
     status,
@@ -339,6 +352,7 @@ export function prescriptionInputs<R extends InputRow>(
     cut,
     pinFor,
     stepIsHis,
+    lastDoneAt,
     plateauKgFor: (id: string) => plateauKgFor(gymRows as never, id, inRamp),
   };
 }
@@ -402,17 +416,18 @@ export function planExercises(
  * LONGER ago stays, the other leaves today's list. Never done → it is due;
  * a tie keeps the first in template order. Applied to the template BEFORE
  * planExercises numbers it, by the phone logger, /train and the Watch plan
- * alike, from the same gym-scoped memory — so all three show the same day.
+ * alike, from prescriptionInputs' lastDoneAt (both gyms, the same window) —
+ * so all three show the same day wherever he trains.
  */
 export function rotatePairs<T extends Pick<ProgramExercise, 'name' | 'rotatesWith'>>(
   template: T[],
   byName: Map<string, { id: string }>,
-  memory: Record<string, Pick<ExerciseMemory, 'lastDate'>>,
+  lastDoneAt: Record<string, string | undefined>,
 ): T[] {
   const names = new Set(template.map((t) => t.name));
   const last = (name: string) => {
     const id = byName.get(name)?.id;
-    const d = id ? memory[id]?.lastDate : undefined;
+    const d = id ? lastDoneAt[id] : undefined;
     return d ? new Date(d).getTime() : -Infinity;
   };
   const drop = new Set<string>();

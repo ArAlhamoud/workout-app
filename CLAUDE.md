@@ -250,7 +250,13 @@ scheduled dynamically from behaviour: train → recover next day → the other
 day is queued (`getDynamicPlan`). A layoff of `BREAK_THRESHOLD_DAYS` (21+)
 days triggers a 4-week return ramp (REBOOT 60% → RESTORE 100%) that
 pre-scales weights and caps RPE; repeat breaks rejoin at week
-`REJOIN_AT_WEEK`. Two gyms: `bfit` (B_Fit — Life Fitness/Hoist/Hammer,
+`REJOIN_AT_WEEK`. Progression is **double progression** (owner,
+2026-10-24): a session done in full at one weight, last set Easy or Med,
+asks one more rep next time; every set at repsMax takes one pin and the
+reps restart at repsMin; Hard holds; in a ramp only Easy climbs; Back
+Extension and Ab Crunch pin only from an Easy top (`pinNeedsEasy`). Rear
+Delt Fly and Face Pull share one Day B slot (`rotatePairs`, read from
+history at both gyms). Two gyms: `bfit` (B_Fit — Life Fitness/Hoist/Hammer,
 default) and `work` (Alrajhi Tower — Precor + one Hoist crossover that
 substitutes for the five machines that building lacks; see
 `src/lib/gym-equipment.ts`). All stacks at both gyms are read in **kg**.

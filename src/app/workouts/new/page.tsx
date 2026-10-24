@@ -186,8 +186,9 @@ export default async function NewWorkoutPage({
 
   const plankTarget = getPlankTarget(status.week);
   // One of each rotating pair (Rear Delt Fly / Face Pull) — the same pick
-  // /train and the Watch plan make from the same memory (rotatePairs).
-  const rotated = rotatePairs(initialExercises, new Map(initialExercises.map((e) => [e.name, { id: e.exerciseId }])), lastSession);
+  // /train and the Watch plan make, from history at both gyms (rotatePairs),
+  // so a gym switch never changes it.
+  const rotated = rotatePairs(initialExercises, new Map(initialExercises.map((e) => [e.name, { id: e.exerciseId }])), inputs.lastDoneAt);
   const finalExercises = rotated.map((ex) =>
     ex.name === 'Plank' ? { ...ex, defaultReps: plankTarget.min } : ex
   );

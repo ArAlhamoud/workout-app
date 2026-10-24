@@ -245,6 +245,9 @@ const pStall = detectPlateau(stalled, testEx.id);
 assert(pStall.plateaued && pStall.sessions === 3, `the reps stopped at 12 for three sessions at Hard — that IS a stall, counted from the last gain (got ${JSON.stringify(pStall)})`);
 const lostRep = [repSession('2026-07-01', 12, 3), repSession('2026-07-08', 11, 3), repSession('2026-07-15', 11, 3)];
 assert(detectPlateau(lostRep, testEx.id).plateaued, 'losing a rep is not a gain: the streak runs on');
+const wobble = [12, 13, 12, 13, 12, 13].map((r, i) => repSession(`2026-07-${String(i * 7 + 1).padStart(2, '0')}`, r, 3));
+const pWob = detectPlateau(wobble, testEx.id);
+assert(pWob.plateaued && pWob.sessions === 5, `12, 13, 12, 13, 12, 13 at Hard is a stall from the first 13 — a wobble back to a rep already reached is no gain (got ${JSON.stringify(pWob)})`);
 
 // ── effortDistribution on real history ───────────────────────
 console.log('effortDistribution');
@@ -2139,16 +2142,30 @@ console.log('Watch wave — one prescription (A3, trainer rulings 1, 5, 6)');
     const tplB = getExercisesForDuration('B', 45);
     const ids = new Map([['Rear Delt Fly', { id: 'rdf' }], ['Cable Face Pull', { id: 'fp' }]]);
     const has = (t: { name: string }[], n: string) => t.some((x) => x.name === n);
-    const rot1 = rotatePairs(tplB, ids, { rdf: { lastDate: '2026-10-22T00:00:00.000Z' }, fp: { lastDate: '2026-10-12T00:00:00.000Z' } });
+    const rot1 = rotatePairs(tplB, ids, { rdf: '2026-10-22T00:00:00.000Z', fp: '2026-10-12T00:00:00.000Z' });
     assert(!has(rot1, 'Rear Delt Fly') && has(rot1, 'Cable Face Pull') && rot1.length === tplB.length - 1, 'Rear Delt Fly done last time → Face Pull today, one machine fewer');
-    const rot2 = rotatePairs(tplB, ids, { rdf: { lastDate: '2026-10-12T00:00:00.000Z' }, fp: { lastDate: '2026-10-22T00:00:00.000Z' } });
+    const rot2 = rotatePairs(tplB, ids, { rdf: '2026-10-12T00:00:00.000Z', fp: '2026-10-22T00:00:00.000Z' });
     assert(has(rot2, 'Rear Delt Fly') && !has(rot2, 'Cable Face Pull'), '…and back the next Day B');
-    const tie = rotatePairs(tplB, ids, { rdf: { lastDate: '2026-10-22T00:00:00.000Z' }, fp: { lastDate: '2026-10-22T00:00:00.000Z' } });
+    const tie = rotatePairs(tplB, ids, { rdf: '2026-10-22T00:00:00.000Z', fp: '2026-10-22T00:00:00.000Z' });
     assert(has(tie, 'Rear Delt Fly') && !has(tie, 'Cable Face Pull'), 'both done the same day: the first in template order stays');
-    const never = rotatePairs(tplB, ids, { rdf: { lastDate: '2026-10-22T00:00:00.000Z' } });
+    const never = rotatePairs(tplB, ids, { rdf: '2026-10-22T00:00:00.000Z' });
     assert(!has(never, 'Rear Delt Fly') && has(never, 'Cable Face Pull'), 'a member never done is the one due');
     const alone = rotatePairs(tplB.filter((t) => t.name !== 'Cable Face Pull'), ids, {});
     assert(has(alone, 'Rear Delt Fly'), 'a pair with one member off the list keeps the other');
+    {
+      // Adversary 2026-10-24: the rotation reads lastDoneAt — every gym, and
+      // through a ramp — never gym-scoped or ramp-frozen weight memory.
+      const day = (date: string, gym: string, names: string[]) => ({ date: new Date(`${date}T00:00:00Z`), name: 'Day B 45m', gym, duration: 2400, sets: names.flatMap((n) => [1, 2, 3].map(() => ({ exerciseId: n, weight: 20, reps: 12, rpe: 1, isWarmup: false }))) });
+      const filler = ['lp', 'mr', 'lc'];
+      const rows = [day('2026-08-01', 'bfit', ['rdf', 'fp', ...filler]), day('2026-10-16', 'bfit', ['fp', ...filler]), day('2026-10-20', 'work', ['rdf', ...filler])];
+      const exs = ['rdf', 'fp', ...filler].map((id) => ({ id, pinIncrement: null }));
+      const now = new Date('2026-10-22T09:00:00+03:00');
+      for (const gym of ['bfit', 'work']) {
+        const inp = prescriptionInputs(rows, exs, gym, now);
+        const r = rotatePairs(tplB, ids, inp.lastDoneAt);
+        assert(has(r, 'Cable Face Pull') && !has(r, 'Rear Delt Fly'), `Rear Delt Fly at work on 10-20 → Face Pull next, planned from ${gym} (got ${r.filter((t) => ids.has(t.name)).map((t) => t.name)})`);
+      }
+    }
     assert(rotatePairs(getExercisesForDuration('A', 45), ids, {}).length === getExercisesForDuration('A', 45).length, 'Day A has no pair: unchanged');
     // Rule 9: the phone logger, /train and the Watch plan all rotate.
     for (const f of ['src/app/workouts/new/page.tsx', 'src/app/train/page.tsx', 'src/app/api/watch/plan/route.ts']) {

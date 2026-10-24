@@ -232,7 +232,7 @@ export default async function TrainPage() {
     getLoggerMemory(previewIds, DEFAULT_GYM_ID, inputs.cut),
     readinessHoldToday(),
   ]);
-  const preview = planExercises(rotatePairs(template, exerciseByName, lastByExercise), exerciseByName, lastByExercise, inputs, { readinessHold }).map((e) => ({
+  const preview = planExercises(rotatePairs(template, exerciseByName, inputs.lastDoneAt), exerciseByName, lastByExercise, inputs, { readinessHold }).map((e) => ({
     name: e.name,
     setsReps: `${e.prescription.sets} × ${e.template.repsDisplay}`,
     isHold: e.template.unit === 'seconds',

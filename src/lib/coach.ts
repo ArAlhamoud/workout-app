@@ -219,13 +219,19 @@ export function detectPlateau(workouts: CoachWorkout[], exerciseId: string): Pla
   // A stall is no gain in weight OR reps: under double progression the
   // weight holds for several sessions while the reps climb, and that is
   // the program working, not a plateau to deload (2026-10-24).
-  let streak = 1;
-  while (streak < tops.length) {
-    const prev = tops[tops.length - 1 - streak];
-    const next = tops[tops.length - streak];
-    if (prev.top !== last.top || next.topReps > prev.topReps) break;
-    streak++;
+  // A gain means beating every EARLIER session at this weight, so a ±1
+  // wobble (12, 13, 12, 13) is still a stall (adversary, 2026-10-24).
+  const atTop: number[] = [];
+  for (let i = tops.length - 1; i >= 0 && tops[i].top === last.top; i--) atTop.unshift(i);
+  let start = atTop[0] ?? tops.length - 1;
+  let best = -Infinity;
+  for (const i of atTop) {
+    if (tops[i].topReps > best) {
+      if (best !== -Infinity) start = i;
+      best = tops[i].topReps;
+    }
   }
+  const streak = tops.length - start;
 
   const streakTops = tops.slice(tops.length - streak);
   const anyHard = streakTops.some((t) => t.topRpe != null && t.topRpe >= 3);

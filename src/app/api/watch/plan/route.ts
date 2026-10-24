@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     startableUntil: startableUntilFor(inputs.training[0] ? new Date(inputs.training[0].date) : null, new Date()),
     // planExercises filters unseeded names out FIRST, then numbers — the
     // same `order` the phone's blocks carry.
-    exercises: planExercises(rotatePairs(template, byName, memory), byName, memory, inputs, { readinessHold }).map((e) => ({
+    exercises: planExercises(rotatePairs(template, byName, inputs.lastDoneAt), byName, memory, inputs, { readinessHold }).map((e) => ({
       exerciseId: e.exerciseId,
       name: e.name,
       machine: e.template.machine,
