@@ -189,7 +189,7 @@ export interface Prescription {
  * phone, over its own allowance.
  */
 export function prescribeWorking(
-  ex: Pick<ProgramExercise, 'unit' | 'sets' | 'repsMin' | 'repsMax'>,
+  ex: Pick<ProgramExercise, 'unit' | 'sets' | 'repsMin' | 'repsMax' | 'pinNeedsEasy'>,
   memory: ExerciseMemory | undefined,
   pin: number,
   plateauKg: number | null,
@@ -223,8 +223,15 @@ export function prescribeWorking(
   // at the bottom — opening at repsMax on the heavier weight would skip the
   // climb for good. He logs what the prefill says (169 of 215 working sets
   // sat at repsMin), so an unasked rep is a rep that never happens.
-  const climbs = (!inRamp || memory.rampHold) && !ctx.rescue && !ctx.readinessHold && (memory.earned === true || memory.overload === true) && Number.isFinite(ex.repsMax);
+  // In a ramp (a held machine) the cap is Med, so a set rated AT the cap
+  // must not earn more: there it takes Easy (trainer, 2026-10-24).
+  const climbs =
+    (!inRamp || (memory.rampHold === true && memory.rpe === 1)) &&
+    !ctx.rescue && !ctx.readinessHold && (memory.earned === true || memory.overload === true) && Number.isFinite(ex.repsMax);
   if (climbs && memory.overload && (memory.repsFloor ?? 0) >= ex.repsMax) {
+    // A loaded spine takes the pin only from an Easy top (pinNeedsEasy); at
+    // Med it repeats the top of the range.
+    if (ex.pinNeedsEasy && memory.rpe !== 1) return { ...base, workingKg: w, reason: 'last', fromKg: w };
     return { ...base, workingKg: round2(w + p), reason: 'overload', fromKg: w, reps: ex.repsMin };
   }
   if (climbs && memory.repsFloor != null && memory.repsFloor < ex.repsMax) {

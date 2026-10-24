@@ -2112,6 +2112,25 @@ console.log('Watch wave — one prescription (A3, trainer rulings 1, 5, 6)');
     const hard = { weight: 40, reps: 10, rpe: 3, earned: false, overload: false };
     const pHard = prescribeWorking(spec('Lat Pulldown'), hard, 2.5, null, { rampPct: null, rescue: false });
     assert(pHard.workingKg === 40 && pHard.reason === 'last' && pHard.reps === undefined, `Hard holds weight and reps (got ${JSON.stringify(pHard)})`);
+    // Trainer, 2026-10-24: a held machine in REBOOT (cap Med) rated AT the
+    // cap earns nothing — in a ramp the climb takes Easy.
+    const heldMed = { weight: 35, reps: 12, rpe: 2, earned: true, overload: false, rampHold: true, repsFloor: 12 };
+    const pHeldMed = prescribeWorking(spec('Hip Abduction'), heldMed, 2.5, null, { rampPct: 60, rescue: false });
+    assert(pHeldMed.reason === 'held' && pHeldMed.reps === undefined, `a held machine rated Med in REBOOT holds (got ${JSON.stringify(pHeldMed)})`);
+    const pHeldEasy = prescribeWorking(spec('Hip Abduction'), { ...heldMed, rpe: 1 }, 2.5, null, { rampPct: 60, rescue: false });
+    assert(pHeldEasy.reason === 'reps' && pHeldEasy.reps === 13, `…rated Easy it climbs a rep (got ${JSON.stringify(pHeldEasy)})`);
+    // A loaded spine pins only from an Easy top (pinNeedsEasy).
+    const beTop = { weight: 45, reps: 15, rpe: 2, earned: true, overload: true, repsFloor: 15 };
+    const pBeMed = prescribeWorking(spec('Back Extension'), beTop, 2.5, null, { rampPct: null, rescue: false });
+    assert(pBeMed.workingKg === 45 && pBeMed.reason === 'last', `Back Extension 45 × 15 at Med repeats the top (got ${JSON.stringify(pBeMed)})`);
+    const pBeEasy = prescribeWorking(spec('Back Extension'), { ...beTop, rpe: 1 }, 2.5, null, { rampPct: null, rescue: false });
+    assert(pBeEasy.workingKg === 47.5 && pBeEasy.reps === 12, `…at Easy it takes the pin (got ${JSON.stringify(pBeEasy)})`);
+    assert(spec('Ab Crunch').pinNeedsEasy === true && spec('Back Extension').pinNeedsEasy === true && !spec('Lat Pulldown').pinNeedsEasy, 'Back Extension and Ab Crunch carry pinNeedsEasy');
+    {
+      const wf = fs.readFileSync(path.join(__dirname, '..', 'src/components/WorkoutForm.tsx'), 'utf8');
+      const calls = wf.match(/prescribeWorking\(\s*\{[^}]*\}/g) ?? [];
+      assert(calls.length === 2 && calls.every((c) => c.includes('pinNeedsEasy')), `every logger prescription carries pinNeedsEasy, or the phone pins Back Extension at Med while the Watch holds (${calls.length} calls)`);
+    }
     const inRampScaled = prescribeWorking(spec('Lat Pulldown'), med, 2.5, null, { rampPct: 85, rescue: false });
     assert(inRampScaled.reason === 'ramp', 'a scaled machine in the ramp asks no extra reps — the ramp is its own climb');
   }

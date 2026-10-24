@@ -29,6 +29,11 @@ export interface ProgramExercise {
    *  Fly and Face Pull both train the rear shoulder; doing both every Day B
    *  ran sessions to 95 min (trainer review, owner-approved 2026-10-24). */
   rotatesWith?: string;
+  /** The pin at the top of the range needs the last set EASY, not Med: a
+   *  loaded spine (Back Extension, Ab Crunch) climbs reps at Med but takes
+   *  more weight only when the top of the range was easy (trainer review of
+   *  double progression, 2026-10-24). */
+  pinNeedsEasy?: true;
 }
 
 export interface DayTemplate {
@@ -57,7 +62,7 @@ export const DAY_A: DayTemplate = {
     { name: 'Hip Adduction', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness (Hip Adduction — pads in)', cues: 'Flip the pads to the INSIDE of the thighs and start with the legs open. Sit tall, back on the pad, hands light on the handles. Squeeze the knees TOGETHER by driving through the inner thighs — feel it along the inside of the leg, not the knee joint. In 2s, hold 1s with the pads touching, open 3s under control and stop just before the stack touches down. It normally sits above your abduction weight — the inner thigh is the stronger side, so a heavier pin is not a form error. MISTAKE TO AVOID: setting the start position too wide — if the inner thigh pulls sharply at the start, close the range one notch.', youtubeUrl: 'https://www.youtube.com/watch?v=CjAVezAggkI', priority: 1 },
     { name: 'Leg Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '60s', machine: 'Life Fitness', cues: 'Adjust seat back so your knee joint aligns with the machine pivot point — this is critical for joint safety. Pad just above the ankle. Grip the handles to stop your hips lifting. Extend fully — flex quads hard and hold 1s at the top. Lower 3s under full control. MISTAKE TO AVOID: swinging or letting the weight drop — the slow eccentric is where you build the muscle. Toes slightly up throughout.', youtubeUrl: 'https://www.youtube.com/watch?v=2lvdnQg04PM', priority: 2 },
     { name: 'Pec Fly', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Hoist ROC-IT', cues: "Adjust seat so handles align with mid-chest. Set a slight bend in the elbows and KEEP that exact angle throughout — they are not a hinge. Open arms back only until you feel a mild chest stretch (roughly even with your body line — no further). Arc the handles together thinking 'hugging a tree', squeezing the chest hard. IMPORTANT — this Hoist seat is DESIGNED TO MOVE as you close: let it rock with you instead of fighting it, and keep your back on the pad. MISTAKE TO AVOID: opening arms too far back loads the bicep tendon and risks a shoulder tear — conservative range of motion is correct here.", youtubeUrl: 'https://www.youtube.com/watch?v=dY4LduyY8H0', priority: 2 },
-    { name: 'Ab Crunch', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Life Fitness (Abdominal)', cues: 'Adjust pad to sit across your upper chest/sternum. Cross arms over chest or hold handles lightly — do NOT pull with your arms. Exhale as you crunch DOWN — this forces maximum ab contraction. Hold 1s at full crunch. Return 3s. MISTAKE TO AVOID: using hip flexors instead of abs — you should only feel this in your mid-section, not your hip creases. Keep chin slightly tucked and never strain your neck.', youtubeUrl: 'https://www.youtube.com/watch?v=G8937xqkxDo', priority: 2 },
+    { name: 'Ab Crunch', sets: 3, repsMin: 15, repsMax: 20, unit: 'reps', repsDisplay: '15–20', rest: '45s', machine: 'Life Fitness (Abdominal)', cues: 'Adjust pad to sit across your upper chest/sternum. Cross arms over chest or hold handles lightly — do NOT pull with your arms. Exhale as you crunch DOWN — this forces maximum ab contraction. Hold 1s at full crunch. Return 3s. MISTAKE TO AVOID: using hip flexors instead of abs — you should only feel this in your mid-section, not your hip creases. Keep chin slightly tucked and never strain your neck.', youtubeUrl: 'https://www.youtube.com/watch?v=G8937xqkxDo', priority: 2 , pinNeedsEasy: true },
     { name: 'Lateral Raise', sets: 2, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '45s', machine: 'Life Fitness', cues: 'Sit upright, back against pad. Pads contact the outside of your forearms — not your wrists. Lead with your ELBOWS, not your hands, and raise only to shoulder height — going higher shifts the load to traps. Hold 1s at shoulder height. Lower 4s — the slow negative is critical for building the lateral delt. MISTAKE TO AVOID: shrugging the shoulders or using heavy weight and momentum. This exercise only works with strict form and light weight.', youtubeUrl: 'https://www.youtube.com/watch?v=NNAs8jx_zJI', priority: 3 },
   ],
 };
@@ -68,7 +73,7 @@ export const DAY_B: DayTemplate = {
   warmup: '5 min elliptical (easy pace) + shoulder rolls + gentle torso twists + 10 cat-cows on mat + 8 bird-dogs each side',
   cardioFinisher: '25–30 min swimming (best cardio on this day) OR 15 min elliptical at moderate pace',
   exercises: [
-    { name: 'Back Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '75s', machine: 'Life Fitness (seated Back Extension)', cues: 'This is the SEATED machine, not a roman chair — you sit upright, not face-down. Set the back pad so it sits across your upper back / shoulder blades, and the seat so your hips sit at the machine pivot. Cross arms on your chest or hold the handles. Press BACKWARD by driving your hips down into the seat and squeezing your glutes — the movement is a hip extension, the spine stays neutral and travels as one piece. Push back 2s, hold 1s, return 3s under control, stopping before the stack touches down. Range: only as far back as you can go without your ribs flaring or your chin lifting. MISTAKE TO AVOID: cranking backward with the lower back to chase range — a shorter, controlled rep with the glutes doing the work is the whole point, and at your bodyweight the seated version is far kinder to your spine than a roman chair.', youtubeUrl: 'https://www.youtube.com/watch?v=gLT-WLH84B4', priority: 1, alwaysWarm: true },
+    { name: 'Back Extension', sets: 3, repsMin: 12, repsMax: 15, unit: 'reps', repsDisplay: '12–15', rest: '75s', machine: 'Life Fitness (seated Back Extension)', cues: 'This is the SEATED machine, not a roman chair — you sit upright, not face-down. Set the back pad so it sits across your upper back / shoulder blades, and the seat so your hips sit at the machine pivot. Cross arms on your chest or hold the handles. Press BACKWARD by driving your hips down into the seat and squeezing your glutes — the movement is a hip extension, the spine stays neutral and travels as one piece. Push back 2s, hold 1s, return 3s under control, stopping before the stack touches down. Range: only as far back as you can go without your ribs flaring or your chin lifting. MISTAKE TO AVOID: cranking backward with the lower back to chase range — a shorter, controlled rep with the glutes doing the work is the whole point, and at your bodyweight the seated version is far kinder to your spine than a roman chair.', youtubeUrl: 'https://www.youtube.com/watch?v=gLT-WLH84B4', priority: 1, alwaysWarm: true , pinNeedsEasy: true },
     { name: 'Lat Pulldown', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hammer Strength', cues: 'Grip just outside shoulder width — wider is NOT better. Lock thighs under the pad. BEFORE pulling: depress your shoulder blades (pull shoulders away from ears). Then pull the bar to your upper chest by driving elbows straight DOWN and BACK toward your hips. Lean back 10–15° naturally. Hold 1s at bottom with lats squeezed. Return with arms fully extending for a full lat stretch at the top. MISTAKE TO AVOID: leaning back 45°+ turns this into a row — keep the lean minimal and feel your lats, not your biceps.', youtubeUrl: 'https://www.youtube.com/watch?v=NYQ-o3ffxOc', priority: 1 },
     { name: 'Mid Row', sets: 3, repsMin: 10, repsMax: 12, unit: 'reps', repsDisplay: '10–12', rest: '75s', machine: 'Hoist ROC-IT', cues: 'Adjust seat so handles are at mid-abdomen height. Sit upright with a slight forward lean at the hips — chest up, not hunched. Neutral grip (palms facing each other). BEFORE pulling: depress and slightly retract shoulder blades. Then row by driving elbows past your torso — aim for 90° elbow angle at full contraction. Squeeze shoulder blades together hard and hold 1s. Return 3s to a full arm extension and feel the lats stretch. IMPORTANT — this Hoist seat is DESIGNED TO MOVE as you row: keep your chest against the pad as it rocks and do not let it push you into a shrug. MISTAKE TO AVOID: shrugging shoulders up toward ears during the row — keep them down throughout.', youtubeUrl: 'https://www.youtube.com/watch?v=GZbfZ033f74', priority: 1 },
     { name: 'Plank', sets: 3, repsMin: 20, repsMax: 30, unit: 'seconds', repsDisplay: '20–30s', rest: '45s', machine: 'Floor / mat', cues: "KNEE PLANK is the default at your bodyweight — or dead bugs, which are as good for the spine. Knees and forearms on the mat, elbows directly under shoulders, a straight line from knees to head. KEEP BREATHING — slow, steady breaths in and out for the whole hold, 4–6 breaths per 30 s. Never hold your breath: a held breath under load spikes blood pressure. Squeeze glutes, draw the belly button toward the spine, push the floor away with the forearms. Hold 20–30 s; to progress, add a SET, not seconds. MISTAKE TO AVOID: hips piked up, or hips sagging — the moment the hips drop, the set is over. And no toes-down plank yet: at this bodyweight it drags the pelvis into a tilt and loads the lumbar spine.", youtubeUrl: 'https://www.youtube.com/watch?v=A2b2EmIg0dA', priority: 2 },
@@ -159,10 +164,10 @@ export function warmupDue(
 }
 
 /** The prescription for one named movement, wherever it sits in the week. */
-export function programSpec(name: string | null | undefined): { sets: number; repsMin: number; repsMax: number } | undefined {
+export function programSpec(name: string | null | undefined): { sets: number; repsMin: number; repsMax: number; pinNeedsEasy?: true } | undefined {
   if (!name) return undefined;
   const e = [...DAY_A.exercises, ...DAY_B.exercises].find((x) => x.name === name);
-  return e ? { sets: e.sets, repsMin: e.repsMin, repsMax: e.repsMax } : undefined;
+  return e ? { sets: e.sets, repsMin: e.repsMin, repsMax: e.repsMax, ...(e.pinNeedsEasy ? { pinNeedsEasy: e.pinNeedsEasy } : {}) } : undefined;
 }
 
 /** One logged working set, as the progression rules read it. */
@@ -489,8 +494,8 @@ export const WEEKLY_SESSION_TARGET = 3;
 
 export const PROGRESSION = [
   { weeks: '1–2', phase: 'LEARN', desc: 'Lightest weight. Learn each movement: full range, 2s up / 3s down. Chase technique, not fatigue.' },
-  { weeks: '3–4', phase: 'BUILD', desc: 'One more rep each session at the same weight. Every set at the top of the range → one pin up, back to the bottom reps. Last 2 reps should feel challenging.' },
-  { weeks: '5–6', phase: 'PUSH', desc: 'Same rule: one more rep, or one pin at the top of the range. Extend cardio to 12–15 min if energy allows.' },
+  { weeks: '3–4', phase: 'BUILD', desc: 'Last set Easy or Med → one more rep next time. Hard → repeat. Every set at the top → one pin, back to the bottom reps. Last 2 reps Med: keep breathing, never a grind.' },
+  { weeks: '5–6', phase: 'PUSH', desc: 'Same rule: Easy or Med → one more rep, or one pin at the top. Hard → repeat. Extend cardio to 12–15 min if energy allows.' },
   { weeks: '7', phase: 'DELOAD', desc: 'Drop weights 40%. Same exercises, light effort. Focus on stretching and sleep.' },
   { weeks: '8–10', phase: 'REBUILD', desc: "Return to Wk 6 weights — they'll feel easier. Continue adding weight/reps gradually." },
   { weeks: '11–12', phase: 'EVALUATE', desc: 'Measure: weight, how clothes fit, strength gains. Reassess if plateau.' },
@@ -1106,9 +1111,12 @@ export function nextTryWeight(
   last: { weight: number; reps?: number; rpe: number | null; overload?: boolean; repsFloor?: number } | null | undefined,
   pin: number,
   maxReps = Number.POSITIVE_INFINITY,
+  pinNeedsEasy = false,
 ): number | null {
   if (!last || last.weight <= 0 || !last.overload) return null;
   if (last.rpe != null && last.rpe >= 3) return null;
+  // A loaded spine takes the pin only from an Easy top — as prescribeWorking.
+  if (pinNeedsEasy && last.rpe !== 1) return null;
   // Reps first, then the pin: the chip must not offer what the seed declined.
   if ((last.repsFloor ?? last.reps ?? 0) < maxReps) return null;
   const p = pin > 0 ? pin : 2.5;

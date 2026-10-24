@@ -238,7 +238,7 @@ function buildBlocks(
     // returnLoadPct is undefined outside a ramp and set (even 100) inside
     // one or on a rescue — exactly prescribeWorking's `rampPct`.
     const p = prescribeWorking(
-      { unit, sets: ie.sets, repsMin: ie.defaultReps, repsMax: ie.maxReps ?? Number.POSITIVE_INFINITY },
+      { unit, sets: ie.sets, repsMin: ie.defaultReps, repsMax: ie.maxReps ?? Number.POSITIVE_INFINITY, pinNeedsEasy: programSpec(ie.name)?.pinNeedsEasy },
       prev,
       inc,
       plateauKgs[ie.exerciseId] ?? null,
@@ -1413,7 +1413,7 @@ export default function WorkoutForm({
             const inc = gymPins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
             const anchored = gymHisSteps.includes(b.exerciseId);
             const p = prescribeWorking(
-              { unit, sets: b.plannedSets ?? b.sets.filter((s) => !s.isWarmup).length, repsMin: b.defaultReps ?? 0, repsMax: b.maxReps ?? Number.POSITIVE_INFINITY },
+              { unit, sets: b.plannedSets ?? b.sets.filter((s) => !s.isWarmup).length, repsMin: b.defaultReps ?? 0, repsMax: b.maxReps ?? Number.POSITIVE_INFINITY, pinNeedsEasy: programSpec(b.programName)?.pinNeedsEasy },
               prevSession,
               inc,
               gymPlateaus[b.exerciseId] ?? null,
@@ -2464,7 +2464,7 @@ export default function WorkoutForm({
           const suggestWeight =
             !returnTarget && !isTimed && block.lastSession?.weight != null && !shouldHold && !deload &&
             !block.overloadApplied && !block.overloadDeclined
-              ? nextTryWeight(block.lastSession, pins[block.exerciseId] ?? DEFAULT_PIN_INCREMENT, block.maxReps ?? Number.POSITIVE_INFINITY)
+              ? nextTryWeight(block.lastSession, pins[block.exerciseId] ?? DEFAULT_PIN_INCREMENT, block.maxReps ?? Number.POSITIVE_INFINITY, programSpec(block.programName)?.pinNeedsEasy === true)
               : null;
 
           const est1RM = !isTimed
