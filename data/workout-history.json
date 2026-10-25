@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-10-24T09:19:58.032Z",
+  "exportedAt": "2026-10-25T09:36:55.308Z",
   "totalWorkouts": 22,
   "totalBodyStats": 50,
   "totalExercises": 21,
@@ -19704,16 +19704,30 @@
       {
         "id": "cmvkxbpsa00001170cqcra5ne",
         "day": "2026-10-23T00:00:00.000Z",
-        "proteinG": 48,
+        "proteinG": 109,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 1317,
-        "carbsG": 115,
-        "fatG": 74,
+        "kcal": 2845,
+        "carbsG": 247,
+        "fatG": 159,
         "flags": null,
-        "notes": "Saddle brunch, half each: pancakes 467, house breakfast 455, swirl croissant 395 (menu kcal; macros est)",
+        "notes": "Saddle brunch, half each: pancakes 467, house breakfast 455, swirl croissant 395 (menu kcal; macros est) · dinner: wings provencal all 520, half fattoush 163, half shish barak+rice 248, half potato coriander garlic 190 (menu kcal; macros est) · dessert: Belgian chocolate ice cream scoop 287 + waffle cone ~120 (est)",
         "createdAt": "2026-10-23T12:06:00.010Z"
+      },
+      {
+        "id": "cmvmzoz9t0000lwqns9cfurrj",
+        "day": "2026-10-24T00:00:00.000Z",
+        "proteinG": 93,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1938,
+        "carbsG": 159,
+        "fatG": 104,
+        "flags": null,
+        "notes": "brunch out: 1/4 breakfast biscuit sandwich 200, 1/2 buttermilk pancake 530, 1/2 full English ~500 (est, no menu kcal) · dinner: half Prego smoked mac & cheese balls (2 of 4; menu 169 read as per ball, est) · dinner also: steak ~150 g cooked (est)",
+        "createdAt": "2026-10-24T22:47:50.417Z"
       },
       {
         "id": "cmuzf3wox0005lgpj1y4p6fwo",
