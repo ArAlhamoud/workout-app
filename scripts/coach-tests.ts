@@ -6429,8 +6429,10 @@ console.log('Gym visits — geofence enter and exit');
   const up = pen([...real, inj('2026-11-03', 7.5)])!;
   assert(up.penNumber === 1 && up.remainingMg === 12.5 && up.currentDoseMg === 7.5 && up.dosesLeft === 1, 'a change to 7.5 mg counts what is left in 7.5 mg doses');
   assert(pen([]) === null && penStatus(real, { nextDueISO: null }) === null, 'no injections: no pen status and no reminder');
-  // Rule 12: a dose at 01:30 belongs to the activity day before, and so does its due day.
-  const late = pen([...real.slice(0, 9), inj('2026-10-28', 5, '01:30')])!;
+  // Rule 12: a dose at 03:30 Riyadh belongs to the activity day before, and so
+  // does its due day. 03:30 tells the activity day apart from BOTH the Riyadh
+  // calendar date (Dec 1 → Nov 30 buy) and the UTC date (00:30Z, Dec 1 too).
+  const late = pen([...real.slice(0, 9), inj('2026-10-28', 5, '03:30')])!;
   assert(late.buyByISO === '2026-11-30T00:00:00.000Z', 'the buy day follows the owner\'s activity day, not the calendar date of a 01:30 dose');
   const rem = fs.readFileSync(path.join(__dirname, '..', 'src/components/health/HealthReminders.tsx'), 'utf8');
   assert(/PEN_BUY_ID = 3004/.test(rem) && /'Buy a new pen'/.test(rem) && /Tomorrow's dose needs a new pen\./.test(rem), 'reminder 3004 says "Buy a new pen"');
@@ -6439,7 +6441,15 @@ console.log('Gym visits — geofence enter and exit');
   assert(/penStatus\(/.test(lay) && /buyByISO=/.test(lay), 'the health layout derives the buy date and passes it in');
   // Home re-arms the same ids: without the buy date it would cancel 3004 on every visit.
   const homeSrc = fs.readFileSync(path.join(__dirname, '..', 'src/app/page.tsx'), 'utf8');
-  assert(/buyByISO=\{penStatus\(/.test(homeSrc), 'Home passes the buy date too, so a Home visit never cancels the pen reminder');
+  assert(/buyByISO=\{penStatus\(data\.penDoses,/.test(homeSrc), 'Home passes the buy date too, so a Home visit never cancels the pen reminder');
+  // Every reader counts the WHOLE log: a 200-row window starts pen 1 at its edge.
+  const injPage = fs.readFileSync(path.join(__dirname, '..', 'src/app/health/injection/page.tsx'), 'utf8');
+  assert(/penStatus\(data\.penDoses,/.test(injPage), 'the dose card counts the pen from the whole log');
+  const actionsSrc = fs.readFileSync(path.join(__dirname, '..', 'src/app/health-actions.ts'), 'utf8');
+  assert(/penDoses\] =/.test(actionsSrc) && /prisma\.injection\.findMany\(\{ select: \{ at: true, doseMg: true \} \}\)/.test(actionsSrc), 'getHealthData reads the whole log for the pen, no take-window');
+  const window200 = Array.from({ length: 201 }, (_, k) => ({ at: new Date(Date.parse('2026-08-25T20:00:00+03:00') + k * 7 * 86_400_000), doseMg: 2.5 }));
+  const full = pen(window200)!; const cut = pen(window200.slice(1))!;
+  assert(full.remainingMg !== cut.remainingMg, 'a truncated log WOULD miscount the pen — which is why the readers take the whole log');
 }
 
 console.log(`\n${passed} passed, ${failed} failed`);

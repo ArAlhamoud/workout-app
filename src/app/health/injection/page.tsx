@@ -40,7 +40,7 @@ export default async function InjectionDayPage() {
   // before the first injection, week 1's dose. A checkpoint week prefills
   // nothing and says so.
   const plannedStep = clock ? clock.nextPlanned : plan.find((s) => s.week === 1) ?? null;
-  const pen = penStatus(data.injections, { nextDueISO: clock?.nextDue.toISOString() ?? null });
+  const pen = penStatus(data.penDoses, { nextDueISO: clock?.nextDue.toISOString() ?? null });
   const recentSites = data.injections.slice(0, 3).map((i) => ({
     site: i.site,
     at: i.at,

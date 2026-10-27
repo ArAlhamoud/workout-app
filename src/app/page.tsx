@@ -190,7 +190,7 @@ export default async function HomePage() {
       <HealthReminders
         nextDueISO={clock ? clock.nextDue.toISOString() : null}
         lastInjectionISO={clock ? clock.lastInjection.toISOString() : null}
-        buyByISO={penStatus(data.injections, { nextDueISO: clock ? clock.nextDue.toISOString() : null })?.buyByISO ?? null}
+        buyByISO={penStatus(data.penDoses, { nextDueISO: clock ? clock.nextDue.toISOString() : null })?.buyByISO ?? null}
         enabled={(profile.reminders as Record<string, boolean> | null) ?? {}}
       />
 
