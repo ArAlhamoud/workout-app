@@ -2,7 +2,7 @@
 
 // Health reminders — same architecture as Gap Guard: local notifications
 // scheduled ahead at every /health visit, no server, works with the app
-// killed. IDs 3001-3003. Cancel-and-re-arm is idempotent (same ids, same
+// killed. IDs 3001-3004. Cancel-and-re-arm is idempotent (same ids, same
 // dates), and all of it is a silent no-op outside the native shell.
 
 import { useEffect } from 'react';
@@ -16,19 +16,24 @@ import {
 const INJECTION_DUE_ID = 3001;
 const INJECTION_MISSED_ID = 3002;
 const SYMPTOM_FOLLOWUP_ID = 3003;
+const PEN_BUY_ID = 3004;
 
 export default function HealthReminders({
   nextDueISO,
   lastInjectionISO,
+  buyByISO,
   enabled,
 }: {
   nextDueISO: string | null;
   lastInjectionISO: string | null;
+  /** The owner's activity day before the first dose the pen can't cover
+   *  (src/lib/pen.ts), as UTC midnight of that day. */
+  buyByISO: string | null;
   enabled: { injection?: boolean; missed?: boolean; daySymptoms?: boolean };
 }) {
   useEffect(() => {
     if (!isNativeApp()) return;
-    cancelLocalNotifications([INJECTION_DUE_ID, INJECTION_MISSED_ID, SYMPTOM_FOLLOWUP_ID]);
+    cancelLocalNotifications([INJECTION_DUE_ID, INJECTION_MISSED_ID, SYMPTOM_FOLLOWUP_ID, PEN_BUY_ID]);
 
     const specs: LocalNotificationSpec[] = [];
     const at = (iso: string, addDays: number, hour: number): Date => {
@@ -75,8 +80,24 @@ export default function HealthReminders({
         });
       }
     }
+    if (buyByISO) {
+      // A day key, not an instant: read its date digits, so the phone's
+      // time zone cannot move it a day.
+      const [y, m, d] = buyByISO.slice(0, 10).split('-').map(Number);
+      const buy = new Date(y, m - 1, d, 18, 0, 0, 0);
+      if (buy.getTime() > Date.now()) {
+        specs.push({
+          id: PEN_BUY_ID,
+          title: 'Buy a new pen',
+          body: "Tomorrow's dose needs a new pen.",
+          schedule: { at: buy },
+          sound: 'default',
+          extra: { route: '/health/injection' },
+        });
+      }
+    }
     if (specs.length) scheduleLocalNotifications(specs);
-  }, [nextDueISO, lastInjectionISO, enabled.injection, enabled.missed, enabled.daySymptoms]);
+  }, [nextDueISO, lastInjectionISO, buyByISO, enabled.injection, enabled.missed, enabled.daySymptoms]);
 
   return null;
 }
