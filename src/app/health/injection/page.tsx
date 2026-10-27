@@ -12,6 +12,7 @@ import {
   type DosePlanStep,
 } from '@/lib/health-insights';
 import InjectionForm from '@/components/health/InjectionForm';
+import { penLine, penStatus } from '@/lib/pen';
 
 export const metadata: Metadata = { title: 'Dose day' };
 export const dynamic = 'force-dynamic';
@@ -39,6 +40,7 @@ export default async function InjectionDayPage() {
   // before the first injection, week 1's dose. A checkpoint week prefills
   // nothing and says so.
   const plannedStep = clock ? clock.nextPlanned : plan.find((s) => s.week === 1) ?? null;
+  const pen = penStatus(data.penDoses, { nextDueISO: clock?.nextDue.toISOString() ?? null });
   const recentSites = data.injections.slice(0, 3).map((i) => ({
     site: i.site,
     at: i.at,
@@ -89,10 +91,11 @@ export default async function InjectionDayPage() {
           </div>
         </div>
 
-        {bp && (
-          <p className="mt-3 border-t border-ink/10 pt-3 text-xs text-app-tx3">
-            7-day BP average {bp.systolic}/{bp.diastolic}
-          </p>
+        {(pen || bp) && (
+          <div className="mt-3 space-y-1 border-t border-ink/10 pt-3 text-xs text-app-tx3">
+            {pen && <p className="text-app-tx2">{penLine(pen)}</p>}
+            {bp && <p>7-day BP average {bp.systolic}/{bp.diastolic}</p>}
+          </div>
         )}
       </div>
 

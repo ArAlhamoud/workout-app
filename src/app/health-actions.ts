@@ -580,7 +580,7 @@ export async function getWeeklyDigest(): Promise<string | null> {
 
 export async function getHealthData() {
   const profile = await ensureHealthProfile();
-  const [injections, symptoms, afEpisodes, bpReadings, cpapNights, labs, meds, bodyStats, nutrition, firstInjection, injectionCount, visit] =
+  const [injections, symptoms, afEpisodes, bpReadings, cpapNights, labs, meds, bodyStats, nutrition, firstInjection, injectionCount, visit, penDoses] =
     await Promise.all([
       prisma.injection.findMany({ orderBy: { at: 'desc' }, take: 200 }),
       prisma.symptomLog.findMany({ orderBy: { at: 'desc' }, take: 1000 }),
@@ -599,6 +599,9 @@ export async function getHealthData() {
       // The doctor report's two newest columns, read by name (2026-10-18):
       // the birth month and the owner's questions for the doctor.
       prisma.healthProfile.findUnique({ where: { id: PROFILE_ID }, select: { birthDate: true, doctorQuestions: true } }),
+      // The pen counts from the FIRST dose (src/lib/pen.ts): the whole log,
+      // never the 200-row window, or pen 1 would start at the window's edge.
+      prisma.injection.findMany({ select: { at: true, doseMg: true } }),
     ]);
   return {
     profile: { ...profile, birthDate: visit?.birthDate ?? null, doctorQuestions: visit?.doctorQuestions ?? null },
@@ -606,6 +609,7 @@ export async function getHealthData() {
     meds, bodyStats, nutrition,
     firstInjectionAt: firstInjection?.at ?? null,
     injectionCount,
+    penDoses,
   };
 }
 

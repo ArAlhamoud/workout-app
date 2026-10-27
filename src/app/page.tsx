@@ -34,6 +34,7 @@ import { slimProgress } from '@/lib/body-figure';
 import CheckIn from '@/components/health/CheckIn';
 import DetectedSessionBanner from '@/components/health/DetectedSessionBanner';
 import HealthReminders from '@/components/health/HealthReminders';
+import { penStatus } from '@/lib/pen';
 
 export const metadata: Metadata = { title: 'AR Health' };
 export const dynamic = 'force-dynamic';
@@ -189,6 +190,7 @@ export default async function HomePage() {
       <HealthReminders
         nextDueISO={clock ? clock.nextDue.toISOString() : null}
         lastInjectionISO={clock ? clock.lastInjection.toISOString() : null}
+        buyByISO={penStatus(data.penDoses, { nextDueISO: clock ? clock.nextDue.toISOString() : null })?.buyByISO ?? null}
         enabled={(profile.reminders as Record<string, boolean> | null) ?? {}}
       />
 
