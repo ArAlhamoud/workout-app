@@ -13,7 +13,7 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { cpapAdherence, ownerMonthKey } from '../src/lib/health-insights';
 import { bornLabel, cpapAdherenceLabel, monthLabel, pdfSafe, reportAge, signedKg, weighInLabel, weightChangeAr, weightChangeLabel, wrapLines } from '../src/lib/health-format';
 import * as DR from '../src/lib/doctor-report';
-import { penStatus, penLine, PEN_TOTAL_MG } from '../src/lib/pen';
+import { penStatus, penLine, penSegments, buyByLabel, PEN_TOTAL_MG } from '../src/lib/pen';
 import { createPdfWriter, drawLabGrid, drawQuestions, LAB_SECTION_NEED, QUESTIONS_SECTION_NEED } from '../src/lib/report-pdf';
 import { bpChart, cpapAhiChart, cpapHoursChart, doseChart, layoutChart, weightChart, yScale } from '../src/lib/report-charts';
 import { canvasDensity, MAX_CANVAS_PIXELS, ZOOMS } from '../src/lib/pdf-view';
@@ -6414,6 +6414,9 @@ console.log('Gym visits — geofence enter and exit');
   assert(p.lastDoseFromPenISO?.slice(0, 10) === '2026-11-24', 'the last dose from this pen is 24 Nov');
   assert(p.buyByISO === '2026-11-30T00:00:00.000Z', 'buy reminder Mon 30 Nov: the 1 Dec dose needs the new pen');
   assert(penLine(p) === 'Pen · 20 of 60 mg left · 4 doses', 'the dose-card line reads "Pen · 20 of 60 mg left · 4 doses"');
+  assert(JSON.stringify(penSegments(p)) === '{"count":12,"lit":4}', 'the gauge: 12 dose segments of 5 mg, 4 lit');
+  assert(buyByLabel(p.buyByISO) === 'Mon 30 Nov', 'the gauge names the buy day "Mon 30 Nov" in any time zone');
+  assert(penSegments({ ...p, currentDoseMg: 12.5 }) === null, 'a dose that does not split the pen evenly falls back to a plain fill');
   // Pen 1 runs dry on 24 Nov; the 1 Dec dose opens pen 2 on its own.
   const nov = [...real, inj('2026-11-03', 5), inj('2026-11-10', 5), inj('2026-11-17', 5), inj('2026-11-24', 5)];
   const dry = pen(nov)!;
