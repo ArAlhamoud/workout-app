@@ -12,7 +12,8 @@ import {
   type DosePlanStep,
 } from '@/lib/health-insights';
 import InjectionForm from '@/components/health/InjectionForm';
-import { penLine, penStatus } from '@/lib/pen';
+import { penStatus } from '@/lib/pen';
+import PenGauge from '@/components/health/PenGauge';
 
 export const metadata: Metadata = { title: 'Dose day' };
 export const dynamic = 'force-dynamic';
@@ -78,7 +79,7 @@ export default async function InjectionDayPage() {
           <div>
             <div className="metric-value text-app-tx1">
               {clock ? clock.daysSinceLast : '—'}
-              <span className="ml-0.5 text-xs text-app-tx3">days</span>
+              <span className="ml-0.5 text-xs text-app-tx3">{clock?.daysSinceLast === 1 ? 'day' : 'days'}</span>
             </div>
             <div className="metric-label mt-0.5">since last</div>
           </div>
@@ -91,13 +92,14 @@ export default async function InjectionDayPage() {
           </div>
         </div>
 
-        {(pen || bp) && (
-          <div className="mt-3 space-y-1 border-t border-ink/10 pt-3 text-xs text-app-tx3">
-            {pen && <p className="text-app-tx2">{penLine(pen)}</p>}
-            {bp && <p>7-day BP average {bp.systolic}/{bp.diastolic}</p>}
-          </div>
+        {bp && (
+          <p className="mt-3 border-t border-ink/10 pt-3 text-xs text-app-tx3">
+            7-day BP average {bp.systolic}/{bp.diastolic}
+          </p>
         )}
       </div>
+
+      {pen && <PenGauge pen={pen} />}
 
       {/* Site rotation assistant */}
       <div className="card-lg p-4">

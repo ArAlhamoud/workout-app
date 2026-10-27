@@ -92,3 +92,17 @@ export function penLine(p: PenStatus): string {
 function fmt(n: number): string {
   return String(Math.round(n * 100) / 100);
 }
+
+/** The gauge: one segment per dose of the current size, `lit` = doses
+ *  left. Null when the pen doesn't split into whole doses of that size
+ *  (or into more than 24) — the gauge then shows a plain fill. */
+export function penSegments(p: PenStatus): { count: number; lit: number } | null {
+  const count = p.totalMg / p.currentDoseMg;
+  if (Math.abs(count - Math.round(count)) > 1e-9 || count > 24) return null;
+  return { count: Math.round(count), lit: p.dosesLeft };
+}
+
+/** "Mon 30 Nov" for a buy day stored as UTC midnight of the owner's day. */
+export function buyByLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
