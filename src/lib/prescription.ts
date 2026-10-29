@@ -225,9 +225,17 @@ export function prescribeWorking(
   // sat at repsMin), so an unasked rep is a rep that never happens.
   // In a ramp (a held machine) the cap is Med, so a set rated AT the cap
   // must not earn more: there it takes Easy (trainer, 2026-10-24).
+  // A readiness HOLD (short night, resting-HR spike) takes no pin, but a
+  // last set rated Easy still earns its one rep — the small step, not the
+  // big one (owner, 2026-10-29: three training days in a row fell on short
+  // nights and Day B sat still for three sessions). Med holds on a HOLD day.
   const climbs =
     (!inRamp || (memory.rampHold === true && memory.rpe === 1)) &&
-    !ctx.rescue && !ctx.readinessHold && (memory.earned === true || memory.overload === true) && Number.isFinite(ex.repsMax);
+    !ctx.rescue && (!ctx.readinessHold || memory.rpe === 1) &&
+    (memory.earned === true || memory.overload === true) && Number.isFinite(ex.repsMax);
+  if (climbs && ctx.readinessHold && (memory.repsFloor ?? 0) >= ex.repsMax) {
+    return { ...base, workingKg: w, reason: 'last', fromKg: w };
+  }
   if (climbs && memory.overload && (memory.repsFloor ?? 0) >= ex.repsMax) {
     // A loaded spine takes the pin only from an Easy top (pinNeedsEasy); at
     // Med it repeats the top of the range.

@@ -253,7 +253,9 @@ pre-scales weights and caps RPE; repeat breaks rejoin at week
 `REJOIN_AT_WEEK`. Progression is **double progression** (owner,
 2026-10-24): a session done in full at one weight, last set Easy or Med,
 asks one more rep next time; every set at repsMax takes one pin and the
-reps restart at repsMin; Hard holds; in a ramp only Easy climbs; Back
+reps restart at repsMin; Hard holds; in a ramp only Easy climbs; a
+readiness HOLD (short night) takes no pin but an Easy last set still
+earns its rep (owner, 2026-10-29); Back
 Extension and Ab Crunch pin only from an Easy top (`pinNeedsEasy`). Rear
 Delt Fly and Face Pull share one Day B slot (`rotatePairs`, read from
 history at both gyms). Two gyms: `bfit` (B_Fit — Life Fitness/Hoist/Hammer,
