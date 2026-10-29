@@ -13,6 +13,7 @@ the Mac session's.
 |---|---|
 | `event` | `"enter"` or `"exit"` |
 | `gym` | `"bfit"` (B_Fit) or `"work"` (Alrajhi Tower) |
+| `source` | optional; `"arrival"` only on a measured arrival (see below) |
 | `atISO` | when the region event happened on the phone, ISO 8601 **with `Z` or an offset** (a bare local time is refused), **not** when it is sent |
 
 Responses: `{ action: "created", visit }`, `{ action: "closed", visit }`, or
@@ -29,6 +30,13 @@ phone asks before its arrival backup offers "Check in?".
   (a manual tap, a repeated event, or the other gym's open visit stands); a
   forgotten (> 6 h) visit does not block it; an entry older than 6 h opens
   nothing; a future time is clamped to now.
+- A **measured arrival** (`source: "arrival"`: the phone's tap within 30
+  min of the entry, no exit known after it) for the gym of the OPEN visit,
+  timed before its check-in by at most 30 min and on the same 04:00 day,
+  moves the check-in back → `{ action: "moved", visit }`: the real start,
+  tapped after a Watch set or a manual tap opened the visit later
+  (2026-10-29). No other enter ever moves one — a Watch session start is a
+  guess, and a late or bounded tap may span an absence.
 - **Exit** closes the open visit for THAT gym at the exit time. Send it on
   its own once he has been outside the region long enough (5–10 min) to rule
   out GPS drift. Nothing open, the other gym, an exit before the check-in,
@@ -49,6 +57,27 @@ phone asks before its arrival backup offers "Check in?".
 The server never receives a location. Gym coordinates are set once on the
 phone ("Set this as B_Fit") and stay on the device; no location history is
 kept anywhere.
+
+## The Watch (owner, 2026-10-29)
+
+The wrist sends the same two events; it holds no visit rules.
+
+- **Start screen row**, shown once `GET` has answered (and refreshed on
+  every wrist raise): *Check in* with **B_Fit** / **Alrajhi** (enter, now)
+  when nothing is open, or "In · B_Fit / 18:02 · 34 min" with **Out**,
+  which asks first (exit, now, for that visit's gym). Out reads the server
+  again before it sends: a visit closed elsewhere just disappears; one still
+  open after an exit answered `none` (past the 5 h limit) says "Fix this
+  visit on the phone". No signal: "No signal — try again", nothing queued.
+- **A set logged on the wrist checks him in** when no visit is known open:
+  an `enter` at the SESSION's start, at its own building (a phone session
+  continued here carries it; one started on the wrist is B_Fit's — its
+  plan is B_Fit's weights). The server refuses a second open visit, and a
+  phone arrival tapped later moves the check-in back to when he really
+  arrived. Sent once per session whatever the wrist last saw; no signal
+  retries on the next set.
+- The phone's arrival prompt still reaches the wrist as a mirrored
+  notification when the phone is locked.
 
 ## The phone (native side)
 

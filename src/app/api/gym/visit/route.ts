@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  const b = (body ?? {}) as { event?: unknown; gym?: unknown; atISO?: unknown };
+  const b = (body ?? {}) as { event?: unknown; gym?: unknown; atISO?: unknown; source?: unknown };
   const at = parseEventTime(b.atISO);
   if ((b.event !== 'enter' && b.event !== 'exit') || typeof b.gym !== 'string' || !at) {
     return NextResponse.json({ error: 'event (enter|exit), gym and atISO with Z or an offset required' }, { status: 400 });
@@ -59,8 +59,14 @@ export async function POST(request: Request) {
       })
     ).map(toLite);
     if (b.event === 'enter') {
-      const d = geofenceEnter(recent, { gym, at, now });
+      const d = geofenceEnter(recent, { gym, at, now, arrival: b.source === 'arrival' });
       if (d.action === 'none' || !d.checkInAt) return { action: 'none' as const };
+      if (d.action === 'move' && d.visitId) {
+        const r = await tx.gymVisit.updateMany({ where: { id: d.visitId, checkOutAt: null }, data: { checkInAt: d.checkInAt } });
+        if (r.count === 0) return { action: 'none' as const };
+        const m = await tx.gymVisit.findUnique({ where: { id: d.visitId } });
+        return { action: 'moved' as const, visit: m ? toLite(m) : null };
+      }
       const v = await tx.gymVisit.create({ data: { gym, checkInAt: d.checkInAt } });
       return { action: 'created' as const, visit: toLite(v) };
     }

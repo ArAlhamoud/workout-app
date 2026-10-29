@@ -273,3 +273,16 @@ extension ISO8601DateFormatter {
         return f
     }()
 }
+
+/// A gym visit as /api/gym/visit returns it (docs/GYM-GEOFENCE.md). The
+/// wrist holds no visit rules: it sends enter/exit and shows the answer.
+struct GymVisit: Codable, Equatable {
+    let id: String
+    let gym: String
+    let checkInAt: String
+    let checkOutAt: String?
+    var checkInDate: Date? { ISO8601DateFormatter.fractional.date(from: checkInAt) }
+}
+
+struct GymVisitOpen: Codable { let open: GymVisit? }
+struct GymVisitAnswer: Codable { let action: String; let visit: GymVisit? }

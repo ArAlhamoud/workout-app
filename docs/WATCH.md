@@ -187,7 +187,8 @@ returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
    numbers mean"; the old grey chip showed the length the NEXT tap would
    pick, beside the big button's current one). Top to bottom: the plan's
    banners (RETURN · N% load, recovery / already trained), Continue from
-   the phone, the Start screen wears /train's Volt "Up next" card (owner,
+   the phone, the gym check-in row (docs/GYM-GEOFENCE.md "The Watch"),
+   the Start screen wears /train's Volt "Up next" card (owner,
    2026-10-23: "follow the train tab"): a solid #CDFF00 slab with square
    corners and an offset bone shadow, the same slab for either day (a
    violet edge for Day A was tried and dropped, owner 2026-10-23), a black

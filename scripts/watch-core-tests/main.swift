@@ -516,5 +516,21 @@ do {
     check(SessionCore.startTitle(day: "B", minutes: 45) == "Start Day B · 45 min", "one button, day and length in words")
 }
 
+print("Watch core — gym check-in on the wrist (owner, 2026-10-29)")
+do {
+    let riyadh = TimeZone(identifier: "Asia/Riyadh")!
+    let inAt = ISO8601DateFormatter().date(from: "2026-10-29T18:02:00+03:00")!
+    check(SessionCore.visitLine(checkInAt: inAt, now: inAt.addingTimeInterval(34 * 60), timeZone: riyadh) == "18:02 · 34 min", "where he stands: check-in time on his clock, minutes since")
+    check(SessionCore.visitLine(checkInAt: inAt, now: inAt.addingTimeInterval(72 * 60), timeZone: riyadh) == "18:02 · 1 h 12", "past an hour it reads as the phone's check-out does")
+    check(SessionCore.visitLine(checkInAt: inAt, now: inAt.addingTimeInterval(-90), timeZone: riyadh) == "18:02 · 0 min", "a wrist clock a little behind the server never shows a negative stay")
+    check(SessionCore.checkInGym(sessionGym: nil) == "bfit", "a session started on the wrist checks in at B_Fit, the building its plan is for")
+    check(SessionCore.checkInGym(sessionGym: "work") == "work", "a phone session at Alrajhi continued here checks in at Alrajhi")
+    check(SessionCore.gymName("work") == "Alrajhi" && SessionCore.gymName("bfit") == "B_Fit", "gym names as the phone writes them")
+    let v = try! JSONDecoder().decode(GymVisitOpen.self, from: #"{"open":{"id":"v1","gym":"bfit","checkInAt":"2026-10-29T15:02:00.000Z","checkOutAt":null}}"#.data(using: .utf8)!)
+    check(v.open?.checkInDate == inAt, "the server's toISOString (fractional seconds, Z) parses to the real instant")
+    let none = try! JSONDecoder().decode(GymVisitAnswer.self, from: #"{"action":"none"}"#.data(using: .utf8)!)
+    check(none.action == "none" && none.visit == nil, "a refused enter or exit decodes as an answer, not as no signal")
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

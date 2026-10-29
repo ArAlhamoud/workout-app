@@ -357,5 +357,21 @@ do {
     check(GeofenceQueue.visitMinutes(["checkInAt": "2026-10-22T14:00:00.000Z"]) == nil, "no check-out, no duration")
 }
 
+print("Geofence core — only a measured arrival may move a check-in (2026-10-29)")
+do {
+    var q = GeofenceQueue()
+    q.checkIn(gym: "bfit", enteredAt: at("17:58"), tappedAt: at("18:20"), id: "a")
+    check(q.next().map(GeofenceQueue.requestBody)?["source"] == "arrival", "a tap within 30 min of the entry is sent as a measured arrival")
+    var late = GeofenceQueue()
+    late.checkIn(gym: "bfit", enteredAt: at("17:00"), tappedAt: at("19:10"), id: "b")
+    check(late.next().map(GeofenceQueue.requestBody)?["source"] == nil, "a late tap sends the tap time, never as an arrival")
+    var bounded = GeofenceQueue()
+    bounded.maybeLater = [GeofenceEvent(id: "x", kind: .exit, gym: "bfit", at: at("18:03"), firstNoneAt: at("18:04"))]
+    bounded.checkIn(gym: "bfit", enteredAt: at("17:58"), tappedAt: at("18:25"), id: "c")
+    check(bounded.next()?.at == at("17:58") && bounded.next().map(GeofenceQueue.requestBody)?["source"] == nil, "an old prompt with a known exit after it keeps its times but cannot stretch a later visit over the absence")
+    let old = try! JSONDecoder().decode(GeofenceEvent.self, from: #"{"id":"o","kind":"enter","gym":"bfit","at":0}"#.data(using: .utf8)!)
+    check(old.arrival == nil, "a queue saved by the previous build still loads")
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed > 0 ? 1 : 0)

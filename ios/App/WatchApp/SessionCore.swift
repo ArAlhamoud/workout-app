@@ -616,6 +616,28 @@ enum SessionCore {
         return "\(base) · \(df.string(from: builtAt))"
     }
 
+    // MARK: - Gym check-in (owner, 2026-10-29)
+
+    /// The name on the wrist for a gym id (src/lib/program.ts GYMS).
+    static func gymName(_ id: String) -> String { id == "work" ? "Alrajhi" : "B_Fit" }
+
+    /// "18:02 · 34 min" — when he checked in and how long ago, on the
+    /// wrist's clock. Hours read "1 h 12", as the phone's check-out does.
+    static func visitLine(checkInAt: Date, now: Date, timeZone: TimeZone = .current) -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.timeZone = timeZone
+        df.dateFormat = "HH:mm"
+        let m = max(0, Int(now.timeIntervalSince(checkInAt) / 60))
+        let dur = m < 60 ? "\(m) min" : "\(m / 60) h \(String(format: "%02d", m % 60))"
+        return "\(df.string(from: checkInAt)) · \(dur)"
+    }
+
+    /// The building a set logged on the wrist checks him in at: the session's
+    /// own (a phone session continued here carries it), else B_Fit — every
+    /// session started on the wrist is B_Fit's (API.fetchPlan).
+    static func checkInGym(sessionGym: String?) -> String { sessionGym ?? "bfit" }
+
     // MARK: - Relaunch
 
     enum RestorePoint: Equatable {

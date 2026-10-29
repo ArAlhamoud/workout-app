@@ -23,6 +23,10 @@ struct GeofenceEvent: Codable, Equatable {
     /// When the server first answered this exit "none" (the 6 h clock of the
     /// maybe-later list). Nil until then.
     var firstNoneAt: Date? = nil
+    /// An enter at a MEASURED arrival: tapped within the trust window, with
+    /// no exit known after it. Only such an enter may move an open visit's
+    /// check-in back on the server (geofenceEnter); nil on older queues.
+    var arrival: Bool? = nil
 }
 
 /// The phone's side of gym check-in/out, as one persisted value:
@@ -213,7 +217,8 @@ struct GeofenceQueue: Codable, Equatable {
         let bounded = (outbox + maybeLater).contains { $0.kind == .exit && $0.gym == gym && $0.at > enteredAt }
             || (confirmedExits.contains(gym) && (pendingExits[gym].map { $0 > enteredAt } ?? false))
         let close = tappedAt.timeIntervalSince(enteredAt) <= Self.entryTrustWindow
-        enqueue(GeofenceEvent(id: id, kind: .enter, gym: gym, at: close || bounded ? enteredAt : Swift.max(tappedAt, enteredAt)))
+        enqueue(GeofenceEvent(id: id, kind: .enter, gym: gym, at: close || bounded ? enteredAt : Swift.max(tappedAt, enteredAt),
+                              arrival: close && !bounded ? true : nil))
     }
 
     /// The arrival prompt is withdrawn this long after the entry.
@@ -282,7 +287,9 @@ struct GeofenceQueue: Codable, Equatable {
     // MARK: Wire format and persistence
 
     static func requestBody(_ e: GeofenceEvent) -> [String: String] {
-        ["event": e.kind.rawValue, "gym": e.gym, "atISO": isoString(e.at)]
+        var b = ["event": e.kind.rawValue, "gym": e.gym, "atISO": isoString(e.at)]
+        if e.arrival == true { b["source"] = "arrival" }
+        return b
     }
 
     static func isoString(_ d: Date) -> String {

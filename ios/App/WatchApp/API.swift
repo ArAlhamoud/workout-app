@@ -97,6 +97,32 @@ enum API {
         _ = try? await session.data(for: req)
     }
 
+    // MARK: Gym visit
+
+    /// The visit open right now. `known` false = no answer (hide the row
+    /// rather than offer a check-in that may already exist).
+    static func fetchOpenVisit() async -> (visit: GymVisit?, known: Bool) {
+        guard let (data, resp) = try? await session.data(from: baseURL.appendingPathComponent("/api/gym/visit")),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let env = try? JSONDecoder().decode(GymVisitOpen.self, from: data) else { return (nil, false) }
+        return (env.open, true)
+    }
+
+    /// Check in (`enter`) or out (`exit`) at `at`. The server's geofence
+    /// rules decide (never a second open visit, an exit closes only that
+    /// gym's visit); `none` is an answer, nil is no signal.
+    static func postVisit(event: String, gym: String, at: Date) async -> GymVisitAnswer? {
+        var req = URLRequest(url: baseURL.appendingPathComponent("/api/gym/visit"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONEncoder().encode([
+            "event": event, "gym": gym, "atISO": ISO8601DateFormatter.fractional.string(from: at),
+        ])
+        guard let (data, resp) = try? await session.data(for: req),
+              (resp as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return try? JSONDecoder().decode(GymVisitAnswer.self, from: data)
+    }
+
     enum PostResult: Equatable {
         /// 2xx. `deduped`: the server merged it into a workout it already had
         /// (the phone's, under the same save id) — a success, not an error.

@@ -249,6 +249,9 @@ export interface GeofenceEvent {
   /** When the region event happened on the phone, not when it was sent. */
   at: Date;
   now: Date;
+  /** The phone's measured arrival (tapped within its trust window, no exit
+   *  known after it). Only this may move an open visit's check-in. */
+  arrival?: boolean;
 }
 
 /** An event time must carry Z or an offset: a bare local time would be
@@ -270,17 +273,32 @@ const clampToNow = (at: Date, now: Date) => new Date(Math.min(at.getTime(), now.
 export function geofenceEnter(
   recent: VisitLite[],
   e: GeofenceEvent,
-): { action: 'create' | 'none'; checkInAt?: Date } {
+): { action: 'create' | 'move' | 'none'; checkInAt?: Date; visitId?: string } {
   if (!GEOFENCE_GYMS.has(e.gym)) return { action: 'none' };
-  if (recent.some((v) => !v.checkOutAt && !isStale(v, e.now))) return { action: 'none' };
   const at = clampToNow(e.at, e.now);
   // A late tap on an old prompt must not overlap a visit that already
   // covered that time (a manual visit, or one closed since): any visit that
   // ended after the entry moment means this trip is already recorded.
   if (recent.some((v) => v.checkOutAt && t(v.checkOutAt) > at.getTime())) return { action: 'none' };
   if (e.now.getTime() - at.getTime() > VISIT_STALE_MS) return { action: 'none' };
+  const open = recent.find((v) => !v.checkOutAt && !isStale(v, e.now));
+  if (open) {
+    // The phone's measured arrival, tapped after the visit was opened later
+    // (a set logged on the Watch, a manual tap), is the real start: move the
+    // check-in back — same gym, at most the phone's 30-min arrival window.
+    // Never a Watch start or a late tap (a guess), never across the 04:00
+    // day line (the visit would leave its workout's day).
+    const gap = t(open.checkInAt) - at.getTime();
+    if (!e.arrival || open.gym !== e.gym || gap <= 0 || gap > ARRIVAL_TRUST_MS) return { action: 'none' };
+    if (ownerActivityDayUtc(at).getTime() !== ownerActivityDayUtc(new Date(open.checkInAt)).getTime()) return { action: 'none' };
+    return { action: 'move', visitId: open.id, checkInAt: at };
+  }
   return { action: 'create', checkInAt: at };
 }
+
+/** How far back an arrival may move an open visit: the phone trusts an
+ *  entry time for 30 min after it (GymGeofenceCore entryTrustWindow). */
+const ARRIVAL_TRUST_MS = 30 * MIN;
 
 /**
  * Leaving: close the open visit for THAT gym at the exit moment. The exit
