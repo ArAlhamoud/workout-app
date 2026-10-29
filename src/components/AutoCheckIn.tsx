@@ -171,6 +171,18 @@ export default function AutoCheckIn({ fixedGym }: { fixedGym?: GeofenceGym }) {
         </>
       )}
       {note && <p className={kicker}>{note}</p>}
+      {/* What the phone saw, behind a tap (2026-10-29: a missed arrival
+          could not be told from a missed prompt without the Mac). */}
+      {view.kind === 'on' && status?.trace && status.trace.length > 0 && (
+        <details>
+          <summary className={`${kicker} cursor-pointer`}>Recent events</summary>
+          <ul className="mt-1 space-y-0.5 font-mono text-[10px] text-app-tx3">
+            {status.trace.slice(0, 12).map((l, i) => (
+              <li key={`${i}-${l}`}>{l}</li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

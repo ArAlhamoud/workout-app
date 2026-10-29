@@ -57,10 +57,18 @@ struct GeofenceQueue: Codable, Equatable {
     var maybeLater: [GeofenceEvent] = []
     /// Gyms whose pending exit iOS confirmed (answered "outside").
     var confirmedExits: Set<String> = []
+    /// The stay a "Check in?" was already offered for, by when it began.
+    /// Ended by a real exit (sent), or forgotten after `stayMemory`. The
+    /// arrival backup asks only once per stay (owner, 2026-10-29: iOS sent
+    /// no arrival at B_Fit for 30 min; opening the app now offers it).
+    var promptedStays: [String: Date] = [:]
+    /// Longer than a working day, so a whole day in the Alrajhi office tower
+    /// is ONE stay: opening the app there asks at most once a day.
+    static let stayMemory: TimeInterval = 14 * 3600
 
     init() {}
 
-    private enum CodingKeys: String, CodingKey { case outbox, pendingExits, maybeLater, confirmedExits }
+    private enum CodingKeys: String, CodingKey { case outbox, pendingExits, maybeLater, confirmedExits, promptedStays }
 
     /// Every key optional: a queue stored by an older or newer build keeps
     /// what it has instead of failing whole and wiping the outbox (review S4).
@@ -70,6 +78,7 @@ struct GeofenceQueue: Codable, Equatable {
         pendingExits = try c.decodeIfPresent([String: Date].self, forKey: .pendingExits) ?? [:]
         maybeLater = try c.decodeIfPresent([GeofenceEvent].self, forKey: .maybeLater) ?? []
         confirmedExits = try c.decodeIfPresent(Set<String>.self, forKey: .confirmedExits) ?? []
+        promptedStays = try c.decodeIfPresent([String: Date].self, forKey: .promptedStays) ?? [:]
     }
 
     /// The one rule: is this gym's pending exit a real departure?
@@ -85,6 +94,7 @@ struct GeofenceQueue: Codable, Equatable {
 
     private mutating func sendExit(_ gym: String, at exitAt: Date) {
         enqueue(GeofenceEvent(id: UUID().uuidString, kind: .exit, gym: gym, at: exitAt))
+        promptedStays.removeValue(forKey: gym)
     }
 
     // MARK: Region events
@@ -96,11 +106,35 @@ struct GeofenceQueue: Codable, Equatable {
     /// than that is drift and the same stay — no exit, no prompt (N1: the
     /// D1 fix had closed a real visit mid-workout on a drift re-entry).
     mutating func enteredGym(_ gym: String, at: Date) -> Bool {
-        guard let exitAt = pendingExits[gym] else { return true }
+        guard let exitAt = pendingExits[gym] else {
+            // The backup already asked in this stay; iOS's own arrival came
+            // late. One prompt per stay (review F3).
+            if let began = promptedStays[gym], at.timeIntervalSince(began) < Self.stayMemory, at >= began { return false }
+            promptedStays[gym] = at
+            return true
+        }
         let departure = isDeparture(gym, exitAt: exitAt, now: at)
         _ = takePending(gym)
-        if departure { sendExit(gym, at: exitAt) }
+        if departure { sendExit(gym, at: exitAt); promptedStays[gym] = at }
         return departure
+    }
+
+    /// The arrival backup: the app was opened and iOS says he is INSIDE
+    /// `gym`'s small circle, but no arrival reached the app. True when
+    /// "Check in?" should be offered now — once per stay: not while an exit
+    /// is pending (that is the drift path's question), and not when this
+    /// stay was already offered one.
+    /// The server holds a visit open at ANOTHER gym: this ask did not
+    /// count, the next open asks again (review F4).
+    mutating func forgetStay(_ gym: String) {
+        promptedStays.removeValue(forKey: gym)
+    }
+
+    mutating func insideOnOpen(_ gym: String, now: Date) -> Bool {
+        guard pendingExits[gym] == nil else { return false }
+        if let began = promptedStays[gym], now.timeIntervalSince(began) < Self.stayMemory { return false }
+        promptedStays[gym] = now
+        return true
     }
 
     /// Left a gym's small circle: park the exit. A repeated exit with no
@@ -145,7 +179,15 @@ struct GeofenceQueue: Codable, Equatable {
         case .inside:
             let departure = isDeparture(gym, exitAt: exitAt, now: now)
             _ = takePending(gym)
-            if departure { sendExit(gym, at: exitAt) }
+            if departure {
+                // He is inside NOW. A departure older than the stay memory
+                // (left yesterday) ends the stay; a younger one — indoor
+                // drift at the Alrajhi tower past 90 min — must not re-open
+                // "Check in?" at his desk (review F2).
+                let kept = promptedStays[gym]
+                sendExit(gym, at: exitAt)
+                if let k = kept, now.timeIntervalSince(k) < Self.stayMemory { promptedStays[gym] = k }
+            }
         case .unknown:
             break
         }
@@ -195,6 +237,7 @@ struct GeofenceQueue: Codable, Equatable {
     /// Queued events stay — they are facts already.
     mutating func clearGym(_ gym: String) {
         _ = takePending(gym)
+        promptedStays.removeValue(forKey: gym)
     }
 
     // MARK: Sending

@@ -18,6 +18,10 @@ the Mac session's.
 Responses: `{ action: "created", visit }`, `{ action: "closed", visit }`, or
 `{ action: "none" }`. `none` is a normal answer, not an error.
 
+`GET /api/gym/visit` → `{ open: visit | null }`: the visit open right now
+(a stale one, past the forgot-to-check-out window, counts as none). The
+phone asks before its arrival backup offers "Check in?".
+
 ## Rules (src/lib/gym-visits.ts `geofenceEnter` / `geofenceExit`, tested)
 
 - **Enter** opens a visit at the entry time. Send it when he taps *Check in*
@@ -83,6 +87,20 @@ coordinates and stops watching.
   prompt is usually gone. Re-entering after a pending exit follows the
   drift rule below: drift is the same stay (no exit, no second prompt); a
   departure sends that old exit first and prompts anew.
+- **Arrival backup (2026-10-29).** At B_Fit iOS reported no arrival for
+  30 min while the exit on the visit before had worked. So opening the app
+  now asks iOS where he is (`requestState`, our stamped ask) for every set
+  gym with no pending exit. *Inside*, with no prompt offered for this stay
+  (`promptedStays`: ended by a sent exit, forgotten after 14 h — a whole
+  office day at Alrajhi is one stay), and no open visit on the server
+  (`GET`; no answer = ask anyway, a tap can never open a second visit):
+  "Check in?" with the entry time NOW — the real arrival is unknown and is
+  never guessed.
+- **Recent events.** The last 40 things iOS and the server said (arrived,
+  left, inside on open, sent → answer, permission changes, a prompt iOS
+  hid because notifications are off), with times and never a location,
+  are kept on the phone and shown behind a tap ("Recent events") under the
+  auto check-in row on /train.
 - *Leaving* (150 m exited): a **pending exit** {gym, exitAt} is stored, not
   sent. It is sent, with that original exitAt, when (a) the 600 m away
   circle is exited, or (b) the app wakes for any reason (launch, foreground,
