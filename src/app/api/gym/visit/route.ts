@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
-import { geofenceEnter, geofenceExit, parseEventTime, type VisitLite } from '@/lib/gym-visits';
+import { geofenceEnter, geofenceExit, isStale, parseEventTime, type VisitLite } from '@/lib/gym-visits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -21,6 +21,17 @@ const toLite = (v: { id: string; gym: string; checkInAt: Date; checkOutAt: Date 
   checkInAt: v.checkInAt.toISOString(),
   checkOutAt: v.checkOutAt ? v.checkOutAt.toISOString() : null,
 });
+
+/**
+ * Is a visit open right now? The phone asks before its arrival backup
+ * offers "Check in?" (he may have checked in by hand). A visit open past
+ * the stale window does not count — geofenceEnter would open a new one.
+ */
+export async function GET() {
+  const open = await prisma.gymVisit.findFirst({ where: { checkOutAt: null }, orderBy: { checkInAt: 'desc' } });
+  const lite = open ? toLite(open) : null;
+  return NextResponse.json({ open: lite && !isStale(lite) ? lite : null });
+}
 
 export async function POST(request: Request) {
   let body: unknown;

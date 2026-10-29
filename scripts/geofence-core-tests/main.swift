@@ -285,6 +285,32 @@ do {
     check(GeofenceQueue.decode(Data("garbage".utf8)) == GeofenceQueue(), "an unreadable stored queue starts empty instead of crashing")
 }
 
+print("Geofence core — the arrival backup (owner, 2026-10-29: no arrival for 30 min)")
+do {
+    var q = GeofenceQueue()
+    check(q.insideOnOpen("bfit", now: at("17:30")) == true, "iOS sent no arrival: opening the app inside the gym offers 'Check in?'")
+    check(q.outbox.isEmpty, "the backup sends nothing by itself — only a Check in tap does")
+    check(q.insideOnOpen("bfit", now: at("17:45")) == false, "opening the app again in the same stay does not ask again")
+    var r = GeofenceQueue()
+    _ = r.enteredGym("bfit", at: at("17:00"))
+    check(r.insideOnOpen("bfit", now: at("17:20")) == false, "an arrival iOS did send already asked: the backup stays quiet")
+    r.exitedGym("bfit", at: at("18:30"))
+    check(r.insideOnOpen("bfit", now: at("18:35")) == false, "while an exit is pending the backup never asks (drift is the region-state question)")
+    r.leftAwayArea("bfit", now: at("18:40"))
+    check(r.insideOnOpen("bfit", now: at("19:30")) == true, "a real exit ends the stay: back inside later, the backup asks again")
+    var o = GeofenceQueue()
+    check(o.insideOnOpen("work", now: at("08:30")) && !o.insideOnOpen("work", now: at("16:30")), "a whole office day at Alrajhi is one stay: asked once, not every time he opens the app")
+    check(o.insideOnOpen("work", now: Date(timeInterval: 15 * 3600, since: at("08:30"))), "a stay is forgotten after 14 h with no exit seen")
+    var g = GeofenceQueue()
+    _ = g.insideOnOpen("bfit", now: at("17:30"))
+    g.clearGym("bfit")
+    check(g.insideOnOpen("bfit", now: at("17:31")), "clearing the gym forgets its stay")
+    let stored = try! JSONEncoder().encode(q)
+    check(GeofenceQueue.decode(stored).promptedStays["bfit"] == at("17:30"), "the stay survives a relaunch")
+    let older = Data(#"{"outbox":[],"pendingExits":{},"maybeLater":[],"confirmedExits":[]}"#.utf8)
+    check(GeofenceQueue.decode(older).promptedStays.isEmpty && GeofenceQueue.decode(older).outbox.isEmpty, "a queue stored by build 16 still loads")
+}
+
 print("Geofence core — the checked-out line")
 do {
     check(GeofenceQueue.checkedOutText(gym: "bfit", minutes: 83) == "Checked out of B_Fit · 1 h 23", "1 h 23, like fmtVisit")

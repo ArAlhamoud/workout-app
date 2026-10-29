@@ -36,6 +36,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     private let defaults = UserDefaults.standard
     private let gymsKey = "gymGeofence.gyms"
     private let queueKey = "gymGeofence.queue"
+    private let traceKey = "gymGeofence.trace"
 
     private var manager: CLLocationManager?
     private var queue = GeofenceQueue()
@@ -48,7 +49,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     func launch(_ launchOptions: [UIApplication.LaunchOptionsKey: Any]?) {
         guard manager == nil else { return }
         if launchOptions?[.location] != nil {
-            NSLog("[GymGeofence] launched in the background for a region event")
+            DispatchQueue.main.async { GymGeofence.shared.trace("woken by iOS for a gym area") }
         }
         if let data = defaults.data(forKey: queueKey) { queue = GeofenceQueue.decode(data) }
         GymNotifications.shared.install()
@@ -63,7 +64,27 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         #endif
     }
 
-    @objc private func becameActive() { wake() }
+    /// Opening the app also asks iOS whether he is inside a gym it never
+    /// reported an arrival for (the arrival backup, owner 2026-10-29).
+    @objc private func becameActive() {
+        wake()
+        askInsideOnOpen()
+    }
+
+    // MARK: The event trace
+
+    /// The last 40 things iOS and the server said, with times — never a
+    /// location. Shown behind a tap on /train, so a missed arrival can be
+    /// read from the phone itself (2026-10-29: no arrival for 30 min, and
+    /// nothing on the phone could say whether iOS had reported one).
+    func trace(_ line: String) {
+        NSLog("[GymGeofence] %@", line)
+        let f = DateFormatter()
+        f.dateFormat = "d MMM HH:mm"
+        var lines = defaults.stringArray(forKey: traceKey) ?? []
+        lines.append("\(f.string(from: Date())) · \(line)")
+        defaults.set(Array(lines.suffix(40)), forKey: traceKey)
+    }
 
     // MARK: Status for the web card
 
@@ -80,7 +101,8 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         var set: [String: Any] = [:]
         for g in Self.gyms where storedGyms[g] != nil { set[g] = ["set": true] }
         let ours = (manager?.monitoredRegions ?? []).contains { $0.identifier.hasPrefix("gym.small.") }
-        return ["authorization": authorization, "gyms": set, "monitoring": ours, "reducedAccuracy": reducedAccuracy]
+        return ["authorization": authorization, "gyms": set, "monitoring": ours, "reducedAccuracy": reducedAccuracy,
+                "trace": Array((defaults.stringArray(forKey: traceKey) ?? []).reversed())]
     }
 
     private var reducedAccuracy: Bool {
@@ -116,7 +138,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManagerDidChangeAuthorization(_ m: CLLocationManager) {
-        NSLog("[GymGeofence] authorization now %@", authorization)
+        trace("location permission: \(authorization)\(reducedAccuracy ? ", approximate" : "")")
         syncMonitoring()
         if alwaysAfterWhenInUse && m.authorizationStatus != .notDetermined {
             alwaysAfterWhenInUse = false
@@ -264,7 +286,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         wake()
         let prompt = queue.enteredGym(gym, at: at)
         save()
-        NSLog("[GymGeofence] entered %@ (prompt: %@)", gym, prompt ? "yes" : "no — same stay")
+        trace("arrived \(GeofenceQueue.gymNames[gym] ?? gym)\(prompt ? "" : " (same stay, no prompt)")")
         if prompt { GymNotifications.shared.postArrival(gym: gym, enteredAt: at) }
         drain()
     }
@@ -283,6 +305,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     /// iOS's answer for a due pending exit (review D2): inside = drift,
     /// dropped; outside = sent with its original time; unknown = kept.
     private func regionState(_ gym: String, side: RegionSide) {
+        guard queue.pendingExits[gym] != nil else { return insideOnOpen(gym, side: side) }
         queue.resolvePending(gym, side: side, now: Date())
         save()
         NSLog("[GymGeofence] %@ is %@", gym, side == .inside ? "inside (drift dropped, or departure sent)" : side == .outside ? "outside" : "unknown — exit kept")
@@ -293,13 +316,58 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         if small { stateAsks.clear(gym) }
         if small {
             queue.exitedGym(gym, at: at)
-            NSLog("[GymGeofence] left %@ — exit pending", gym)
+            trace("left \(GeofenceQueue.gymNames[gym] ?? gym)")
         } else {
             queue.leftAwayArea(gym, now: at)
-            NSLog("[GymGeofence] left the %@ area", gym)
+            trace("left the \(GeofenceQueue.gymNames[gym] ?? gym) area")
         }
         save()
         wake()
+    }
+
+    // MARK: The arrival backup
+
+    /// On app open: ask iOS where he is for every set gym with no exit
+    /// pending (those are the drift path's own question, asked by wake()).
+    private func askInsideOnOpen() {
+        guard let m = manager else { return }
+        let now = Date()
+        for gym in Self.gyms where storedGyms[gym] != nil && queue.pendingExits[gym] == nil {
+            guard let region = m.monitoredRegions.first(where: { $0.identifier == "gym.small.\(gym)" }) else { continue }
+            stateAsks.ask(gym, at: now)
+            m.requestState(for: region)
+        }
+    }
+
+    /// iOS answered for a gym with no pending exit. Inside, and this stay
+    /// was never offered a prompt: offer one now — unless the server already
+    /// holds an open visit (he checked in by hand). The prompt's entry time
+    /// is NOW: the real arrival time is unknown, so it is never guessed.
+    private func insideOnOpen(_ gym: String, side: RegionSide) {
+        guard side == .inside else { return }
+        let now = Date()
+        guard queue.insideOnOpen(gym, now: now) else { return }
+        save()
+        let name = GeofenceQueue.gymNames[gym] ?? gym
+        Self.openVisit { open in
+            DispatchQueue.main.async {
+                if open == true { return self.trace("inside \(name) on open — already checked in") }
+                self.trace("inside \(name) on open, no arrival seen — asking")
+                GymNotifications.shared.postArrival(gym: gym, enteredAt: now)
+            }
+        }
+    }
+
+    /// Does the server hold an open visit? nil = no answer (offline): the
+    /// prompt is offered anyway, and a tap on it can never open a second
+    /// visit (geofenceEnter refuses one).
+    private static func openVisit(_ done: @escaping (Bool?) -> Void) {
+        guard let url = endpoint else { return done(nil) }
+        URLSession.shared.dataTask(with: URLRequest(url: url, timeoutInterval: 8)) { data, response, _ in
+            guard (response as? HTTPURLResponse)?.statusCode == 200,
+                  let json = data.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any] else { return done(nil) }
+            done(!(json["open"] is NSNull) && json["open"] != nil)
+        }.resume()
     }
 
     #if DEBUG
@@ -358,7 +426,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     #endif
 
     func locationManager(_ m: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
-        NSLog("[GymGeofence] monitoring failed for %@: %@", region?.identifier ?? "?", error.localizedDescription)
+        trace("monitoring failed for \(region?.identifier ?? "?"): \(error.localizedDescription)")
     }
 
     // MARK: Notification actions
@@ -368,7 +436,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     func checkIn(gym: String, enteredAt: Date, done: @escaping () -> Void) {
         queue.checkIn(gym: gym, enteredAt: enteredAt, tappedAt: Date())
         save()
-        NSLog("[GymGeofence] Check in tapped for %@", gym)
+        trace("Check in tapped for \(GeofenceQueue.gymNames[gym] ?? gym)")
         wake(done)
     }
 
@@ -434,7 +502,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         if error == nil, code == 200,
            let json = data.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any],
            let action = json["action"] as? String {
-            NSLog("[GymGeofence] %@ %@ → %@", event.kind.rawValue, event.gym, action)
+            trace("sent \(event.kind.rawValue) \(GeofenceQueue.gymNames[event.gym] ?? event.gym) → \(action)")
             queue.answered(event, action: action, now: Date())
             save()
             if event.kind == .exit, action == "closed",
@@ -444,7 +512,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
             return drain()
         }
         if error == nil, (400..<500).contains(code) {
-            NSLog("[GymGeofence] %@ %@ refused (%d) — dropped", event.kind.rawValue, event.gym, code)
+            trace("\(event.kind.rawValue) \(GeofenceQueue.gymNames[event.gym] ?? event.gym) refused (\(code)) — dropped")
             queue.rejected(event)
             save()
             return drain()
@@ -561,6 +629,11 @@ final class GymNotifications: NSObject, UNUserNotificationCenterDelegate {
         c.sound = .default
         c.userInfo = ["gymGeofence": "arrive", "gym": gym, "enteredAt": GeofenceQueue.isoString(enteredAt)]
         post(id: "gym.arrive.\(gym)", c)
+        // A prompt iOS hides leaves no other trace: say so in the log.
+        UNUserNotificationCenter.current().getNotificationSettings { st in
+            guard st.authorizationStatus != .authorized || st.alertSetting != .enabled else { return }
+            DispatchQueue.main.async { GymGeofence.shared.trace("notifications are off — the prompt was hidden") }
+        }
     }
 
     func postCheckedOut(gym: String, minutes: Int) {
@@ -573,7 +646,7 @@ final class GymNotifications: NSObject, UNUserNotificationCenterDelegate {
 
     private func post(id: String, _ content: UNNotificationContent) {
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil)) { err in
-            if let err { NSLog("[GymGeofence] notification failed: %@", err.localizedDescription) }
+            if let err { DispatchQueue.main.async { GymGeofence.shared.trace("prompt not shown: \(err.localizedDescription)") } }
         }
     }
 

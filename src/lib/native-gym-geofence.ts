@@ -15,6 +15,9 @@ export interface GeofenceStatus {
   monitoring: boolean;
   /** Approximate location: iOS cannot watch a gym circle (review D4). */
   reducedAccuracy?: boolean;
+  /** Newest first: what iOS and the server said, with times — never a
+   *  location. Builds before 17 send none. */
+  trace?: string[];
 }
 
 interface GymGeofencePlugin {

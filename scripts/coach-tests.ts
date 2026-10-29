@@ -6392,6 +6392,11 @@ console.log('Gym visits — geofence enter and exit');
   // #2: two enters at once (a retry, phone and Watch) are serialised.
   assert(/pg_advisory_xact_lock/.test(route), 'enter and exit run under one lock, so two posts cannot both create a visit');
   assert(/parseEventTime\(/.test(route), 'the endpoint reads times only through parseEventTime');
+  // The arrival backup (2026-10-29): the phone asks for an open visit before
+  // offering "Check in?"; a stale open visit does not count.
+  assert(/export async function GET\(\)/.test(route) && /isStale\(lite\)/.test(route), 'GET /api/gym/visit answers whether a visit is open, ignoring a stale one');
+  const autoRow = fs.readFileSync(path.join(__dirname, '..', 'src/components/AutoCheckIn.tsx'), 'utf8');
+  assert(/<details>[\s\S]*Recent events[\s\S]*status\.trace/.test(autoRow), 'the phone\'s event log sits behind a tap on the auto check-in row');
 }
 
 
