@@ -52,6 +52,18 @@ final class SessionStore: ObservableObject {
     /// the next tap on the big button asks for that day outright.
     @Published var offeredDay: String?
 
+    /// The gym visit open on the server, for the Start screen's check-in
+    /// row. `gymKnown` false = no answer yet: the row stays hidden.
+    @Published var gymVisit: GymVisit?
+    @Published var gymKnown = false
+    @Published var gymBusy = false
+    /// The row's own one-liner (no signal, fix on the phone) — kept apart
+    /// from `notice`, which carries the start's reasons.
+    @Published var gymNotice: String?
+    /// Sessions whose check-in the server has ANSWERED — one post per
+    /// session, retried on the next set while there is no signal.
+    private var checkInAnswered: Set<String> = []
+
     let workout = WorkoutManager()
     /// How recently an EMPTY phone row must have been touched for the Action
     /// Button to treat it as the logger open in his hand.
@@ -262,6 +274,7 @@ final class SessionStore: ObservableObject {
     /// have moved since launch.
     func onForeground() async {
         await runForegroundSteps()
+        if session == nil { await refreshGym() }
     }
 
     /// The phone finished this session. Anything logged HERE that the phone
@@ -613,6 +626,7 @@ final class SessionStore: ObservableObject {
         commit(s)
         WKInterfaceDevice.current().play(.click)
         postLive([liveUpdate(set)])
+        checkInOnSet(s)
         if slot.isLastOfExercise {
             phase = .rpePrompt(exerciseId: slot.exerciseId, exerciseName: slot.exerciseName)
         } else {
@@ -956,6 +970,65 @@ final class SessionStore: ObservableObject {
         session = nil
         plan = Store.loadPlanCache() ?? plan
         phase = .idle
+    }
+
+    // MARK: - Gym check-in (owner, 2026-10-29)
+
+    func refreshGym() async {
+        let r = await API.fetchOpenVisit()
+        guard r.known else { return }
+        gymVisit = r.visit
+        gymKnown = true
+    }
+
+    /// The Start screen's taps: check in at `gym` now, or out of the open
+    /// visit now. The server answers with what it decided.
+    func checkIn(gym: String) async {
+        guard !gymBusy else { return }
+        gymBusy = true
+        defer { gymBusy = false }
+        guard await API.postVisit(event: "enter", gym: gym, at: Date()) != nil else { return noSignal() }
+        gymNotice = nil
+        WKInterfaceDevice.current().play(.success)
+        await refreshGym()
+    }
+
+    func checkOut() async {
+        guard !gymBusy else { return }
+        gymBusy = true
+        defer { gymBusy = false }
+        // The row may be older than a check-out made by the phone: read
+        // again, and close only what is still open.
+        let r = await API.fetchOpenVisit()
+        guard r.known else { return noSignal() }
+        gymVisit = r.visit
+        guard let open = r.visit else { gymNotice = nil; return }
+        guard let answer = await API.postVisit(event: "exit", gym: open.gym, at: Date()) else { return noSignal() }
+        // Still open after `none`: a stay past the limit — the phone asks
+        // how long he stayed.
+        gymNotice = answer.action == "none" ? "Fix this visit on the phone" : nil
+        WKInterfaceDevice.current().play(answer.action == "none" ? .failure : .success)
+        await refreshGym()
+    }
+
+    private func noSignal() {
+        gymNotice = "No signal — try again"
+        WKInterfaceDevice.current().play(.failure)
+    }
+
+    /// A set logged on the wrist means he is at the gym: check in at the
+    /// session's start. Posted whatever the wrist last saw — the server
+    /// refuses a second open visit, and the phone's real arrival moves the
+    /// check-in back (geofenceEnter).
+    private func checkInOnSet(_ s: ActiveSession) {
+        let id = s.clientSaveId
+        guard !checkInAnswered.contains(id) else { return }
+        checkInAnswered.insert(id) // one post in flight at a time
+        Task {
+            let answer = await API.postVisit(event: "enter", gym: SessionCore.checkInGym(sessionGym: s.gym), at: s.startedAt)
+            if answer == nil { checkInAnswered.remove(id); return }
+            if let v = answer?.visit, answer?.action == "created" { gymVisit = v; gymKnown = true }
+        }
     }
 
     func reset() {

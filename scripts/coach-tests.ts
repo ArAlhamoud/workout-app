@@ -6382,6 +6382,22 @@ console.log('Gym visits — geofence enter and exit');
   const manual = V('m2', 'bfit', '17:05', '18:00');
   assert(geofenceEnter([manual], { gym: 'bfit', at: at('17:00'), now: at('18:30') }).action === 'none', 'an entry inside or before a visit that ended after it opens nothing');
   assert(geofenceEnter([manual], { gym: 'bfit', at: at('18:20'), now: at('18:30') }).action === 'create', 'an entry after the last visit ended opens a new one');
+  // Watch check-in (adversary, 2026-10-29): a set logged on the wrist opens
+  // the visit at the session's start; the phone's measured arrival, tapped
+  // later, is earlier and must win — it moves the check-in back.
+  const wrist = V('w', 'bfit', '18:10', null);
+  const mv = geofenceEnter([wrist], { gym: 'bfit', at: at('17:58'), now: at('18:20'), arrival: true });
+  assert(mv.action === 'move' && mv.visitId === 'w' && mv.checkInAt?.toISOString() === at('17:58').toISOString(), `an earlier arrival at the same gym moves the open visit's check-in back (got ${JSON.stringify(mv)})`);
+  assert(geofenceEnter([wrist], { gym: 'bfit', at: at('17:30'), now: at('18:20'), arrival: true }).action === 'none', 'never moved back more than the 30-min arrival window');
+  assert(geofenceEnter([wrist], { gym: 'work', at: at('17:58'), now: at('18:20'), arrival: true }).action === 'none', 'an arrival at the other gym never moves this visit');
+  assert(geofenceEnter([wrist, V('c2', 'bfit', '17:00', '18:00')], { gym: 'bfit', at: at('17:58'), now: at('18:20'), arrival: true }).action === 'none', 'never moved back over a visit that ended after that arrival');
+  // Data-steward, 2026-10-29: only a MEASURED arrival moves a check-in.
+  const measured = V('p', 'bfit', '18:00', null);
+  assert(geofenceEnter([measured], { gym: 'bfit', at: at('17:45'), now: at('18:20') }).action === 'none', 'a Watch session start (no arrival flag) never moves a measured check-in earlier');
+  assert(geofenceEnter([wrist], { gym: 'bfit', at: at('17:58'), now: at('18:20') }).action === 'none', 'a late or bounded phone tap (no arrival flag) never stretches a visit');
+  const early = { id: 'e4', gym: 'bfit', checkInAt: new Date('2026-10-23T04:05:00+03:00').toISOString(), checkOutAt: null };
+  assert(geofenceEnter([early], { gym: 'bfit', at: new Date('2026-10-23T03:50:00+03:00'), now: new Date('2026-10-23T04:20:00+03:00'), arrival: true }).action === 'none', 'never moved back across the 04:00 day line');
+  assert(/arrival: b\.source === 'arrival'/.test(fs.readFileSync(path.join(__dirname, '..', 'src/app/api/gym/visit/route.ts'), 'utf8')), 'the endpoint passes the arrival flag only for source "arrival"');
   // #4: a time without Z or an offset is refused, never read as UTC.
   assert(parseEventTime('2026-10-22T17:00:00') === null, 'a time without an offset is refused');
   assert(parseEventTime('2026-10-22T17:00:00+03:00')?.toISOString() === '2026-10-22T14:00:00.000Z' && parseEventTime('2026-10-22T14:00:00.000Z') !== null, 'times with Z or an offset are read exactly');

@@ -111,6 +111,8 @@ struct StartView: View {
                     .buttonStyle(.plain)
                 }
 
+                GymRow()
+
                 // The directive card — /train's queued-day slab: solid volt,
                 // black ink, square corners, offset solid shadow — the same slab
                 // for either day, as on the phone.
@@ -249,7 +251,80 @@ struct StartView: View {
         .task {
             while !Task.isCancelled {
                 await store.refreshLive()
+                await store.refreshGym()
                 try? await Task.sleep(for: .seconds(20))
+            }
+        }
+    }
+}
+
+// MARK: - Gym check-in
+
+/// One row above the day card (owner, 2026-10-29): Check in at B_Fit or
+/// Alrajhi when nothing is open, or where and since when, with Out. Hidden
+/// until the server has answered — never a check-in offered blind.
+struct GymRow: View {
+    @EnvironmentObject var store: SessionStore
+    @State private var confirmOut = false
+
+    var body: some View {
+        if store.gymKnown {
+            VStack(alignment: .leading, spacing: 4) {
+                if let v = store.gymVisit {
+                    HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("In · \(SessionCore.gymName(v.gym))")
+                                .voltMono(11, .heavy)
+                                .foregroundStyle(Volt.lime)
+                            TimelineView(.periodic(from: .now, by: 60)) { ctx in
+                                Text(v.checkInDate.map { SessionCore.visitLine(checkInAt: $0, now: ctx.date) } ?? "")
+                                    .voltMono(10)
+                                    .foregroundStyle(.white.opacity(0.75))
+                                    .monospacedDigit()
+                            }
+                        }
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        Spacer(minLength: 0)
+                        // Asks first: a stray touch after the session, still
+                        // in the building, would store a short visit the
+                        // phone's real exit can no longer correct.
+                        Button { confirmOut = true } label: {
+                            Text("Out")
+                                .voltMono(12, .heavy)
+                                .frame(minWidth: 56, minHeight: 36)
+                        }
+                        .buttonStyle(VoltOutline())
+                        .disabled(store.gymBusy)
+                        .accessibilityLabel("Check out of \(SessionCore.gymName(v.gym))")
+                    }
+                    .confirmationDialog("Check out of \(SessionCore.gymName(v.gym))?", isPresented: $confirmOut, titleVisibility: .visible) {
+                        Button("Check out") { Task { await store.checkOut() } }
+                        Button("Stay", role: .cancel) {}
+                    }
+                } else {
+                    VoltFlag(text: store.gymBusy ? "Checking in…" : "Check in", ground: .black, ink: Volt.lime)
+                    // Which building: the wrist cannot tell, so he says.
+                    HStack(spacing: 5) {
+                        ForEach(["bfit", "work"], id: \.self) { g in
+                            Button { Task { await store.checkIn(gym: g) } } label: {
+                                Text(SessionCore.gymName(g))
+                                    .voltMono(12, .heavy)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.8)
+                                    .frame(maxWidth: .infinity, minHeight: 40)
+                            }
+                            .buttonStyle(VoltOutline(ink: Volt.lime))
+                            .disabled(store.gymBusy)
+                            .accessibilityLabel("Check in at \(SessionCore.gymName(g))")
+                        }
+                    }
+                }
+                if let n = store.gymNotice {
+                    Text(n)
+                        .font(.system(.footnote, design: .rounded))
+                        .foregroundStyle(.orange)
+                }
             }
         }
     }
