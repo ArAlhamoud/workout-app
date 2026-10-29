@@ -13,10 +13,10 @@ async function main() {
   const rows = await prisma.healthSample.findMany({
     where: { type: 'readiness_hold', date: { gte: since } },
     orderBy: { date: 'asc' },
-    select: { date: true, value: true, meta: true, updatedAt: true },
+    select: { date: true, value: true, meta: true, createdAt: true },
   });
   console.log(`READ ONLY${APPLY ? ' (--apply ignored)' : ''} — readiness_hold, last 14 days`);
-  for (const r of rows) console.log(`  ${r.date.toISOString().slice(0, 10)} hold=${r.value} at=${r.updatedAt?.toISOString?.() ?? '-'} ${JSON.stringify(r.meta)}`);
+  for (const r of rows) console.log(`  ${r.date.toISOString().slice(0, 10)} hold=${r.value} at=${r.createdAt.toISOString()} ${JSON.stringify(r.meta)}`);
   if (!rows.length) console.log('  (none)');
   await prisma.$disconnect();
 }
