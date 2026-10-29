@@ -598,9 +598,10 @@ export default function WorkoutForm({
     if (readiness?.verdict !== 'hold') return;
     setBlocks((prev) =>
       prev.map((b) => {
-        // The one-more-rep ask is a seed too: on a HOLD
-        // morning the Watch and /train drop it, so the phone does (round 3).
-        const unasked = b.repsAsk
+        // The one-more-rep ask is a seed too: on a HOLD morning only an
+        // ask earned by an Easy last set survives, as on the Watch and
+        // /train (prescribeWorking, owner 2026-10-29).
+        const unasked = b.repsAsk && b.lastSession?.rpe !== 1
           ? { ...b, repsAsk: undefined, sets: b.sets.map((st) => (st.done || st.isWarmup ? st : { ...st, reps: b.repsAsk!.from })) }
           : b;
         if (!unasked.overloadApplied) return unasked;
@@ -1412,16 +1413,17 @@ export default function WorkoutForm({
             const unit = b.unit === 'seconds' ? 'seconds' : 'reps';
             const inc = gymPins[b.exerciseId] ?? DEFAULT_PIN_INCREMENT;
             const anchored = gymHisSteps.includes(b.exerciseId);
+            // Never a seed on a HOLD morning: the readiness revert already
+            // took it back and does not run again (review F3). The
+            // prescription knows the hold too, so an Easy rep ask survives.
+            const hold = readinessRef.current?.verdict === 'hold';
             const p = prescribeWorking(
               { unit, sets: b.plannedSets ?? b.sets.filter((s) => !s.isWarmup).length, repsMin: b.defaultReps ?? 0, repsMax: b.maxReps ?? Number.POSITIVE_INFINITY, pinNeedsEasy: programSpec(b.programName)?.pinNeedsEasy },
               prevSession,
               inc,
               gymPlateaus[b.exerciseId] ?? null,
-              { rampPct: returnLoadPct ?? null, rescue: rescueMode, anchored },
+              { rampPct: returnLoadPct ?? null, rescue: rescueMode, anchored, readinessHold: hold },
             );
-            // Never a seed on a HOLD morning: the readiness revert already
-            // took it back and does not run again (review F3).
-            const hold = readinessRef.current?.verdict === 'hold';
             const seeded = p.reason === 'overload' && !b.overloadDeclined && !hold;
             const working = seeded ? p.workingKg ?? 0 : p.reason === 'overload' ? p.fromKg ?? 0 : p.workingKg ?? 0;
             // A stale draft's started machine (repriceStarted): done sets
@@ -1439,9 +1441,10 @@ export default function WorkoutForm({
               };
             }
             // THIS gym's reps too: its one-more-rep ask, or its baseline —
-            // never B_Fit's ask carried across (round 3); none on a hold day.
+            // never B_Fit's ask carried across (round 3); on a hold day only
+            // the Easy one prescribeWorking still makes.
             const baseReps = prefillReps(prevSession?.reps, b.defaultReps ?? 1, b.maxReps ?? Number.POSITIVE_INFINITY);
-            const ask = p.reason === 'reps' && p.reps != null && !hold ? { from: baseReps, to: p.reps } : undefined;
+            const ask = p.reason === 'reps' && p.reps != null ? { from: baseReps, to: p.reps } : undefined;
             // A seeded coarse pin keeps its reset reps (repsMin) — the Watch
             // plan says the same (final review P5-1).
             const repsFor = ask ? ask.to : seeded && p.reps != null ? p.reps : baseReps;
@@ -2555,7 +2558,7 @@ export default function WorkoutForm({
                     &#8594; Try {suggestWeight} kg
                   </span>
                 )}
-                {block.repsAsk && !shouldHold && !allDone && (
+                {block.repsAsk && !allDone && (
                   <span className="text-xs bg-rpe-easy/10 text-rpe-easy px-2.5 py-1 rounded-full border border-rpe-easy/30 font-medium tabular-nums">
                     +1 rep &#183; {block.repsAsk.to}
                   </span>

@@ -2284,7 +2284,15 @@ console.log('Watch wave — phase 3 review fixes');
   const pHold = prescribeWorking(tpl('Mid Row'), earned, 2.5, null, { rampPct: null, rescue: false, readinessHold: true });
   assert(pHold.workingKg === 30 && pHold.reason === 'last', `a hold morning opens at the proven weight, no seed (got ${JSON.stringify(pHold)})`);
   const pHeldHold = prescribeWorking(tpl('Hip Abduction'), { ...earned, rampHold: true }, 2.5, null, { rampPct: 85, rescue: false, readinessHold: true });
-  assert(pHeldHold.workingKg === 30 && pHeldHold.reason === 'held', 'a held machine in the ramp does not seed on a hold morning either');
+  assert(pHeldHold.workingKg === 30 && pHeldHold.reason !== 'overload', `a held machine in the ramp does not seed on a hold morning either (got ${JSON.stringify(pHeldHold)})`);
+  // Owner, 2026-10-29 (option B): on a HOLD morning the pin waits, but an
+  // Easy last set still earns its one rep. Med holds; the top of the range holds.
+  const holdEasy = prescribeWorking(tpl('Lat Pulldown'), { weight: 40, reps: 10, rpe: 1, earned: true, overload: false, repsFloor: 10 }, 2.5, null, { rampPct: null, rescue: false, readinessHold: true });
+  assert(holdEasy.workingKg === 40 && holdEasy.reason === 'reps' && holdEasy.reps === 11, `HOLD + Easy: same weight, one more rep (got ${JSON.stringify(holdEasy)})`);
+  const holdMed = prescribeWorking(tpl('Lat Pulldown'), { weight: 40, reps: 10, rpe: 2, earned: true, overload: false, repsFloor: 10 }, 2.5, null, { rampPct: null, rescue: false, readinessHold: true });
+  assert(holdMed.workingKg === 40 && holdMed.reason === 'last' && holdMed.reps === undefined, `HOLD + Med: last time's numbers (got ${JSON.stringify(holdMed)})`);
+  const holdTop = prescribeWorking(tpl('Hip Abduction'), { weight: 40, reps: 15, rpe: 1, earned: true, overload: true, repsFloor: 15 }, 2.5, null, { rampPct: null, rescue: false, readinessHold: true });
+  assert(holdTop.workingKg === 40 && holdTop.reason === 'last', `HOLD at the top of the range: no pin, no rep past the top (got ${JSON.stringify(holdTop)})`);
   for (const f of ['src/app/api/watch/plan/route.ts', 'src/app/train/page.tsx']) {
     assert(/readinessHoldToday\(/.test(src(f)) && /readinessHold/.test(src(f)), `${f}: reads today's readiness verdict and passes it to the prescription`);
   }
@@ -2322,7 +2330,7 @@ console.log('Watch wave — phase 3 review fixes');
   const form = src('src/components/WorkoutForm.tsx');
   assert(/loadGymContext\(draft\.gym/.test(form), 'a restored draft at Alrajhi reloads Alrajhi\'s pins, steps, memory and records');
   assert(/resizeWorking\(/.test(form), 'a gym switch applies that gym\'s set count to a machine not yet started');
-  assert(/const hold = readinessRef\.current\?\.verdict === 'hold';[\s\S]{0,120}!hold/.test(form), 'a gym switch never re-seeds on a hold morning');
+  assert(/const hold = readinessRef\.current\?\.verdict === 'hold';[\s\S]{0,700}readinessHold: hold[\s\S]{0,200}!b\.overloadDeclined && !hold/.test(form), 'a gym switch never re-seeds on a hold morning, and its prescription is told the hold');
   assert(/programSpec\(/.test(form), 'a swap takes the new exercise\'s rep range and set count');
   assert(/const shouldHold =\s*!deload &&/.test(form), '"Hold" never shows beside a deload or a step-down');
   const page = src('src/app/workouts/new/page.tsx');
