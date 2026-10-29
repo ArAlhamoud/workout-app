@@ -311,6 +311,42 @@ do {
     check(GeofenceQueue.decode(older).promptedStays.isEmpty && GeofenceQueue.decode(older).outbox.isEmpty, "a queue stored by build 16 still loads")
 }
 
+print("Geofence core — the arrival backup, adversary round (F1–F4)")
+do {
+    let day: TimeInterval = 24 * 3600
+    // F1: yesterday's exit still pending; today iOS misses the arrival again.
+    var q = GeofenceQueue()
+    _ = q.enteredGym("bfit", at: at("17:00"))
+    q.exitedGym("bfit", at: at("18:30"))
+    let today = Date(timeInterval: day, since: at("17:30"))
+    q.resolvePending("bfit", side: .inside, now: today)
+    check(q.outbox.first?.kind == .exit && q.outbox.first?.at == at("18:30"), "F1: yesterday's exit is sent with its own time")
+    check(q.pendingExits["bfit"] == nil && q.insideOnOpen("bfit", now: today), "F1: and the same open then asks 'Check in?' for today")
+    // F2: drift at the Alrajhi tower past 90 min, answered inside at his desk.
+    var o = GeofenceQueue()
+    _ = o.enteredGym("work", at: at("07:30"))
+    o.exitedGym("work", at: at("10:00"))
+    o.resolvePending("work", side: .inside, now: at("11:45"))
+    check(o.outbox.first?.kind == .exit, "F2: the 90-min rule still sends that exit")
+    check(o.insideOnOpen("work", now: at("12:30")) == false, "F2: but no second 'Check in?' at his desk the same day")
+    // F3: the backup asked; iOS's own arrival lands late in the same stay.
+    var l = GeofenceQueue()
+    _ = l.insideOnOpen("bfit", now: at("17:30"))
+    check(l.enteredGym("bfit", at: at("17:40")) == false, "F3: a late iOS arrival after the backup asked does not ask again")
+    l.exitedGym("bfit", at: at("19:00"))
+    l.leftAwayArea("bfit", now: at("19:05"))
+    check(l.enteredGym("bfit", at: at("21:00")) == true, "F3: after a real exit, the next arrival asks as before")
+    // F4: an open visit at the other gym does not use up this stay's ask.
+    var f = GeofenceQueue()
+    _ = f.insideOnOpen("bfit", now: at("17:30"))
+    f.forgetStay("bfit")
+    check(f.insideOnOpen("bfit", now: at("18:10")), "F4: refused for an open visit elsewhere, the next open asks again")
+    // A real arrival is never suppressed by an expired stay.
+    var e = GeofenceQueue()
+    _ = e.insideOnOpen("bfit", now: at("08:00"))
+    check(e.enteredGym("bfit", at: Date(timeInterval: 15 * 3600, since: at("08:00"))) == true, "an arrival after the stay memory asks")
+}
+
 print("Geofence core — the checked-out line")
 do {
     check(GeofenceQueue.checkedOutText(gym: "bfit", minutes: 83) == "Checked out of B_Fit · 1 h 23", "1 h 23, like fmtVisit")

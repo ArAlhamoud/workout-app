@@ -219,6 +219,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         all.removeValue(forKey: gym)
         storedGyms = all
         queue.clearGym(gym)
+        stateAsks.clear(gym) // an answer still in flight must not prompt for a cleared gym (review F4)
         save()
         syncMonitoring()
         NSLog("[GymGeofence] %@ cleared", gym)
@@ -307,6 +308,13 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     private func regionState(_ gym: String, side: RegionSide) {
         guard queue.pendingExits[gym] != nil else { return insideOnOpen(gym, side: side) }
         queue.resolvePending(gym, side: side, now: Date())
+        // Inside with the exit settled (dropped as drift, or yesterday's
+        // departure sent): the backup's question too — else the first open
+        // after a pending exit never asks (review F1).
+        if side == .inside, queue.pendingExits[gym] == nil {
+            save()
+            insideOnOpen(gym, side: side)
+        }
         save()
         NSLog("[GymGeofence] %@ is %@", gym, side == .inside ? "inside (drift dropped, or departure sent)" : side == .outside ? "outside" : "unknown — exit kept")
         drain()
@@ -344,29 +352,37 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     /// holds an open visit (he checked in by hand). The prompt's entry time
     /// is NOW: the real arrival time is unknown, so it is never guessed.
     private func insideOnOpen(_ gym: String, side: RegionSide) {
-        guard side == .inside else { return }
+        guard side == .inside, storedGyms[gym] != nil else { return }
         let now = Date()
         guard queue.insideOnOpen(gym, now: now) else { return }
         save()
         let name = GeofenceQueue.gymNames[gym] ?? gym
-        Self.openVisit { open in
+        Self.openVisit { openGym in
             DispatchQueue.main.async {
-                if open == true { return self.trace("inside \(name) on open — already checked in") }
+                if let other = openGym, other != gym {
+                    // Open at the other gym: the server refuses this check-in
+                    // until that one is closed or stale; ask again next open.
+                    self.queue.forgetStay(gym)
+                    self.save()
+                    return self.trace("inside \(name) on open — a visit is open at \(GeofenceQueue.gymNames[other] ?? other)")
+                }
+                if openGym == gym { return self.trace("inside \(name) on open — already checked in") }
                 self.trace("inside \(name) on open, no arrival seen — asking")
                 GymNotifications.shared.postArrival(gym: gym, enteredAt: now)
             }
         }
     }
 
-    /// Does the server hold an open visit? nil = no answer (offline): the
-    /// prompt is offered anyway, and a tap on it can never open a second
-    /// visit (geofenceEnter refuses one).
-    private static func openVisit(_ done: @escaping (Bool?) -> Void) {
+    /// Which gym the server holds an open visit at. nil = none, or no
+    /// answer (offline): the prompt is offered anyway, and a tap on it can
+    /// never open a second visit (geofenceEnter refuses one).
+    private static func openVisit(_ done: @escaping (String?) -> Void) {
         guard let url = endpoint else { return done(nil) }
         URLSession.shared.dataTask(with: URLRequest(url: url, timeoutInterval: 8)) { data, response, _ in
             guard (response as? HTTPURLResponse)?.statusCode == 200,
-                  let json = data.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any] else { return done(nil) }
-            done(!(json["open"] is NSNull) && json["open"] != nil)
+                  let json = data.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any],
+                  let open = json["open"] as? [String: Any] else { return done(nil) }
+            done(open["gym"] as? String)
         }.resume()
     }
 

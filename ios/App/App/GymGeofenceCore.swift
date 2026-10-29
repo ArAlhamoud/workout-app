@@ -106,7 +106,13 @@ struct GeofenceQueue: Codable, Equatable {
     /// than that is drift and the same stay — no exit, no prompt (N1: the
     /// D1 fix had closed a real visit mid-workout on a drift re-entry).
     mutating func enteredGym(_ gym: String, at: Date) -> Bool {
-        guard let exitAt = pendingExits[gym] else { promptedStays[gym] = at; return true }
+        guard let exitAt = pendingExits[gym] else {
+            // The backup already asked in this stay; iOS's own arrival came
+            // late. One prompt per stay (review F3).
+            if let began = promptedStays[gym], at.timeIntervalSince(began) < Self.stayMemory, at >= began { return false }
+            promptedStays[gym] = at
+            return true
+        }
         let departure = isDeparture(gym, exitAt: exitAt, now: at)
         _ = takePending(gym)
         if departure { sendExit(gym, at: exitAt); promptedStays[gym] = at }
@@ -118,6 +124,12 @@ struct GeofenceQueue: Codable, Equatable {
     /// "Check in?" should be offered now — once per stay: not while an exit
     /// is pending (that is the drift path's question), and not when this
     /// stay was already offered one.
+    /// The server holds a visit open at ANOTHER gym: this ask did not
+    /// count, the next open asks again (review F4).
+    mutating func forgetStay(_ gym: String) {
+        promptedStays.removeValue(forKey: gym)
+    }
+
     mutating func insideOnOpen(_ gym: String, now: Date) -> Bool {
         guard pendingExits[gym] == nil else { return false }
         if let began = promptedStays[gym], now.timeIntervalSince(began) < Self.stayMemory { return false }
@@ -167,7 +179,15 @@ struct GeofenceQueue: Codable, Equatable {
         case .inside:
             let departure = isDeparture(gym, exitAt: exitAt, now: now)
             _ = takePending(gym)
-            if departure { sendExit(gym, at: exitAt) }
+            if departure {
+                // He is inside NOW. A departure older than the stay memory
+                // (left yesterday) ends the stay; a younger one — indoor
+                // drift at the Alrajhi tower past 90 min — must not re-open
+                // "Check in?" at his desk (review F2).
+                let kept = promptedStays[gym]
+                sendExit(gym, at: exitAt)
+                if let k = kept, now.timeIntervalSince(k) < Self.stayMemory { promptedStays[gym] = k }
+            }
         case .unknown:
             break
         }
