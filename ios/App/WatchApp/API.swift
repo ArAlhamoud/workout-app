@@ -123,6 +123,22 @@ enum API {
         return try? JSONDecoder().decode(GymVisitAnswer.self, from: data)
     }
 
+    // MARK: Swim / walk
+
+    /// A swim or walk as its own workout — the phone's quick log, through
+    /// /api/watch/cardio. true = logged now, false = already logged today
+    /// (one per kind per day), nil = no signal.
+    static func postCardio(kind: String, minutes: Int) async -> Bool? {
+        var req = URLRequest(url: baseURL.appendingPathComponent("/api/watch/cardio"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["kind": kind, "minutes": minutes])
+        guard let (data, resp) = try? await session.data(for: req),
+              (resp as? HTTPURLResponse)?.statusCode == 200,
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return (obj["deduped"] as? Bool) != true
+    }
+
     enum PostResult: Equatable {
         /// 2xx. `deduped`: the server merged it into a workout it already had
         /// (the phone's, under the same save id) — a success, not an error.

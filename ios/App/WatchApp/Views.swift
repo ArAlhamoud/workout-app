@@ -214,6 +214,9 @@ struct StartView: View {
                 .buttonStyle(.plain)
                 .padding(.top, 4)
 
+                CardioRow()
+                    .padding(.top, 8)
+
                 if let n = store.notice {
                     Text(n)
                         .font(.system(.footnote, design: .rounded))
@@ -254,6 +257,65 @@ struct StartView: View {
                 await store.refreshGym()
                 try? await Task.sleep(for: .seconds(20))
             }
+        }
+    }
+}
+
+// MARK: - Swim / walk
+
+/// The Train page's quick log on the wrist (owner, 2026-10-31): minutes,
+/// then Swim or Walk. Asks first — a sleeve brush must not file a workout.
+struct CardioRow: View {
+    @EnvironmentObject var store: SessionStore
+    @State private var minutes = SessionCore.cardioStart
+    @State private var asking: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            VoltFlag(text: "Swim or walk", ground: .black, ink: Volt.lime)
+            HStack(spacing: 4) {
+                Button { minutes = SessionCore.stepCardio(minutes, by: -1) } label: {
+                    Text("−").voltMono(16, .heavy).frame(width: 40, height: 36)
+                }
+                .buttonStyle(VoltOutline())
+                .accessibilityLabel("5 minutes less")
+                Spacer(minLength: 0)
+                Text("\(minutes)")
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .monospacedDigit()
+                Text("MIN").voltMono(9).foregroundStyle(.white.opacity(0.7))
+                Spacer(minLength: 0)
+                Button { minutes = SessionCore.stepCardio(minutes, by: 1) } label: {
+                    Text("+").voltMono(16, .heavy).frame(width: 40, height: 36)
+                }
+                .buttonStyle(VoltOutline())
+                .accessibilityLabel("5 minutes more")
+            }
+            HStack(spacing: 5) {
+                ForEach(["swim", "walk"], id: \.self) { k in
+                    Button { asking = k } label: {
+                        Text(k == "swim" ? "Swim" : "Walk")
+                            .voltMono(12, .heavy)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                    }
+                    .buttonStyle(VoltOutline(ink: Volt.lime))
+                    .disabled(store.cardioBusy)
+                }
+            }
+            if let n = store.cardioNotice {
+                Text(n)
+                    .voltMono(10)
+                    .foregroundStyle(n.hasPrefix("No signal") ? .orange : Volt.lime)
+            }
+        }
+        .confirmationDialog(asking.map { "Log a \(minutes) min \($0)?" } ?? "",
+                            isPresented: Binding(get: { asking != nil }, set: { if !$0 { asking = nil } }),
+                            titleVisibility: .visible) {
+            Button("Log it") {
+                if let k = asking { Task { await store.logCardio(kind: k, minutes: minutes) } }
+                asking = nil
+            }
+            Button("Cancel", role: .cancel) { asking = nil }
         }
     }
 }
