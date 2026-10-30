@@ -196,7 +196,11 @@ returns 45 (`DEFAULT_SESSION_MIN`, trainer ruling 3). Response:
    PICK`, **`DAY B`** large in black with the day's focus in mono, three
    square chips **30 · 45 · 60 MIN** (chosen one black with volt digits),
    ONE slanted black start bar **`▶ START DAY B · 45 MIN`** in volt, then
-   an outlined `SWITCH TO DAY A` (a deliberate tap). The chosen length
+   an outlined `SWITCH TO DAY A` (a deliberate tap). Below it, **SWIM OR WALK** (owner,
+   2026-10-31): a −/+ minutes stepper (5–120, 15 to start) and Swim / Walk,
+   which ask first and post `/api/watch/cardio` — the Train page's own
+   `logCardio`, so one per kind per day (a repeat answers "already logged
+   today"); no signal says so and nothing is queued. The chosen length
    starts as the plan's `durationMin`; tapping the planned chip returns to
    it and no `dur` is sent (`SessionCore.pickLength`). Watch contrast:
    black on volt and volt on black (~17:1), Continue #30D158 + black

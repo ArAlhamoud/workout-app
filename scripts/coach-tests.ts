@@ -1680,6 +1680,8 @@ console.log('Watch wave — watch log sets and session counting');
   const n = sanitizeWatchLogSets([{ exerciseId: 'a', reps: 10, weight: 30 }, { exerciseId: 'a', reps: 10, weight: 30 }]);
   assert(n.length === 2 && n[0].setNumber === 1 && n[1].setNumber === 2, 'a set with no number still gets its position, as before');
   assert(sanitizeWatchLogSets('junk').length === 0 && sanitizeWatchLogSets([{ exerciseId: 'a', reps: 0, weight: 30 }]).length === 0, 'junk input and impossible reps are dropped, never fatal');
+  const cardioRoute = fs.readFileSync(path.join(__dirname, '..', 'src/app/api/watch/cardio/route.ts'), 'utf8');
+  assert(/logCardio\(b\.kind, b\.minutes\)/.test(cardioRoute) && !/prisma\./.test(cardioRoute), 'the wrist\'s swim/walk goes through the phone\'s own logCardio — no second rule (rule 9)');
   const route = fs.readFileSync(path.join(__dirname, '..', 'src/app/api/watch/log/route.ts'), 'utf8');
   assert(route.includes('sanitizeWatchLogSets('), 'the Watch log route uses the shared sanitizer');
 

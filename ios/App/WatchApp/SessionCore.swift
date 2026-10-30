@@ -638,6 +638,23 @@ enum SessionCore {
     /// session started on the wrist is B_Fit's (API.fetchPlan).
     static func checkInGym(sessionGym: String?) -> String { sessionGym ?? "bfit" }
 
+    // MARK: - Swim / walk (owner, 2026-10-31)
+
+    /// The quick log's minutes, as the phone's stepper: 5…120 in fives,
+    /// 15 to start ("typically swim for 15 minutes").
+    static let cardioStart = 15
+    static func stepCardio(_ m: Int, by d: Int) -> Int { Swift.max(5, Swift.min(120, m + 5 * d)) }
+
+    /// The line after a tap, in the phone's words.
+    static func cardioLine(kind: String, minutes: Int, logged: Bool?) -> String {
+        let k = kind == "swim" ? "Swim" : "Walk"
+        switch logged {
+        case true?: return "\(k) \(minutes) min · logged"
+        case false?: return "\(k) already logged today"
+        case nil: return "No signal — try again"
+        }
+    }
+
     // MARK: - Relaunch
 
     enum RestorePoint: Equatable {

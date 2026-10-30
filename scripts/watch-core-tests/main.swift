@@ -532,5 +532,15 @@ do {
     check(none.action == "none" && none.visit == nil, "a refused enter or exit decodes as an answer, not as no signal")
 }
 
+print("Watch core — swim / walk from the wrist (owner, 2026-10-31)")
+do {
+    check(SessionCore.cardioStart == 15, "starts at his usual 15-minute swim")
+    check(SessionCore.stepCardio(15, by: 1) == 20 && SessionCore.stepCardio(15, by: -1) == 10, "the stepper moves in fives, as the phone's")
+    check(SessionCore.stepCardio(5, by: -1) == 5 && SessionCore.stepCardio(120, by: 1) == 120, "5 to 120 minutes, the phone's range")
+    check(SessionCore.cardioLine(kind: "swim", minutes: 15, logged: true) == "Swim 15 min · logged", "logged: the phone's own words")
+    check(SessionCore.cardioLine(kind: "walk", minutes: 30, logged: false) == "Walk already logged today", "a second one today is answered, not added")
+    check(SessionCore.cardioLine(kind: "swim", minutes: 15, logged: nil) == "No signal — try again", "no signal says so; nothing is claimed saved")
+}
+
 print("\n\(passed) passed, \(failed) failed")
 exit(failed == 0 ? 0 : 1)

@@ -972,6 +972,20 @@ final class SessionStore: ObservableObject {
         phase = .idle
     }
 
+    // MARK: - Swim / walk (owner, 2026-10-31)
+
+    @Published var cardioBusy = false
+    @Published var cardioNotice: String?
+
+    func logCardio(kind: String, minutes: Int) async {
+        guard !cardioBusy else { return }
+        cardioBusy = true
+        defer { cardioBusy = false }
+        let r = await API.postCardio(kind: kind, minutes: minutes)
+        cardioNotice = SessionCore.cardioLine(kind: kind, minutes: minutes, logged: r)
+        WKInterfaceDevice.current().play(r == nil ? .failure : .success)
+    }
+
     // MARK: - Gym check-in (owner, 2026-10-29)
 
     func refreshGym() async {
