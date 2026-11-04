@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-03T12:39:29.591Z",
+  "exportedAt": "2026-11-04T12:49:03.984Z",
   "totalWorkouts": 26,
   "totalBodyStats": 53,
   "totalExercises": 21,
@@ -22003,15 +22003,15 @@
       {
         "id": "cmvwticu3000212887kjxrmae",
         "day": "2026-11-03T00:00:00.000Z",
-        "proteinG": 116,
+        "proteinG": 119,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 1095,
-        "carbsG": 94,
-        "fatG": 24,
+        "kcal": 1885,
+        "carbsG": 156,
+        "fatG": 87,
         "flags": null,
-        "notes": "No delivery today (away). Breakfast: egg & chicken plate, label 637/50/53/25 minus guacamole, butter and jam left (est 172/1/16/13) = ~465/49/37/12; water, no juice. Planned: standing dinner 630/67/57/12 (200 g chicken + rice).",
+        "notes": "No delivery (away). Breakfast: egg & chicken plate minus guacamole/butter/jam ~465/49/37/12. Lunch: chicken mandi ~3/4 cup rice + ~80 g chicken ~395/26/43/14. Dinner (replaces standing chicken+rice), Sellfish, half of each, realistic est (menu kcal look understated): fish & chips 500/20/50/25, crisp",
         "createdAt": "2026-10-31T19:52:25.468Z"
       },
       {
