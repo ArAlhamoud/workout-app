@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-04T12:49:03.984Z",
+  "exportedAt": "2026-11-05T12:57:34.920Z",
   "totalWorkouts": 26,
   "totalBodyStats": 53,
   "totalExercises": 21,
@@ -22017,15 +22017,15 @@
       {
         "id": "cmvwticu70003128888po2fx5",
         "day": "2026-11-04T00:00:00.000Z",
-        "proteinG": 67,
+        "proteinG": 114,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 630,
-        "carbsG": 57,
-        "fatG": 12,
+        "kcal": 1685,
+        "carbsG": 160,
+        "fatG": 60,
         "flags": null,
-        "notes": "No delivery (owner). Planned: standing dinner 630/67/57/12 (200 g chicken + rice); other meals to be reported.",
+        "notes": "No delivery (away). Dinner (replaces standing chicken+rice), from photo: grilled chicken rice bowl with salad, carrot, cabbage, dressing, est whole bowl ~580/42/50/19. Breakfast/lunch not yet reported. · breakfast: same as 3 Nov, egg & chicken plate without guacamole/butter/jam ~465/49/37/12, water · lunch: small portion white rice (~3/4 cup, est 150/3/33/1) + musaqqa eggplant stew ~1 cup (est 250/8/18/17) · snack: 2 protein balls (est ~120/6/11/5.5 each)",
         "createdAt": "2026-10-31T19:52:25.472Z"
       },
       {
