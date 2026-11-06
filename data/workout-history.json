@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-05T12:57:34.920Z",
+  "exportedAt": "2026-11-06T12:45:02.397Z",
   "totalWorkouts": 26,
   "totalBodyStats": 53,
   "totalExercises": 21,
@@ -22031,15 +22031,15 @@
       {
         "id": "cmvwticub00041288tk6gobg2",
         "day": "2026-11-05T00:00:00.000Z",
-        "proteinG": 67,
+        "proteinG": 129,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 630,
-        "carbsG": 57,
-        "fatG": 12,
+        "kcal": 2274,
+        "carbsG": 248,
+        "fatG": 83,
         "flags": null,
-        "notes": "No delivery (owner). Planned: standing dinner 630/67/57/12 (200 g chicken + rice); other meals to be reported.",
+        "notes": "No delivery (away). Breakfast: 1 wholewheat toast + cheese spread ~130/6/15/5; tea 1 tsp sugar ~16. Lunch: grilled fish large ~250 g (~350/55/0/13) + large white rice ~2 cups (~420/8/90/2); small chocolate cake slice ~250/3/32/13. Dinner (Saaj menu kcal): malghouma chicken pie 289, half kebab pie 20 · late: McDonalds double cheeseburger (~450/25/34/23)",
         "createdAt": "2026-10-31T19:52:25.476Z"
       }
     ]
