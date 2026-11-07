@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-06T12:45:02.397Z",
+  "exportedAt": "2026-11-07T11:33:19.776Z",
   "totalWorkouts": 26,
   "totalBodyStats": 53,
   "totalExercises": 21,
@@ -22041,6 +22041,20 @@
         "flags": null,
         "notes": "No delivery (away). Breakfast: 1 wholewheat toast + cheese spread ~130/6/15/5; tea 1 tsp sugar ~16. Lunch: grilled fish large ~250 g (~350/55/0/13) + large white rice ~2 cups (~420/8/90/2); small chocolate cake slice ~250/3/32/13. Dinner (Saaj menu kcal): malghouma chicken pie 289, half kebab pie 20 · late: McDonalds double cheeseburger (~450/25/34/23)",
         "createdAt": "2026-10-31T19:52:25.476Z"
+      },
+      {
+        "id": "cmw523gha0000eoh5rcjg0uta",
+        "day": "2026-11-06T00:00:00.000Z",
+        "proteinG": 145,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 2100,
+        "carbsG": 97,
+        "fatG": 128,
+        "flags": null,
+        "notes": "No breakfast. Earlier meal (Wallflower cafe): sheesh tawooq, all chicken, half fries, half garlic sauce ~650/60/42/30. Late dinner after midnight (activity day Friday): steakhouse shared by 4, est 1/4 of ~5800 kcal table (loaded cheese fries, mashed/cheese side, cheesesteak sandwich, beef ribs, 2 st",
+        "createdAt": "2026-11-06T14:14:56.303Z"
       }
     ]
   }
