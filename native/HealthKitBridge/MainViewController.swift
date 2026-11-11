@@ -33,5 +33,34 @@ class MainViewController: CAPBridgeViewController {
             scroll.topEdgeEffect.isHidden = true
             scroll.bottomEdgeEffect.isHidden = true
         }
+        NotificationCenter.default.addObserver(self, selector: #selector(recoverBlankPage),
+                                               name: UIApplication.didBecomeActiveNotification, object: nil)
+        #if DEBUG
+        // Debug-only: empty the page 6 s after launch, to test the recovery
+        // below in the simulator (a failed background load cannot be staged).
+        if UserDefaults.standard.bool(forKey: "SimulateBlankWebView") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { self.webView?.evaluateJavaScript("document.documentElement.replaceChildren(document.createElement('body'))") }
+        }
+        #endif
+    }
+
+    /// A black screen that never loads (owner, 2026-11-11: opening the gym
+    /// check-in or check-out notification). iOS wakes the app in the
+    /// background for a gym event; the page load started then can be cut off
+    /// when the app is suspended, and Capacitor reloads only after a crashed
+    /// web process — a failed load leaves an empty webview on the dark
+    /// system background for good. Every time the app comes to the front:
+    /// a page that is blank, never loaded, or whose web process is gone is
+    /// loaded again. A live page is never touched.
+    @objc private func recoverBlankPage() {
+        guard let web = webView, !web.isLoading, let start = bridge?.config.appStartServerURL else { return }
+        let reload = {
+            NSLog("[Shell] blank page on foreground — reloading %@", start.absoluteString)
+            web.load(URLRequest(url: start))
+        }
+        guard let url = web.url, url.scheme == "https" || url.scheme == "http" else { return reload() }
+        web.evaluateJavaScript("document.body ? document.body.childElementCount : 0") { result, error in
+            if error != nil || (result as? Int ?? 0) == 0 { reload() }
+        }
     }
 }
