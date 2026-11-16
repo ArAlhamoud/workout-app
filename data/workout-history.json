@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-15T12:32:14.204Z",
+  "exportedAt": "2026-11-16T13:24:40.907Z",
   "totalWorkouts": 28,
   "totalBodyStats": 65,
   "totalExercises": 21,
@@ -24090,11 +24090,11 @@
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 1873,
-        "carbsG": 182,
-        "fatG": 59,
+        "kcal": 1817,
+        "carbsG": 175,
+        "fatG": 67,
         "flags": null,
-        "notes": "Planned: delivery 1243/80/125/47 (turkey club sandwich breakfast) + standing dinner 630/67/57/12 (200 g chicken + rice)",
+        "notes": "Delivery 1243/80/125/47 (turkey club sandwich breakfast) eaten as planned. Dinner (replaces standing chicken+rice): high-protein grilled tawook plate with roasted potato instead of rice (label 640/68/67/20 with rice; −rice 218/5/48/2 +potato 152/3.5/31/2) = ~574/67/50/20.",
         "createdAt": "2026-11-12T06:06:19.855Z"
       },
       {
@@ -24152,6 +24152,62 @@
         "flags": null,
         "notes": "Planned: delivery 1107/61/92/55 (scrambled egg and turkey breakfast) + standing dinner 630/67/57/12 (200 g chicken + rice)",
         "createdAt": "2026-11-12T06:06:19.907Z"
+      },
+      {
+        "id": "cmwirslwq0000oy9n1kqp2haz",
+        "day": "2026-11-22T00:00:00.000Z",
+        "proteinG": 130,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1877,
+        "carbsG": 155,
+        "fatG": 79,
+        "flags": null,
+        "notes": "Planned: delivery 1247/63/98/67 + standing dinner 630/67/57/12 (200 g chicken + rice). Delivery to office.",
+        "createdAt": "2026-11-16T04:35:20.424Z"
+      },
+      {
+        "id": "cmwirslxx0001oy9naksmjj4x",
+        "day": "2026-11-23T00:00:00.000Z",
+        "proteinG": 131,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1728,
+        "carbsG": 155,
+        "fatG": 62,
+        "flags": null,
+        "notes": "Planned: delivery 1098/64/98/50 + standing dinner 630/67/57/12 (200 g chicken + rice). Delivery to office.",
+        "createdAt": "2026-11-16T04:35:20.470Z"
+      },
+      {
+        "id": "cmwirsly10002oy9nqjc88jsq",
+        "day": "2026-11-24T00:00:00.000Z",
+        "proteinG": 132,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1696,
+        "carbsG": 146,
+        "fatG": 62,
+        "flags": null,
+        "notes": "Planned: delivery 1066/65/89/50 (scrambled egg and cheese breakfast) + standing dinner 630/67/57/12 (200 g chicken + rice). Dose day (last dose of current pen). Delivery to office.",
+        "createdAt": "2026-11-16T04:35:20.474Z"
+      },
+      {
+        "id": "cmwirsly40003oy9nz8usyej4",
+        "day": "2026-11-25T00:00:00.000Z",
+        "proteinG": 134,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1827,
+        "carbsG": 179,
+        "fatG": 61,
+        "flags": null,
+        "notes": "Planned: delivery 1197/67/122/49 (egg and mixed cheese omelette breakfast) + standing dinner 630/67/57/12 (200 g chicken + rice). Delivery to office.",
+        "createdAt": "2026-11-16T04:35:20.477Z"
       }
     ]
   }
