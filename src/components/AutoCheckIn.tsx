@@ -13,7 +13,8 @@ import {
 
 /**
  * Auto check-in (owner, 2026-10-22): the phone watches each gym's area and
- * asks "Check in?" on arrival, checks out on leaving. This row only sets it
+ * checks in at B_Fit by itself (asks "Check in?" at Alrajhi), checks out on
+ * leaving; a B_Fit drive-by is erased (2026-11-19). This row only sets it
  * up — permission, "Set this as B_Fit" standing at the gym, Clear. Hidden
  * outside a native build that has the plugin. Two lines at a glance.
  */

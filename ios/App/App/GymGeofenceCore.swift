@@ -27,6 +27,23 @@ struct GeofenceEvent: Codable, Equatable {
     /// no exit known after it. Only such an enter may move an open visit's
     /// check-in back on the server (geofenceEnter); nil on older queues.
     var arrival: Bool? = nil
+    /// An enter the phone made BY ITSELF on arrival (B_Fit, owner
+    /// 2026-11-19), not a tap. Nil on taps and on older queues.
+    var auto: Bool? = nil
+    /// An auto check-in made because the app was OPENED inside the gym with
+    /// no arrival seen. Nobody opens the app while driving past, and its
+    /// time is a guess: never offered to the server for cancelling
+    /// (adversary #2, 2026-11-19).
+    var backup: Bool? = nil
+    /// On an exit: the drive-by's auto enter that was being sent when this
+    /// exit was decided. If that send proves it never reached the server,
+    /// both go (`notReached`).
+    var dropWith: String? = nil
+    /// Set (and saved) the moment a send of this event STARTS; cleared only
+    /// when that send proves it never reached the server. A timeout, a lost
+    /// connection, a 5xx or the app killed mid-request leave it set: the
+    /// visit may exist, so the phone never drops this enter (review R1).
+    var maybeSent: Bool? = nil
 }
 
 /// The phone's side of gym check-in/out, as one persisted value:
@@ -70,9 +87,25 @@ struct GeofenceQueue: Codable, Equatable {
     /// is ONE stay: opening the app there asks at most once a day.
     static let stayMemory: TimeInterval = 14 * 3600
 
+    /// Gyms checked in AUTOMATICALLY on arrival (owner, 2026-11-19). Alrajhi
+    /// is his office tower: an arrival there is not a visit, so it keeps the
+    /// "Check in?" prompt.
+    static let autoGyms: Set<String> = ["bfit"]
+
+    /// The visit the server opened for this phone's own automatic check-in,
+    /// by gym. Every exit for that gym carries the id, and the server erases
+    /// that visit — never another — when the stay was a drive-by
+    /// (`geofenceExit`, AUTO_CANCEL_MIN). The rule is the server's (rule 9);
+    /// the phone only remembers which visit it made.
+    var autoVisits: [String: String] = [:]
+    /// The enter event behind each `autoVisits` entry: its "Checked in" line
+    /// carries that id, so cancelling an old drive-by never withdraws a
+    /// newer visit's line (adversary #6).
+    var autoEnters: [String: String] = [:]
+
     init() {}
 
-    private enum CodingKeys: String, CodingKey { case outbox, pendingExits, maybeLater, confirmedExits, promptedStays }
+    private enum CodingKeys: String, CodingKey { case outbox, pendingExits, maybeLater, confirmedExits, promptedStays, autoVisits, autoEnters }
 
     /// Every key optional: a queue stored by an older or newer build keeps
     /// what it has instead of failing whole and wiping the outbox (review S4).
@@ -83,6 +116,8 @@ struct GeofenceQueue: Codable, Equatable {
         maybeLater = try c.decodeIfPresent([GeofenceEvent].self, forKey: .maybeLater) ?? []
         confirmedExits = try c.decodeIfPresent(Set<String>.self, forKey: .confirmedExits) ?? []
         promptedStays = try c.decodeIfPresent([String: Date].self, forKey: .promptedStays) ?? [:]
+        autoVisits = try c.decodeIfPresent([String: String].self, forKey: .autoVisits) ?? [:]
+        autoEnters = try c.decodeIfPresent([String: String].self, forKey: .autoEnters) ?? [:]
     }
 
     /// The one rule: is this gym's pending exit a real departure?
@@ -96,10 +131,63 @@ struct GeofenceQueue: Codable, Equatable {
         return pendingExits.removeValue(forKey: gym)
     }
 
-    private mutating func sendExit(_ gym: String, at exitAt: Date) {
-        enqueue(GeofenceEvent(id: UUID().uuidString, kind: .exit, gym: gym, at: exitAt))
+    private mutating func sendExit(_ gym: String, at exitAt: Date, now: Date, leftArea: Bool = false) {
         promptedStays.removeValue(forKey: gym)
+        // No signal at B_Fit's parking (owner, 2026-11-19): a drive-by's auto
+        // enter is often still unsent when he has already gone. Then nothing
+        // is sent at all — the enter is dropped and the exit with it. Only
+        // when he LEFT THE 600 m AREA (a drift "outside" answer is the
+        // server's to judge, with its training veto — review R3), promptly
+        // (the server's window), and only the enter of THIS stay — the
+        // newest one before the exit (R4).
+        let mine = outbox.lastIndex { $0.kind == .enter && $0.gym == gym && $0.at <= exitAt }
+        if leftArea, now.timeIntervalSince(exitAt) <= Self.autoCancelSendWindow, let i = mine,
+           outbox[i].auto == true, outbox[i].backup != true,
+           exitAt.timeIntervalSince(outbox[i].at) < Self.autoConfirmDelay {
+            // Never sent: drop both. A send started (in flight, or ended
+            // without proof it never arrived): the visit may exist, so the
+            // exit is queued tied to it, for the server to cancel.
+            guard outbox[i].maybeSent == true else {
+                droppedEnters.append(outbox.remove(at: i).id)
+                return
+            }
+            var exit = GeofenceEvent(id: UUID().uuidString, kind: .exit, gym: gym, at: exitAt)
+            exit.dropWith = outbox[i].id
+            return enqueue(exit)
+        }
+        enqueue(GeofenceEvent(id: UUID().uuidString, kind: .exit, gym: gym, at: exitAt))
     }
+
+    /// A send of `id` is starting. Returns what the flag was, for `notReached`.
+    mutating func sending(_ id: String) -> Bool? {
+        guard let i = outbox.firstIndex(where: { $0.id == id }) else { return nil }
+        let was = outbox[i].maybeSent
+        outbox[i].maybeSent = true
+        return was
+    }
+
+    /// The send of `event` failed in a way that proves it never reached the
+    /// server (no network, host not found or refused — never a timeout,
+    /// where the visit may exist). A drive-by enter tied to a queued exit
+    /// goes, with that exit: nothing to send at all.
+    /// `wasMaybeSent` is the flag before this send began: an earlier attempt
+    /// that ended without proof keeps the enter (review R2).
+    mutating func notReached(_ event: GeofenceEvent, wasMaybeSent: Bool?) {
+        guard let i = outbox.firstIndex(where: { $0.id == event.id }) else { return }
+        outbox[i].maybeSent = wasMaybeSent
+        guard event.kind == .enter, wasMaybeSent != true,
+              let exit = outbox.first(where: { $0.dropWith == event.id }) else { return }
+        outbox.removeAll { $0.id == event.id || $0.id == exit.id }
+        droppedEnters.append(event.id)
+    }
+
+    /// The server's AUTO_CANCEL_SEND_MIN: a drive-by is settled only this
+    /// soon after the exit.
+    static let autoCancelSendWindow: TimeInterval = 30 * 60
+
+    /// Auto enters dropped as drive-bys since the manager last looked: their
+    /// "Checked in" lines are withdrawn. Never stored.
+    var droppedEnters: [String] = []
 
     // MARK: Region events
 
@@ -119,7 +207,7 @@ struct GeofenceQueue: Codable, Equatable {
         }
         let departure = isDeparture(gym, exitAt: exitAt, now: at)
         _ = takePending(gym)
-        if departure { sendExit(gym, at: exitAt); promptedStays[gym] = at }
+        if departure { sendExit(gym, at: exitAt, now: at); promptedStays[gym] = at }
         return departure
     }
 
@@ -154,7 +242,7 @@ struct GeofenceQueue: Codable, Equatable {
     /// with its small-circle time.
     mutating func leftAwayArea(_ gym: String, now: Date) {
         guard let exitAt = takePending(gym) else { return }
-        sendExit(gym, at: exitAt)
+        sendExit(gym, at: exitAt, now: now, leftArea: true)
     }
 
     /// Gyms whose pending exit is old enough to send — once iOS confirms he
@@ -178,7 +266,7 @@ struct GeofenceQueue: Codable, Equatable {
             confirmedExits.insert(gym)
             if now.timeIntervalSince(exitAt) >= Self.exitDelay {
                 _ = takePending(gym)
-                sendExit(gym, at: exitAt)
+                sendExit(gym, at: exitAt, now: now)
             }
         case .inside:
             let departure = isDeparture(gym, exitAt: exitAt, now: now)
@@ -189,7 +277,7 @@ struct GeofenceQueue: Codable, Equatable {
                 // drift at the Alrajhi tower past 90 min — must not re-open
                 // "Check in?" at his desk (review F2).
                 let kept = promptedStays[gym]
-                sendExit(gym, at: exitAt)
+                sendExit(gym, at: exitAt, now: now)
                 if let k = kept, now.timeIntervalSince(k) < Self.stayMemory { promptedStays[gym] = k }
             }
         case .unknown:
@@ -219,6 +307,13 @@ struct GeofenceQueue: Codable, Equatable {
         let close = tappedAt.timeIntervalSince(enteredAt) <= Self.entryTrustWindow
         enqueue(GeofenceEvent(id: id, kind: .enter, gym: gym, at: close || bounded ? enteredAt : Swift.max(tappedAt, enteredAt),
                               arrival: close && !bounded ? true : nil))
+    }
+
+    /// Arrived at an auto gym (or opened the app inside it with no arrival
+    /// seen): check in at that moment, no tap. It is a measured arrival, so
+    /// it may move back a visit a Watch set opened later.
+    mutating func autoCheckIn(gym: String, at: Date, backup: Bool = false, id: String = UUID().uuidString) {
+        enqueue(GeofenceEvent(id: id, kind: .enter, gym: gym, at: at, arrival: true, auto: true, backup: backup ? true : nil))
     }
 
     /// The arrival prompt is withdrawn this long after the entry.
@@ -251,8 +346,21 @@ struct GeofenceQueue: Codable, Equatable {
     func next() -> GeofenceEvent? { outbox.first }
 
     /// The server answered `action` for `event`.
-    mutating func answered(_ event: GeofenceEvent, action: String, now: Date) {
+    mutating func answered(_ event: GeofenceEvent, action: String, now: Date, visitId: String? = nil) {
         outbox.removeAll { $0.id == event.id }
+        if event.kind == .enter && action == "created" && event.auto == true && event.backup != true, let v = visitId {
+            autoVisits[event.gym] = v
+            autoEnters[event.gym] = event.id
+        } else if event.kind == .enter && action == "created" {
+            // A tap or the backup opened this one: no earlier auto visit may
+            // ride on its exit.
+            autoVisits.removeValue(forKey: event.gym)
+            autoEnters.removeValue(forKey: event.gym)
+        }
+        if event.kind == .exit && (action == "closed" || action == "cancelled") {
+            autoVisits.removeValue(forKey: event.gym)
+            autoEnters.removeValue(forKey: event.gym)
+        }
         if event.kind == .enter && action == "created" {
             // The late tap: exits already answered "none" for this gym, after
             // this entry, are what closes the visit just opened.
@@ -286,9 +394,13 @@ struct GeofenceQueue: Codable, Equatable {
 
     // MARK: Wire format and persistence
 
-    static func requestBody(_ e: GeofenceEvent) -> [String: String] {
-        var b = ["event": e.kind.rawValue, "gym": e.gym, "atISO": isoString(e.at)]
-        if e.arrival == true { b["source"] = "arrival" }
+    /// The wire body. An exit carries the id of the visit this phone opened
+    /// itself at that gym, read at SEND time: events go oldest first, so the
+    /// enter's answer has already set it.
+    func requestBody(_ e: GeofenceEvent) -> [String: String] {
+        var b = ["event": e.kind.rawValue, "gym": e.gym, "atISO": Self.isoString(e.at)]
+        if e.auto == true { b["source"] = "auto" } else if e.arrival == true { b["source"] = "arrival" }
+        if e.kind == .exit, let v = autoVisits[e.gym] { b["visitId"] = v }
         return b
     }
 
@@ -327,6 +439,21 @@ struct GeofenceQueue: Codable, Equatable {
         }
         return "Checked out of \(name) · \(span)"
     }
+
+    /// The quiet line once an automatic check-in has stood for the drive-by
+    /// window: "Checked in · B_Fit 18:02".
+    static func checkedInText(gym: String, at: Date, timeZone: TimeZone = .current) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_GB")
+        f.timeZone = timeZone
+        f.dateFormat = "HH:mm"
+        return "Checked in · \(gymNames[gym] ?? gym) \(f.string(from: at))"
+    }
+
+    /// The server's drive-by window (AUTO_CANCEL_MIN in gym-visits.ts): the
+    /// "Checked in" line waits this long after the arrival, and is withdrawn
+    /// if the visit is cancelled first.
+    static let autoConfirmDelay: TimeInterval = 10 * 60
 
     /// Minutes of the visit the server returned with "closed".
     static func visitMinutes(_ visit: [String: Any]) -> Int? {

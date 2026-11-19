@@ -252,6 +252,13 @@ export interface GeofenceEvent {
   /** The phone's measured arrival (tapped within its trust window, no exit
    *  known after it). Only this may move an open visit's check-in. */
   arrival?: boolean;
+  /** On an exit: the visit the phone opened ITSELF on arrival at B_Fit
+   *  (owner, 2026-11-19). Only that visit may be cancelled. */
+  autoVisitId?: string;
+  /** The visit must stand whatever the geofence says: it was edited by hand,
+   *  or training is in evidence since its check-in (a live session started,
+   *  a set ticked). Read by the route under its lock. */
+  keepVisit?: boolean;
 }
 
 /** An event time must carry Z or an offset: a bare local time would be
@@ -273,7 +280,7 @@ const clampToNow = (at: Date, now: Date) => new Date(Math.min(at.getTime(), now.
 export function geofenceEnter(
   recent: VisitLite[],
   e: GeofenceEvent,
-): { action: 'create' | 'move' | 'none'; checkInAt?: Date; visitId?: string } {
+): { action: 'create' | 'same' | 'move' | 'none'; checkInAt?: Date; visitId?: string } {
   if (!GEOFENCE_GYMS.has(e.gym)) return { action: 'none' };
   const at = clampToNow(e.at, e.now);
   // A late tap on an old prompt must not overlap a visit that already
@@ -283,6 +290,10 @@ export function geofenceEnter(
   if (e.now.getTime() - at.getTime() > VISIT_STALE_MS) return { action: 'none' };
   const open = recent.find((v) => !v.checkOutAt && !isStale(v, e.now));
   if (open) {
+    // The same enter again — a retry after its answer was lost (adversary,
+    // 2026-11-19): it is the visit it created, answered as created, so the
+    // phone learns the id of the visit it opened itself.
+    if (open.gym === e.gym && t(open.checkInAt) === at.getTime()) return { action: 'same', visitId: open.id, checkInAt: at };
     // The phone's measured arrival, tapped after the visit was opened later
     // (a set logged on the Watch, a manual tap), is the real start: move the
     // check-in back — same gym, at most the phone's 30-min arrival window.
@@ -310,7 +321,7 @@ const ARRIVAL_TRUST_MS = 30 * MIN;
 export function geofenceExit(
   open: VisitLite[],
   e: GeofenceEvent,
-): { action: 'close' | 'none'; visitId?: string; checkOutAt?: Date } {
+): { action: 'close' | 'cancel' | 'none'; visitId?: string; checkOutAt?: Date } {
   if (!GEOFENCE_GYMS.has(e.gym)) return { action: 'none' };
   const v = open
     .filter((x) => !x.checkOutAt && x.gym === e.gym)
@@ -321,5 +332,26 @@ export function geofenceExit(
   if (at < inMs) return { action: 'none' };
   const out = Math.max(at, inMs + MIN);
   if (out - inMs > VISIT_MAX_MIN * MIN) return { action: 'none' };
+  // He drove past (owner, 2026-11-19: B_Fit is on a main street). A visit the
+  // phone opened by itself and left within AUTO_CANCEL_MIN of the arrival was
+  // never a visit: it is erased, silently. Only when the exit arrives
+  // PROMPTLY — a drive-by reaches the server within minutes (the away
+  // circle); an exit sent hours later is the drift inference, and erasing
+  // would lose a real visit's check-in (data-steward). Never a check-in he
+  // made or edited by hand, never with training in evidence: those close.
+  if (
+    e.autoVisitId === v.id &&
+    !e.keepVisit &&
+    at - inMs < AUTO_CANCEL_MIN * MIN &&
+    e.now.getTime() - at <= AUTO_CANCEL_SEND_MIN * MIN
+  ) {
+    return { action: 'cancel', visitId: v.id };
+  }
   return { action: 'close', visitId: v.id, checkOutAt: new Date(out) };
 }
+
+/** Shorter than this, an automatic check-in was a drive-by, not a visit.
+ *  Longer than a red light by the gym, shorter than any real session. */
+export const AUTO_CANCEL_MIN = 10;
+/** A drive-by exit later than this after the exit itself only closes. */
+export const AUTO_CANCEL_SEND_MIN = 30;

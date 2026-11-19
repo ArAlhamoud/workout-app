@@ -13,11 +13,12 @@ the Mac session's.
 |---|---|
 | `event` | `"enter"` or `"exit"` |
 | `gym` | `"bfit"` (B_Fit) or `"work"` (Alrajhi Tower) |
-| `source` | optional; `"arrival"` only on a measured arrival (see below) |
+| `source` | optional; `"auto"` on the phone's automatic check-in at B_Fit, `"arrival"` on a measured arrival tapped on a prompt (see below) |
+| `visitId` | exit only, optional: the visit the phone opened ITSELF at that gym (its last `auto` enter answered `created`) |
 | `atISO` | when the region event happened on the phone, ISO 8601 **with `Z` or an offset** (a bare local time is refused), **not** when it is sent |
 
-Responses: `{ action: "created", visit }`, `{ action: "closed", visit }`, or
-`{ action: "none" }`. `none` is a normal answer, not an error.
+Responses: `{ action: "created", visit }`, `{ action: "closed", visit }`,
+`{ action: "cancelled" }` (a drive-by erased), or `{ action: "none" }`. `none` is a normal answer, not an error.
 
 `GET /api/gym/visit` → `{ open: visit | null }`: the visit open right now
 (a stale one, past the forgot-to-check-out window, counts as none). The
@@ -37,6 +38,42 @@ phone asks before its arrival backup offers "Check in?".
   tapped after a Watch set or a manual tap opened the visit later
   (2026-10-29). No other enter ever moves one — a Watch session start is a
   guess, and a late or bounded tap may span an absence.
+- **Auto check-in and the drive-by (owner, 2026-11-19).** B_Fit is on a
+  main street; he drives past it. The phone checks in there by itself on
+  arrival (`source: "auto"`, read as a measured arrival). An exit carrying
+  that visit's `visitId`, less than `AUTO_CANCEL_MIN` (10 min) after its
+  check-in by the MEASURED times, DELETES the visit → `cancelled`: a
+  drive-by leaves no row. Only the visit the phone opened itself can go —
+  a hand check-in, a Watch-opened one or any other id is closed as usual.
+  Ten minutes, not five: a red light by the gym, and no real session is
+  that short. Reviews (2026-11-19) added three vetoes, all read under the
+  lock — the visit always CLOSES instead when: the exit reaches the server
+  more than 30 min after it happened (`AUTO_CANCEL_SEND_MIN`: that is the
+  drift-inference path, and erasing would lose a real visit's check-in);
+  the row was edited by hand (`updatedAt` past `createdAt`); or training is
+  in evidence (a live session started since the check-in or still running,
+  a set ticked since it). The same enter sent again — its answer lost — is
+  answered `created` with the visit it made, so the phone still learns the
+  id. Accepted: an exit iOS delivers 10+ min after a quick pass, or a
+  drive-by after which he parks within 600 m and stays past 30 min, leaves
+  a few-minute row; indoor drift confirmed "outside" before any set is
+  ticked erases the visit (a re-entry checks in again).
+- **No signal (owner, 2026-11-19): B_Fit's parking has no mobile service or
+  Wi-Fi, and parts of the gym little.** Events wait in the phone's queue and
+  go out on the next wake with signal, with their real times. A drive-by
+  whose auto enter was NEVER possibly sent when he leaves the 600 m area
+  (≤ 30 min after the small-circle exit, stay < 10 min) is settled on the
+  phone: the enter is dropped and no exit is sent (`sendExit`). Only the
+  newest enter before that exit (this stay's), and only on the away-circle
+  path — an "outside" answer may be indoor drift, and is sent for the
+  server to judge with its training veto. An enter whose send STARTED is
+  `maybeSent` (saved before the request): a timeout, lost connection, 5xx
+  or a kill keeps it so — the visit may exist — and its exit is queued tied
+  to it (`dropWith`) for the server to cancel. Both are dropped only when
+  every attempt proved it never reached the server (no network, host not
+  found or refused: `notReached`). Accepted: an enter first sent
+  more than 6 h after the arrival opens nothing (the stale rule). No timer is involved — iOS cannot run one while the app is
+  suspended; leaving the 600 m away circle is what wakes the phone.
 - **Exit** closes the open visit for THAT gym at the exit time. Send it on
   its own once he has been outside the region long enough (5–10 min) to rule
   out GPS drift. Nothing open, the other gym, an exit before the check-in,
@@ -103,7 +140,14 @@ coordinates and stops watching.
 
 **Two circles per gym.** 150 m (arrive / leave) and 600 m ("away").
 
-- *Arriving* (150 m entered): a local notification "At B_Fit. Check in?"
+- *Arriving at B_Fit* (150 m entered, a new stay): **checked in
+  automatically** at the entry moment (`autoCheckIn`, `GeofenceQueue.autoGyms`)
+  — no prompt. A quiet "Checked in · B_Fit 18:02" is scheduled for 10 min
+  after the arrival (iOS delivers it with the app asleep) and withdrawn if
+  the server answers `cancelled` (drive-by) or `none` to the enter (he was
+  already checked in). The visit id the server returns is kept
+  (`autoVisits`) and sent on that gym's exits; a tapped check-in clears it.
+- *Arriving at Alrajhi* (150 m entered): a local notification "At Alrajhi. Check in?"
   with **Check in** / **Not now** (category `GYM_ARRIVE`, background
   actions — iOS mirrors it to the Watch when the phone is locked). Check in
   queues an `enter` with the moment he ENTERED (carried in the
@@ -123,8 +167,10 @@ coordinates and stops watching.
   (`promptedStays`: ended by a sent exit, forgotten after 14 h — a whole
   office day at Alrajhi is one stay), and no open visit on the server
   (`GET`; no answer = ask anyway, a tap can never open a second visit):
-  "Check in?" with the entry time NOW — the real arrival is unknown and is
-  never guessed.
+  at B_Fit an automatic check-in (never cancellable — nobody opens the app
+  driving past; its "Checked in" line shows at once), at Alrajhi
+  "Check in?" — either with the
+  entry time NOW: the real arrival is unknown and is never guessed.
 - **Recent events.** The last 40 things iOS and the server said (arrived,
   left, inside on open, sent → answer, permission changes, a prompt iOS
   hid because notifications are off), with times and never a location,

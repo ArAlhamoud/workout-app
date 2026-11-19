@@ -288,8 +288,21 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         let prompt = queue.enteredGym(gym, at: at)
         save()
         trace("arrived \(GeofenceQueue.gymNames[gym] ?? gym)\(prompt ? "" : " (same stay, no prompt)")")
-        if prompt { GymNotifications.shared.postArrival(gym: gym, enteredAt: at) }
+        if prompt { arrive(gym, at: at) }
         drain()
+    }
+
+    /// A new stay: B_Fit checks in by itself (owner, 2026-11-19 — the
+    /// server erases it if he only drove past); Alrajhi asks.
+    private func arrive(_ gym: String, at: Date, backup: Bool = false) {
+        guard GeofenceQueue.autoGyms.contains(gym) else {
+            return GymNotifications.shared.postArrival(gym: gym, enteredAt: at)
+        }
+        let id = UUID().uuidString
+        queue.autoCheckIn(gym: gym, at: at, backup: backup, id: id)
+        save()
+        trace("checking in at \(GeofenceQueue.gymNames[gym] ?? gym) automatically\(backup ? " (app opened inside)" : "")")
+        GymNotifications.shared.scheduleCheckedIn(gym: gym, at: at, eventId: id, wait: backup ? 1 : nil)
     }
 
     /// Our region-state asks, stamped. Only an answer within 30 s of its
@@ -367,8 +380,9 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
                     return self.trace("inside \(name) on open — a visit is open at \(GeofenceQueue.gymNames[other] ?? other)")
                 }
                 if openGym == gym { return self.trace("inside \(name) on open — already checked in") }
-                self.trace("inside \(name) on open, no arrival seen — asking")
-                GymNotifications.shared.postArrival(gym: gym, enteredAt: now)
+                self.trace("inside \(name) on open, no arrival seen")
+                self.arrive(gym, at: now, backup: true)
+                self.drain()
             }
         }
     }
@@ -498,6 +512,10 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         guard !sending else { return }
         guard let event = queue.next(), let url = Self.endpoint else { return finishDrain() }
         sending = true
+        // Saved BEFORE the request: killed mid-send, the enter stays "maybe
+        // sent" and is never dropped (review R1).
+        let wasMaybeSent = queue.sending(event.id)
+        save()
         if bgTask == .invalid {
             bgTask = UIApplication.shared.beginBackgroundTask(withName: "gym-visit") { [weak self] in
                 self?.endBackgroundTask()
@@ -506,21 +524,33 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         var req = URLRequest(url: url, timeoutInterval: 20)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: GeofenceQueue.requestBody(event))
+        req.httpBody = try? JSONSerialization.data(withJSONObject: queue.requestBody(event))
         URLSession.shared.dataTask(with: req) { data, response, error in
-            DispatchQueue.main.async { self.handle(event, data: data, response: response, error: error) }
+            DispatchQueue.main.async { self.handle(event, wasMaybeSent: wasMaybeSent, data: data, response: response, error: error) }
         }.resume()
     }
 
-    private func handle(_ event: GeofenceEvent, data: Data?, response: URLResponse?, error: Error?) {
+    private func handle(_ event: GeofenceEvent, wasMaybeSent: Bool?, data: Data?, response: URLResponse?, error: Error?) {
         sending = false
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         if error == nil, code == 200,
            let json = data.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any],
            let action = json["action"] as? String {
-            trace("sent \(event.kind.rawValue) \(GeofenceQueue.gymNames[event.gym] ?? event.gym) → \(action)")
-            queue.answered(event, action: action, now: Date())
+            trace("sent \(event.auto == true ? "auto " : "")\(event.kind.rawValue) \(GeofenceQueue.gymNames[event.gym] ?? event.gym) → \(action)")
+            let visit = json["visit"] as? [String: Any]
+            // The enter behind the visit this exit may cancel, read before
+            // `answered` forgets it.
+            let cancelledEnter = event.kind == .exit ? queue.autoEnters[event.gym] : nil
+            queue.answered(event, action: action, now: Date(), visitId: visit?["id"] as? String)
             save()
+            // A drive-by erased, or an auto check-in the server refused (he
+            // was already checked in): THAT visit's "Checked in" line must
+            // not come — never a newer one's.
+            if action == "cancelled", let enterId = cancelledEnter {
+                GymNotifications.shared.withdrawCheckedIn(eventId: enterId)
+            } else if event.auto == true && action == "none" {
+                GymNotifications.shared.withdrawCheckedIn(eventId: event.id)
+            }
             if event.kind == .exit, action == "closed",
                let visit = json["visit"] as? [String: Any], let minutes = GeofenceQueue.visitMinutes(visit) {
                 GymNotifications.shared.postCheckedOut(gym: event.gym, minutes: minutes)
@@ -532,6 +562,15 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
             queue.rejected(event)
             save()
             return drain()
+        }
+        // Never reached the server (no signal at B_Fit's parking): a drive-by
+        // tied to it is settled here, nothing sent. A timeout may have
+        // reached it — kept like any other failure.
+        let never: Set<Int> = [NSURLErrorNotConnectedToInternet, NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
+                               NSURLErrorDNSLookupFailed]
+        if let e = error as NSError?, e.domain == NSURLErrorDomain, never.contains(e.code) {
+            queue.notReached(event, wasMaybeSent: wasMaybeSent)
+            save()
         }
         // Offline or a server error: keep it; the next wake sends it again.
         NSLog("[GymGeofence] %@ %@ not sent (%@) — kept", event.kind.rawValue, event.gym, error?.localizedDescription ?? "HTTP \(code)")
@@ -552,6 +591,13 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     }
 
     private func save() {
+        // A drive-by settled on the phone, unsent (no signal at the parking):
+        // its "Checked in" line must not come.
+        if !queue.droppedEnters.isEmpty {
+            queue.droppedEnters.forEach { GymNotifications.shared.withdrawCheckedIn(eventId: $0) }
+            queue.droppedEnters = []
+            trace("drove past B_Fit — check-in dropped, nothing sent")
+        }
         if let data = try? JSONEncoder().encode(queue) { defaults.set(data, forKey: queueKey) }
     }
 
@@ -650,6 +696,28 @@ final class GymNotifications: NSObject, UNUserNotificationCenterDelegate {
             guard st.authorizationStatus != .authorized || st.alertSetting != .enabled else { return }
             DispatchQueue.main.async { GymGeofence.shared.trace("notifications are off — the prompt was hidden") }
         }
+    }
+
+    /// "Checked in · B_Fit 18:02", quiet, delivered by iOS itself once the
+    /// drive-by window has passed — the app may be asleep by then. Withdrawn
+    /// if the visit is cancelled first.
+    func scheduleCheckedIn(gym: String, at: Date, eventId: String, wait fixedWait: TimeInterval? = nil) {
+        let c = UNMutableNotificationContent()
+        c.body = GeofenceQueue.checkedInText(gym: gym, at: at)
+        c.sound = nil
+        c.userInfo = ["gymGeofence": "checkin", "gym": gym]
+        // The backup's check-in cannot be cancelled: say it at once.
+        let wait = fixedWait ?? Swift.max(1, GeofenceQueue.autoConfirmDelay - Date().timeIntervalSince(at))
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: wait, repeats: false)
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "gym.checkin.\(eventId)", content: c, trigger: trigger)) { err in
+            if let err { DispatchQueue.main.async { GymGeofence.shared.trace("checked-in line not scheduled: \(err.localizedDescription)") } }
+        }
+    }
+
+    func withdrawCheckedIn(eventId: String) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: ["gym.checkin.\(eventId)"])
+        center.removeDeliveredNotifications(withIdentifiers: ["gym.checkin.\(eventId)"])
     }
 
     func postCheckedOut(gym: String, minutes: Int) {
