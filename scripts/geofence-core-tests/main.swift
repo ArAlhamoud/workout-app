@@ -429,13 +429,12 @@ do {
     check(ns.outbox.isEmpty && ns.droppedEnters == ["ns"], "a drive-by with no signal is settled on the phone: nothing is sent at all")
     var fly = GeofenceQueue()
     fly.autoCheckIn(gym: "bfit", at: at("18:02"), id: "fly")
-    fly.inFlight = "fly"
+    let flyWas = fly.sending("fly")
     fly.exitedGym("bfit", at: at("18:03"))
     fly.leftAwayArea("bfit", now: at("18:04"))
     check(fly.outbox.map(\.kind) == [.enter, .exit] && fly.droppedEnters.isEmpty, "an enter being sent right now is never dropped: the exit goes after it, for the server to cancel")
     var fly2 = fly
-    fly2.inFlight = nil
-    fly2.notReached(fly2.outbox[0])
+    fly2.notReached(fly2.outbox[0], wasMaybeSent: flyWas)
     check(fly2.outbox.isEmpty && fly2.droppedEnters == ["fly"], "that send proven never to reach the server (no signal): both go, nothing sent")
     var fly3 = fly
     fly3.answered(fly3.outbox[0], action: "created", now: at("18:05"), visitId: "vf")
@@ -444,7 +443,7 @@ do {
     real.autoCheckIn(gym: "bfit", at: at("18:02"), id: "r")
     real.exitedGym("bfit", at: at("19:30"))
     real.leftAwayArea("bfit", now: at("19:31"))
-    real.notReached(real.outbox[0])
+    real.notReached(real.outbox[0], wasMaybeSent: real.sending("r"))
     check(real.outbox.count == 2, "a real stay is never dropped for want of signal")
     var stay = GeofenceQueue()
     stay.autoCheckIn(gym: "bfit", at: at("18:02"), id: "st")
@@ -461,6 +460,36 @@ do {
     bk2.exitedGym("bfit", at: at("18:03"))
     bk2.leftAwayArea("bfit", now: at("18:04"))
     check(bk2.outbox.count == 2, "the app-opened-inside check-in is never dropped")
+    // Review R1/R2: a send that ended without proof (timeout) may have made
+    // the visit. That enter is never dropped, now or after a later -1009.
+    var to = GeofenceQueue()
+    to.autoCheckIn(gym: "bfit", at: at("18:00"), id: "A")
+    _ = to.sending("A") // timed out: flag stays
+    to = GeofenceQueue.decode(try! JSONEncoder().encode(to)) // killed and relaunched
+    to.exitedGym("bfit", at: at("18:03"))
+    to.leftAwayArea("bfit", now: at("18:04"))
+    check(to.outbox.count == 2 && to.droppedEnters.isEmpty && to.outbox[1].dropWith == "A", "an enter whose send may have arrived is never dropped: its exit goes, for the server to cancel")
+    let retryWas = to.sending("A")
+    to.notReached(to.outbox[0], wasMaybeSent: retryWas)
+    check(to.outbox.count == 2 && to.droppedEnters.isEmpty, "a later no-signal retry proves nothing about the earlier attempt: both still go")
+    // R3: a drift "outside" answer while training with no signal never
+    // drops the visit on the phone — the server judges it, with its veto.
+    var dr3 = GeofenceQueue()
+    dr3.autoCheckIn(gym: "bfit", at: at("18:00"), id: "D")
+    dr3.exitedGym("bfit", at: at("18:05"))
+    dr3.resolvePending("bfit", side: .outside, now: at("18:13"))
+    check(dr3.outbox.map(\.kind) == [.enter, .exit] && dr3.droppedEnters.isEmpty, "a confirmed-outside exit (maybe drift) is sent, never settled on the phone")
+    // R4: the enter of THIS stay is the newest one before the exit.
+    var two = GeofenceQueue()
+    two.autoCheckIn(gym: "bfit", at: at("18:00"), id: "A")
+    _ = two.sending("A")
+    two.exitedGym("bfit", at: at("18:03"))
+    two.leftAwayArea("bfit", now: at("18:04"))
+    _ = two.enteredGym("bfit", at: at("18:06"))
+    two.autoCheckIn(gym: "bfit", at: at("18:06"), id: "B")
+    two.exitedGym("bfit", at: at("18:08"))
+    two.leftAwayArea("bfit", now: at("18:09"))
+    check(two.droppedEnters == ["B"] && two.outbox.contains { $0.id == "A" }, "a second drive-by drops its own enter, never the earlier maybe-sent one")
     let roundTrip = GeofenceQueue.decode(try! JSONEncoder().encode(q))
     check(roundTrip == q, "the auto ids survive a relaunch")
     check(GeofenceQueue.checkedInText(gym: "bfit", at: at("18:02"), timeZone: TimeZone(identifier: "Asia/Riyadh")!) == "Checked in · B_Fit 18:02", "the quiet line reads 'Checked in · B_Fit 18:02'")

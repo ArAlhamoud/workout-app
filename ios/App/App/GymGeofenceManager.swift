@@ -512,7 +512,10 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         guard !sending else { return }
         guard let event = queue.next(), let url = Self.endpoint else { return finishDrain() }
         sending = true
-        queue.inFlight = event.id
+        // Saved BEFORE the request: killed mid-send, the enter stays "maybe
+        // sent" and is never dropped (review R1).
+        let wasMaybeSent = queue.sending(event.id)
+        save()
         if bgTask == .invalid {
             bgTask = UIApplication.shared.beginBackgroundTask(withName: "gym-visit") { [weak self] in
                 self?.endBackgroundTask()
@@ -523,13 +526,12 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: queue.requestBody(event))
         URLSession.shared.dataTask(with: req) { data, response, error in
-            DispatchQueue.main.async { self.handle(event, data: data, response: response, error: error) }
+            DispatchQueue.main.async { self.handle(event, wasMaybeSent: wasMaybeSent, data: data, response: response, error: error) }
         }.resume()
     }
 
-    private func handle(_ event: GeofenceEvent, data: Data?, response: URLResponse?, error: Error?) {
+    private func handle(_ event: GeofenceEvent, wasMaybeSent: Bool?, data: Data?, response: URLResponse?, error: Error?) {
         sending = false
-        queue.inFlight = nil
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         if error == nil, code == 200,
            let json = data.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any],
@@ -565,9 +567,9 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         // tied to it is settled here, nothing sent. A timeout may have
         // reached it — kept like any other failure.
         let never: Set<Int> = [NSURLErrorNotConnectedToInternet, NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
-                               NSURLErrorDNSLookupFailed, NSURLErrorDataNotAllowed, NSURLErrorInternationalRoamingOff]
+                               NSURLErrorDNSLookupFailed]
         if let e = error as NSError?, e.domain == NSURLErrorDomain, never.contains(e.code) {
-            queue.notReached(event)
+            queue.notReached(event, wasMaybeSent: wasMaybeSent)
             save()
         }
         // Offline or a server error: keep it; the next wake sends it again.

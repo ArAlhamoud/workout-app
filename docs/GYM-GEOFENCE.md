@@ -61,12 +61,17 @@ phone asks before its arrival backup offers "Check in?".
 - **No signal (owner, 2026-11-19): B_Fit's parking has no mobile service or
   Wi-Fi, and parts of the gym little.** Events wait in the phone's queue and
   go out on the next wake with signal, with their real times. A drive-by
-  whose auto enter is still UNSENT when its exit is decided (≤ 30 min after
-  it, stay < 10 min) is settled on the phone: the enter is dropped and no
-  exit is sent (`sendExit`). If the enter was being sent at that moment, the
-  exit is queued tied to it (`dropWith`); a send that proves it never
-  reached the server (no network, host not found or refused — never a
-  timeout) then drops both (`notReached`). Accepted: an enter first sent
+  whose auto enter was NEVER possibly sent when he leaves the 600 m area
+  (≤ 30 min after the small-circle exit, stay < 10 min) is settled on the
+  phone: the enter is dropped and no exit is sent (`sendExit`). Only the
+  newest enter before that exit (this stay's), and only on the away-circle
+  path — an "outside" answer may be indoor drift, and is sent for the
+  server to judge with its training veto. An enter whose send STARTED is
+  `maybeSent` (saved before the request): a timeout, lost connection, 5xx
+  or a kill keeps it so — the visit may exist — and its exit is queued tied
+  to it (`dropWith`) for the server to cancel. Both are dropped only when
+  every attempt proved it never reached the server (no network, host not
+  found or refused: `notReached`). Accepted: an enter first sent
   more than 6 h after the arrival opens nothing (the stale rule). No timer is involved — iOS cannot run one while the app is
   suspended; leaving the 600 m away circle is what wakes the phone.
 - **Exit** closes the open visit for THAT gym at the exit time. Send it on

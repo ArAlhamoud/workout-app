@@ -39,6 +39,11 @@ struct GeofenceEvent: Codable, Equatable {
     /// exit was decided. If that send proves it never reached the server,
     /// both go (`notReached`).
     var dropWith: String? = nil
+    /// Set (and saved) the moment a send of this event STARTS; cleared only
+    /// when that send proves it never reached the server. A timeout, a lost
+    /// connection, a 5xx or the app killed mid-request leave it set: the
+    /// visit may exist, so the phone never drops this enter (review R1).
+    var maybeSent: Bool? = nil
 }
 
 /// The phone's side of gym check-in/out, as one persisted value:
@@ -126,22 +131,23 @@ struct GeofenceQueue: Codable, Equatable {
         return pendingExits.removeValue(forKey: gym)
     }
 
-    private mutating func sendExit(_ gym: String, at exitAt: Date, now: Date) {
+    private mutating func sendExit(_ gym: String, at exitAt: Date, now: Date, leftArea: Bool = false) {
         promptedStays.removeValue(forKey: gym)
         // No signal at B_Fit's parking (owner, 2026-11-19): a drive-by's auto
         // enter is often still unsent when he has already gone. Then nothing
-        // is sent at all — the enter is dropped and the exit with it. Same
-        // window and the same promptness as the server's cancel (an exit
-        // decided 90 min late is the drift inference: it is sent, and the
-        // server only closes). Never the event being POSTed right now.
-        if now.timeIntervalSince(exitAt) <= Self.autoCancelSendWindow,
-           let i = outbox.firstIndex(where: { e in
-               e.kind == .enter && e.gym == gym && e.auto == true && e.backup != true
-                   && exitAt >= e.at && exitAt.timeIntervalSince(e.at) < Self.autoConfirmDelay
-           }) {
-            // Being sent right now (a wake retries the queue first): it may
-            // reach the server, so the exit is queued — tied to it.
-            guard outbox[i].id == inFlight else {
+        // is sent at all — the enter is dropped and the exit with it. Only
+        // when he LEFT THE 600 m AREA (a drift "outside" answer is the
+        // server's to judge, with its training veto — review R3), promptly
+        // (the server's window), and only the enter of THIS stay — the
+        // newest one before the exit (R4).
+        let mine = outbox.lastIndex { $0.kind == .enter && $0.gym == gym && $0.at <= exitAt }
+        if leftArea, now.timeIntervalSince(exitAt) <= Self.autoCancelSendWindow, let i = mine,
+           outbox[i].auto == true, outbox[i].backup != true,
+           exitAt.timeIntervalSince(outbox[i].at) < Self.autoConfirmDelay {
+            // Never sent: drop both. A send started (in flight, or ended
+            // without proof it never arrived): the visit may exist, so the
+            // exit is queued tied to it, for the server to cancel.
+            guard outbox[i].maybeSent == true else {
                 droppedEnters.append(outbox.remove(at: i).id)
                 return
             }
@@ -152,12 +158,25 @@ struct GeofenceQueue: Codable, Equatable {
         enqueue(GeofenceEvent(id: UUID().uuidString, kind: .exit, gym: gym, at: exitAt))
     }
 
+    /// A send of `id` is starting. Returns what the flag was, for `notReached`.
+    mutating func sending(_ id: String) -> Bool? {
+        guard let i = outbox.firstIndex(where: { $0.id == id }) else { return nil }
+        let was = outbox[i].maybeSent
+        outbox[i].maybeSent = true
+        return was
+    }
+
     /// The send of `event` failed in a way that proves it never reached the
     /// server (no network, host not found or refused — never a timeout,
     /// where the visit may exist). A drive-by enter tied to a queued exit
     /// goes, with that exit: nothing to send at all.
-    mutating func notReached(_ event: GeofenceEvent) {
-        guard event.kind == .enter, let exit = outbox.first(where: { $0.dropWith == event.id }) else { return }
+    /// `wasMaybeSent` is the flag before this send began: an earlier attempt
+    /// that ended without proof keeps the enter (review R2).
+    mutating func notReached(_ event: GeofenceEvent, wasMaybeSent: Bool?) {
+        guard let i = outbox.firstIndex(where: { $0.id == event.id }) else { return }
+        outbox[i].maybeSent = wasMaybeSent
+        guard event.kind == .enter, wasMaybeSent != true,
+              let exit = outbox.first(where: { $0.dropWith == event.id }) else { return }
         outbox.removeAll { $0.id == event.id || $0.id == exit.id }
         droppedEnters.append(event.id)
     }
@@ -166,9 +185,6 @@ struct GeofenceQueue: Codable, Equatable {
     /// soon after the exit.
     static let autoCancelSendWindow: TimeInterval = 30 * 60
 
-    /// The event being POSTed now (the manager sets it; never stored): it
-    /// may already exist on the server, so it is never dropped.
-    var inFlight: String? = nil
     /// Auto enters dropped as drive-bys since the manager last looked: their
     /// "Checked in" lines are withdrawn. Never stored.
     var droppedEnters: [String] = []
@@ -226,7 +242,7 @@ struct GeofenceQueue: Codable, Equatable {
     /// with its small-circle time.
     mutating func leftAwayArea(_ gym: String, now: Date) {
         guard let exitAt = takePending(gym) else { return }
-        sendExit(gym, at: exitAt, now: now)
+        sendExit(gym, at: exitAt, now: now, leftArea: true)
     }
 
     /// Gyms whose pending exit is old enough to send — once iOS confirms he
