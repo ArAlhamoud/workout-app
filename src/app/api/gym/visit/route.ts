@@ -9,9 +9,11 @@ export const dynamic = 'force-dynamic';
 /**
  * Geofence check-in / check-out (owner, 2026-10-22). The phone posts
  *   { event: 'enter' | 'exit', gym: 'bfit' | 'work', atISO }
- * where atISO is when the region event happened. Enter is sent when he taps
- * "Check in" on the arrival prompt; exit is sent on its own once he has been
- * outside long enough. No location ever reaches the server — only the gym
+ * where atISO is when the region event happened. Enter is sent on arrival
+ * at B_Fit (source 'auto') or when he taps "Check in" on the Alrajhi prompt;
+ * exit is sent on its own once he has been outside long enough, carrying the
+ * id of a visit the phone opened itself (visitId) so a drive-by is cancelled.
+ * No location ever reaches the server — only the gym
  * and the time. The rules live in geofenceEnter / geofenceExit.
  * Open like the rest of the app (single user, owner's decision).
  */
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
-  const b = (body ?? {}) as { event?: unknown; gym?: unknown; atISO?: unknown; source?: unknown };
+  const b = (body ?? {}) as { event?: unknown; gym?: unknown; atISO?: unknown; source?: unknown; visitId?: unknown };
   const at = parseEventTime(b.atISO);
   if ((b.event !== 'enter' && b.event !== 'exit') || typeof b.gym !== 'string' || !at) {
     return NextResponse.json({ error: 'event (enter|exit), gym and atISO with Z or an offset required' }, { status: 400 });
@@ -59,8 +61,12 @@ export async function POST(request: Request) {
       })
     ).map(toLite);
     if (b.event === 'enter') {
-      const d = geofenceEnter(recent, { gym, at, now, arrival: b.source === 'arrival' });
+      const d = geofenceEnter(recent, { gym, at, now, arrival: b.source === 'arrival' || b.source === 'auto' });
       if (d.action === 'none' || !d.checkInAt) return { action: 'none' as const };
+      if (d.action === 'same' && d.visitId) {
+        const same = await tx.gymVisit.findUnique({ where: { id: d.visitId } });
+        return same ? { action: 'created' as const, visit: toLite(same) } : { action: 'none' as const };
+      }
       if (d.action === 'move' && d.visitId) {
         const r = await tx.gymVisit.updateMany({ where: { id: d.visitId, checkOutAt: null }, data: { checkInAt: d.checkInAt } });
         if (r.count === 0) return { action: 'none' as const };
@@ -70,7 +76,29 @@ export async function POST(request: Request) {
       const v = await tx.gymVisit.create({ data: { gym, checkInAt: d.checkInAt } });
       return { action: 'created' as const, visit: toLite(v) };
     }
-    const d = geofenceExit(recent.filter((v) => !v.checkOutAt), { gym, at, now });
+    const autoVisitId = typeof b.visitId === 'string' ? b.visitId : undefined;
+    // The drive-by veto (data-steward, 2026-11-19): a row edited by hand
+    // (updatedAt moved past createdAt), or training since its check-in — a
+    // live session started or a set ticked — always stands.
+    let keepVisit = false;
+    if (autoVisitId) {
+      const row = await tx.gymVisit.findUnique({ where: { id: autoVisitId } });
+      if (row && !row.checkOutAt) {
+        const edited = row.updatedAt.getTime() - row.createdAt.getTime() > 2_000;
+        // A session running now counts too, whenever it started: he may have
+        // opened the logger before the check-in (adversary #2).
+        const live = await tx.liveSession.count({
+          where: { OR: [{ startedAt: { gte: row.checkInAt } }, { closedAt: null, updatedAt: { gte: new Date(now.getTime() - 3 * 3_600_000) } }] },
+        });
+        const sets = await tx.workoutSet.count({ where: { completedAt: { gte: row.checkInAt } } });
+        keepVisit = edited || live > 0 || sets > 0;
+      }
+    }
+    const d = geofenceExit(recent.filter((v) => !v.checkOutAt), { gym, at, now, autoVisitId, keepVisit });
+    if (d.action === 'cancel' && d.visitId) {
+      const r = await tx.gymVisit.deleteMany({ where: { id: d.visitId, checkOutAt: null } }); // under the lock: no edit can land between the veto and this
+      return r.count === 0 ? { action: 'none' as const } : { action: 'cancelled' as const };
+    }
     if (d.action === 'none' || !d.visitId || !d.checkOutAt) return { action: 'none' as const };
     const r = await tx.gymVisit.updateMany({ where: { id: d.visitId, checkOutAt: null }, data: { checkOutAt: d.checkOutAt } });
     if (r.count === 0) return { action: 'none' as const };

@@ -17,7 +17,7 @@ let min: TimeInterval = 60
 print("Geofence core — the wire format")
 do {
     let e = GeofenceEvent(id: "x", kind: .enter, gym: "bfit", at: at("17:00"))
-    let body = GeofenceQueue.requestBody(e)
+    let body = GeofenceQueue().requestBody(e)
     check(body == ["event": "enter", "gym": "bfit", "atISO": "2026-10-22T14:00:00.000Z"], "the body is {event, gym, atISO} with the event time in UTC and a Z")
     check(GeofenceQueue.isoString(at("17:00")).hasSuffix("Z"), "atISO always carries Z")
     check(GeofenceQueue.date(fromISO: "2026-10-22T14:00:00.000Z") == at("17:00") && GeofenceQueue.date(fromISO: "2026-10-22T14:00:00Z") == at("17:00"), "times read back with or without fractions")
@@ -361,16 +361,69 @@ print("Geofence core — only a measured arrival may move a check-in (2026-10-29
 do {
     var q = GeofenceQueue()
     q.checkIn(gym: "bfit", enteredAt: at("17:58"), tappedAt: at("18:20"), id: "a")
-    check(q.next().map(GeofenceQueue.requestBody)?["source"] == "arrival", "a tap within 30 min of the entry is sent as a measured arrival")
+    check(q.next().map(q.requestBody)?["source"] == "arrival", "a tap within 30 min of the entry is sent as a measured arrival")
     var late = GeofenceQueue()
     late.checkIn(gym: "bfit", enteredAt: at("17:00"), tappedAt: at("19:10"), id: "b")
-    check(late.next().map(GeofenceQueue.requestBody)?["source"] == nil, "a late tap sends the tap time, never as an arrival")
+    check(late.next().map(late.requestBody)?["source"] == nil, "a late tap sends the tap time, never as an arrival")
     var bounded = GeofenceQueue()
     bounded.maybeLater = [GeofenceEvent(id: "x", kind: .exit, gym: "bfit", at: at("18:03"), firstNoneAt: at("18:04"))]
     bounded.checkIn(gym: "bfit", enteredAt: at("17:58"), tappedAt: at("18:25"), id: "c")
-    check(bounded.next()?.at == at("17:58") && bounded.next().map(GeofenceQueue.requestBody)?["source"] == nil, "an old prompt with a known exit after it keeps its times but cannot stretch a later visit over the absence")
+    check(bounded.next()?.at == at("17:58") && bounded.next().map(bounded.requestBody)?["source"] == nil, "an old prompt with a known exit after it keeps its times but cannot stretch a later visit over the absence")
     let old = try! JSONDecoder().decode(GeofenceEvent.self, from: #"{"id":"o","kind":"enter","gym":"bfit","at":0}"#.data(using: .utf8)!)
     check(old.arrival == nil, "a queue saved by the previous build still loads")
+}
+
+print("Geofence core — automatic check-in at B_Fit (2026-11-19)")
+do {
+    check(GeofenceQueue.autoGyms == ["bfit"], "only B_Fit checks in by itself; Alrajhi (his office tower) keeps the prompt")
+    var q = GeofenceQueue()
+    q.autoCheckIn(gym: "bfit", at: at("18:02"), id: "in")
+    let enter = q.next()!
+    check(enter.kind == .enter && enter.at == at("18:02") && enter.auto == true, "an auto check-in is an enter at the arrival moment")
+    check(q.requestBody(enter)["source"] == "auto", "sent as source auto (the server reads it as a measured arrival)")
+    q.answered(enter, action: "created", now: at("18:02"), visitId: "v1")
+    check(q.autoVisits["bfit"] == "v1", "the phone remembers the visit it opened itself")
+    // He drove past: left the small circle, then the away circle.
+    q.exitedGym("bfit", at: at("18:03"))
+    q.leftAwayArea("bfit", now: at("18:04"))
+    let exit = q.next()!
+    check(exit.at == at("18:03") && q.requestBody(exit)["visitId"] == "v1", "the exit carries that visit id, with the real exit time")
+    q.answered(exit, action: "cancelled", now: at("18:04"))
+    check(q.autoVisits["bfit"] == nil && q.outbox.isEmpty && q.maybeLater.isEmpty, "a cancelled drive-by leaves nothing behind")
+
+    // Offline: enter and exit both queued before either is answered.
+    var off = GeofenceQueue()
+    off.autoCheckIn(gym: "bfit", at: at("18:02"), id: "in2")
+    off.exitedGym("bfit", at: at("18:03"))
+    off.leftAwayArea("bfit", now: at("18:04"))
+    check(off.outbox.map(\.kind) == [.enter, .exit], "offline, the enter goes before the exit")
+    off.answered(off.next()!, action: "created", now: at("18:30"), visitId: "v2")
+    check(off.requestBody(off.next()!)["visitId"] == "v2", "the id is read at SEND time, so a queued exit still carries it")
+
+    // A tapped check-in never rides on an old auto id.
+    var tap = GeofenceQueue()
+    tap.autoVisits["bfit"] = "old"
+    tap.checkIn(gym: "bfit", enteredAt: at("18:00"), tappedAt: at("18:01"), id: "t")
+    tap.answered(tap.next()!, action: "created", now: at("18:01"), visitId: "t1")
+    check(tap.autoVisits["bfit"] == nil, "a visit opened by a tap is never sent as the phone's own")
+    var none = GeofenceQueue()
+    none.autoCheckIn(gym: "bfit", at: at("18:02"), id: "in3")
+    none.answered(none.next()!, action: "none", now: at("18:02"), visitId: nil)
+    check(none.autoVisits["bfit"] == nil, "an auto check-in the server refused (already checked in) claims no visit")
+    check(q.autoEnters.isEmpty, "the cancelled drive-by's enter is forgotten with it")
+    var bk = GeofenceQueue()
+    bk.autoCheckIn(gym: "bfit", at: at("18:40"), backup: true, id: "bk")
+    let bkEnter = bk.next()!
+    check(bk.requestBody(bkEnter)["source"] == "auto", "the app-opened-inside check-in is automatic too")
+    bk.answered(bkEnter, action: "created", now: at("18:40"), visitId: "vb")
+    check(bk.autoVisits["bfit"] == nil, "but it is never offered for cancelling: its time is a guess, and nobody opens the app driving past")
+    var keyed = GeofenceQueue()
+    keyed.autoCheckIn(gym: "bfit", at: at("18:02"), id: "first")
+    keyed.answered(keyed.next()!, action: "created", now: at("18:02"), visitId: "v9")
+    check(keyed.autoEnters["bfit"] == "first", "the visit's 'Checked in' line is keyed by its own enter, so an old cancel never withdraws a newer one")
+    let roundTrip = GeofenceQueue.decode(try! JSONEncoder().encode(q))
+    check(roundTrip == q, "the auto ids survive a relaunch")
+    check(GeofenceQueue.checkedInText(gym: "bfit", at: at("18:02"), timeZone: TimeZone(identifier: "Asia/Riyadh")!) == "Checked in · B_Fit 18:02", "the quiet line reads 'Checked in · B_Fit 18:02'")
 }
 
 print("\n\(passed) passed, \(failed) failed")

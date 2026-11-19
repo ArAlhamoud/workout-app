@@ -6407,7 +6407,27 @@ console.log('Gym visits — geofence enter and exit');
   assert(geofenceEnter([wrist], { gym: 'bfit', at: at('17:58'), now: at('18:20') }).action === 'none', 'a late or bounded phone tap (no arrival flag) never stretches a visit');
   const early = { id: 'e4', gym: 'bfit', checkInAt: new Date('2026-10-23T04:05:00+03:00').toISOString(), checkOutAt: null };
   assert(geofenceEnter([early], { gym: 'bfit', at: new Date('2026-10-23T03:50:00+03:00'), now: new Date('2026-10-23T04:20:00+03:00'), arrival: true }).action === 'none', 'never moved back across the 04:00 day line');
-  assert(/arrival: b\.source === 'arrival'/.test(fs.readFileSync(path.join(__dirname, '..', 'src/app/api/gym/visit/route.ts'), 'utf8')), 'the endpoint passes the arrival flag only for source "arrival"');
+  assert(/arrival: b\.source === 'arrival' \|\| b\.source === 'auto' \}/.test(fs.readFileSync(path.join(__dirname, '..', 'src/app/api/gym/visit/route.ts'), 'utf8')), 'the endpoint passes the arrival flag only for source "arrival" or the phone\'s automatic arrival');
+  // Auto check-in at B_Fit (owner, 2026-11-19): he drives past on the main
+  // street. A visit the phone opened ITSELF and left within 10 min is erased.
+  const auto = V('a', 'bfit', '18:02', null);
+  const by = geofenceExit([auto], { gym: 'bfit', at: at('18:04'), now: at('18:06'), autoVisitId: 'a' });
+  assert(by.action === 'cancel' && by.visitId === 'a' && !by.checkOutAt, `a drive-by (auto check-in, out 2 min later) cancels the visit (got ${JSON.stringify(by)})`);
+  assert(geofenceExit([auto], { gym: 'bfit', at: at('18:11'), now: at('18:35'), autoVisitId: 'a' }).action === 'cancel', 'judged on the measured times: a drive-by sent 24 min later (no signal) still cancels');
+  // Data-steward, 2026-11-19: indoor drift parks an exit at 18:05; slept
+  // through for 90 min it is sent as a departure. Erasing would lose a real
+  // 2-hour visit, so a late exit only closes.
+  assert(geofenceExit([auto], { gym: 'bfit', at: at('18:05'), now: at('19:40'), autoVisitId: 'a' }).action === 'close', 'an exit reaching the server over 30 min late only closes, never erases');
+  assert(geofenceExit([auto], { gym: 'bfit', at: at('18:04'), now: at('18:06'), autoVisitId: 'a', keepVisit: true }).action === 'close', 'an edited visit, or training since the check-in, is never erased');
+  assert(geofenceExit([auto], { gym: 'bfit', at: at('18:12'), now: at('18:14'), autoVisitId: 'a' }).action === 'close', 'a 10-min stay is a visit: closed, not cancelled');
+  assert(geofenceExit([auto], { gym: 'bfit', at: at('18:04'), now: at('18:06') }).action === 'close', 'without the phone\'s auto id nothing is ever cancelled');
+  assert(geofenceExit([auto], { gym: 'bfit', at: at('18:04'), now: at('18:06'), autoVisitId: 'other' }).action === 'close', 'a check-in made by hand (a different id) is never cancelled');
+  const again = geofenceEnter([auto], { gym: 'bfit', at: at('18:02'), now: at('18:03'), arrival: true });
+  assert(again.action === 'same' && again.visitId === 'a', 'a retried enter (answer lost) finds the visit it created, so the phone learns its id');
+  assert(geofenceEnter([auto], { gym: 'bfit', at: at('18:01'), now: at('18:03') }).action === 'none', 'any other enter while a visit is open still opens nothing');
+  const routeSrc = fs.readFileSync(path.join(__dirname, '..', 'src/app/api/gym/visit/route.ts'), 'utf8');
+  assert(/deleteMany\(\{ where: \{ id: d\.visitId, checkOutAt: null \} \}\)/.test(routeSrc) && /'cancelled'/.test(routeSrc), 'the endpoint erases only the still-open visit and answers "cancelled"');
+  assert(/updatedAt\.getTime\(\) - row\.createdAt\.getTime\(\)/.test(routeSrc) && /liveSession\.count[\s\S]*closedAt: null/.test(routeSrc) && /action === 'same'/.test(routeSrc) && /workoutSet\.count/.test(routeSrc), 'the veto reads a hand edit, a live session and ticked sets under the lock');
   // #4: a time without Z or an offset is refused, never read as UTC.
   assert(parseEventTime('2026-10-22T17:00:00') === null, 'a time without an offset is refused');
   assert(parseEventTime('2026-10-22T17:00:00+03:00')?.toISOString() === '2026-10-22T14:00:00.000Z' && parseEventTime('2026-10-22T14:00:00.000Z') !== null, 'times with Z or an offset are read exactly');
