@@ -57,7 +57,17 @@ phone asks before its arrival backup offers "Check in?".
   id. Accepted: an exit iOS delivers 10+ min after a quick pass, or a
   drive-by after which he parks within 600 m and stays past 30 min, leaves
   a few-minute row; indoor drift confirmed "outside" before any set is
-  ticked erases the visit (a re-entry checks in again). No timer is involved — iOS cannot run one while the app is
+  ticked erases the visit (a re-entry checks in again).
+- **No signal (owner, 2026-11-19): B_Fit's parking has no mobile service or
+  Wi-Fi, and parts of the gym little.** Events wait in the phone's queue and
+  go out on the next wake with signal, with their real times. A drive-by
+  whose auto enter is still UNSENT when its exit is decided (≤ 30 min after
+  it, stay < 10 min) is settled on the phone: the enter is dropped and no
+  exit is sent (`sendExit`). If the enter was being sent at that moment, the
+  exit is queued tied to it (`dropWith`); a send that proves it never
+  reached the server (no network, host not found or refused — never a
+  timeout) then drops both (`notReached`). Accepted: an enter first sent
+  more than 6 h after the arrival opens nothing (the stale rule). No timer is involved — iOS cannot run one while the app is
   suspended; leaving the 600 m away circle is what wakes the phone.
 - **Exit** closes the open visit for THAT gym at the exit time. Send it on
   its own once he has been outside the region long enough (5–10 min) to rule

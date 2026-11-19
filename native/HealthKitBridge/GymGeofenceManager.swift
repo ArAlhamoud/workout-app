@@ -512,6 +512,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
         guard !sending else { return }
         guard let event = queue.next(), let url = Self.endpoint else { return finishDrain() }
         sending = true
+        queue.inFlight = event.id
         if bgTask == .invalid {
             bgTask = UIApplication.shared.beginBackgroundTask(withName: "gym-visit") { [weak self] in
                 self?.endBackgroundTask()
@@ -528,6 +529,7 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
 
     private func handle(_ event: GeofenceEvent, data: Data?, response: URLResponse?, error: Error?) {
         sending = false
+        queue.inFlight = nil
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         if error == nil, code == 200,
            let json = data.flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any],
@@ -559,6 +561,15 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
             save()
             return drain()
         }
+        // Never reached the server (no signal at B_Fit's parking): a drive-by
+        // tied to it is settled here, nothing sent. A timeout may have
+        // reached it — kept like any other failure.
+        let never: Set<Int> = [NSURLErrorNotConnectedToInternet, NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
+                               NSURLErrorDNSLookupFailed, NSURLErrorDataNotAllowed, NSURLErrorInternationalRoamingOff]
+        if let e = error as NSError?, e.domain == NSURLErrorDomain, never.contains(e.code) {
+            queue.notReached(event)
+            save()
+        }
         // Offline or a server error: keep it; the next wake sends it again.
         NSLog("[GymGeofence] %@ %@ not sent (%@) — kept", event.kind.rawValue, event.gym, error?.localizedDescription ?? "HTTP \(code)")
         finishDrain()
@@ -578,6 +589,13 @@ final class GymGeofence: NSObject, CLLocationManagerDelegate {
     }
 
     private func save() {
+        // A drive-by settled on the phone, unsent (no signal at the parking):
+        // its "Checked in" line must not come.
+        if !queue.droppedEnters.isEmpty {
+            queue.droppedEnters.forEach { GymNotifications.shared.withdrawCheckedIn(eventId: $0) }
+            queue.droppedEnters = []
+            trace("drove past B_Fit — check-in dropped, nothing sent")
+        }
         if let data = try? JSONEncoder().encode(queue) { defaults.set(data, forKey: queueKey) }
     }
 
