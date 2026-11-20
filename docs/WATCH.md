@@ -430,6 +430,15 @@ carry one quiet `.plain` line, no chrome, that also works as a tap:
 set card `<next machine> ›`, rest screen `<machine he is walking to>
 taken? ›`. Tap always goes FORWARD; back is swipe-right only.
 
+**Update 2026-11-19 (owner): the tappable switch lines are gone.**
+A bare `<next machine> ›` on set 1 read as "go to Chest Press" before
+he had touched Leg Press, and "taken?" read as "done?". He chose to
+remove the tap lines from both screens ("no need for taken or in use").
+The set card now shows only, on the LAST set of a machine, plain
+`Next · <next machine>` (not a button). An occupied machine is still
+switched by swipe-left (set card and rest screen); swipe-right comes
+back. The notes below describe the removed lines and stay as history.
+
 Four things the review pass fixed, each worth not relearning:
 
 1. **ONE chevron, trailing.** The first cut read `‹ <next> ›`, and the

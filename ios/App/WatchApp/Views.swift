@@ -609,32 +609,18 @@ struct SetCardView: View {
                     .voltMono(10)
                     .foregroundStyle(.white.opacity(0.7))
             }
-            if store.pendingMachineCount > 1, let next = store.nextMachineName {
-                // Occupied machine (owner, 2026-09-07): swipe is the gesture,
-                // but the hint that names the target is itself tappable — a
-                // swipe missed on the gym floor once left him stuck with no
-                // fallback (field report, 2026-09-02). Plain style: a line of
-                // text, not a button, so the card keeps its glance.
-                // Tap = forward, the "it's taken" case; swipe right comes back.
-                // ONE chevron, trailing, matching the rest screen. A leading
-                // ‹ was here and it lied: the whole row goes forward, so the
-                // glyph that means "back" advanced him — and tapping again to
-                // undo advanced him further (adversary + device-tester both,
-                // 2026-09-07). Back is swipe-right, which the card no longer
-                // promises as a tap. contentShape because .plain alone
-                // hit-tests the glyphs, not the padded frame.
-                Button { store.skipToNextMachine() } label: {
-                    Text("\(next) ›")
-                        .voltMono(11)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, minHeight: 30)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.7))
-                // Measured 5.75 pt to the green Log set button, whose mis-tap
-                // writes a set and starts a rest. Buy back clearance.
-                .padding(.bottom, 4)
+            // Under the weight: only on the LAST set of a machine, plain
+            // "Next · Chest Press" (owner, 2026-11-19). The tappable
+            // "taken?/in use?" switch is gone at his call; swipe left still
+            // rotates an occupied machine to the back. Not a button: a tap
+            // here would skip the set he is about to do.
+            if slot.isLastOfExercise, let next = store.nextMachineName {
+                Text("Next · \(next)")
+                    .voltMono(11)
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, minHeight: 30)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .padding(.bottom, 4)
             }
             Button {
                 store.logCurrentSet()
@@ -727,22 +713,8 @@ struct RestView: View {
                     .frame(maxWidth: .infinity, minHeight: 40)
             }
             .buttonStyle(VoltOutline(ink: Volt.lime))
-            // He walks to the next machine DURING the rest — this is where
-            // "it's taken" is discovered, so the switch lives here too. The
-            // machine AT RISK is the one he is walking to (the slot that is
-            // up next), not the one a switch would land him on.
-            if store.pendingMachineCount > 1, store.nextMachineName != nil,
-               let walkingTo = store.currentSlot?.exerciseName {
-                Button { store.switchMachineFromRest() } label: {
-                    Text("\(walkingTo) taken? ›")
-                        .voltMono(11)
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, minHeight: 24)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.7))
-            }
+            // No tappable machine switch here (owner, 2026-11-19: "no need
+            // for taken or in use, remove it"). Swipe left still switches.
             // '+1 set' — only after a below-cap rating on a machine that
             // allows it, once per machine (trainer ruling 2). Recording, not
             // a suggestion: the extra set is simply next.
