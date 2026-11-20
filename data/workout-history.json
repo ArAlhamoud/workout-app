@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-19T14:10:01.520Z",
+  "exportedAt": "2026-11-20T13:52:17.581Z",
   "totalWorkouts": 29,
   "totalBodyStats": 65,
   "totalExercises": 21,
@@ -22629,6 +22629,20 @@
         "deepSleepMin": 19,
         "notes": null,
         "createdAt": "2026-11-19T08:28:14.995Z"
+      },
+      {
+        "id": "cmwojzsqq00007hzj7skaobzd",
+        "night": "2026-11-20T00:00:00.000Z",
+        "usageHours": 8,
+        "ahi": 4,
+        "leak": 0,
+        "avgPressure": null,
+        "p95Pressure": 11.5,
+        "maskComfort": null,
+        "sleepQuality": null,
+        "deepSleepMin": 85,
+        "notes": null,
+        "createdAt": "2026-11-20T05:43:36.000Z"
       }
     ],
     "labResult": [
