@@ -1,12 +1,12 @@
 {
-  "exportedAt": "2026-11-24T15:35:29.394Z",
+  "exportedAt": "2026-11-25T15:20:19.145Z",
   "totalWorkouts": 30,
   "totalBodyStats": 71,
   "totalExercises": 21,
   "totalHealthSamples": 867,
   "totalHolds": 0,
   "totalGymVisits": 10,
-  "totalInjections": 13,
+  "totalInjections": 14,
   "latestWeightSample": {
     "id": "cmwswy1ps0015ly6ialdc22cq",
     "type": "weight",
@@ -21616,6 +21616,19 @@
         "penId": null,
         "notes": null,
         "createdAt": "2026-11-17T20:01:24.270Z"
+      },
+      {
+        "id": "cmwv27zqq0000kak4f7dbwlqw",
+        "at": "2026-11-24T19:00:28.459Z",
+        "doseMg": 5,
+        "penMg": null,
+        "clicks": null,
+        "site": "abdomen-left",
+        "onSchedule": false,
+        "needleInfo": null,
+        "penId": null,
+        "notes": null,
+        "createdAt": "2026-11-24T19:00:28.462Z"
       }
     ],
     "symptomLog": [
@@ -25663,15 +25676,15 @@
       {
         "id": "cmwirsly10002oy9nqjc88jsq",
         "day": "2026-11-24T00:00:00.000Z",
-        "proteinG": 166,
+        "proteinG": 132,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 2316,
-        "carbsG": 182,
-        "fatG": 98,
+        "kcal": 1577,
+        "carbsG": 128,
+        "fatG": 65,
         "flags": null,
-        "notes": "Planned: delivery 1066/65/89/50 (scrambled egg and cheese breakfast) + standing dinner 630/67/57/12 (200 g chicken + rice). Dose day (last dose of current pen). Delivery to office. · early morning ~5:50: Shawarma House meat (awsal) wrap with Greek yogurt sauce, label 620/34P/36C/36F (badge shows 440; description macros match 620)",
+        "notes": "Early ~5:50: Shawarma House meat wrap 620/34/36/36. Delivery: only lunch eaten — chicken broccoli pasta 557/40/61/17 (breakfast 294/17/16/18 and chocolate cranberry snack 215/8/12/15 skipped). Dinner (replaces standing chicken+rice): high-protein grilled tawook platter, no dressing, ~90% of chicken+",
         "createdAt": "2026-11-16T04:35:20.474Z"
       },
       {
