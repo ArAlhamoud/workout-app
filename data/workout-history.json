@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-26T14:47:12.866Z",
+  "exportedAt": "2026-11-27T14:45:58.249Z",
   "totalWorkouts": 30,
   "totalBodyStats": 72,
   "totalExercises": 21,
@@ -25883,6 +25883,34 @@
         "flags": null,
         "notes": "Delivery 1197/67/122/49 (egg and mixed cheese omelette breakfast) eaten as planned. Dinner (replaces standing chicken+rice): Jan grilled chicken sandwich (menu 409 kcal looks low; \"80 g protein\" likely the patty weight; est ~475/30/40/18) + extra grilled chicken patty (~80 g, est ~150/25/0/4) = ~625",
         "createdAt": "2026-11-16T04:35:20.477Z"
+      },
+      {
+        "id": "cmwy9n9370001iffr4cra1wkk",
+        "day": "2026-11-26T00:00:00.000Z",
+        "proteinG": 77,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1537,
+        "carbsG": 141,
+        "fatG": 75,
+        "flags": null,
+        "notes": "Half portion lamb Konya with smoked rice & caramelised onion (menu 2,094 → ~1,047; est 45P/95C/55F). Subway 6-inch rotisserie-style chicken with cheese and mayo (~490/32/46/20).",
+        "createdAt": "2026-11-27T00:51:36.259Z"
+      },
+      {
+        "id": "cmwz1yjd20000tw4c5unkr890",
+        "day": "2026-11-27T00:00:00.000Z",
+        "proteinG": 56,
+        "waterMl": null,
+        "fiberG": null,
+        "meals": null,
+        "kcal": 1245,
+        "carbsG": 72,
+        "fatG": 82,
+        "flags": null,
+        "notes": "Friday lunch (menu kcal), half of each: chicken milanese 1470 → 735 (est 45/30/48); fries WITHOUT truffle/parmesan and aioli (menu 800 incl. toppings → plain ~480) → ~240 (est 4/30/12); gem lettuce salad 540 → 270 (est 7/12/22).",
+        "createdAt": "2026-11-27T14:04:12.038Z"
       }
     ]
   }
