@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-11-27T14:45:58.249Z",
+  "exportedAt": "2026-11-28T13:57:04.061Z",
   "totalWorkouts": 30,
   "totalBodyStats": 72,
   "totalExercises": 21,
@@ -25901,15 +25901,15 @@
       {
         "id": "cmwz1yjd20000tw4c5unkr890",
         "day": "2026-11-27T00:00:00.000Z",
-        "proteinG": 56,
+        "proteinG": 103,
         "waterMl": null,
         "fiberG": null,
         "meals": null,
-        "kcal": 1245,
-        "carbsG": 72,
-        "fatG": 82,
+        "kcal": 1980,
+        "carbsG": 150,
+        "fatG": 106,
         "flags": null,
-        "notes": "Friday lunch (menu kcal), half of each: chicken milanese 1470 → 735 (est 45/30/48); fries WITHOUT truffle/parmesan and aioli (menu 800 incl. toppings → plain ~480) → ~240 (est 4/30/12); gem lettuce salad 540 → 270 (est 7/12/22).",
+        "notes": "Friday lunch (menu kcal), half of each: chicken milanese 1470 → 735 (est 45/30/48); fries WITHOUT truffle/parmesan and aioli (menu 800 incl. toppings → plain ~480) → ~240 (est 4/30/12); gem lettuce salad 540 → 270 (est 7/12/22). · dinner (home): steak ~150 g cooked (est 375/40/0/23) + white rice ~1.5 cups (est 360/7/78/1); no stew",
         "createdAt": "2026-11-27T14:04:12.038Z"
       }
     ]
